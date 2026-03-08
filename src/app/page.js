@@ -16,6 +16,7 @@ import {
   assignRhythmToBars,
   getRecommendedScalesFromQuality,
   transposeChart,
+  applyScaleFilter,
 } from "@/lib/music/tonal"
 import {
   analyzeProgressionContext,
@@ -75,6 +76,7 @@ export default function Home() {
   const [showFretboard, setShowFretboard] = useState(false)
   const [fretboardView, setFretboardView] = useState("chord")
   const [fretboardTuning, setFretboardTuning] = useState("Standard")
+  const [scaleFilter, setScaleFilter] = useState(null)  // null | "pentatonic" | "hexatonic" | "bebop"
 
   const selectedBar = bars[selectedIndex]
 
@@ -137,9 +139,13 @@ export default function Home() {
   }, [bars, selectedIndex])
 
   const scaleData = useMemo(() => {
+    const tonic = selectedBar.userTonic ?? selectedBar.root
+    if (selectedBar.userScale) {
+      return [{ name: selectedBar.userScale, notes: scaleNotes(selectedBar.userScale, tonic) }]
+    }
     return recommendedScales.map((scaleName) => ({
       name: scaleName,
-      notes: scaleNotes(scaleName, selectedBar.root),
+      notes: scaleNotes(scaleName, tonic),
     }))
   }, [selectedBar, recommendedScales])
 
@@ -149,12 +155,19 @@ export default function Home() {
   const fretboardInfo = useMemo(() => chordInfo(fretboardBar.symbol), [fretboardBar])
 
   const fretboardScaleData = useMemo(() => {
+    const tonic = fretboardBar.userTonic ?? fretboardBar.root
+    if (fretboardBar.userScale) {
+      return [{ name: fretboardBar.userScale, notes: scaleNotes(fretboardBar.userScale, tonic) }]
+    }
     const scales = getRecommendedScalesFromQuality(fretboardBar.quality)
-    return scales.map((scaleName) => ({
-      name: scaleName,
-      notes: scaleNotes(scaleName, fretboardBar.root),
-    }))
+    return scales.map((scaleName) => ({ name: scaleName, notes: scaleNotes(scaleName, tonic) }))
   }, [fretboardBar])
+
+  const displayedScaleNotes = useMemo(() => {
+    const raw = fretboardScaleData[0]?.notes ?? []
+    const tonic = fretboardBar.userTonic ?? fretboardBar.root
+    return applyScaleFilter(raw, tonic, fretboardBar.quality, scaleFilter)
+  }, [fretboardScaleData, fretboardBar, scaleFilter])
 
   const romanNumerals = useMemo(() => {
     return bars.map((bar) => chordToRoman(bar.root, bar.quality, keyRoot, keyMode))
@@ -711,6 +724,21 @@ export default function Home() {
                 ))}
               </div>
 
+              <div style={{ display: "flex", gap: "4px" }}>
+                {["pentatonic","hexatonic","bebop"].map((f) => (
+                  <button key={f} onClick={() => setScaleFilter(scaleFilter === f ? null : f)} style={{
+                    padding: "4px 10px", borderRadius: "6px", fontSize: "0.8rem", cursor: "pointer",
+                    background: scaleFilter === f ? "rgba(139,211,168,0.18)" : "rgba(255,255,255,0.05)",
+                    border: scaleFilter === f ? "1px solid #8bd3a8" : "1px solid rgba(255,255,255,0.12)",
+                    color: scaleFilter === f ? "#8bd3a8" : "rgba(255,255,255,0.55)",
+                    fontWeight: scaleFilter === f ? 700 : 400,
+                    textTransform: "capitalize",
+                  }}>
+                    {f}
+                  </button>
+                ))}
+              </div>
+
               <select
                 value={fretboardTuning}
                 onChange={(e) => setFretboardTuning(e.target.value)}
@@ -723,14 +751,18 @@ export default function Home() {
 
               <div style={{ fontSize: "0.88rem", opacity: 0.6, marginLeft: "auto" }}>
                 {fretboardBar.symbol}
-                {fretboardView === "scale" && fretboardScaleData[0] ? ` · ${fretboardScaleData[0].name}` : ""}
+                {fretboardBar.userTonic && fretboardBar.userTonic !== fretboardBar.root
+                  ? ` (${fretboardBar.userTonic})` : ""}
+                {fretboardView === "scale"
+                  ? ` · ${scaleFilter ?? fretboardScaleData[0]?.name ?? ""}`
+                  : ""}
               </div>
             </div>
 
             <Fretboard
               chordNotes={fretboardInfo.notes || []}
-              rootNote={fretboardBar.root}
-              scaleNotes={fretboardScaleData[0]?.notes || []}
+              rootNote={fretboardBar.userTonic ?? fretboardBar.root}
+              scaleNotes={displayedScaleNotes}
               view={fretboardView}
               tuningName={fretboardTuning}
             />
@@ -928,8 +960,44 @@ export default function Home() {
                     Phrase: {approach?.phrase?.length ? approach.phrase.join(" → ") : "—"}
                   </div>
 
-                  <div style={{ fontSize: "0.78rem", color: "#8bd3a8", marginBottom: "10px" }}>
+                  <div style={{ fontSize: "0.78rem", color: "#8bd3a8", marginBottom: "8px" }}>
                     Rhythm: {rhythm?.rhythm || "—"}
+                  </div>
+
+                  {/* Per-bar tonic / scale override */}
+                  <div style={{
+                    marginBottom: "8px", paddingTop: "6px",
+                    borderTop: "1px solid rgba(255,255,255,0.07)",
+                  }}>
+                    <div style={{ fontSize: "0.66rem", opacity: 0.45, marginBottom: "3px" }}>SCALE</div>
+                    <div style={{ display: "flex", gap: "3px" }} onClick={(e) => e.stopPropagation()}>
+                      <select
+                        value={bar.userTonic ?? ""}
+                        onChange={(e) => updateBar(index, { userTonic: e.target.value || undefined })}
+                        style={{
+                          flex: 1, padding: "2px 3px", borderRadius: "4px", fontSize: "0.72rem",
+                          background: "#171722", border: "1px solid rgba(255,255,255,0.1)",
+                          color: bar.userTonic ? "#e0b44c" : "rgba(255,255,255,0.45)",
+                        }}
+                      >
+                        <option value="">root</option>
+                        {ROOTS.map(r => <option key={r} value={r}>{r}</option>)}
+                      </select>
+                      <select
+                        value={bar.userScale ?? ""}
+                        onChange={(e) => updateBar(index, { userScale: e.target.value || undefined })}
+                        style={{
+                          flex: 2, padding: "2px 3px", borderRadius: "4px", fontSize: "0.72rem",
+                          background: "#171722", border: "1px solid rgba(255,255,255,0.1)",
+                          color: bar.userScale ? "#e0b44c" : "rgba(255,255,255,0.45)",
+                        }}
+                      >
+                        <option value="">auto</option>
+                        {getRecommendedScalesFromQuality(bar.quality).map(s => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
 
                   {/* Add bar button */}

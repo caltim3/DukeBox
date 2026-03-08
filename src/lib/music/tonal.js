@@ -349,6 +349,77 @@ export function transposeChart(bars, fromRoot, toRoot) {
   })
 }
 
+// ─── Scale filter utilities (pentatonic / hexatonic / bebop) ──────────────────
+
+const CHROMATIC_NOTES = ["C","Db","D","Eb","E","F","Gb","G","Ab","A","Bb","B"]
+
+function noteAtSemitones(root, semitones) {
+  const chroma = Note.chroma(root)
+  if (chroma == null) return null
+  return CHROMATIC_NOTES[((chroma + semitones) % 12 + 12) % 12]
+}
+
+function buildFromSemitones(root, list) {
+  return list.map(s => noteAtSemitones(root, s)).filter(Boolean)
+}
+
+/**
+ * Apply a scale filter to the given notes for fretboard display.
+ *
+ * "pentatonic" — replaces notes with a 5-note pentatonic based on quality:
+ *   major types (maj7, maj6, 7) → major pentatonic  1 2 3 5 6
+ *   all other types             → minor pentatonic  1 b3 4 5 b7
+ *
+ * "hexatonic" — Randy Vincent's two hexatonic families:
+ *   melodic-minor family (7alt, min7b5, dim7) → 1 2 b3 5 6 7
+ *   major family (maj7, m7, dom7 inside, etc.) → 1 2 3 5 6 7
+ *
+ * "bebop" — adds one chromatic passing tone to the existing scale:
+ *   dominant (7, 7alt)             → add M7 (between b7 and root)
+ *   major (maj7, maj6)             → add #5 (between P5 and M6)
+ *   minor (min7, min6, m7b5, dim7) → add M7 (between b7 and root)
+ *
+ * @param {string[]} notes   - current scale notes (used only by bebop)
+ * @param {string}   root    - tonic root
+ * @param {string}   quality - chord quality
+ * @param {string|null} filter
+ * @returns {string[]}
+ */
+export function applyScaleFilter(notes, root, quality, filter) {
+  if (!filter) return notes
+
+  switch (filter) {
+    case "pentatonic":
+      if (["maj7","maj6","7"].includes(quality))
+        return buildFromSemitones(root, [0,2,4,7,9])    // major pentatonic: 1 2 3 5 6
+      return buildFromSemitones(root, [0,3,5,7,10])      // minor pentatonic: 1 b3 4 5 b7
+
+    case "hexatonic":
+      if (["7alt","min7b5","dim7"].includes(quality))
+        return buildFromSemitones(root, [0,2,3,7,9,11])  // melodic minor: 1 2 b3 5 6 7
+      return buildFromSemitones(root, [0,2,4,7,9,11])    // major: 1 2 3 5 6 7
+
+    case "bebop": {
+      if (!notes.length) return notes
+      const rootChroma = Note.chroma(root)
+      if (rootChroma == null) return notes
+      const chromas = new Set(notes.map(n => Note.chroma(n)))
+      let passing = null
+      if (["7","7alt"].includes(quality))                         passing = 11  // M7
+      else if (["maj7","maj6"].includes(quality))                 passing = 8   // #5
+      else if (["min7","min6","min7b5","dim7"].includes(quality)) passing = 11  // M7
+      if (passing != null) {
+        const pChroma = (rootChroma + passing) % 12
+        if (!chromas.has(pChroma)) return [...notes, CHROMATIC_NOTES[pChroma]]
+      }
+      return notes
+    }
+
+    default:
+      return notes
+  }
+}
+
 export function phraseToNotationData(approachLines) {
   return approachLines.map((item, index) => {
     const phrase = item.phrase || []
