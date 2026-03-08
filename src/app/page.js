@@ -21,10 +21,11 @@ import {
   analyzeProgressionContext,
   suggestContextualSubstitution,
 } from "@/lib/music/harmony"
-import { FORMS, FORM_NAMES, FORM_CATEGORIES } from "@/lib/music/forms"
+import { FORMS, FORM_CATEGORIES } from "@/lib/music/forms"
 import { chordToRoman } from "@/lib/music/roman"
 import { startPlayback as audioStart, stopAll as audioStop } from "@/lib/music/audio"
-import { COMPING_STYLE_NAMES, DEFAULT_COMPING_STYLE } from "@/lib/music/comping"
+import { COMPING_STYLE_NAMES, DEFAULT_COMPING_STYLE, getVoiceLedVoicing } from "@/lib/music/comping"
+import Fretboard from "@/components/Fretboard"
 
 const INITIAL_BARS = [
   { root: "Bb", quality: "7", symbol: "Bb7",  section: "A" },
@@ -71,6 +72,9 @@ export default function Home() {
   const [compingStyle, setCompingStyle] = useState(DEFAULT_COMPING_STYLE)
   const [userLibrary, setUserLibrary] = useState([])
   const [lastGenChart, setLastGenChart] = useState(null)
+  const [showFretboard, setShowFretboard] = useState(false)
+  const [fretboardView, setFretboardView] = useState("chord")
+  const [fretboardTuning, setFretboardTuning] = useState("Standard")
 
   const selectedBar = bars[selectedIndex]
 
@@ -123,6 +127,10 @@ export default function Home() {
   const selectedRhythm = rhythms[selectedIndex] || null
 
   const recommendedScales = getRecommendedScalesFromQuality(selectedBar.quality)
+
+  const currentVoicing = useMemo(() => {
+    try { return getVoiceLedVoicing(selectedBar.symbol, null, playBass) } catch { return [] }
+  }, [selectedBar, playBass])
 
   const suggestedSub = useMemo(() => {
     return suggestContextualSubstitution(bars, selectedIndex, "inside")
@@ -287,6 +295,13 @@ export default function Home() {
     try { localStorage.setItem("dukebox-library", JSON.stringify(next)) } catch {}
     setSelectedForm(entry.name)
     setLastGenChart(null)
+  }
+
+  function removeFromLibrary(name) {
+    const next = userLibrary.filter((e) => e.name !== name)
+    setUserLibrary(next)
+    try { localStorage.setItem("dukebox-library", JSON.stringify(next)) } catch {}
+    setSelectedForm("Custom")
   }
 
   function stopPlayback() {
@@ -483,6 +498,16 @@ export default function Home() {
               </select>
             </label>
 
+            {userLibrary.some((e) => e.name === selectedForm) && (
+              <button
+                onClick={() => removeFromLibrary(selectedForm)}
+                style={{ ...buttonStyle("#ff8a8a", "#200a0a"), padding: "6px 10px", fontSize: "0.82rem" }}
+                title="Remove this chart from your library"
+              >
+                × Remove
+              </button>
+            )}
+
             <label style={inlineLabelStyle}>
               <span style={{ opacity: 0.7, marginRight: "4px" }}>Key</span>
               <select
@@ -628,6 +653,16 @@ export default function Home() {
             <button onClick={() => setLoopEnd(selectedIndex)} style={buttonStyle("#f0d48a", "#20180d")}>
               Set Loop End
             </button>
+
+            <button
+              onClick={() => setShowFretboard((p) => !p)}
+              style={{
+                ...buttonStyle(showFretboard ? "#e0b44c" : "#7fc8ff", showFretboard ? "#1a1608" : "#10202b"),
+                marginLeft: "auto",
+              }}
+            >
+              {showFretboard ? "Hide Fretboard" : "🎸 Fretboard"}
+            </button>
           </div>
 
           <div style={eyebrowStyle}>NOTATION LANE</div>
@@ -643,6 +678,57 @@ export default function Home() {
             Loop range: bars {Math.min(loopStart, loopEnd) + 1} to {Math.max(loopStart, loopEnd) + 1}
           </div>
         </div>
+
+        {showFretboard && (
+          <div style={{ ...panelStyle, marginBottom: "16px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "10px", flexWrap: "wrap" }}>
+              <div style={{ ...eyebrowStyle, marginBottom: 0 }}>FRETBOARD</div>
+
+              <div style={{ display: "flex", gap: "4px" }}>
+                {["chord", "scale"].map((v) => (
+                  <button key={v} onClick={() => setFretboardView(v)} style={{
+                    padding: "4px 10px", borderRadius: "6px", fontSize: "0.8rem", cursor: "pointer",
+                    background: fretboardView === v ? "rgba(224,180,76,0.18)" : "rgba(255,255,255,0.05)",
+                    border: fretboardView === v ? "1px solid #e0b44c" : "1px solid rgba(255,255,255,0.12)",
+                    color: fretboardView === v ? "#e0b44c" : "rgba(255,255,255,0.55)",
+                    fontWeight: fretboardView === v ? 700 : 400,
+                  }}>
+                    {v === "chord" ? "Chord" : "Scale"}
+                  </button>
+                ))}
+              </div>
+
+              <select
+                value={fretboardTuning}
+                onChange={(e) => setFretboardTuning(e.target.value)}
+                style={{ ...selectStyle, width: "auto", padding: "4px 8px", fontSize: "0.82rem" }}
+              >
+                {["Standard", "Drop D", "Open G", "DADGAD"].map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+
+              <div style={{ fontSize: "0.88rem", opacity: 0.6, marginLeft: "auto" }}>
+                {bars[selectedIndex].symbol}
+                {fretboardView === "scale" && scaleData[0] ? ` · ${scaleData[0].name}` : ""}
+              </div>
+            </div>
+
+            <Fretboard
+              chordNotes={info.notes || []}
+              rootNote={selectedBar.root}
+              scaleNotes={scaleData[0]?.notes || []}
+              view={fretboardView}
+              tuningName={fretboardTuning}
+            />
+
+            <div style={{ marginTop: "8px", display: "flex", gap: "14px", fontSize: "0.78rem", opacity: 0.55 }}>
+              <span><span style={{ color: "#BD2031" }}>●</span> Root</span>
+              <span><span style={{ color: "#3A9C5A" }}>●</span> Chord tone</span>
+              <span><span style={{ color: "#3A78C9" }}>●</span> Scale tone</span>
+            </div>
+          </div>
+        )}
 
         <div style={panelStyle}>
           <div style={eyebrowStyle}>MELODY LANE</div>
@@ -951,6 +1037,27 @@ export default function Home() {
           color="#e0b44c"
         />
         <InfoBlock title="INTERVALS" value={info.intervals?.join("  ·  ") || "None"} />
+
+        {currentVoicing.length > 0 && (
+          <div style={{ marginBottom: "20px" }}>
+            <div style={eyebrowSmallStyle}>PIANO VOICING</div>
+            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+              {currentVoicing.map((note, i) => (
+                <span key={i} style={{
+                  padding: "4px 9px", borderRadius: "7px", fontSize: "0.95rem", fontWeight: 700,
+                  background: i === 0 && !playBass ? "rgba(189,32,49,0.18)" : "rgba(201,167,255,0.12)",
+                  border: i === 0 && !playBass ? "1px solid rgba(189,32,49,0.4)" : "1px solid rgba(201,167,255,0.25)",
+                  color: i === 0 && !playBass ? "#ff7a7a" : "#c9a7ff",
+                }}>
+                  {note}
+                </span>
+              ))}
+            </div>
+            <div style={{ marginTop: "5px", fontSize: "0.75rem", opacity: 0.45 }}>
+              {playBass ? "rootless voicing" : "with root"}
+            </div>
+          </div>
+        )}
 
         {selectedMotion && (
           <div style={{ marginBottom: "20px" }}>

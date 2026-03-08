@@ -137,7 +137,7 @@ export function getVoiceLedVoicing(symbol, prevVoicing = null, rootless = false)
   const drop2 = generateDrop2(baseNotes)
   if (drop2) candidates.push(drop2)
 
-  const startOctave = rootless ? 4 : 3
+  const startOctave = 3  // rootless or not, sit in the 3–4 range (jazz comp register)
 
   const scored = []
   for (const pcVoicing of candidates) {

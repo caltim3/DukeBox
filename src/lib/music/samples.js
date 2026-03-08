@@ -25,49 +25,59 @@ const DRUM_URLS = {
   ride:         "/samples/drums/ride.mp3",
 }
 
-// Bass uses the synth — add BASS_URLS + _bass here when good samples are ready
+// Bass always uses the synth — add BASS_URLS + _bass here when good samples are ready
 
 let _piano = null
 let _drums  = null
 let _loadPromise = null
 
 /**
- * Load piano and drum samplers independently.
- * Each loads in its own try/catch so one failure won't affect the other.
+ * Load piano and drum samplers.
+ * Both instruments are created synchronously (all URLs registered) before the
+ * single Tone.loaded() call, so there's no race between the two buffers sets.
+ * Assigns whichever buffers succeeded even if some files 404'd.
  * Safe to call multiple times — reuses the in-flight promise.
  */
 export async function initSamplers() {
   if (_loadPromise) return _loadPromise
 
-  _loadPromise = Promise.allSettled([
-    // Piano
-    (async () => {
-      const s = new Tone.Sampler({ urls: PIANO_URLS, release: 1.2 }).toDestination()
-      s.volume.value = -14
+  _loadPromise = (async () => {
+    // 1. Create both instruments synchronously — registers all URLs with Tone
+    let pianoRef = null
+    let drumsRef = null
+
+    try {
+      pianoRef = new Tone.Sampler({ urls: PIANO_URLS, release: 1.2 }).toDestination()
+      pianoRef.volume.value = -14
+    } catch (err) {
+      console.warn("DukeBox: Piano sampler creation failed.", err)
+    }
+
+    try {
+      drumsRef = new Tone.Players({ urls: DRUM_URLS, fadeOut: 0.04 }).toDestination()
+      drumsRef.volume.value = -10
+    } catch (err) {
+      console.warn("DukeBox: Drums player creation failed.", err)
+    }
+
+    // 2. Single await — waits for ALL registered buffers together
+    try {
       await Tone.loaded()
-      _piano = s
-    })(),
-    // Drums
-    (async () => {
-      const p = new Tone.Players({ urls: DRUM_URLS, fadeOut: 0.04 }).toDestination()
-      p.volume.value = -10
-      await Tone.loaded()
-      _drums = p
-    })(),
-  ]).then((results) => {
-    const labels = ["Piano", "Drums"]
-    results.forEach((r, i) => {
-      if (r.status === "rejected") {
-        console.warn(`DukeBox: ${labels[i]} samples failed — using synth fallback.`, r.reason)
-      }
-    })
-  })
+    } catch (err) {
+      // Some files may have 404'd; assign anyway — Sampler interpolates from neighbours
+      console.warn("DukeBox: One or more sample files failed to load.", err)
+    }
+
+    // 3. Assign regardless of partial failures — null stays null if creation failed
+    _piano = pianoRef
+    _drums = drumsRef
+  })()
 
   return _loadPromise
 }
 
 /**
- * Returns { piano, drums } — null for any that failed to load.
+ * Returns { piano, drums } — null for any that failed to create.
  * Bass is intentionally omitted; the walking-bass synth is always used.
  */
 export function getSamplers() {
