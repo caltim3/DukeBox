@@ -143,6 +143,19 @@ export default function Home() {
     }))
   }, [selectedBar, recommendedScales])
 
+  // Fretboard tracks the playing chord during playback, otherwise follows selection
+  const fretboardBar = (isPlaying && playheadIndex !== null) ? bars[playheadIndex] : selectedBar
+
+  const fretboardInfo = useMemo(() => chordInfo(fretboardBar.symbol), [fretboardBar])
+
+  const fretboardScaleData = useMemo(() => {
+    const scales = getRecommendedScalesFromQuality(fretboardBar.quality)
+    return scales.map((scaleName) => ({
+      name: scaleName,
+      notes: scaleNotes(scaleName, fretboardBar.root),
+    }))
+  }, [fretboardBar])
+
   const romanNumerals = useMemo(() => {
     return bars.map((bar) => chordToRoman(bar.root, bar.quality, keyRoot, keyMode))
   }, [bars, keyRoot, keyMode])
@@ -709,15 +722,15 @@ export default function Home() {
               </select>
 
               <div style={{ fontSize: "0.88rem", opacity: 0.6, marginLeft: "auto" }}>
-                {bars[selectedIndex].symbol}
-                {fretboardView === "scale" && scaleData[0] ? ` · ${scaleData[0].name}` : ""}
+                {fretboardBar.symbol}
+                {fretboardView === "scale" && fretboardScaleData[0] ? ` · ${fretboardScaleData[0].name}` : ""}
               </div>
             </div>
 
             <Fretboard
-              chordNotes={info.notes || []}
-              rootNote={selectedBar.root}
-              scaleNotes={scaleData[0]?.notes || []}
+              chordNotes={fretboardInfo.notes || []}
+              rootNote={fretboardBar.root}
+              scaleNotes={fretboardScaleData[0]?.notes || []}
               view={fretboardView}
               tuningName={fretboardTuning}
             />
