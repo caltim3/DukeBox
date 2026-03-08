@@ -1,5 +1,7 @@
 import * as Tone from "tone"
 import { Chord, Note } from "@tonaljs/tonal"
+import { initSamplers, getSamplers } from "./samples"
+import { COMPING_STYLES, DEFAULT_COMPING_STYLE, getVoiceLedVoicing } from "./comping"
 
 const JAZZ_SPELLING = {
   0: "C", 1: "Db", 2: "D", 3: "Eb", 4: "E",
@@ -205,12 +207,14 @@ export async function startPlayback({
   playBass      = true,
   playDrums     = true,
   playMelody    = false,
+  compingStyle  = DEFAULT_COMPING_STYLE,
   onBar         = null,
   onStop        = null,
 }) {
   await Tone.start()
   stopAll()
   ensureSynths()
+  await initSamplers()
 
   const n    = bars.length
   const end  = `${n}:0:0`
@@ -239,18 +243,34 @@ export async function startPlayback({
     scheduledIds.push(id)
   }
 
-  // Piano chords (rootless when bass is playing)
+  // Piano chords — voice-led, pianist comping style (rootless when bass is playing)
   if (playChords) {
-    const events = bars.map((bar, i) => ({
-      time:  `${i}:0:0`,
-      notes: chordVoicing(bar.symbol, playBass),
-    }))
+    const hitPlan = COMPING_STYLES[compingStyle] ?? COMPING_STYLES[DEFAULT_COMPING_STYLE]
+    const events = []
+    let prevVoicing = null
+
+    bars.forEach((bar, i) => {
+      const voicing = getVoiceLedVoicing(bar.symbol, prevVoicing, playBass)
+      prevVoicing = voicing
+      hitPlan.forEach(hit => {
+        const beatFrac = hit.t * 4
+        const beat = Math.floor(beatFrac)
+        const sub  = Math.round((beatFrac - beat) * 4)
+        events.push({ time: `${i}:${beat}:${sub}`, notes: voicing, vel: hit.vel, dur: `${hit.len}m` })
+      })
+    })
+
     makePart(events, (time, ev) => {
-      piano.triggerAttackRelease(ev.notes, "2n", time, 0.45)
+      const s = getSamplers()
+      if (s?.piano) {
+        s.piano.triggerAttackRelease(ev.notes, ev.dur, time, ev.vel)
+      } else {
+        piano.triggerAttackRelease(ev.notes, ev.dur, time, ev.vel)
+      }
     }, loop, end)
   }
 
-  // Walking bass
+  // Walking bass (always uses synth — no bass samples)
   if (playBass) {
     makePart(walkingBass(bars), (time, ev) => {
       bass.triggerAttackRelease(ev.note, ev.dur, time, ev.vel)
@@ -267,9 +287,14 @@ export async function startPlayback({
   // Drums
   if (playDrums) {
     makePart(drumEvents(n), (time, ev) => {
-      if (ev.inst === "ride")  ride.triggerAttackRelease("16n", time, ev.vel)
-      if (ev.inst === "kick")  kick.triggerAttackRelease("C1",  "8n", time, ev.vel)
-      if (ev.inst === "hihat") hihat.triggerAttackRelease("16n", time, ev.vel)
+      const s = getSamplers()
+      if (s?.drums) {
+        try { s.drums.player(ev.inst).start(time) } catch {}
+      } else {
+        if (ev.inst === "ride")  ride.triggerAttackRelease("16n", time, ev.vel)
+        if (ev.inst === "kick")  kick.triggerAttackRelease("C1",  "8n", time, ev.vel)
+        if (ev.inst === "hihat") hihat.triggerAttackRelease("16n", time, ev.vel)
+      }
     }, loop, end)
   }
 

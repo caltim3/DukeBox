@@ -21,9 +21,10 @@ import {
   analyzeProgressionContext,
   suggestContextualSubstitution,
 } from "@/lib/music/harmony"
-import { FORMS, FORM_NAMES } from "@/lib/music/forms"
+import { FORMS, FORM_NAMES, FORM_CATEGORIES } from "@/lib/music/forms"
 import { chordToRoman } from "@/lib/music/roman"
 import { startPlayback as audioStart, stopAll as audioStop } from "@/lib/music/audio"
+import { COMPING_STYLE_NAMES, DEFAULT_COMPING_STYLE } from "@/lib/music/comping"
 
 const INITIAL_BARS = [
   { root: "Bb", quality: "7", symbol: "Bb7",  section: "A" },
@@ -67,6 +68,9 @@ export default function Home() {
   const [generationNotes, setGenerationNotes] = useState(null)
   const [generationError, setGenerationError] = useState(null)
   const [showGenNotes, setShowGenNotes] = useState(false)
+  const [compingStyle, setCompingStyle] = useState(DEFAULT_COMPING_STYLE)
+  const [userLibrary, setUserLibrary] = useState([])
+  const [lastGenChart, setLastGenChart] = useState(null)
 
   const selectedBar = bars[selectedIndex]
 
@@ -211,13 +215,26 @@ export default function Home() {
   function loadForm(formName) {
     setSelectedForm(formName)
     const form = FORMS[formName]
-    if (!form) return
-    setBars(form.bars)
-    setKeyRoot(form.keyRoot)
-    setKeyMode(form.keyMode)
-    setSelectedIndex(0)
-    setLoopStart(0)
-    setLoopEnd(form.bars.length - 1)
+    if (form) {
+      setBars(form.bars)
+      setKeyRoot(form.keyRoot)
+      setKeyMode(form.keyMode)
+      setSelectedIndex(0)
+      setLoopStart(0)
+      setLoopEnd(form.bars.length - 1)
+      if (form.tempo) setTempo(form.tempo)
+      return
+    }
+    const userEntry = userLibrary.find((e) => e.name === formName)
+    if (userEntry) {
+      setBars(userEntry.bars)
+      setKeyRoot(userEntry.keyRoot || "C")
+      setKeyMode(userEntry.keyMode || "major")
+      setSelectedIndex(0)
+      setLoopStart(0)
+      setLoopEnd(userEntry.bars.length - 1)
+      if (userEntry.tempo) setTempo(userEntry.tempo)
+    }
   }
 
   function handleTransposeChart(newKeyRoot) {
@@ -252,11 +269,24 @@ export default function Home() {
         setGenerationNotes(chart.generationNotes)
         setShowGenNotes(true)
       }
+      setLastGenChart({ bars: chart.bars, keyRoot: chart.keyRoot || "C", keyMode: chart.keyMode || "major", tempo: chart.tempo || tempo })
     } catch (err) {
       setGenerationError(err.message)
     } finally {
       setIsGenerating(false)
     }
+  }
+
+  function saveToLibrary() {
+    if (!lastGenChart) return
+    const name = prompt("Name this chart:")
+    if (!name?.trim()) return
+    const entry = { ...lastGenChart, name: name.trim() }
+    const next = [...userLibrary.filter((e) => e.name !== entry.name), entry]
+    setUserLibrary(next)
+    try { localStorage.setItem("dukebox-library", JSON.stringify(next)) } catch {}
+    setSelectedForm(entry.name)
+    setLastGenChart(null)
   }
 
   function stopPlayback() {
@@ -284,6 +314,7 @@ export default function Home() {
         playBass,
         playDrums,
         playMelody,
+        compingStyle,
         onBar:  (localIdx) => setPlayheadIndex(startIndex + localIdx),
         onStop: () => { setIsPlaying(false); setPlayheadIndex(null) },
       })
@@ -294,6 +325,10 @@ export default function Home() {
   }
 
   useEffect(() => {
+    try {
+      const stored = localStorage.getItem("dukebox-library")
+      if (stored) setUserLibrary(JSON.parse(stored))
+    } catch {}
     return () => audioStop()
   }, [])
 
@@ -408,6 +443,14 @@ export default function Home() {
               )}
             </div>
           )}
+
+          {lastGenChart && (
+            <div style={{ marginTop: "10px" }}>
+              <button onClick={saveToLibrary} style={buttonStyle("#8bd3a8", "#132018")}>
+                + Add to My Library
+              </button>
+            </div>
+          )}
         </div>
 
         {/* ── Song Settings ─────────────────────────────────────── */}
@@ -422,9 +465,21 @@ export default function Home() {
                 onChange={(e) => loadForm(e.target.value)}
                 style={{ ...selectStyle, width: "auto", padding: "6px 10px" }}
               >
-                {FORM_NAMES.map((name) => (
-                  <option key={name} value={name}>{name}</option>
+                <option value="Custom">Custom</option>
+                {Object.entries(FORM_CATEGORIES).map(([cat, names]) => (
+                  <optgroup key={cat} label={cat}>
+                    {names.map((name) => (
+                      <option key={name} value={name}>{name}</option>
+                    ))}
+                  </optgroup>
                 ))}
+                {userLibrary.length > 0 && (
+                  <optgroup label="My Library">
+                    {userLibrary.map(({ name }) => (
+                      <option key={name} value={name}>{name}</option>
+                    ))}
+                  </optgroup>
+                )}
               </select>
             </label>
 
@@ -512,6 +567,19 @@ export default function Home() {
             <label style={inlineLabelStyle}>
               <input type="checkbox" checked={playChords} onChange={(e) => setPlayChords(e.target.checked)} />
               Piano
+            </label>
+
+            <label style={inlineLabelStyle}>
+              <span style={{ opacity: 0.7 }}>Pianist</span>
+              <select
+                value={compingStyle}
+                onChange={(e) => setCompingStyle(e.target.value)}
+                style={{ ...selectStyle, width: "auto", padding: "5px 8px", fontSize: "0.85rem" }}
+              >
+                {COMPING_STYLE_NAMES.map((name) => (
+                  <option key={name} value={name}>{name}</option>
+                ))}
+              </select>
             </label>
 
             <label style={inlineLabelStyle}>
