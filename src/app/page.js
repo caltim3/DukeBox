@@ -570,19 +570,18 @@ export default function Home() {
     <main
       style={{
         minHeight: "100vh",
+        width: "100%",
         background: "var(--db-bg)",
         color: "var(--db-text)",
         display: "grid",
-        gridTemplateColumns: "1.45fr 0.85fr",
+        gridTemplateColumns: "minmax(0, 1fr) 340px",
         gap: "24px",
-        padding: "32px",
+        padding: "24px",
         fontFamily: "Arial, sans-serif",
-        maxWidth: "1800px",
-        margin: "0 auto",
         boxSizing: "border-box",
       }}
     >
-      <section style={{ minWidth: 0, overflowX: "hidden" }}>
+      <section style={{ minWidth: 0, overflow: "hidden" }}>
         <div style={{ marginBottom: "8px" }}>
           <h1 style={{ fontSize: "2.5rem", margin: 0, color: "var(--db-accent)" }}>
             The DukeBox
@@ -1436,7 +1435,15 @@ export default function Home() {
         </div>
       </section>
 
-      <aside style={{ ...sidePanelStyle, minWidth: 0 }}>
+      <aside style={{
+        ...sidePanelStyle,
+        minWidth: 0,
+        position: "sticky",
+        top: "24px",
+        alignSelf: "start",
+        maxHeight: "calc(100vh - 48px)",
+        overflowY: "auto",
+      }}>
         <h2 style={{ fontSize: "1.8rem", marginBottom: "12px", color: "var(--db-accent)" }}>
           Bar {selectedIndex + 1}: {selectedBar.symbol}
         </h2>
