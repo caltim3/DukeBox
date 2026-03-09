@@ -30,52 +30,48 @@ import Fretboard from "@/components/Fretboard"
 
 const PALETTES = [
   {
-    name: "Jazz Night",
-    bg: "#0b0b12",         text: "#f3efe6",
-    accent: "#e0b44c",
-    panelBg: "rgba(255,255,255,0.03)",  panelBorder: "rgba(255,255,255,0.08)",
-    sideBg:  "rgba(255,255,255,0.03)",  sideBorder:  "rgba(255,255,255,0.1)",
-    inputBg: "#171722",
+    // BB Dark Mode 1 — deep forest green + gold
+    name: "Forest",
+    bg: "#283618",          text: "#fefae0",
+    accent: "#dda15e",
+    panelBg: "rgba(221,161,94,0.07)",  panelBorder: "rgba(221,161,94,0.22)",
+    sideBg:  "rgba(221,161,94,0.05)",  sideBorder:  "rgba(221,161,94,0.3)",
+    inputBg: "#2c3e1a",
+    cardBg: "rgba(255,255,255,0.04)",  cardBorder: "rgba(255,255,255,0.1)",
+    muted: "rgba(255,255,255,0.4)",
   },
   {
-    name: "Blue Note",
-    bg: "#050d1e",          text: "#e2eeff",
-    accent: "#4fc3f7",
-    panelBg: "rgba(79,195,247,0.04)",   panelBorder: "rgba(79,195,247,0.14)",
-    sideBg:  "rgba(79,195,247,0.04)",   sideBorder:  "rgba(79,195,247,0.18)",
-    inputBg: "#081228",
+    // BB Dark Mode 2 — deep navy + cyan
+    name: "Ocean",
+    bg: "#0a1128",          text: "#fefcfb",
+    accent: "#61dafb",
+    panelBg: "rgba(18,130,162,0.08)",  panelBorder: "rgba(18,130,162,0.28)",
+    sideBg:  "rgba(18,130,162,0.06)",  sideBorder:  "rgba(18,130,162,0.38)",
+    inputBg: "#001844",
+    cardBg: "rgba(255,255,255,0.04)",  cardBorder: "rgba(255,255,255,0.1)",
+    muted: "rgba(255,255,255,0.4)",
   },
   {
-    name: "Kind of Blue",
-    bg: "#0e0f1a",          text: "#d8ddf0",
-    accent: "#7986cb",
-    panelBg: "rgba(121,134,203,0.05)",  panelBorder: "rgba(121,134,203,0.14)",
-    sideBg:  "rgba(121,134,203,0.05)",  sideBorder:  "rgba(121,134,203,0.18)",
-    inputBg: "#121320",
+    // BB Dark Mode 3 — dark olive/khaki + burnt orange
+    name: "Prairie",
+    bg: "#2A2F20",          text: "#F0EFEB",
+    accent: "#D97904",
+    panelBg: "rgba(138,154,91,0.08)",  panelBorder: "rgba(138,154,91,0.24)",
+    sideBg:  "rgba(138,154,91,0.06)",  sideBorder:  "rgba(138,154,91,0.33)",
+    inputBg: "#31372B",
+    cardBg: "rgba(255,255,255,0.04)",  cardBorder: "rgba(255,255,255,0.1)",
+    muted: "rgba(255,255,255,0.4)",
   },
   {
-    name: "After Hours",
-    bg: "#fdf4f7",          text: "#2d1520",
-    accent: "#c2185b",
-    panelBg: "rgba(194,24,91,0.04)",    panelBorder: "rgba(194,24,91,0.12)",
-    sideBg:  "rgba(194,24,91,0.04)",    sideBorder:  "rgba(194,24,91,0.16)",
-    inputBg: "#f5dfe9",
-  },
-  {
-    name: "Autumn Leaves",
-    bg: "#fdf7ee",          text: "#2c1a06",
-    accent: "#e65100",
-    panelBg: "rgba(230,81,0,0.04)",     panelBorder: "rgba(230,81,0,0.12)",
-    sideBg:  "rgba(230,81,0,0.04)",     sideBorder:  "rgba(230,81,0,0.16)",
-    inputBg: "#f5e8d0",
-  },
-  {
-    name: "Smoke & Mirrors",
-    bg: "#f5f5f5",          text: "#1a1a1a",
-    accent: "#546e7a",
-    panelBg: "rgba(0,0,0,0.03)",        panelBorder: "rgba(0,0,0,0.1)",
-    sideBg:  "rgba(0,0,0,0.03)",        sideBorder:  "rgba(0,0,0,0.13)",
-    inputBg: "#e8e8e8",
+    // BB Light Mode — clean daylight
+    name: "Day",
+    bg: "#f0f0f0",          text: "#1a1a1a",
+    accent: "#0056b3",
+    panelBg: "rgba(0,0,0,0.04)",        panelBorder: "rgba(0,0,0,0.12)",
+    sideBg:  "rgba(0,86,179,0.05)",     sideBorder:  "rgba(0,86,179,0.16)",
+    inputBg: "#e0e0e0",
+    cardBg: "rgba(0,0,0,0.05)",         cardBorder: "rgba(0,0,0,0.15)",
+    muted: "rgba(0,0,0,0.4)",
   },
 ]
 
@@ -546,6 +542,9 @@ export default function Home() {
         --db-side-bg: ${palette.sideBg};
         --db-side-border: ${palette.sideBorder};
         --db-input-bg: ${palette.inputBg};
+        --db-card-bg: ${palette.cardBg};
+        --db-card-border: ${palette.cardBorder};
+        --db-muted: ${palette.muted};
       }
     `}</style>
     <main
@@ -1047,12 +1046,12 @@ export default function Home() {
                       ? "1px solid #8bd3a8"
                       : active
                       ? "1px solid #ff9ecb"
-                      : "1px solid rgba(255,255,255,0.08)",
+                      : "1px solid var(--db-card-border)",
                     background: isPlayhead
                       ? "rgba(139,211,168,0.14)"
                       : active
                       ? "rgba(255,158,203,0.08)"
-                      : "rgba(255,255,255,0.03)",
+                      : "var(--db-card-bg)",
                     textAlign: "center",
                   }}
                 >
@@ -1082,17 +1081,17 @@ export default function Home() {
               {[2, 3, 4, 6, 8].map(n => (
                 <button key={n} onClick={() => setGridColumns(n)} style={{
                   padding: "3px 8px", borderRadius: "5px", fontSize: "0.78rem", cursor: "pointer",
-                  background: gridColumns === n ? "rgba(224,180,76,0.18)" : "rgba(255,255,255,0.05)",
-                  border: gridColumns === n ? "1px solid #e0b44c" : "1px solid rgba(255,255,255,0.12)",
-                  color: gridColumns === n ? "#e0b44c" : "rgba(255,255,255,0.45)",
+                  background: gridColumns === n ? "rgba(224,180,76,0.18)" : "var(--db-card-bg)",
+                  border: gridColumns === n ? "1px solid #e0b44c" : "1px solid var(--db-card-border)",
+                  color: gridColumns === n ? "#e0b44c" : "var(--db-muted)",
                   fontWeight: gridColumns === n ? 700 : 400,
                 }}>{n}</button>
               ))}
               <button onClick={() => setScrollMode(p => !p)} style={{
                 padding: "3px 10px", borderRadius: "5px", fontSize: "0.78rem", cursor: "pointer",
-                background: scrollMode ? "rgba(127,200,255,0.18)" : "rgba(255,255,255,0.05)",
-                border: scrollMode ? "1px solid #7fc8ff" : "1px solid rgba(255,255,255,0.12)",
-                color: scrollMode ? "#7fc8ff" : "rgba(255,255,255,0.45)",
+                background: scrollMode ? "rgba(127,200,255,0.18)" : "var(--db-card-bg)",
+                border: scrollMode ? "1px solid #7fc8ff" : "1px solid var(--db-card-border)",
+                color: scrollMode ? "#7fc8ff" : "var(--db-muted)",
                 fontWeight: scrollMode ? 700 : 400,
                 marginLeft: "4px",
               }}>📜 Scroll</button>
@@ -1146,8 +1145,8 @@ export default function Home() {
                               style={{
                                 padding: "10px",
                                 borderRadius: "10px",
-                                background: isPlayhead ? "rgba(139,211,168,0.1)" : isActive ? "rgba(224,180,76,0.08)" : "rgba(255,255,255,0.03)",
-                                border: isPlayhead ? "1px solid rgba(139,211,168,0.25)" : isActive ? "1px solid rgba(224,180,76,0.25)" : "1px solid rgba(255,255,255,0.07)",
+                                background: isPlayhead ? "rgba(139,211,168,0.1)" : isActive ? "rgba(224,180,76,0.08)" : "var(--db-card-bg)",
+                                border: isPlayhead ? "1px solid rgba(139,211,168,0.25)" : isActive ? "1px solid rgba(224,180,76,0.25)" : "1px solid var(--db-card-border)",
                                 cursor: "pointer",
                                 display: "flex", flexDirection: "column",
                                 justifyContent: "center", alignItems: "center", textAlign: "center",
@@ -1241,14 +1240,14 @@ export default function Home() {
                       ? "1px solid #e0b44c"
                       : inLoop && loopEnabled
                       ? "1px solid rgba(240,212,138,0.5)"
-                      : "1px solid rgba(255,255,255,0.12)",
+                      : "1px solid var(--db-card-border)",
                     background: isPlayhead
                       ? "rgba(139,211,168,0.12)"
                       : active
                       ? "rgba(224,180,76,0.12)"
                       : inLoop && loopEnabled
                       ? "rgba(240,212,138,0.06)"
-                      : "rgba(255,255,255,0.04)",
+                      : "var(--db-card-bg)",
                     cursor: "pointer",
                     boxShadow: dragIndex === index ? "0 0 0 2px rgba(127,200,255,0.45)" : "none",
                     position: "relative",
@@ -1275,7 +1274,7 @@ export default function Home() {
                         style={{
                           background: (bar.beats ?? 4) === 2 ? "rgba(127,200,255,0.1)" : "none",
                           border: (bar.beats ?? 4) === 2 ? "1px solid rgba(127,200,255,0.3)" : "none",
-                          color: (bar.beats ?? 4) === 2 ? "#7fc8ff" : "rgba(255,255,255,0.3)",
+                          color: (bar.beats ?? 4) === 2 ? "#7fc8ff" : "var(--db-muted)",
                           cursor: "pointer", fontSize: "0.75rem", padding: "0 4px", lineHeight: 1.6,
                           borderRadius: "4px",
                         }}
@@ -1341,7 +1340,7 @@ export default function Home() {
                   {/* Per-bar tonic / scale override */}
                   <div style={{
                     marginBottom: "8px", paddingTop: "6px",
-                    borderTop: "1px solid rgba(255,255,255,0.07)",
+                    borderTop: "1px solid var(--db-card-border)",
                   }}>
                     <div style={{ fontSize: "0.66rem", opacity: 0.45, marginBottom: "3px" }}>SCALE</div>
                     <div style={{ display: "flex", gap: "3px" }} onClick={(e) => e.stopPropagation()}>
@@ -1350,8 +1349,8 @@ export default function Home() {
                         onChange={(e) => updateBar(index, { userTonic: e.target.value || undefined })}
                         style={{
                           flex: 1, padding: "2px 3px", borderRadius: "4px", fontSize: "0.72rem",
-                          background: "var(--db-input-bg)", border: "1px solid rgba(255,255,255,0.1)",
-                          color: bar.userTonic ? "var(--db-accent)" : "rgba(255,255,255,0.45)",
+                          background: "var(--db-input-bg)", border: "1px solid var(--db-card-border)",
+                          color: bar.userTonic ? "var(--db-accent)" : "var(--db-muted)",
                         }}
                       >
                         <option value="">root</option>
@@ -1362,8 +1361,8 @@ export default function Home() {
                         onChange={(e) => updateBar(index, { userScale: e.target.value || undefined })}
                         style={{
                           flex: 2, padding: "2px 3px", borderRadius: "4px", fontSize: "0.72rem",
-                          background: "var(--db-input-bg)", border: "1px solid rgba(255,255,255,0.1)",
-                          color: bar.userScale ? "var(--db-accent)" : "rgba(255,255,255,0.45)",
+                          background: "var(--db-input-bg)", border: "1px solid var(--db-card-border)",
+                          color: bar.userScale ? "var(--db-accent)" : "var(--db-muted)",
                         }}
                       >
                         <option value="">auto</option>
@@ -1379,9 +1378,9 @@ export default function Home() {
                     onClick={(e) => { e.stopPropagation(); addBar(index) }}
                     style={{
                       width: "100%", padding: "4px 0",
-                      background: "rgba(255,255,255,0.04)",
-                      border: "1px dashed rgba(255,255,255,0.18)",
-                      borderRadius: "6px", color: "rgba(255,255,255,0.4)",
+                      background: "var(--db-card-bg)",
+                      border: "1px dashed var(--db-card-border)",
+                      borderRadius: "6px", color: "var(--db-muted)",
                       cursor: "pointer", fontSize: "0.78rem",
                     }}
                     title="Insert bar after"
