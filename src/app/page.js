@@ -28,6 +28,57 @@ import { startPlayback as audioStart, stopAll as audioStop } from "@/lib/music/a
 import { COMPING_STYLE_NAMES, DEFAULT_COMPING_STYLE, getVoiceLedVoicing } from "@/lib/music/comping"
 import Fretboard from "@/components/Fretboard"
 
+const PALETTES = [
+  {
+    name: "Jazz Night",
+    bg: "#0b0b12",         text: "#f3efe6",
+    accent: "#e0b44c",
+    panelBg: "rgba(255,255,255,0.03)",  panelBorder: "rgba(255,255,255,0.08)",
+    sideBg:  "rgba(255,255,255,0.03)",  sideBorder:  "rgba(255,255,255,0.1)",
+    inputBg: "#171722",
+  },
+  {
+    name: "Blue Note",
+    bg: "#050d1e",          text: "#e2eeff",
+    accent: "#4fc3f7",
+    panelBg: "rgba(79,195,247,0.04)",   panelBorder: "rgba(79,195,247,0.14)",
+    sideBg:  "rgba(79,195,247,0.04)",   sideBorder:  "rgba(79,195,247,0.18)",
+    inputBg: "#081228",
+  },
+  {
+    name: "Kind of Blue",
+    bg: "#0e0f1a",          text: "#d8ddf0",
+    accent: "#7986cb",
+    panelBg: "rgba(121,134,203,0.05)",  panelBorder: "rgba(121,134,203,0.14)",
+    sideBg:  "rgba(121,134,203,0.05)",  sideBorder:  "rgba(121,134,203,0.18)",
+    inputBg: "#121320",
+  },
+  {
+    name: "After Hours",
+    bg: "#110810",          text: "#f5e8ee",
+    accent: "#f06292",
+    panelBg: "rgba(240,98,146,0.04)",   panelBorder: "rgba(240,98,146,0.14)",
+    sideBg:  "rgba(240,98,146,0.04)",   sideBorder:  "rgba(240,98,146,0.18)",
+    inputBg: "#1a0d16",
+  },
+  {
+    name: "Autumn Leaves",
+    bg: "#100c07",          text: "#f5ede0",
+    accent: "#ff8f00",
+    panelBg: "rgba(255,143,0,0.04)",    panelBorder: "rgba(255,143,0,0.14)",
+    sideBg:  "rgba(255,143,0,0.04)",    sideBorder:  "rgba(255,143,0,0.18)",
+    inputBg: "#18120a",
+  },
+  {
+    name: "Smoke & Mirrors",
+    bg: "#0f0f0f",          text: "#e8e8e8",
+    accent: "#b0b0b0",
+    panelBg: "rgba(255,255,255,0.03)",  panelBorder: "rgba(255,255,255,0.1)",
+    sideBg:  "rgba(255,255,255,0.03)",  sideBorder:  "rgba(255,255,255,0.12)",
+    inputBg: "#1a1a1a",
+  },
+]
+
 const INITIAL_BARS = [
   { root: "Bb", quality: "7", symbol: "Bb7",  section: "A" },
   { root: "Eb", quality: "7", symbol: "Eb7",  section: "A" },
@@ -77,6 +128,10 @@ export default function Home() {
   const [fretboardView, setFretboardView] = useState("chord")
   const [fretboardTuning, setFretboardTuning] = useState("Standard")
   const [scaleFilter, setScaleFilter] = useState(null)  // null | "pentatonic" | "hexatonic" | "bebop"
+  const [practiceMode, setPracticeMode] = useState(false)
+  const [paletteIndex, setPaletteIndex] = useState(0)
+
+  const palette = PALETTES[paletteIndex]
 
   const selectedBar = bars[selectedIndex]
 
@@ -246,6 +301,21 @@ export default function Home() {
     setLoopEnd((prev) => Math.max(0, prev - 1))
   }
 
+  function splitBar(index) {
+    const bar = bars[index]
+    if ((bar.beats ?? 4) === 2) {
+      // Already split — restore to full bar
+      updateBar(index, { beats: 4 })
+      return
+    }
+    // Split into two 2-beat half-bars
+    const half1 = { ...bar, beats: 2 }
+    const half2 = { root: bar.root, quality: bar.quality, symbol: bar.symbol, section: bar.section, beats: 2 }
+    setBars((prev) => [...prev.slice(0, index), half1, half2, ...prev.slice(index + 1)])
+    setLoopEnd((prev) => prev + 1)
+    if (selectedIndex > index) setSelectedIndex((s) => s + 1)
+  }
+
   function loadForm(formName) {
     setSelectedForm(formName)
     const form = FORMS[formName]
@@ -348,7 +418,7 @@ export default function Home() {
       await audioStart({
         bars:          slicedBars,
         approachLines: slicedLines,
-        tempo,
+        tempo: practiceMode ? 50 : tempo,
         loop:          loopEnabled,
         swing:         swingAmount,
         playChords,
@@ -374,11 +444,24 @@ export default function Home() {
   }, [])
 
   return (
+    <>
+    <style>{`
+      :root {
+        --db-bg: ${palette.bg};
+        --db-text: ${palette.text};
+        --db-accent: ${palette.accent};
+        --db-panel-bg: ${palette.panelBg};
+        --db-panel-border: ${palette.panelBorder};
+        --db-side-bg: ${palette.sideBg};
+        --db-side-border: ${palette.sideBorder};
+        --db-input-bg: ${palette.inputBg};
+      }
+    `}</style>
     <main
       style={{
         minHeight: "100vh",
-        background: "#0b0b12",
-        color: "#f3efe6",
+        background: "var(--db-bg)",
+        color: "var(--db-text)",
         display: "grid",
         gridTemplateColumns: "1.45fr 0.85fr",
         gap: "24px",
@@ -387,9 +470,45 @@ export default function Home() {
       }}
     >
       <section>
-        <h1 style={{ fontSize: "2.5rem", marginBottom: "8px", color: "#e0b44c" }}>
-          The DukeBox
-        </h1>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "8px" }}>
+          <h1 style={{ fontSize: "2.5rem", margin: 0, color: "var(--db-accent)" }}>
+            The DukeBox
+          </h1>
+          <div style={{ display: "flex", gap: "8px", alignItems: "center", flexShrink: 0 }}>
+            <button
+              onClick={() => setPracticeMode((p) => !p)}
+              style={{
+                padding: "9px 14px",
+                borderRadius: "10px",
+                border: practiceMode ? "1px solid #8bd3a8" : "1px solid rgba(255,255,255,0.18)",
+                background: practiceMode ? "rgba(139,211,168,0.12)" : "rgba(255,255,255,0.05)",
+                color: practiceMode ? "#8bd3a8" : "rgba(255,255,255,0.55)",
+                cursor: "pointer",
+                fontWeight: 700,
+                fontSize: "0.88rem",
+              }}
+              title={practiceMode ? "Click to restore original tempo" : "Slow tempo to 50 BPM for practice"}
+            >
+              {practiceMode ? `🐢 Practice (50 BPM)` : "🎯 Practice Mode"}
+            </button>
+            <button
+              onClick={() => setPaletteIndex((i) => (i + 1) % PALETTES.length)}
+              style={{
+                padding: "9px 14px",
+                borderRadius: "10px",
+                border: "1px solid rgba(255,255,255,0.18)",
+                background: "rgba(255,255,255,0.05)",
+                color: "var(--db-accent)",
+                cursor: "pointer",
+                fontWeight: 700,
+                fontSize: "0.88rem",
+              }}
+              title="Cycle color palette"
+            >
+              🎨 {palette.name}
+            </button>
+          </div>
+        </div>
 
         <p style={{ opacity: 0.75, marginBottom: "24px" }}>
           Drag measures, edit chords, hear the phrase, regenerate ideas, and inspect harmonic context live.
@@ -423,8 +542,8 @@ export default function Home() {
                 padding: "12px",
                 borderRadius: "10px",
                 border: "1px solid rgba(201,167,255,0.2)",
-                background: "#12101f",
-                color: "#f3efe6",
+                background: "var(--db-input-bg)",
+                color: "var(--db-text)",
                 fontSize: "0.95rem",
                 resize: "vertical",
                 minHeight: "80px",
@@ -863,7 +982,7 @@ export default function Home() {
                       fontSize: "0.78rem",
                       fontWeight: 700,
                       letterSpacing: "0.12em",
-                      color: "#e0b44c",
+                      color: "var(--db-accent)",
                       opacity: 0.85,
                       paddingTop: index > 0 ? "10px" : "0",
                       paddingBottom: "4px",
@@ -909,19 +1028,46 @@ export default function Home() {
                 >
                   {/* Bar header row */}
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
-                    <div style={{ fontSize: "0.75rem", opacity: 0.5 }}>BAR {index + 1}</div>
-                    {bars.length > 1 && (
+                    <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                      <div style={{ fontSize: "0.75rem", opacity: 0.5 }}>BAR {index + 1}</div>
+                      {(bar.beats ?? 4) === 2 && (
+                        <div style={{
+                          fontSize: "0.6rem", fontWeight: 700, padding: "1px 4px",
+                          borderRadius: "4px", background: "rgba(127,200,255,0.15)",
+                          border: "1px solid rgba(127,200,255,0.3)", color: "#7fc8ff",
+                          lineHeight: 1.4,
+                        }}>
+                          ½
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ display: "flex", gap: "3px", alignItems: "center" }}>
                       <button
-                        onClick={(e) => { e.stopPropagation(); removeBar(index) }}
+                        onClick={(e) => { e.stopPropagation(); splitBar(index) }}
                         style={{
-                          background: "none", border: "none", color: "rgba(255,100,100,0.6)",
-                          cursor: "pointer", fontSize: "0.9rem", padding: "0 2px", lineHeight: 1,
+                          background: (bar.beats ?? 4) === 2 ? "rgba(127,200,255,0.1)" : "none",
+                          border: (bar.beats ?? 4) === 2 ? "1px solid rgba(127,200,255,0.3)" : "none",
+                          color: (bar.beats ?? 4) === 2 ? "#7fc8ff" : "rgba(255,255,255,0.3)",
+                          cursor: "pointer", fontSize: "0.75rem", padding: "0 4px", lineHeight: 1.6,
+                          borderRadius: "4px",
                         }}
-                        title="Remove bar"
+                        title={(bar.beats ?? 4) === 2 ? "Restore to full bar (4 beats)" : "Split into 2-beat half-bar"}
                       >
-                        ×
+                        {(bar.beats ?? 4) === 2 ? "×2" : "÷2"}
                       </button>
-                    )}
+                      {bars.length > 1 && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); removeBar(index) }}
+                          style={{
+                            background: "none", border: "none", color: "rgba(255,100,100,0.6)",
+                            cursor: "pointer", fontSize: "0.9rem", padding: "0 2px", lineHeight: 1,
+                          }}
+                          title="Remove bar"
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {/* Chord symbol */}
@@ -976,8 +1122,8 @@ export default function Home() {
                         onChange={(e) => updateBar(index, { userTonic: e.target.value || undefined })}
                         style={{
                           flex: 1, padding: "2px 3px", borderRadius: "4px", fontSize: "0.72rem",
-                          background: "#171722", border: "1px solid rgba(255,255,255,0.1)",
-                          color: bar.userTonic ? "#e0b44c" : "rgba(255,255,255,0.45)",
+                          background: "var(--db-input-bg)", border: "1px solid rgba(255,255,255,0.1)",
+                          color: bar.userTonic ? "var(--db-accent)" : "rgba(255,255,255,0.45)",
                         }}
                       >
                         <option value="">root</option>
@@ -988,8 +1134,8 @@ export default function Home() {
                         onChange={(e) => updateBar(index, { userScale: e.target.value || undefined })}
                         style={{
                           flex: 2, padding: "2px 3px", borderRadius: "4px", fontSize: "0.72rem",
-                          background: "#171722", border: "1px solid rgba(255,255,255,0.1)",
-                          color: bar.userScale ? "#e0b44c" : "rgba(255,255,255,0.45)",
+                          background: "var(--db-input-bg)", border: "1px solid rgba(255,255,255,0.1)",
+                          color: bar.userScale ? "var(--db-accent)" : "rgba(255,255,255,0.45)",
                         }}
                       >
                         <option value="">auto</option>
@@ -1043,7 +1189,7 @@ export default function Home() {
       </section>
 
       <aside style={sidePanelStyle}>
-        <h2 style={{ fontSize: "1.8rem", marginBottom: "12px", color: "#e0b44c" }}>
+        <h2 style={{ fontSize: "1.8rem", marginBottom: "12px", color: "var(--db-accent)" }}>
           Bar {selectedIndex + 1}: {selectedBar.symbol}
         </h2>
 
@@ -1241,6 +1387,7 @@ export default function Home() {
         </div>
       </aside>
     </main>
+    </>
   )
 }
 
@@ -1257,22 +1404,22 @@ const panelStyle = {
   marginBottom: "20px",
   padding: "18px",
   borderRadius: "14px",
-  border: "1px solid rgba(255,255,255,0.08)",
-  background: "rgba(255,255,255,0.03)",
+  border: "1px solid var(--db-panel-border)",
+  background: "var(--db-panel-bg)",
 }
 
 const sidePanelStyle = {
-  border: "1px solid rgba(255,255,255,0.1)",
+  border: "1px solid var(--db-side-border)",
   borderRadius: "16px",
   padding: "20px",
-  background: "rgba(255,255,255,0.03)",
+  background: "var(--db-side-bg)",
 }
 
 const scaleCardStyle = {
   padding: "12px",
   borderRadius: "10px",
-  border: "1px solid rgba(255,255,255,0.08)",
-  background: "rgba(255,255,255,0.03)",
+  border: "1px solid var(--db-panel-border)",
+  background: "var(--db-panel-bg)",
 }
 
 function buttonStyle(color, bg) {
@@ -1291,8 +1438,8 @@ const selectStyle = {
   width: "100%",
   padding: "10px",
   borderRadius: "8px",
-  background: "#171722",
-  color: "#f3efe6",
+  background: "var(--db-input-bg)",
+  color: "var(--db-text)",
   border: "1px solid rgba(255,255,255,0.12)",
 }
 

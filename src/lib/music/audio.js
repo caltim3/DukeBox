@@ -108,10 +108,27 @@ function chordVoicing(symbol, rootless = false) {
   return assignOctaves(voice, rootless ? 4 : 3)
 }
 
+// ─── Bar timing helpers (supports 2-beat "split" bars) ───────────────────────
+function computeBarTiming(bars) {
+  let totalBeats = 0
+  return bars.map(bar => {
+    const beats   = bar.beats ?? 4
+    const measure = Math.floor(totalBeats / 4)
+    const beat    = totalBeats % 4
+    totalBeats   += beats
+    return { measure, beat, beats, time: `${measure}:${beat}:0` }
+  })
+}
+
+function totalBarBeats(bars) {
+  return bars.reduce((sum, bar) => sum + (bar.beats ?? 4), 0)
+}
+
 // ─── Walking bass ─────────────────────────────────────────────────────────────
-function walkingBass(bars) {
+function walkingBass(bars, timing) {
   const events = []
   bars.forEach((bar, b) => {
+    const { measure, beat: startBeat, beats } = timing[b]
     const chord = Chord.get(bar.symbol)
     const notes = chord.notes || [bar.root]
     const ivls  = chord.intervals || []
@@ -120,30 +137,45 @@ function walkingBass(bars) {
     const fifth   = notes.find((_, i) => ivls[i] === "5P")          || root
     const third   = notes.find((_, i) => ivls[i]?.startsWith("3"))  || root
 
-    // Beat 4: chromatic half-step below next chord root
     const nextRoot = bars[b + 1]?.root ?? root
     const nc = Note.chroma(nextRoot)
     const approach = nc != null ? JAZZ_SPELLING[((nc - 1) + 12) % 12] : root
 
-    events.push({ time: `${b}:0:0`, note: `${root}2`,    dur: "4n", vel: 0.80 })
-    events.push({ time: `${b}:1:0`, note: `${fifth}2`,   dur: "4n", vel: 0.65 })
-    events.push({ time: `${b}:2:0`, note: `${third}2`,   dur: "4n", vel: 0.70 })
-    events.push({ time: `${b}:3:0`, note: `${approach}2`, dur: "4n", vel: 0.75 })
+    const noteSeq = beats === 2
+      ? [`${root}2`, `${approach}2`]
+      : [`${root}2`, `${fifth}2`, `${third}2`, `${approach}2`]
+    const velSeq  = beats === 2
+      ? [0.80, 0.75]
+      : [0.80, 0.65, 0.70, 0.75]
+
+    noteSeq.forEach((note, idx) => {
+      const absbeat = startBeat + idx
+      const m  = measure + Math.floor(absbeat / 4)
+      const bt = absbeat % 4
+      events.push({ time: `${m}:${bt}:0`, note, dur: "4n", vel: velSeq[idx] })
+    })
   })
   return events
 }
 
 // ─── Melody (approach lines) ──────────────────────────────────────────────────
-function melodyEvents(approachLines) {
+function melodyEvents(approachLines, timing) {
   const events = []
   approachLines.forEach((line, b) => {
     const phrase = line?.phrase || []
     if (!phrase.length) return
-    // Spread notes across beats: 1 note→beat0, 2 notes→beats 0&2, 3 notes→beats 0,1,2
-    const positions = phrase.length === 1 ? [0] : phrase.length === 2 ? [0, 2] : [0, 1, 2]
+    const { measure, beat: startBeat, beats } = timing[b]
+    // 2-beat bar: 1 note→beat0, 2 notes→beats 0&1
+    // 4-beat bar: 1 note→beat0, 2 notes→beats 0&2, 3 notes→beats 0,1,2
+    const positions = beats === 2
+      ? phrase.length === 1 ? [0] : [0, 1]
+      : phrase.length === 1 ? [0] : phrase.length === 2 ? [0, 2] : [0, 1, 2]
     phrase.forEach((noteName, idx) => {
       if (Note.chroma(noteName) == null) return
-      events.push({ time: `${b}:${positions[idx]}:0`, note: `${noteName}5`, dur: "4n", vel: 0.55 })
+      const absbeat = startBeat + (positions[idx] ?? 0)
+      const m  = measure + Math.floor(absbeat / 4)
+      const bt = absbeat % 4
+      events.push({ time: `${m}:${bt}:0`, note: `${noteName}5`, dur: "4n", vel: 0.55 })
     })
   })
   return events
@@ -155,9 +187,10 @@ const RIDE_V  = [0.55, 0.30, 0.55, 0,    0.55, 0.30, 0.55, 0   ]
 const KICK_V  = [0.75, 0,    0,    0,    0,    0,    0,    0   ]
 const HIHAT_V = [0,    0,    0.60, 0,    0,    0,    0.60, 0   ]
 
-function drumEvents(numBars) {
+function drumEvents(totalBeats) {
   const events = []
-  for (let b = 0; b < numBars; b++) {
+  const numMeasures = Math.ceil(totalBeats / 4)
+  for (let b = 0; b < numMeasures; b++) {
     for (let s = 0; s < 8; s++) {
       const beat = Math.floor(s / 2)
       const sub  = (s % 2) * 2   // sixteenth position: 0 or 2
@@ -216,9 +249,12 @@ export async function startPlayback({
   ensureSynths()
   await initSamplers()
 
-  const n    = bars.length
-  const end  = `${n}:0:0`
-  const tr   = Tone.getTransport()
+  const timing   = computeBarTiming(bars)
+  const totalBts = totalBarBeats(bars)
+  const endM     = Math.floor(totalBts / 4)
+  const endB     = totalBts % 4
+  const end      = endB === 0 ? `${endM}:0:0` : `${endM}:${endB}:0`
+  const tr       = Tone.getTransport()
   const draw = Tone.getDraw()
 
   tr.bpm.value        = tempo
@@ -229,8 +265,8 @@ export async function startPlayback({
   if (loop) { tr.loopStart = 0; tr.loopEnd = end }
 
   // Bar-change UI callbacks
-  bars.forEach((_, i) => {
-    const id = tr.schedule(time => draw.schedule(() => onBar?.(i), time), `${i}:0:0`)
+  timing.forEach((t, i) => {
+    const id = tr.schedule(time => draw.schedule(() => onBar?.(i), time), t.time)
     scheduledIds.push(id)
   })
 
@@ -250,14 +286,23 @@ export async function startPlayback({
     let prevVoicing = null
 
     bars.forEach((bar, i) => {
+      const { measure, beat: barBeat, beats } = timing[i]
       const voicing = getVoiceLedVoicing(bar.symbol, prevVoicing, playBass)
       prevVoicing = voicing
-      hitPlan.forEach(hit => {
-        const beatFrac = hit.t * 4
-        const beat = Math.floor(beatFrac)
-        const sub  = Math.round((beatFrac - beat) * 4)
-        events.push({ time: `${i}:${beat}:${sub}`, notes: voicing, vel: hit.vel, dur: `${hit.len}m` })
-      })
+      if (beats === 2) {
+        // Half-bar: single hit covering the whole 2-beat span
+        events.push({ time: `${measure}:${barBeat}:0`, notes: voicing, vel: 0.65, dur: "2n" })
+      } else {
+        hitPlan.forEach(hit => {
+          const beatFrac = hit.t * 4
+          const beat = Math.floor(beatFrac)
+          const sub  = Math.round((beatFrac - beat) * 4)
+          const absbeat = barBeat + beat
+          const m  = measure + Math.floor(absbeat / 4)
+          const bt = absbeat % 4
+          events.push({ time: `${m}:${bt}:${sub}`, notes: voicing, vel: hit.vel, dur: `${hit.len}m` })
+        })
+      }
     })
 
     makePart(events, (time, ev) => {
@@ -272,21 +317,21 @@ export async function startPlayback({
 
   // Walking bass (always uses synth — no bass samples)
   if (playBass) {
-    makePart(walkingBass(bars), (time, ev) => {
+    makePart(walkingBass(bars, timing), (time, ev) => {
       bass.triggerAttackRelease(ev.note, ev.dur, time, ev.vel)
     }, loop, end)
   }
 
   // Melody lead
   if (playMelody && approachLines?.length) {
-    makePart(melodyEvents(approachLines), (time, ev) => {
+    makePart(melodyEvents(approachLines, timing), (time, ev) => {
       lead.triggerAttackRelease(ev.note, ev.dur, time, ev.vel)
     }, loop, end)
   }
 
   // Drums
   if (playDrums) {
-    makePart(drumEvents(n), (time, ev) => {
+    makePart(drumEvents(totalBts), (time, ev) => {
       const s = getSamplers()
       if (s?.drums) {
         try { s.drums.player(ev.inst).start(time) } catch {}
