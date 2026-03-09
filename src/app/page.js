@@ -227,11 +227,6 @@ export default function Home() {
   const fretboardBarIndex = (isPlaying && playheadIndex !== null) ? playheadIndex : selectedIndex
   const fretboardBar = bars[fretboardBarIndex] ?? selectedBar
 
-  // Target note (resolution tone) for the current fretboard bar — shown in amber on the fretboard
-  const fretboardTargetNotes = useMemo(() => {
-    const t = targets[fretboardBarIndex]?.targetNote
-    return t ? [t] : []
-  }, [targets, fretboardBarIndex])
 
   const fretboardInfo = useMemo(() => chordInfo(fretboardBar.symbol), [fretboardBar])
 
@@ -1046,7 +1041,7 @@ export default function Home() {
                 chordNotes={fretboardInfo.notes || []}
                 rootNote={fretboardBar.userTonic ?? fretboardBar.root}
                 scaleNotes={displayedScaleNotes}
-                targetNotes={fretboardTargetNotes}
+                targetNotes={[]}
                 passingNotes={bebopPassingNotes}
                 guideToneNotes={guideToneDisplayNotes}
                 view={fretboardView}
@@ -1378,10 +1373,6 @@ export default function Home() {
                     GT: {guide.length ? guide.join(" / ") : "—"}
                   </div>
 
-                  <div style={{ fontSize: "0.8rem", color: "var(--db-c-blue)", marginBottom: "6px" }}>
-                    Target: {target?.targetNote || "—"}
-                  </div>
-
                   <div style={{ fontSize: "0.8rem", color: "var(--db-c-pink)", marginBottom: "6px" }}>
                     Melody: {melody?.note || "—"}
                   </div>
@@ -1632,19 +1623,6 @@ export default function Home() {
           </div>
         )}
 
-        {selectedTarget && (
-          <div style={{ marginBottom: "20px" }}>
-            <div style={eyebrowSmallStyle}>MELODIC TARGET</div>
-            {selectedTarget.targetNote ? (
-              <div style={{ fontSize: "1rem", color: "var(--db-c-blue)" }}>
-                Aim for <strong>{selectedTarget.targetNote}</strong> in {selectedTarget.nextChord}
-                {selectedTarget.sourceNote ? ` from ${selectedTarget.sourceNote}` : ""}
-              </div>
-            ) : (
-              <div style={{ fontSize: "1rem", opacity: 0.7 }}>Final bar. No next target.</div>
-            )}
-          </div>
-        )}
 
         {selectedMelodyNote && (
           <div style={{ marginBottom: "20px" }}>
