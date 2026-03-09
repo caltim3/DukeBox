@@ -130,6 +130,8 @@ export default function Home() {
   const [scaleFilter, setScaleFilter] = useState(null)  // null | "pentatonic" | "hexatonic" | "bebop"
   const [practiceMode, setPracticeMode] = useState(false)
   const [paletteIndex, setPaletteIndex] = useState(0)
+  const [gridColumns, setGridColumns] = useState(4)
+  const [scrollMode, setScrollMode] = useState(false)
 
   const palette = PALETTES[paletteIndex]
 
@@ -205,7 +207,8 @@ export default function Home() {
   }, [selectedBar, recommendedScales])
 
   // Fretboard tracks the playing chord during playback, otherwise follows selection
-  const fretboardBar = (isPlaying && playheadIndex !== null) ? bars[playheadIndex] : selectedBar
+  const fretboardBarIndex = (isPlaying && playheadIndex !== null) ? playheadIndex : selectedIndex
+  const fretboardBar = bars[fretboardBarIndex] ?? selectedBar
 
   const fretboardInfo = useMemo(() => chordInfo(fretboardBar.symbol), [fretboardBar])
 
@@ -219,10 +222,13 @@ export default function Home() {
   }, [fretboardBar])
 
   const displayedScaleNotes = useMemo(() => {
+    if (scaleFilter === "targets") {
+      return targets[fretboardBarIndex]?.currentGuideTones ?? []
+    }
     const raw = fretboardScaleData[0]?.notes ?? []
     const tonic = fretboardBar.userTonic ?? fretboardBar.root
     return applyScaleFilter(raw, tonic, fretboardBar.quality, scaleFilter)
-  }, [fretboardScaleData, fretboardBar, scaleFilter])
+  }, [fretboardScaleData, fretboardBar, fretboardBarIndex, scaleFilter, targets])
 
   const romanNumerals = useMemo(() => {
     return bars.map((bar) => chordToRoman(bar.root, bar.quality, keyRoot, keyMode))
@@ -844,8 +850,12 @@ export default function Home() {
               </div>
 
               <div style={{ display: "flex", gap: "4px" }}>
-                {["pentatonic","hexatonic","bebop"].map((f) => (
-                  <button key={f} onClick={() => setScaleFilter(scaleFilter === f ? null : f)} style={{
+                {["pentatonic","hexatonic","bebop","targets"].map((f) => (
+                  <button key={f} onClick={() => {
+                    const next = scaleFilter === f ? null : f
+                    setScaleFilter(next)
+                    if (next === "targets") setFretboardView("scale")
+                  }} style={{
                     padding: "4px 10px", borderRadius: "6px", fontSize: "0.8rem", cursor: "pointer",
                     background: scaleFilter === f ? "rgba(139,211,168,0.18)" : "rgba(255,255,255,0.05)",
                     border: scaleFilter === f ? "1px solid #8bd3a8" : "1px solid rgba(255,255,255,0.12)",
@@ -873,7 +883,7 @@ export default function Home() {
                 {fretboardBar.userTonic && fretboardBar.userTonic !== fretboardBar.root
                   ? ` (${fretboardBar.userTonic})` : ""}
                 {fretboardView === "scale"
-                  ? ` · ${scaleFilter ?? fretboardScaleData[0]?.name ?? ""}`
+                  ? ` · ${scaleFilter === "targets" ? "guide tones" : (scaleFilter ?? fretboardScaleData[0]?.name ?? "")}`
                   : ""}
               </div>
             </div>
@@ -946,12 +956,111 @@ export default function Home() {
         </div>
 
         <div style={panelStyle}>
-          <div style={eyebrowStyle}>LEAD SHEET GRID</div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
+            <div style={{ ...eyebrowStyle, marginBottom: 0 }}>LEAD SHEET GRID</div>
+            <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+              <span style={{ fontSize: "0.78rem", opacity: 0.5, marginRight: "2px" }}>cols:</span>
+              {[2, 3, 4, 6, 8].map(n => (
+                <button key={n} onClick={() => setGridColumns(n)} style={{
+                  padding: "3px 8px", borderRadius: "5px", fontSize: "0.78rem", cursor: "pointer",
+                  background: gridColumns === n ? "rgba(224,180,76,0.18)" : "rgba(255,255,255,0.05)",
+                  border: gridColumns === n ? "1px solid #e0b44c" : "1px solid rgba(255,255,255,0.12)",
+                  color: gridColumns === n ? "#e0b44c" : "rgba(255,255,255,0.45)",
+                  fontWeight: gridColumns === n ? 700 : 400,
+                }}>{n}</button>
+              ))}
+              <button onClick={() => setScrollMode(p => !p)} style={{
+                padding: "3px 10px", borderRadius: "5px", fontSize: "0.78rem", cursor: "pointer",
+                background: scrollMode ? "rgba(127,200,255,0.18)" : "rgba(255,255,255,0.05)",
+                border: scrollMode ? "1px solid #7fc8ff" : "1px solid rgba(255,255,255,0.12)",
+                color: scrollMode ? "#7fc8ff" : "rgba(255,255,255,0.45)",
+                fontWeight: scrollMode ? 700 : 400,
+                marginLeft: "4px",
+              }}>📜 Scroll</button>
+            </div>
+          </div>
 
+          {scrollMode ? (
+            (() => {
+              const TELE_ROW_H = 140
+              const teleActive = playheadIndex ?? selectedIndex
+              const teleRowIdx = Math.floor(teleActive / gridColumns)
+              const teleColIdx = teleActive % gridColumns
+              const teleAllRows = []
+              for (let r = 0; r * gridColumns < bars.length; r++) {
+                teleAllRows.push(bars.slice(r * gridColumns, (r + 1) * gridColumns))
+              }
+              return (
+                <div style={{ position: "relative", height: `${TELE_ROW_H}px`, overflow: "hidden", borderRadius: "10px" }}>
+                  <div style={{
+                    position: "absolute", top: 0, zIndex: 2, pointerEvents: "none",
+                    left: `calc(${(teleColIdx / gridColumns) * 100}% + 4px)`,
+                    width: `calc(${(1 / gridColumns) * 100}% - 8px)`,
+                    height: `${TELE_ROW_H}px`,
+                    borderRadius: "10px",
+                    border: "2px solid rgba(224,180,76,0.65)",
+                    boxShadow: "0 0 28px rgba(224,180,76,0.22)",
+                    transition: "left 0.3s ease-in-out",
+                  }} />
+                  <div style={{
+                    transform: `translateY(-${teleRowIdx * TELE_ROW_H}px)`,
+                    transition: "transform 0.45s cubic-bezier(0.4,0,0.2,1)",
+                  }}>
+                    {teleAllRows.map((rowBars, rowIdx) => (
+                      <div key={rowIdx} style={{
+                        display: "grid",
+                        gridTemplateColumns: `repeat(${gridColumns}, 1fr)`,
+                        gap: "8px",
+                        height: `${TELE_ROW_H}px`,
+                        alignItems: "stretch",
+                      }}>
+                        {rowBars.map((bar, colIdx) => {
+                          const globalIdx = rowIdx * gridColumns + colIdx
+                          const isActive = globalIdx === teleActive
+                          const isPlayhead = globalIdx === playheadIndex
+                          const guide = progression[globalIdx]?.guideTones || []
+                          const target = targets[globalIdx]
+                          return (
+                            <div
+                              key={globalIdx}
+                              onClick={() => setSelectedIndex(globalIdx)}
+                              style={{
+                                padding: "10px",
+                                borderRadius: "10px",
+                                background: isPlayhead ? "rgba(139,211,168,0.1)" : isActive ? "rgba(224,180,76,0.08)" : "rgba(255,255,255,0.03)",
+                                border: isPlayhead ? "1px solid rgba(139,211,168,0.25)" : isActive ? "1px solid rgba(224,180,76,0.25)" : "1px solid rgba(255,255,255,0.07)",
+                                cursor: "pointer",
+                                display: "flex", flexDirection: "column",
+                                justifyContent: "center", alignItems: "center", textAlign: "center",
+                                gap: "4px",
+                              }}
+                            >
+                              <div style={{ fontSize: "1.7rem", fontWeight: 700, lineHeight: 1.1,
+                                color: isPlayhead ? "#8bd3a8" : isActive ? "var(--db-accent)" : "var(--db-text)" }}>
+                                {bar.symbol}
+                              </div>
+                              <div style={{ fontSize: "0.72rem", color: "#e0b44c", opacity: 0.85 }}>
+                                {guide.length ? guide.join(" / ") : "—"}
+                              </div>
+                              {target?.targetNote && (
+                                <div style={{ fontSize: "0.7rem", color: "#7fc8ff", opacity: 0.75 }}>
+                                  → {target.targetNote}
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            })()
+          ) : (
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(145px, 1fr))",
+              gridTemplateColumns: `repeat(${gridColumns}, 1fr)`,
               gap: "12px",
             }}
           >
@@ -1166,6 +1275,7 @@ export default function Home() {
               return elements
             })}
           </div>
+          )}
         </div>
 
         <div style={panelStyle}>
