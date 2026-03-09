@@ -558,55 +558,16 @@ export default function Home() {
         gap: "24px",
         padding: "32px",
         fontFamily: "Arial, sans-serif",
+        maxWidth: "1800px",
+        margin: "0 auto",
+        boxSizing: "border-box",
       }}
     >
       <section>
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "8px" }}>
+        <div style={{ marginBottom: "8px" }}>
           <h1 style={{ fontSize: "2.5rem", margin: 0, color: "var(--db-accent)" }}>
             The DukeBox
           </h1>
-          <div style={{ display: "flex", gap: "8px", alignItems: "center", flexShrink: 0 }}>
-            <button
-              onClick={() => {
-                const newMode = !practiceMode
-                practiceModeRef.current = newMode
-                setPracticeMode(newMode)
-                if (isPlaying) {
-                  stopPlayback()
-                  startPlayback().catch(console.error)
-                }
-              }}
-              style={{
-                padding: "9px 14px",
-                borderRadius: "10px",
-                border: practiceMode ? "1px solid #8bd3a8" : "1px solid var(--db-panel-border)",
-                background: practiceMode ? "rgba(139,211,168,0.12)" : "var(--db-panel-bg)",
-                color: practiceMode ? "#8bd3a8" : "var(--db-text)",
-                cursor: "pointer",
-                fontWeight: 700,
-                fontSize: "0.88rem",
-              }}
-              title={practiceMode ? "Click to restore original tempo" : "Slow tempo to 50 BPM for practice"}
-            >
-              {practiceMode ? `🐢 Practice (50 BPM)` : "💡 Practice Mode"}
-            </button>
-            <button
-              onClick={() => setPaletteIndex((i) => (i + 1) % PALETTES.length)}
-              style={{
-                padding: "9px 14px",
-                borderRadius: "10px",
-                border: "1px solid var(--db-panel-border)",
-                background: "var(--db-panel-bg)",
-                color: "var(--db-accent)",
-                cursor: "pointer",
-                fontWeight: 700,
-                fontSize: "0.88rem",
-              }}
-              title="Cycle color palette"
-            >
-              🎨 {palette.name}
-            </button>
-          </div>
         </div>
 
         <p style={{ opacity: 0.75, marginBottom: "24px" }}>
@@ -645,7 +606,7 @@ export default function Home() {
                 color: "var(--db-text)",
                 fontSize: "0.95rem",
                 resize: "vertical",
-                minHeight: "80px",
+                minHeight: "58px",
                 fontFamily: "Arial, sans-serif",
                 lineHeight: 1.5,
               }}
@@ -802,6 +763,37 @@ export default function Home() {
               marginBottom: "12px",
             }}
           >
+            <button
+              onClick={() => {
+                const newMode = !practiceMode
+                practiceModeRef.current = newMode
+                setPracticeMode(newMode)
+                if (isPlaying) { stopPlayback(); startPlayback().catch(console.error) }
+              }}
+              style={{
+                padding: "9px 14px", borderRadius: "10px", cursor: "pointer", fontWeight: 700, fontSize: "0.88rem",
+                border: practiceMode ? "1px solid #8bd3a8" : "1px solid var(--db-panel-border)",
+                background: practiceMode ? "rgba(139,211,168,0.12)" : "var(--db-panel-bg)",
+                color: practiceMode ? "#8bd3a8" : "var(--db-text)",
+              }}
+              title={practiceMode ? "Click to restore original tempo" : "Slow tempo to 50 BPM for practice"}
+            >
+              {practiceMode ? "🐢 Practice (50 BPM)" : "💡 Practice Mode"}
+            </button>
+
+            <button
+              onClick={() => setPaletteIndex((i) => (i + 1) % PALETTES.length)}
+              style={{
+                padding: "9px 14px", borderRadius: "10px", cursor: "pointer", fontWeight: 700, fontSize: "0.88rem",
+                border: "1px solid var(--db-panel-border)",
+                background: "var(--db-panel-bg)",
+                color: "var(--db-accent)",
+              }}
+              title="Cycle color palette"
+            >
+              🎨 {palette.name}
+            </button>
+
             <button
               onClick={isPlaying ? stopPlayback : () => startPlayback().catch(console.error)}
               style={buttonStyle("#e0b44c", "#1a1608")}
@@ -1006,6 +998,7 @@ export default function Home() {
             </div>
 
             <div style={{ overflowX: "auto", marginBottom: "4px" }}>
+              <div style={{ maxWidth: "820px" }}>
               <Fretboard
                 chordNotes={fretboardInfo.notes || []}
                 rootNote={fretboardBar.userTonic ?? fretboardBar.root}
@@ -1016,6 +1009,7 @@ export default function Home() {
                 view={fretboardView}
                 tuningName={fretboardTuning}
               />
+              </div>
             </div>
 
             <div style={{ marginTop: "8px", display: "flex", gap: "14px", fontSize: "0.78rem", flexWrap: "wrap" }} >
