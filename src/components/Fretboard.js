@@ -16,10 +16,11 @@ const FRET_COUNT   = 12
 const MARKER_FRETS = [3, 5, 7, 9, 12]
 const NUM_FRET_LABELS = [1, 3, 5, 7, 9, 12]
 
-export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes = null, view = "chord", tuningName = "Standard" }) {
+export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes = null, view = "chord", tuningName = "Standard", targetNotes = [] }) {
   const displayNotes = view === "scale" && scaleNotes?.length ? scaleNotes : chordNotes
-  const noteSet = new Set(displayNotes.map(n => norm(n)))
-  const root    = norm(rootNote)
+  const noteSet   = new Set(displayNotes.map(n => norm(n)))
+  const targetSet = new Set((targetNotes ?? []).map(n => norm(n)))
+  const root      = norm(rootNote)
 
   const strings     = TUNINGS[tuningName] || TUNINGS.Standard
   const numStrings  = strings.length
@@ -46,14 +47,17 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
     if (openChroma === -1) return
     for (let f = 0; f <= FRET_COUNT; f++) {
       const noteName = NOTES_FLAT[(openChroma + f) % 12]
-      if (!noteSet.has(noteName)) continue
-      const isRoot = noteName === root
+      const inChord  = noteSet.has(noteName)
+      const inTarget = targetSet.has(noteName)
+      if (!inChord && !inTarget) continue
+      const isRoot   = noteName === root
+      const isTarget = !isRoot && inTarget
       dots.push({
         key:    `${si}-${f}`,
         cx:     dotX(f),
         cy:     strY(si),
         r:      isRoot ? 10 : 9,
-        color:  isRoot ? "#BD2031" : view === "scale" ? "#3A78C9" : "#3A9C5A",
+        color:  isRoot ? "#BD2031" : isTarget ? "#E09B3D" : view === "scale" ? "#3A78C9" : "#3A9C5A",
         label:  noteName,
         isRoot,
       })

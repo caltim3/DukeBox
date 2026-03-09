@@ -133,6 +133,10 @@ export default function Home() {
   const [gridColumns, setGridColumns] = useState(4)
   const [scrollMode, setScrollMode] = useState(false)
 
+  // Refs for stable playback control (avoid stale closure issues)
+  const playingRef      = useRef(false)  // true while repeats should continue
+  const practiceModeRef = useRef(false)  // mirrors practiceMode for immediate reads
+
   const palette = PALETTES[paletteIndex]
 
   const selectedBar = bars[selectedIndex]
@@ -209,6 +213,12 @@ export default function Home() {
   // Fretboard tracks the playing chord during playback, otherwise follows selection
   const fretboardBarIndex = (isPlaying && playheadIndex !== null) ? playheadIndex : selectedIndex
   const fretboardBar = bars[fretboardBarIndex] ?? selectedBar
+
+  // Target note (resolution tone) for the current fretboard bar — shown in amber on the fretboard
+  const fretboardTargetNotes = useMemo(() => {
+    const t = targets[fretboardBarIndex]?.targetNote
+    return t ? [t] : []
+  }, [targets, fretboardBarIndex])
 
   const fretboardInfo = useMemo(() => chordInfo(fretboardBar.symbol), [fretboardBar])
 
@@ -407,37 +417,72 @@ export default function Home() {
   }
 
   function stopPlayback() {
+    playingRef.current = false
     audioStop()
     setIsPlaying(false)
     setPlayheadIndex(null)
   }
 
   async function startPlayback() {
+    playingRef.current = false  // cancel any pending repeats from previous run
     stopPlayback()
-    const startIndex   = loopEnabled ? Math.min(loopStart, loopEnd) : 0
-    const endIndex     = loopEnabled ? Math.max(loopStart, loopEnd) : bars.length - 1
-    const slicedBars   = bars.slice(startIndex, endIndex + 1)
-    const slicedLines  = approachLines.slice(startIndex, endIndex + 1)
+    playingRef.current = true
+
+    const startIndex  = loopEnabled ? Math.min(loopStart, loopEnd) : 0
+    const endIndex    = loopEnabled ? Math.max(loopStart, loopEnd) : bars.length - 1
+    const slicedBars  = bars.slice(startIndex, endIndex + 1)
+    const slicedLines = approachLines.slice(startIndex, endIndex + 1)
+    const effectiveTempo = practiceModeRef.current ? 50 : tempo
 
     setIsPlaying(true)
-    try {
-      await audioStart({
+
+    if (loopEnabled) {
+      // Infinite seamless loop
+      try {
+        await audioStart({
+          bars:          slicedBars,
+          approachLines: slicedLines,
+          tempo:         effectiveTempo,
+          loop:          true,
+          swing:         swingAmount,
+          playChords, playBass, playDrums, playMelody, compingStyle,
+          onBar:  (localIdx) => setPlayheadIndex(startIndex + localIdx),
+          onStop: () => { playingRef.current = false; setIsPlaying(false); setPlayheadIndex(null) },
+        })
+      } catch (err) {
+        console.error("Audio error:", err)
+        playingRef.current = false
+        setIsPlaying(false)
+      }
+    } else {
+      // Play 5 times through the form, then stop
+      let playsLeft = 5
+      const opts = {
         bars:          slicedBars,
         approachLines: slicedLines,
-        tempo: practiceMode ? 50 : tempo,
-        loop:          loopEnabled,
+        tempo:         effectiveTempo,
+        loop:          false,
         swing:         swingAmount,
-        playChords,
-        playBass,
-        playDrums,
-        playMelody,
-        compingStyle,
+        playChords, playBass, playDrums, playMelody, compingStyle,
         onBar:  (localIdx) => setPlayheadIndex(startIndex + localIdx),
-        onStop: () => { setIsPlaying(false); setPlayheadIndex(null) },
-      })
-    } catch (err) {
-      console.error("Audio error:", err)
-      setIsPlaying(false)
+        onStop: () => {
+          playsLeft--
+          if (playingRef.current && playsLeft > 0) {
+            audioStart(opts).catch(console.error)
+          } else {
+            playingRef.current = false
+            setIsPlaying(false)
+            setPlayheadIndex(null)
+          }
+        },
+      }
+      try {
+        await audioStart(opts)
+      } catch (err) {
+        console.error("Audio error:", err)
+        playingRef.current = false
+        setIsPlaying(false)
+      }
     }
   }
 
@@ -482,7 +527,15 @@ export default function Home() {
           </h1>
           <div style={{ display: "flex", gap: "8px", alignItems: "center", flexShrink: 0 }}>
             <button
-              onClick={() => setPracticeMode((p) => !p)}
+              onClick={() => {
+                const newMode = !practiceMode
+                practiceModeRef.current = newMode
+                setPracticeMode(newMode)
+                if (isPlaying) {
+                  stopPlayback()
+                  startPlayback().catch(console.error)
+                }
+              }}
               style={{
                 padding: "9px 14px",
                 borderRadius: "10px",
@@ -495,7 +548,7 @@ export default function Home() {
               }}
               title={practiceMode ? "Click to restore original tempo" : "Slow tempo to 50 BPM for practice"}
             >
-              {practiceMode ? `🐢 Practice (50 BPM)` : "🎯 Practice Mode"}
+              {practiceMode ? `🐢 Practice (50 BPM)` : "💡 Practice Mode"}
             </button>
             <button
               onClick={() => setPaletteIndex((i) => (i + 1) % PALETTES.length)}
@@ -892,6 +945,7 @@ export default function Home() {
               chordNotes={fretboardInfo.notes || []}
               rootNote={fretboardBar.userTonic ?? fretboardBar.root}
               scaleNotes={displayedScaleNotes}
+              targetNotes={fretboardTargetNotes}
               view={fretboardView}
               tuningName={fretboardTuning}
             />
@@ -900,6 +954,7 @@ export default function Home() {
               <span><span style={{ color: "#BD2031" }}>●</span> Root</span>
               <span><span style={{ color: "#3A9C5A" }}>●</span> Chord tone</span>
               <span><span style={{ color: "#3A78C9" }}>●</span> Scale tone</span>
+              <span><span style={{ color: "#E09B3D" }}>●</span> Target note</span>
             </div>
           </div>
         )}

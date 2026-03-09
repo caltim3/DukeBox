@@ -286,6 +286,8 @@ export async function startPlayback({
     let prevVoicing = null
 
     bars.forEach((bar, i) => {
+      // Skip altered chords — "alt" is a scale suggestion only, not a piano voicing
+      if (bar.quality?.toLowerCase().includes("alt") || bar.symbol?.toLowerCase().includes("alt")) return
       const { measure, beat: barBeat, beats } = timing[i]
       const voicing = getVoiceLedVoicing(bar.symbol, prevVoicing, playBass)
       prevVoicing = voicing
