@@ -286,10 +286,11 @@ export async function startPlayback({
     let prevVoicing = null
 
     bars.forEach((bar, i) => {
-      // Skip altered chords — "alt" is a scale suggestion only, not a piano voicing
-      if (bar.quality?.toLowerCase().includes("alt") || bar.symbol?.toLowerCase().includes("alt")) return
       const { measure, beat: barBeat, beats } = timing[i]
-      const voicing = getVoiceLedVoicing(bar.symbol, prevVoicing, playBass)
+      // Alt chords voice as plain dom7 — "alt" is a scale/tension suggestion, not a chord type
+      const isAlt = bar.quality?.toLowerCase().includes("alt") || bar.symbol?.toLowerCase().includes("alt")
+      const voicingSymbol = isAlt ? `${bar.root}7` : bar.symbol
+      const voicing = getVoiceLedVoicing(voicingSymbol, prevVoicing, playBass)
       prevVoicing = voicing
       if (beats === 2) {
         // Half-bar: single hit covering the whole 2-beat span
