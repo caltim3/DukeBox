@@ -378,14 +378,17 @@ const GIRL_FROM_IPANEMA = {
 }
 
 const BLACK_ORPHEUS = {
-  keyRoot: "A", keyMode: "minor", tempo: 95,
+  keyRoot: "A", keyMode: "minor", tempo: 140,
   bars: [
-    ...s("Am7"),     ...s("Am7"),     ...s("Bm7b5 E7"), ...s("Am7"),
-    ...s("Dm7"),     ...s("G7"),      ...s("Cmaj7"),
-    ...s("Fmaj7"),   ...s("Bm7b5"),   ...s("E7"),        ...s("Am7"),
-    ...s("Am7"),     ...s("A7"),      ...s("Dm7"),       ...s("G7"),
-    ...s("Cmaj7"),   ...s("Fmaj7"),   ...s("Bm7b5 E7"),  ...s("Am7"),
-    ...s("E7"),      ...s("Am7"),
+    ...s("Am7"),     ...s("Bm7b5 E7"), ...s("Am7"),     ...s("Bm7b5 E7"),
+    ...s("Am7"),     ...s("Dm7 G7"),   ...s("Cmaj7"),   ...s("A7"),
+    ...s("Dm7"),     ...s("G7"),       ...s("Cmaj7"),   ...s("Fmaj7"), 
+    ...s("Bm7b5"),   ...s("E7"),        ...s("Am7"),    ...s("Bm7b5 E7"),
+    
+    ...s("Am7"),     ...s("Bm7b5 E7"), ...s("Am7"),     ...s("Am7"),
+    ...s("Em7b5"),   ...s("A7"),       ...s("Dm7"),     ...s("Dm7"), 
+    ...s("Dm7 Dm7/C"), ...s("Bm7b5 E7"),   ...s("Am7 Am7/G"),  ...s("Fmaj7"),  
+    ...s("Bm7b5"),   ...s("E7"),        ...s("Am7"),    ...s("Bm7b5 E7"),
   ],
 }
 
