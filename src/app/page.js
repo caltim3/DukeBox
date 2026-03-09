@@ -1005,16 +1005,18 @@ export default function Home() {
               </div>
             </div>
 
-            <Fretboard
-              chordNotes={fretboardInfo.notes || []}
-              rootNote={fretboardBar.userTonic ?? fretboardBar.root}
-              scaleNotes={displayedScaleNotes}
-              targetNotes={fretboardTargetNotes}
-              passingNotes={bebopPassingNotes}
-              guideToneNotes={guideToneDisplayNotes}
-              view={fretboardView}
-              tuningName={fretboardTuning}
-            />
+            <div style={{ overflowX: "auto", marginBottom: "4px" }}>
+              <Fretboard
+                chordNotes={fretboardInfo.notes || []}
+                rootNote={fretboardBar.userTonic ?? fretboardBar.root}
+                scaleNotes={displayedScaleNotes}
+                targetNotes={fretboardTargetNotes}
+                passingNotes={bebopPassingNotes}
+                guideToneNotes={guideToneDisplayNotes}
+                view={fretboardView}
+                tuningName={fretboardTuning}
+              />
+            </div>
 
             <div style={{ marginTop: "8px", display: "flex", gap: "14px", fontSize: "0.78rem", flexWrap: "wrap" }} >
               <span style={{ opacity: 0.55 }}><span style={{ color: "#BD2031" }}>●</span> Root</span>

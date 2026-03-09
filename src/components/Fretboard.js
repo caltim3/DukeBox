@@ -85,7 +85,7 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
   const midY = Y_TOP + (STR_SPAN / 2)
 
   return (
-    <svg viewBox={`0 0 ${W} ${H + 24}`} style={{ width: "100%", display: "block" }}>
+    <svg viewBox={`0 0 ${W} ${H + 24}`} style={{ width: "100%", maxWidth: `${W}px`, display: "block" }}>
 
       {/* Fretboard wood background */}
       <rect x={NUT_X} y={0} width={FRET_AREA} height={H} rx={3} fill="#18100A" />
