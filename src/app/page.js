@@ -582,7 +582,7 @@ export default function Home() {
         boxSizing: "border-box",
       }}
     >
-      <section>
+      <section style={{ minWidth: 0, overflowX: "hidden" }}>
         <div style={{ marginBottom: "8px" }}>
           <h1 style={{ fontSize: "2.5rem", margin: 0, color: "var(--db-accent)" }}>
             The DukeBox
@@ -922,12 +922,14 @@ export default function Home() {
 
           <div style={eyebrowStyle}>NOTATION LANE</div>
 
-          <NotationLane
-            bars={notationBars}
-            activeIndex={selectedIndex}
-            onSelectBar={setSelectedIndex}
-            playheadIndex={playheadIndex}
-          />
+          <div style={{ overflowX: "auto" }}>
+            <NotationLane
+              bars={notationBars}
+              activeIndex={selectedIndex}
+              onSelectBar={setSelectedIndex}
+              playheadIndex={playheadIndex}
+            />
+          </div>
 
           <div style={{ marginTop: "8px", fontSize: "0.9rem", opacity: 0.7 }}>
             Loop range: bars {Math.min(loopStart, loopEnd) + 1} to {Math.max(loopStart, loopEnd) + 1}
@@ -1017,7 +1019,6 @@ export default function Home() {
             </div>
 
             <div style={{ overflowX: "auto", marginBottom: "4px" }}>
-              <div style={{ maxWidth: "820px" }}>
               <Fretboard
                 chordNotes={fretboardInfo.notes || []}
                 rootNote={fretboardBar.userTonic ?? fretboardBar.root}
@@ -1028,7 +1029,6 @@ export default function Home() {
                 view={fretboardView}
                 tuningName={fretboardTuning}
               />
-              </div>
             </div>
 
             <div style={{ marginTop: "8px", display: "flex", gap: "14px", fontSize: "0.78rem", flexWrap: "wrap" }} >
@@ -1436,7 +1436,7 @@ export default function Home() {
         </div>
       </section>
 
-      <aside style={sidePanelStyle}>
+      <aside style={{ ...sidePanelStyle, minWidth: 0 }}>
         <h2 style={{ fontSize: "1.8rem", marginBottom: "12px", color: "var(--db-accent)" }}>
           Bar {selectedIndex + 1}: {selectedBar.symbol}
         </h2>
