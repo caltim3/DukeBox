@@ -267,21 +267,29 @@ export default function Home() {
   }, [bars, keyRoot, keyMode])
 
   // Human-readable bar labels that account for splits: 1, 2.1, 2.2, 3 …
+  // Consecutive bars sharing the same sub-beat value are grouped into one logical measure.
   const barLabels = useMemo(() => {
     const labels = []
     let logical = 0
     let i = 0
     while (i < bars.length) {
-      const cur = (bars[i].beats ?? 4) === 2
-      const nxt = i + 1 < bars.length && (bars[i + 1].beats ?? 4) === 2
-      logical++
-      if (cur && nxt) {
-        labels.push(`${logical}.1`)
-        labels.push(`${logical}.2`)
-        i += 2
-      } else {
+      const beats = bars[i].beats ?? 4
+      if (beats >= 4) {
+        // Full-measure bar — label on its own
+        logical++
         labels.push(`${logical}`)
         i++
+      } else {
+        // Short bar — collect all consecutive bars with the same beat value
+        const start = i
+        while (i < bars.length && (bars[i].beats ?? 4) === beats) i++
+        const count = i - start
+        logical++
+        if (count === 1) {
+          labels.push(`${logical}`)
+        } else {
+          for (let k = 1; k <= count; k++) labels.push(`${logical}.${k}`)
+        }
       }
     }
     return labels

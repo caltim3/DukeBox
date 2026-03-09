@@ -44,17 +44,23 @@ function qual(suffix) {
   return "maj7"
 }
 
-// Parse one BB-style chord string (e.g. "Cm7 F7") → array of bar objects
+// Parse one BB-style chord string (e.g. "Cm7 F7") → array of bar objects.
+// When multiple chords share a string they share one measure:
+//   1 chord → 4 beats   (full bar)
+//   2 chords → 2 beats each   (half-bar split)
+//   3+ chords → ⌊4/n⌋ beats each
 function s(str, section = "A") {
   const cleaned = str.replace(/\([^)]*\)/g, "").trim()
   if (!cleaned) return []
-  return cleaned.split(/\s+/).filter(Boolean).flatMap(token => {
+  const tokens = cleaned.split(/\s+/).filter(Boolean)
+  const beats = tokens.length === 1 ? 4 : Math.max(1, Math.floor(4 / tokens.length))
+  return tokens.flatMap(token => {
     const t = token.replace(/\/[A-G][b#]?(\d+)?$/, "")
     const m = t.match(/^([A-G][b#]?)/)
     if (!m) return []
     const root = EH[m[1]] || m[1]
     const quality = qual(t.slice(m[1].length))
-    return [{ root, quality, symbol: `${root}${QSYM[quality]}`, section }]
+    return [{ root, quality, symbol: `${root}${QSYM[quality]}`, section, beats }]
   })
 }
 
