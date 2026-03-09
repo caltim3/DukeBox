@@ -271,6 +271,27 @@ export default function Home() {
     return bars.map((bar) => chordToRoman(bar.root, bar.quality, keyRoot, keyMode))
   }, [bars, keyRoot, keyMode])
 
+  // Human-readable bar labels that account for splits: 1, 2.1, 2.2, 3 …
+  const barLabels = useMemo(() => {
+    const labels = []
+    let logical = 0
+    let i = 0
+    while (i < bars.length) {
+      const cur = (bars[i].beats ?? 4) === 2
+      const nxt = i + 1 < bars.length && (bars[i + 1].beats ?? 4) === 2
+      logical++
+      if (cur && nxt) {
+        labels.push(`${logical}.1`)
+        labels.push(`${logical}.2`)
+        i += 2
+      } else {
+        labels.push(`${logical}`)
+        i++
+      }
+    }
+    return labels
+  }, [bars])
+
   function updateBar(index, updates) {
     setBars((prev) =>
       prev.map((bar, i) => {
@@ -920,6 +941,9 @@ export default function Home() {
           </div>
 
           <div style={eyebrowStyle}>NOTATION LANE</div>
+          <div style={{ fontSize: "0.78rem", opacity: 0.55, marginBottom: "8px", marginTop: "-4px" }}>
+            Staff view of arrival &amp; departure notes — see the voice-leading arc across the chart
+          </div>
 
           <div style={{ overflowX: "auto" }}>
             <NotationLane
@@ -1043,6 +1067,9 @@ export default function Home() {
 
         <div style={panelStyle}>
           <div style={eyebrowStyle}>MELODY LANE</div>
+          <div style={{ fontSize: "0.78rem", opacity: 0.55, marginBottom: "8px", marginTop: "-4px" }}>
+            The structural note you arrive on and depart from for each chord — your melodic target per bar
+          </div>
 
           <div
             style={{
@@ -1114,6 +1141,17 @@ export default function Home() {
                 fontWeight: scrollMode ? 700 : 400,
                 marginLeft: "4px",
               }}>📜 Scroll</button>
+              <button
+                onClick={() => addBar(bars.length - 1)}
+                style={{
+                  padding: "3px 10px", borderRadius: "5px", fontSize: "0.78rem", cursor: "pointer",
+                  background: "var(--db-card-bg)",
+                  border: "1px solid var(--db-c-green)",
+                  color: "var(--db-c-green)",
+                  fontWeight: 600, marginLeft: "8px",
+                }}
+                title="Add a new measure at the end"
+              >+ Measure</button>
             </div>
           </div>
 
@@ -1275,7 +1313,7 @@ export default function Home() {
                   {/* Bar header row */}
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                      <div style={{ fontSize: "0.75rem", opacity: 0.5 }}>BAR {index + 1}</div>
+                      <div style={{ fontSize: "0.75rem", opacity: 0.5 }}>BAR {barLabels[index]}</div>
                       {(bar.beats ?? 4) === 2 && (
                         <div style={{
                           fontSize: "0.6rem", fontWeight: 700, padding: "1px 4px",
@@ -1356,6 +1394,38 @@ export default function Home() {
                     Rhythm: {rhythm?.rhythm || "—"}
                   </div>
 
+                  {/* Per-bar chord editor */}
+                  <div style={{
+                    marginBottom: "8px", paddingTop: "6px",
+                    borderTop: "1px solid var(--db-card-border)",
+                  }} onClick={(e) => e.stopPropagation()}>
+                    <div style={{ fontSize: "0.66rem", opacity: 0.45, marginBottom: "3px" }}>CHORD</div>
+                    <div style={{ display: "flex", gap: "3px" }}>
+                      <select
+                        value={bar.root}
+                        onChange={(e) => { updateBar(index, { root: e.target.value }); setSelectedIndex(index) }}
+                        style={{
+                          flex: 1, padding: "2px 3px", borderRadius: "4px", fontSize: "0.72rem",
+                          background: "var(--db-input-bg)", border: "1px solid var(--db-card-border)",
+                          color: "var(--db-accent)", fontWeight: 700,
+                        }}
+                      >
+                        {ROOTS.map(r => <option key={r} value={r}>{r}</option>)}
+                      </select>
+                      <select
+                        value={bar.quality}
+                        onChange={(e) => { updateBar(index, { quality: e.target.value }); setSelectedIndex(index) }}
+                        style={{
+                          flex: 2, padding: "2px 3px", borderRadius: "4px", fontSize: "0.72rem",
+                          background: "var(--db-input-bg)", border: "1px solid var(--db-card-border)",
+                          color: "var(--db-text)",
+                        }}
+                      >
+                        {QUALITIES.map(q => <option key={q.value} value={q.value}>{q.label}</option>)}
+                      </select>
+                    </div>
+                  </div>
+
                   {/* Per-bar tonic / scale override */}
                   <div style={{
                     marginBottom: "8px", paddingTop: "6px",
@@ -1417,6 +1487,9 @@ export default function Home() {
 
         <div style={panelStyle}>
           <div style={eyebrowStyle}>CONTINUOUS PHRASE</div>
+          <div style={{ fontSize: "0.78rem", opacity: 0.55, marginBottom: "8px", marginTop: "-4px" }}>
+            All approach notes stitched together — the full improvised line across every bar as one phrase
+          </div>
           <div style={{ fontSize: "1rem", lineHeight: 1.9, color: "var(--db-c-purple)" }}>
             {phrase.length ? phrase.join("  →  ") : "No phrase generated"}
           </div>
@@ -1424,6 +1497,9 @@ export default function Home() {
 
         <div style={panelStyle}>
           <div style={eyebrowStyle}>RHYTHMIC SHAPE</div>
+          <div style={{ fontSize: "0.78rem", opacity: 0.55, marginBottom: "8px", marginTop: "-4px" }}>
+            When to play each chord's key note — the rhythmic skeleton of the phrase (beat placement per bar)
+          </div>
           <div style={{ fontSize: "1rem", lineHeight: 1.9, color: "var(--db-c-green)" }}>
             {rhythms.map((item, index) => (
               <span key={`${item.chord}-rhythm-${index}`}>
