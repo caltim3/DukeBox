@@ -30,6 +30,21 @@ import Fretboard from "@/components/Fretboard"
 
 const PALETTES = [
   {
+    // BB Light Mode — clean daylight (DEFAULT)
+    name: "Day",
+    bg: "#f0f0f0",          text: "#1a1a1a",
+    accent: "#0056b3",
+    panelBg: "rgba(0,0,0,0.04)",        panelBorder: "rgba(0,0,0,0.12)",
+    sideBg:  "rgba(0,86,179,0.05)",     sideBorder:  "rgba(0,86,179,0.16)",
+    inputBg: "#e0e0e0",
+    cardBg: "rgba(0,0,0,0.05)",         cardBorder: "rgba(0,0,0,0.15)",
+    muted: "rgba(0,0,0,0.4)",
+    // Semantic label colors — dark/saturated for legibility on light bg
+    cPurple: "#5c2d91",  cGreen: "#1a7a4a",  cBlue: "#0056b3",
+    cAmber:  "#8a6200",  cGold:  "#6e5000",  cSalmon: "#b83020",
+    cPink:   "#9e0055",
+  },
+  {
     // BB Dark Mode 1 — deep forest green + gold
     name: "Forest",
     bg: "#283618",          text: "#fefae0",
@@ -39,6 +54,9 @@ const PALETTES = [
     inputBg: "#2c3e1a",
     cardBg: "rgba(255,255,255,0.04)",  cardBorder: "rgba(255,255,255,0.1)",
     muted: "rgba(255,255,255,0.4)",
+    cPurple: "var(--db-c-purple)",  cGreen: "var(--db-c-green)",  cBlue: "var(--db-c-blue)",
+    cAmber:  "var(--db-c-amber)",  cGold:  "var(--db-c-gold)",  cSalmon: "var(--db-c-salmon)",
+    cPink:   "var(--db-c-pink)",
   },
   {
     // BB Dark Mode 2 — deep navy + cyan
@@ -50,6 +68,9 @@ const PALETTES = [
     inputBg: "#001844",
     cardBg: "rgba(255,255,255,0.04)",  cardBorder: "rgba(255,255,255,0.1)",
     muted: "rgba(255,255,255,0.4)",
+    cPurple: "var(--db-c-purple)",  cGreen: "var(--db-c-green)",  cBlue: "var(--db-c-blue)",
+    cAmber:  "var(--db-c-amber)",  cGold:  "var(--db-c-gold)",  cSalmon: "var(--db-c-salmon)",
+    cPink:   "var(--db-c-pink)",
   },
   {
     // BB Dark Mode 3 — dark olive/khaki + burnt orange
@@ -61,17 +82,9 @@ const PALETTES = [
     inputBg: "#31372B",
     cardBg: "rgba(255,255,255,0.04)",  cardBorder: "rgba(255,255,255,0.1)",
     muted: "rgba(255,255,255,0.4)",
-  },
-  {
-    // BB Light Mode — clean daylight
-    name: "Day",
-    bg: "#f0f0f0",          text: "#1a1a1a",
-    accent: "#0056b3",
-    panelBg: "rgba(0,0,0,0.04)",        panelBorder: "rgba(0,0,0,0.12)",
-    sideBg:  "rgba(0,86,179,0.05)",     sideBorder:  "rgba(0,86,179,0.16)",
-    inputBg: "#e0e0e0",
-    cardBg: "rgba(0,0,0,0.05)",         cardBorder: "rgba(0,0,0,0.15)",
-    muted: "rgba(0,0,0,0.4)",
+    cPurple: "var(--db-c-purple)",  cGreen: "var(--db-c-green)",  cBlue: "var(--db-c-blue)",
+    cAmber:  "var(--db-c-amber)",  cGold:  "var(--db-c-gold)",  cSalmon: "var(--db-c-salmon)",
+    cPink:   "var(--db-c-pink)",
   },
 ]
 
@@ -545,6 +558,13 @@ export default function Home() {
         --db-card-bg: ${palette.cardBg};
         --db-card-border: ${palette.cardBorder};
         --db-muted: ${palette.muted};
+        --db-c-purple: ${palette.cPurple};
+        --db-c-green:  ${palette.cGreen};
+        --db-c-blue:   ${palette.cBlue};
+        --db-c-amber:  ${palette.cAmber};
+        --db-c-gold:   ${palette.cGold};
+        --db-c-salmon: ${palette.cSalmon};
+        --db-c-pink:   ${palette.cPink};
       }
     `}</style>
     <main
@@ -581,7 +601,7 @@ export default function Home() {
           background: "rgba(201,167,255,0.04)",
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px" }}>
-            <div style={{ ...eyebrowStyle, marginBottom: 0, color: "#c9a7ff" }}>AI CHART GENERATOR</div>
+            <div style={{ ...eyebrowStyle, marginBottom: 0, color: "var(--db-c-purple)" }}>AI CHART GENERATOR</div>
             <div style={{ fontSize: "0.72rem", opacity: 0.5 }}>powered by Claude</div>
           </div>
 
@@ -615,7 +635,7 @@ export default function Home() {
               onClick={handleGenerateChart}
               disabled={isGenerating || !promptText.trim()}
               style={{
-                ...buttonStyle("#c9a7ff", "#1a1428"),
+                ...buttonStyle("var(--db-c-purple)"),
                 minWidth: "110px",
                 padding: "12px 16px",
                 opacity: isGenerating || !promptText.trim() ? 0.5 : 1,
@@ -645,7 +665,7 @@ export default function Home() {
               <button
                 onClick={() => setShowGenNotes((p) => !p)}
                 style={{
-                  background: "none", border: "none", color: "#c9a7ff",
+                  background: "none", border: "none", color: "var(--db-c-purple)",
                   cursor: "pointer", fontSize: "0.82rem", padding: "0", opacity: 0.8,
                 }}
               >
@@ -665,7 +685,7 @@ export default function Home() {
 
           {lastGenChart && (
             <div style={{ marginTop: "10px" }}>
-              <button onClick={saveToLibrary} style={buttonStyle("#8bd3a8", "#132018")}>
+              <button onClick={saveToLibrary} style={buttonStyle("var(--db-c-green)")}>
                 + Add to My Library
               </button>
             </div>
@@ -736,7 +756,7 @@ export default function Home() {
                 const target = prompt("Transpose chart to key (e.g. G, Eb, F#):")
                 if (target && ROOTS.includes(target)) handleTransposeChart(target)
               }}
-              style={buttonStyle("#7fc8ff", "#10202b")}
+              style={buttonStyle("var(--db-c-blue)")}
             >
               Transpose Chart
             </button>
@@ -771,9 +791,9 @@ export default function Home() {
               }}
               style={{
                 padding: "9px 14px", borderRadius: "10px", cursor: "pointer", fontWeight: 700, fontSize: "0.88rem",
-                border: practiceMode ? "1px solid #8bd3a8" : "1px solid var(--db-panel-border)",
+                border: practiceMode ? "1px solid var(--db-c-green)" : "1px solid var(--db-panel-border)",
                 background: practiceMode ? "rgba(139,211,168,0.12)" : "var(--db-panel-bg)",
-                color: practiceMode ? "#8bd3a8" : "var(--db-text)",
+                color: practiceMode ? "var(--db-c-green)" : "var(--db-text)",
               }}
               title={practiceMode ? "Click to restore original tempo" : "Slow tempo to 50 BPM for practice"}
             >
@@ -795,20 +815,20 @@ export default function Home() {
 
             <button
               onClick={isPlaying ? stopPlayback : () => startPlayback().catch(console.error)}
-              style={buttonStyle("#e0b44c", "#1a1608")}
+              style={buttonStyle("var(--db-c-amber)")}
             >
               {isPlaying ? "⏹ Stop" : "▶ Play"}
             </button>
 
-            <button onClick={regeneratePhrase} style={buttonStyle("#c9a7ff", "#171320")}>
+            <button onClick={regeneratePhrase} style={buttonStyle("var(--db-c-purple)")}>
               Regenerate Phrase
             </button>
 
-            <button onClick={regenerateRhythm} style={buttonStyle("#8bd3a8", "#132018")}>
+            <button onClick={regenerateRhythm} style={buttonStyle("var(--db-c-green)")}>
               Regenerate Rhythm
             </button>
 
-            <button onClick={regenerateSelectedBar} style={buttonStyle("#7fc8ff", "#10202b")}>
+            <button onClick={regenerateSelectedBar} style={buttonStyle("var(--db-c-blue)")}>
               Regenerate Selected Bar
             </button>
 
@@ -881,18 +901,18 @@ export default function Home() {
               Loop
             </label>
 
-            <button onClick={() => setLoopStart(selectedIndex)} style={buttonStyle("#f0d48a", "#20180d")}>
+            <button onClick={() => setLoopStart(selectedIndex)} style={buttonStyle("var(--db-c-gold)")}>
               Set Loop Start
             </button>
 
-            <button onClick={() => setLoopEnd(selectedIndex)} style={buttonStyle("#f0d48a", "#20180d")}>
+            <button onClick={() => setLoopEnd(selectedIndex)} style={buttonStyle("var(--db-c-gold)")}>
               Set Loop End
             </button>
 
             <button
               onClick={() => setShowFretboard((p) => !p)}
               style={{
-                ...buttonStyle(showFretboard ? "#e0b44c" : "#7fc8ff", showFretboard ? "#1a1608" : "#10202b"),
+                ...buttonStyle(showFretboard ? "var(--db-c-amber)" : "var(--db-c-blue)"),
                 marginLeft: "auto",
               }}
             >
@@ -924,9 +944,9 @@ export default function Home() {
                 {["chord", "scale"].map((v) => (
                   <button key={v} onClick={() => setFretboardView(v)} style={{
                     padding: "4px 10px", borderRadius: "6px", fontSize: "0.8rem", cursor: "pointer",
-                    background: fretboardView === v ? "rgba(224,180,76,0.22)" : "var(--db-panel-bg)",
-                    border:     fretboardView === v ? "1px solid #e0b44c" : "1px solid var(--db-panel-border)",
-                    color:      fretboardView === v ? "#e0b44c" : "var(--db-text)",
+                    background: fretboardView === v ? "color-mix(in srgb, var(--db-c-amber) 20%, var(--db-bg))" : "var(--db-panel-bg)",
+                    border:     fretboardView === v ? "1px solid var(--db-c-amber)" : "1px solid var(--db-panel-border)",
+                    color:      fretboardView === v ? "var(--db-c-amber)" : "var(--db-text)",
                     fontWeight: fretboardView === v ? 700 : 400,
                     opacity:    fretboardView === v ? 1 : 0.7,
                   }}>
@@ -940,9 +960,9 @@ export default function Home() {
                 {["pentatonic","hexatonic"].map((f) => (
                   <button key={f} onClick={() => setScaleFilter(prev => prev === f ? null : f)} style={{
                     padding: "4px 10px", borderRadius: "6px", fontSize: "0.8rem", cursor: "pointer",
-                    background: scaleFilter === f ? "rgba(127,200,255,0.22)" : "var(--db-panel-bg)",
-                    border:     scaleFilter === f ? "1px solid #7fc8ff" : "1px solid var(--db-panel-border)",
-                    color:      scaleFilter === f ? "#7fc8ff" : "var(--db-text)",
+                    background: scaleFilter === f ? "color-mix(in srgb, var(--db-c-blue) 20%, var(--db-bg))" : "var(--db-panel-bg)",
+                    border:     scaleFilter === f ? "1px solid var(--db-c-blue)" : "1px solid var(--db-panel-border)",
+                    color:      scaleFilter === f ? "var(--db-c-blue)" : "var(--db-text)",
                     fontWeight: scaleFilter === f ? 700 : 400,
                     opacity:    scaleFilter === f ? 1 : 0.7,
                     textTransform: "capitalize",
@@ -1043,9 +1063,9 @@ export default function Home() {
                     padding: "10px 8px",
                     borderRadius: "10px",
                     border: isPlayhead
-                      ? "1px solid #8bd3a8"
+                      ? "1px solid var(--db-c-green)"
                       : active
-                      ? "1px solid #ff9ecb"
+                      ? "1px solid var(--db-c-pink)"
                       : "1px solid var(--db-card-border)",
                     background: isPlayhead
                       ? "rgba(139,211,168,0.14)"
@@ -1059,11 +1079,11 @@ export default function Home() {
                     {bars[index].symbol}
                   </div>
                   <div style={{ display: "flex", gap: "4px", alignItems: "center", justifyContent: "center" }}>
-                    <span style={{ fontSize: "1rem", color: "#c9a7ff", fontWeight: 700 }}>
+                    <span style={{ fontSize: "1rem", color: "var(--db-c-purple)", fontWeight: 700 }}>
                       {item.arrivalNote || "—"}
                     </span>
                     <span style={{ opacity: 0.3, fontSize: "0.75rem" }}>→</span>
-                    <span style={{ fontSize: "1rem", color: "#8bd3a8", fontWeight: 700 }}>
+                    <span style={{ fontSize: "1rem", color: "var(--db-c-green)", fontWeight: 700 }}>
                       {item.departureNote || "—"}
                     </span>
                   </div>
@@ -1082,16 +1102,16 @@ export default function Home() {
                 <button key={n} onClick={() => setGridColumns(n)} style={{
                   padding: "3px 8px", borderRadius: "5px", fontSize: "0.78rem", cursor: "pointer",
                   background: gridColumns === n ? "rgba(224,180,76,0.18)" : "var(--db-card-bg)",
-                  border: gridColumns === n ? "1px solid #e0b44c" : "1px solid var(--db-card-border)",
-                  color: gridColumns === n ? "#e0b44c" : "var(--db-muted)",
+                  border: gridColumns === n ? "1px solid var(--db-c-amber)" : "1px solid var(--db-card-border)",
+                  color: gridColumns === n ? "var(--db-c-amber)" : "var(--db-muted)",
                   fontWeight: gridColumns === n ? 700 : 400,
                 }}>{n}</button>
               ))}
               <button onClick={() => setScrollMode(p => !p)} style={{
                 padding: "3px 10px", borderRadius: "5px", fontSize: "0.78rem", cursor: "pointer",
                 background: scrollMode ? "rgba(127,200,255,0.18)" : "var(--db-card-bg)",
-                border: scrollMode ? "1px solid #7fc8ff" : "1px solid var(--db-card-border)",
-                color: scrollMode ? "#7fc8ff" : "var(--db-muted)",
+                border: scrollMode ? "1px solid var(--db-c-blue)" : "1px solid var(--db-card-border)",
+                color: scrollMode ? "var(--db-c-blue)" : "var(--db-muted)",
                 fontWeight: scrollMode ? 700 : 400,
                 marginLeft: "4px",
               }}>📜 Scroll</button>
@@ -1154,14 +1174,14 @@ export default function Home() {
                               }}
                             >
                               <div style={{ fontSize: "1.7rem", fontWeight: 700, lineHeight: 1.1,
-                                color: isPlayhead ? "#8bd3a8" : isActive ? "var(--db-accent)" : "var(--db-text)" }}>
+                                color: isPlayhead ? "var(--db-c-green)" : isActive ? "var(--db-accent)" : "var(--db-text)" }}>
                                 {bar.symbol}
                               </div>
-                              <div style={{ fontSize: "0.72rem", color: "#e0b44c", opacity: 0.85 }}>
+                              <div style={{ fontSize: "0.72rem", color: "var(--db-c-amber)", opacity: 0.85 }}>
                                 {guide.length ? guide.join(" / ") : "—"}
                               </div>
                               {target?.targetNote && (
-                                <div style={{ fontSize: "0.7rem", color: "#7fc8ff", opacity: 0.75 }}>
+                                <div style={{ fontSize: "0.7rem", color: "var(--db-c-blue)", opacity: 0.75 }}>
                                   → {target.targetNote}
                                 </div>
                               )}
@@ -1235,9 +1255,9 @@ export default function Home() {
                     padding: "14px 12px",
                     borderRadius: "12px",
                     border: isPlayhead
-                      ? "1px solid #8bd3a8"
+                      ? "1px solid var(--db-c-green)"
                       : active
-                      ? "1px solid #e0b44c"
+                      ? "1px solid var(--db-c-amber)"
                       : inLoop && loopEnabled
                       ? "1px solid rgba(240,212,138,0.5)"
                       : "1px solid var(--db-card-border)",
@@ -1261,7 +1281,7 @@ export default function Home() {
                         <div style={{
                           fontSize: "0.6rem", fontWeight: 700, padding: "1px 4px",
                           borderRadius: "4px", background: "rgba(127,200,255,0.15)",
-                          border: "1px solid rgba(127,200,255,0.3)", color: "#7fc8ff",
+                          border: "1px solid rgba(127,200,255,0.3)", color: "var(--db-c-blue)",
                           lineHeight: 1.4,
                         }}>
                           ½
@@ -1274,7 +1294,7 @@ export default function Home() {
                         style={{
                           background: (bar.beats ?? 4) === 2 ? "rgba(127,200,255,0.1)" : "none",
                           border: (bar.beats ?? 4) === 2 ? "1px solid rgba(127,200,255,0.3)" : "none",
-                          color: (bar.beats ?? 4) === 2 ? "#7fc8ff" : "var(--db-muted)",
+                          color: (bar.beats ?? 4) === 2 ? "var(--db-c-blue)" : "var(--db-muted)",
                           cursor: "pointer", fontSize: "0.75rem", padding: "0 4px", lineHeight: 1.6,
                           borderRadius: "4px",
                         }}
@@ -1304,36 +1324,36 @@ export default function Home() {
 
                   {/* Roman numeral */}
                   {showRomanNumerals && (
-                    <div style={{ fontSize: "0.9rem", color: "#f0d48a", marginBottom: "8px", opacity: 0.9 }}>
+                    <div style={{ fontSize: "0.9rem", color: "var(--db-c-gold)", marginBottom: "8px", opacity: 0.9 }}>
                       {roman}
                     </div>
                   )}
 
-                  <div style={{ fontSize: "0.78rem", color: "#f0d48a", marginBottom: "4px" }}>
+                  <div style={{ fontSize: "0.78rem", color: "var(--db-c-gold)", marginBottom: "4px" }}>
                     Function: {context?.functionLabel || "—"}
                   </div>
 
-                  <div style={{ fontSize: "0.76rem", color: "#ffb3a7", marginBottom: "6px" }}>
+                  <div style={{ fontSize: "0.76rem", color: "var(--db-c-salmon)", marginBottom: "6px" }}>
                     Cadence: {context?.cadenceLabels?.join(", ") || "—"}
                   </div>
 
-                  <div style={{ fontSize: "0.82rem", color: "#e0b44c", marginBottom: "6px" }}>
+                  <div style={{ fontSize: "0.82rem", color: "var(--db-c-amber)", marginBottom: "6px" }}>
                     GT: {guide.length ? guide.join(" / ") : "—"}
                   </div>
 
-                  <div style={{ fontSize: "0.8rem", color: "#7fc8ff", marginBottom: "6px" }}>
+                  <div style={{ fontSize: "0.8rem", color: "var(--db-c-blue)", marginBottom: "6px" }}>
                     Target: {target?.targetNote || "—"}
                   </div>
 
-                  <div style={{ fontSize: "0.8rem", color: "#ff9ecb", marginBottom: "6px" }}>
+                  <div style={{ fontSize: "0.8rem", color: "var(--db-c-pink)", marginBottom: "6px" }}>
                     Melody: {melody?.note || "—"}
                   </div>
 
-                  <div style={{ fontSize: "0.8rem", color: "#c9a7ff", marginBottom: "6px" }}>
+                  <div style={{ fontSize: "0.8rem", color: "var(--db-c-purple)", marginBottom: "6px" }}>
                     Phrase: {approach?.phrase?.length ? approach.phrase.join(" → ") : "—"}
                   </div>
 
-                  <div style={{ fontSize: "0.78rem", color: "#8bd3a8", marginBottom: "8px" }}>
+                  <div style={{ fontSize: "0.78rem", color: "var(--db-c-green)", marginBottom: "8px" }}>
                     Rhythm: {rhythm?.rhythm || "—"}
                   </div>
 
@@ -1398,14 +1418,14 @@ export default function Home() {
 
         <div style={panelStyle}>
           <div style={eyebrowStyle}>CONTINUOUS PHRASE</div>
-          <div style={{ fontSize: "1rem", lineHeight: 1.9, color: "#c9a7ff" }}>
+          <div style={{ fontSize: "1rem", lineHeight: 1.9, color: "var(--db-c-purple)" }}>
             {phrase.length ? phrase.join("  →  ") : "No phrase generated"}
           </div>
         </div>
 
         <div style={panelStyle}>
           <div style={eyebrowStyle}>RHYTHMIC SHAPE</div>
-          <div style={{ fontSize: "1rem", lineHeight: 1.9, color: "#8bd3a8" }}>
+          <div style={{ fontSize: "1rem", lineHeight: 1.9, color: "var(--db-c-green)" }}>
             {rhythms.map((item, index) => (
               <span key={`${item.chord}-rhythm-${index}`}>
                 <strong>{bars[index].symbol}</strong> [{item.rhythm}]
@@ -1458,7 +1478,7 @@ export default function Home() {
 
           {suggestedSub && (
             <div style={{ marginTop: "10px" }}>
-              <button onClick={applySuggestedSubstitution} style={buttonStyle("#ff9ecb", "#24141d")}>
+              <button onClick={applySuggestedSubstitution} style={buttonStyle("var(--db-c-pink)")}>
                 Suggest Substitution: {suggestedSub.symbol} ({suggestedSub.label})
               </button>
 
@@ -1474,11 +1494,11 @@ export default function Home() {
             HARMONIC ROLE
           </div>
 
-          <div style={{ fontSize: "1rem", color: "#f0d48a", marginBottom: "6px" }}>
+          <div style={{ fontSize: "1rem", color: "var(--db-c-gold)", marginBottom: "6px" }}>
             {harmonicContext[selectedIndex]?.functionLabel || "—"}
           </div>
 
-          <div style={{ fontSize: "0.95rem", color: "#ffb3a7" }}>
+          <div style={{ fontSize: "0.95rem", color: "var(--db-c-salmon)" }}>
             {harmonicContext[selectedIndex]?.cadenceLabels?.length
               ? harmonicContext[selectedIndex].cadenceLabels.join(" · ")
               : "No cadence label"}
@@ -1489,7 +1509,7 @@ export default function Home() {
         <InfoBlock
           title="GUIDE TONES"
           value={guides.length ? guides.join("  →  ") : "None"}
-          color="#e0b44c"
+          color="var(--db-c-amber)"
         />
         <InfoBlock title="INTERVALS" value={info.intervals?.join("  ·  ") || "None"} />
 
@@ -1500,9 +1520,9 @@ export default function Home() {
               {currentVoicing.map((note, i) => (
                 <span key={i} style={{
                   padding: "4px 9px", borderRadius: "7px", fontSize: "0.95rem", fontWeight: 700,
-                  background: i === 0 && !playBass ? "rgba(189,32,49,0.18)" : "rgba(201,167,255,0.12)",
-                  border: i === 0 && !playBass ? "1px solid rgba(189,32,49,0.4)" : "1px solid rgba(201,167,255,0.25)",
-                  color: i === 0 && !playBass ? "#ff7a7a" : "#c9a7ff",
+                  background: i === 0 && !playBass ? "rgba(189,32,49,0.18)" : "color-mix(in srgb, var(--db-c-purple) 12%, transparent)",
+                  border: i === 0 && !playBass ? "1px solid rgba(189,32,49,0.4)" : "1px solid color-mix(in srgb, var(--db-c-purple) 35%, transparent)",
+                  color: i === 0 && !playBass ? "#ff7a7a" : "var(--db-c-purple)",
                 }}>
                   {note}
                 </span>
@@ -1518,7 +1538,7 @@ export default function Home() {
           <div style={{ marginBottom: "20px" }}>
             <div style={eyebrowSmallStyle}>VOICE LEADING TO {selectedMotion.nextChord}</div>
             {selectedMotion.best ? (
-              <div style={{ fontSize: "1rem", color: "#8bd3a8", marginBottom: "8px" }}>
+              <div style={{ fontSize: "1rem", color: "var(--db-c-green)", marginBottom: "8px" }}>
                 Best motion: {selectedMotion.best.from} → {selectedMotion.best.to} ({selectedMotion.best.distance} semitone{selectedMotion.best.distance !== 1 ? "s" : ""})
               </div>
             ) : (
@@ -1533,7 +1553,7 @@ export default function Home() {
           <div style={{ marginBottom: "20px" }}>
             <div style={eyebrowSmallStyle}>MELODIC TARGET</div>
             {selectedTarget.targetNote ? (
-              <div style={{ fontSize: "1rem", color: "#7fc8ff" }}>
+              <div style={{ fontSize: "1rem", color: "var(--db-c-blue)" }}>
                 Aim for <strong>{selectedTarget.targetNote}</strong> in {selectedTarget.nextChord}
                 {selectedTarget.sourceNote ? ` from ${selectedTarget.sourceNote}` : ""}
               </div>
@@ -1546,7 +1566,7 @@ export default function Home() {
         {selectedMelodyNote && (
           <div style={{ marginBottom: "20px" }}>
             <div style={eyebrowSmallStyle}>SKELETON MELODY NOTE</div>
-            <div style={{ fontSize: "1.15rem", color: "#ff9ecb" }}>
+            <div style={{ fontSize: "1.15rem", color: "var(--db-c-pink)" }}>
               {selectedMelodyNote.note ? (
                 <>
                   Play <strong>{selectedMelodyNote.note}</strong> as the structural note for this bar.
@@ -1565,7 +1585,7 @@ export default function Home() {
               <span style={{
                 padding: "4px 10px", borderRadius: "8px",
                 background: "rgba(201,167,255,0.12)", border: "1px solid rgba(201,167,255,0.3)",
-                fontSize: "1.1rem", color: "#c9a7ff", fontWeight: 700,
+                fontSize: "1.1rem", color: "var(--db-c-purple)", fontWeight: 700,
               }}>
                 {selectedApproachLine.arrivalNote || "—"}
               </span>
@@ -1574,7 +1594,7 @@ export default function Home() {
               <span style={{
                 padding: "4px 10px", borderRadius: "8px",
                 background: "rgba(139,211,168,0.12)", border: "1px solid rgba(139,211,168,0.3)",
-                fontSize: "1.1rem", color: "#8bd3a8", fontWeight: 700,
+                fontSize: "1.1rem", color: "var(--db-c-green)", fontWeight: 700,
               }}>
                 {selectedApproachLine.departureNote || "—"}
               </span>
@@ -1593,7 +1613,7 @@ export default function Home() {
         {selectedRhythm && (
           <div style={{ marginBottom: "20px" }}>
             <div style={eyebrowSmallStyle}>RHYTHM TAG</div>
-            <div style={{ fontSize: "1.05rem", color: "#8bd3a8" }}>{selectedRhythm.rhythm}</div>
+            <div style={{ fontSize: "1.05rem", color: "var(--db-c-green)" }}>{selectedRhythm.rhythm}</div>
           </div>
         )}
 
@@ -1623,7 +1643,7 @@ function InfoBlock({ title, value, color }) {
   return (
     <div style={{ marginBottom: "20px" }}>
       <div style={eyebrowSmallStyle}>{title}</div>
-      <div style={{ fontSize: "1.1rem", color: color || "#f3efe6" }}>{value}</div>
+      <div style={{ fontSize: "1.1rem", color: color || "var(--db-text)" }}>{value}</div>
     </div>
   )
 }
@@ -1650,13 +1670,13 @@ const scaleCardStyle = {
   background: "var(--db-panel-bg)",
 }
 
-function buttonStyle(color, bg) {
+function buttonStyle(colorVar) {
   return {
     padding: "9px 12px",
     borderRadius: "10px",
-    border: `1px solid ${color}55`,
-    background: bg,
-    color,
+    border: `1px solid color-mix(in srgb, ${colorVar} 45%, transparent)`,
+    background: `color-mix(in srgb, ${colorVar} 10%, var(--db-bg))`,
+    color: colorVar,
     cursor: "pointer",
     fontWeight: 700,
   }
