@@ -55,27 +55,27 @@ const PALETTES = [
   },
   {
     name: "After Hours",
-    bg: "#110810",          text: "#f5e8ee",
-    accent: "#f06292",
-    panelBg: "rgba(240,98,146,0.04)",   panelBorder: "rgba(240,98,146,0.14)",
-    sideBg:  "rgba(240,98,146,0.04)",   sideBorder:  "rgba(240,98,146,0.18)",
-    inputBg: "#1a0d16",
+    bg: "#fdf4f7",          text: "#2d1520",
+    accent: "#c2185b",
+    panelBg: "rgba(194,24,91,0.04)",    panelBorder: "rgba(194,24,91,0.12)",
+    sideBg:  "rgba(194,24,91,0.04)",    sideBorder:  "rgba(194,24,91,0.16)",
+    inputBg: "#f5dfe9",
   },
   {
     name: "Autumn Leaves",
-    bg: "#100c07",          text: "#f5ede0",
-    accent: "#ff8f00",
-    panelBg: "rgba(255,143,0,0.04)",    panelBorder: "rgba(255,143,0,0.14)",
-    sideBg:  "rgba(255,143,0,0.04)",    sideBorder:  "rgba(255,143,0,0.18)",
-    inputBg: "#18120a",
+    bg: "#fdf7ee",          text: "#2c1a06",
+    accent: "#e65100",
+    panelBg: "rgba(230,81,0,0.04)",     panelBorder: "rgba(230,81,0,0.12)",
+    sideBg:  "rgba(230,81,0,0.04)",     sideBorder:  "rgba(230,81,0,0.16)",
+    inputBg: "#f5e8d0",
   },
   {
     name: "Smoke & Mirrors",
-    bg: "#0f0f0f",          text: "#e8e8e8",
-    accent: "#b0b0b0",
-    panelBg: "rgba(255,255,255,0.03)",  panelBorder: "rgba(255,255,255,0.1)",
-    sideBg:  "rgba(255,255,255,0.03)",  sideBorder:  "rgba(255,255,255,0.12)",
-    inputBg: "#1a1a1a",
+    bg: "#f5f5f5",          text: "#1a1a1a",
+    accent: "#546e7a",
+    panelBg: "rgba(0,0,0,0.03)",        panelBorder: "rgba(0,0,0,0.1)",
+    sideBg:  "rgba(0,0,0,0.03)",        sideBorder:  "rgba(0,0,0,0.13)",
+    inputBg: "#e8e8e8",
   },
 ]
 
@@ -134,8 +134,10 @@ export default function Home() {
   const [scrollMode, setScrollMode] = useState(false)
 
   // Refs for stable playback control (avoid stale closure issues)
-  const playingRef      = useRef(false)  // true while repeats should continue
-  const practiceModeRef = useRef(false)  // mirrors practiceMode for immediate reads
+  const playingRef        = useRef(false)  // true while repeats should continue
+  const practiceModeRef   = useRef(false)  // mirrors practiceMode for immediate reads
+  const startPlaybackRef  = useRef(null)   // always points to latest startPlayback
+  const stopPlaybackRef   = useRef(null)   // always points to latest stopPlayback
 
   const palette = PALETTES[paletteIndex]
 
@@ -485,6 +487,28 @@ export default function Home() {
       }
     }
   }
+
+  // Keep function refs current every render so keyboard handler never goes stale
+  startPlaybackRef.current = startPlayback
+  stopPlaybackRef.current  = stopPlayback
+
+  // Spacebar = universal play / stop
+  useEffect(() => {
+    function handleKeyDown(e) {
+      const tag = document.activeElement?.tagName
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return
+      if (e.code === "Space") {
+        e.preventDefault()
+        if (playingRef.current) {
+          stopPlaybackRef.current()
+        } else {
+          startPlaybackRef.current().catch(console.error)
+        }
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, []) // intentionally empty — state accessed via refs
 
   useEffect(() => {
     try {

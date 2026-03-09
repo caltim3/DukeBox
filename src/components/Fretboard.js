@@ -53,16 +53,19 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
       const isRoot   = noteName === root
       const isTarget = !isRoot && inTarget
       dots.push({
-        key:    `${si}-${f}`,
-        cx:     dotX(f),
-        cy:     strY(si),
-        r:      isRoot ? 10 : 9,
-        color:  isRoot ? "#BD2031" : isTarget ? "#E09B3D" : view === "scale" ? "#3A78C9" : "#3A9C5A",
-        label:  noteName,
+        key:     `${si}-${f}`,
+        cx:      dotX(f),
+        cy:      strY(si),
+        r:       isRoot ? 10 : 9,
+        color:   isRoot ? "#BD2031" : isTarget ? "#E09B3D" : view === "scale" ? "#3A78C9" : "#3A9C5A",
+        label:   noteName,
         isRoot,
+        isTarget,
       })
     }
   })
+  // Target notes rendered last so they always appear on top of scale/chord dots
+  dots.sort((a, b) => (a.isTarget ? 1 : 0) - (b.isTarget ? 1 : 0))
 
   const midY = Y_TOP + (STR_SPAN / 2)
 
