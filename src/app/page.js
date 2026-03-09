@@ -144,6 +144,15 @@ export default function Home() {
   const [gridColumns, setGridColumns] = useState(4)
   const [scrollMode, setScrollMode] = useState(false)
 
+  // FretFlow: static scale workout boards (up to 4)
+  const [fretFlowCount, setFretFlowCount] = useState(1)
+  const [fretFlowBoards, setFretFlowBoards] = useState([
+    { root: "C", scale: "major",    tuning: "Standard" },
+    { root: "F", scale: "major",    tuning: "Standard" },
+    { root: "A", scale: "minor",    tuning: "Standard" },
+    { root: "D", scale: "dorian",   tuning: "Standard" },
+  ])
+
   // Refs for stable playback control (avoid stale closure issues)
   const playingRef        = useRef(false)  // true while repeats should continue
   const practiceModeRef   = useRef(false)  // mirrors practiceMode for immediate reads
@@ -954,6 +963,7 @@ export default function Home() {
               activeIndex={selectedIndex}
               onSelectBar={setSelectedIndex}
               playheadIndex={playheadIndex}
+              barLabels={barLabels}
             />
           </div>
 
@@ -1508,6 +1518,113 @@ export default function Home() {
             ))}
           </div>
         </div>
+
+        {/* ── FRET FLOW ─────────────────────────────────────────────── */}
+        {(() => {
+          const FRET_FLOW_SCALES = [
+            { value: "major",            label: "Major (Ionian)" },
+            { value: "minor",            label: "Natural Minor (Aeolian)" },
+            { value: "dorian",           label: "Dorian" },
+            { value: "phrygian",         label: "Phrygian" },
+            { value: "lydian",           label: "Lydian" },
+            { value: "mixolydian",       label: "Mixolydian" },
+            { value: "locrian",          label: "Locrian" },
+            { value: "harmonic minor",   label: "Harmonic Minor" },
+            { value: "melodic minor",    label: "Melodic Minor" },
+            { value: "major pentatonic", label: "Major Pentatonic" },
+            { value: "minor pentatonic", label: "Minor Pentatonic" },
+            { value: "blues",            label: "Blues" },
+            { value: "bebop major",      label: "Bebop Major" },
+            { value: "bebop minor",      label: "Bebop Minor" },
+            { value: "whole tone",       label: "Whole Tone" },
+            { value: "diminished",       label: "Diminished (half-whole)" },
+          ]
+          const TUNING_NAMES = ["Standard", "Drop D", "Open G", "DADGAD"]
+          const updateFFBoard = (idx, patch) =>
+            setFretFlowBoards(prev => prev.map((b, i) => i === idx ? { ...b, ...patch } : b))
+
+          return (
+            <div style={panelStyle}>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "14px", flexWrap: "wrap" }}>
+                <div style={{ ...eyebrowStyle, marginBottom: 0 }}>FRET FLOW</div>
+                <div style={{ fontSize: "0.78rem", opacity: 0.55 }}>Static scale workout — choose up to 4 keys to practice</div>
+                <div style={{ marginLeft: "auto", display: "flex", gap: "4px" }}>
+                  {[1, 2, 3, 4].map(n => (
+                    <button key={n} onClick={() => setFretFlowCount(n)} style={{
+                      padding: "3px 10px", borderRadius: "5px", fontSize: "0.8rem", cursor: "pointer",
+                      background: fretFlowCount === n
+                        ? "color-mix(in srgb, var(--db-c-purple) 20%, var(--db-bg))"
+                        : "var(--db-panel-bg)",
+                      border: fretFlowCount === n
+                        ? "1px solid var(--db-c-purple)"
+                        : "1px solid var(--db-panel-border)",
+                      color: fretFlowCount === n ? "var(--db-c-purple)" : "var(--db-text)",
+                      fontWeight: fretFlowCount === n ? 700 : 400,
+                    }}>{n} board{n > 1 ? "s" : ""}</button>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{
+                display: "grid",
+                gridTemplateColumns: `repeat(${Math.min(fretFlowCount, 2)}, 1fr)`,
+                gap: "16px",
+              }}>
+                {fretFlowBoards.slice(0, fretFlowCount).map((board, idx) => {
+                  const notes = scaleNotes(board.scale, board.root)
+                  return (
+                    <div key={idx} style={{
+                      background: "var(--db-card-bg)",
+                      border: "1px solid var(--db-card-border)",
+                      borderRadius: "10px",
+                      padding: "12px",
+                    }}>
+                      {/* Board header: root + scale + tuning selectors */}
+                      <div style={{ display: "flex", gap: "8px", marginBottom: "10px", flexWrap: "wrap", alignItems: "center" }}>
+                        <select
+                          value={board.root}
+                          onChange={e => updateFFBoard(idx, { root: e.target.value })}
+                          style={{ ...selectStyle, flex: "0 0 auto", width: "72px", fontWeight: 700, color: "var(--db-accent)" }}
+                        >
+                          {ROOTS.map(r => <option key={r} value={r}>{r}</option>)}
+                        </select>
+                        <select
+                          value={board.scale}
+                          onChange={e => updateFFBoard(idx, { scale: e.target.value })}
+                          style={{ ...selectStyle, flex: 1, minWidth: "160px" }}
+                        >
+                          {FRET_FLOW_SCALES.map(s => (
+                            <option key={s.value} value={s.value}>{s.label}</option>
+                          ))}
+                        </select>
+                        <select
+                          value={board.tuning}
+                          onChange={e => updateFFBoard(idx, { tuning: e.target.value })}
+                          style={{ ...selectStyle, flex: "0 0 auto", width: "96px" }}
+                        >
+                          {TUNING_NAMES.map(t => <option key={t} value={t}>{t}</option>)}
+                        </select>
+                        <div style={{ fontSize: "0.72rem", opacity: 0.5, marginLeft: "auto" }}>
+                          {notes.join("  ")}
+                        </div>
+                      </div>
+                      <Fretboard
+                        chordNotes={[]}
+                        rootNote={board.root}
+                        scaleNotes={notes}
+                        view="scale"
+                        tuningName={board.tuning}
+                        targetNotes={[]}
+                        passingNotes={[]}
+                        guideToneNotes={[]}
+                      />
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })()}
       </section>
 
       <aside style={{

@@ -12,7 +12,6 @@ function staffPos(noteName) {
   const m = noteName.match(/^([A-G])([b#]?)(\d?)$/)
   if (!m) return 4
   const oct = m[3] ? parseInt(m[3]) : 4
-  // pos relative to E4=0: (oct-4)*7 + letter_offset - 2  (E has offset 2)
   return (oct - 4) * 7 + (L[m[1]] ?? 2) - 2
 }
 
@@ -24,10 +23,10 @@ function accidental(noteName) {
 }
 
 // ─── Single notehead with stem, ledger lines, accidental, label ───────────────
-function Notehead({ x, y, pos, color, label }) {
+function Notehead({ x, y, pos, color, label, labelAbove = false }) {
   const stemUp  = pos < 4
   const stemX   = stemUp ? x + 5.5 : x - 5.5
-  const stemEnd = stemUp ? y - 30 : y + 30
+  const stemEnd = stemUp ? y - 32 : y + 32
 
   // Ledger lines for notes outside the 5-line staff
   const ledgers = []
@@ -41,32 +40,36 @@ function Notehead({ x, y, pos, color, label }) {
   }
 
   const acc = accidental(label)
+  // Note name label: above stem-end when stem goes up, below when stem goes down
+  const labelY = stemUp ? stemEnd - 6 : stemEnd + 14
 
   return (
     <g>
       {ledgers.map(lp => {
-        const ly = y + (pos - lp) * 8  // relative offset (reused from caller's STEP=8)
+        const ly = y + (pos - lp) * 8
         return (
-          <line key={lp} x1={x - 11} y1={ly} x2={x + 11} y2={ly}
-            stroke="rgba(255,255,255,0.55)" strokeWidth="1.2" />
+          <line key={lp} x1={x - 12} y1={ly} x2={x + 12} y2={ly}
+            stroke="rgba(255,255,255,0.50)" strokeWidth="1.3" />
         )
       })}
       {acc && (
-        <text x={x - 9} y={y + 5} fontSize="14"
+        <text x={x - 10} y={y + 5} fontSize="14"
           fontFamily="'Georgia', 'Times New Roman', serif"
-          textAnchor="middle" fill={color} opacity="0.9">
+          textAnchor="middle" fill={color} opacity="0.95">
           {acc}
         </text>
       )}
       {/* notehead */}
-      <ellipse cx={x} cy={y} rx={6} ry={4.5}
+      <ellipse cx={x} cy={y} rx={6.5} ry={5}
         transform={`rotate(-15 ${x} ${y})`} fill={color} />
       {/* stem */}
       <line x1={stemX} y1={y} x2={stemX} y2={stemEnd}
-        stroke={color} strokeWidth="1.5" />
-      {/* label */}
-      <text x={x} y={stemUp ? y - 13 : stemEnd - 8} textAnchor="middle"
-        fontSize="9.5" fontFamily="Arial, sans-serif" fill={color} opacity="0.7">
+        stroke={color} strokeWidth="1.6" />
+      {/* note name label — floated to stem tip */}
+      <text x={stemX + (stemUp ? -7 : 8)} y={labelY}
+        textAnchor={stemUp ? "end" : "start"}
+        fontSize="11" fontFamily="Arial, sans-serif"
+        fontWeight="700" fill={color} opacity="0.95">
         {label || "—"}
       </text>
     </g>
@@ -74,17 +77,26 @@ function Notehead({ x, y, pos, color, label }) {
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
-export default function NotationLane({ bars, activeIndex, onSelectBar, playheadIndex = null }) {
+export default function NotationLane({
+  bars,
+  activeIndex,
+  onSelectBar,
+  playheadIndex = null,
+  barLabels = null,        // optional string[] — if omitted, falls back to 1-based index
+}) {
   const STEP    = 8    // px per staff step
   const CLEF_W  = 52   // space reserved for treble clef
-  const BAR_MIN = 110  // minimum bar width
+  const BAR_MIN = 120  // minimum bar width
   const R_PAD   = 24   // right padding
-  const TOP     = 34   // y of top staff line (F5)
+
+  // Vertical layout — leave room ABOVE the staff for chord name + bar number
+  const HEADER_H = 50   // px above the top staff line
+  const TOP      = HEADER_H   // y of the top staff line (F5)
 
   const n  = bars.length
   const totalW = Math.max(n * BAR_MIN + CLEF_W + R_PAD, 700)
   const bw = (totalW - CLEF_W - R_PAD) / Math.max(n, 1)
-  const svgH = TOP + 10 * STEP + 52  // staff + ledger room below + chord label room
+  const svgH = TOP + 10 * STEP + 24  // staff (10 steps) + small bottom pad
 
   // Convert staff position to SVG y-coordinate
   const yAt = pos => TOP + (8 - pos) * STEP
@@ -108,23 +120,23 @@ export default function NotationLane({ bars, activeIndex, onSelectBar, playheadI
   const contour = barData.flatMap(d => [`${d.arrX},${d.arrY}`, `${d.depX},${d.depY}`])
 
   return (
-    <div style={{ overflowX: "auto", paddingBottom: "8px" }}>
+    <div style={{ overflowX: "auto", paddingBottom: "4px" }}>
       <svg width={totalW} height={svgH} style={{ display: "block" }}>
 
         {/* Background */}
         <rect x={0} y={0} width={totalW} height={svgH} rx={12}
-          fill="rgba(4,4,18,0.6)" />
+          fill="rgba(4,4,18,0.72)" />
 
         {/* Five staff lines */}
         {staffLineYs.map((y, i) => (
           <line key={i} x1={CLEF_W - 10} y1={y} x2={totalW - R_PAD} y2={y}
-            stroke="rgba(255,255,255,0.22)" strokeWidth="1" />
+            stroke="rgba(255,255,255,0.20)" strokeWidth="1" />
         ))}
 
         {/* Treble clef glyph */}
-        <text x={4} y={staffBot + 16} fontSize="80"
+        <text x={4} y={staffBot + 18} fontSize="82"
           fontFamily="'Bravura','Noto Music','FreeSerif',Georgia,serif"
-          fill="rgba(255,255,255,0.50)" dominantBaseline="auto">
+          fill="rgba(255,255,255,0.45)" dominantBaseline="auto">
           𝄞
         </text>
 
@@ -134,30 +146,42 @@ export default function NotationLane({ bars, activeIndex, onSelectBar, playheadI
         <line x1={CLEF_W - 5} y1={staffTop} x2={CLEF_W - 5} y2={staffBot}
           stroke="rgba(255,255,255,0.25)" strokeWidth="1" />
 
-        {/* Bar backgrounds, bar lines, bar numbers, chord symbols */}
+        {/* Bar backgrounds, bar lines, bar numbers, chord symbols ABOVE staff */}
         {barData.map(({ i, bar, x0 }) => {
           const sel  = i === activeIndex
           const play = i === playheadIndex
+          const label = barLabels ? barLabels[i] : String(i + 1)
+
           return (
             <g key={`bg-${i}`} onClick={() => onSelectBar(i)} style={{ cursor: "pointer" }}>
-              <rect x={x0} y={staffTop} width={bw} height={staffBot - staffTop}
+              {/* highlight strip spans full header + staff area */}
+              <rect x={x0} y={0} width={bw} height={svgH}
+                rx={4}
                 fill={
-                  play  ? "rgba(139,211,168,0.12)" :
-                  sel   ? "rgba(224,180,76,0.10)"  : "transparent"
+                  play  ? "rgba(86,197,104,0.10)" :
+                  sel   ? "rgba(224,180,76,0.12)"  : "transparent"
                 } />
-              {/* bar line on right */}
+
+              {/* bar line on right edge */}
               <line x1={x0 + bw} y1={staffTop} x2={x0 + bw} y2={staffBot}
-                stroke="rgba(255,255,255,0.22)" strokeWidth="1" />
-              {/* bar number */}
-              <text x={x0 + 5} y={staffTop - 8} fontSize="9.5"
-                fontFamily="Arial, sans-serif"
-                fill={sel ? "#fff7db" : "rgba(255,255,255,0.35)"}>
-                {i + 1}
+                stroke="rgba(255,255,255,0.20)" strokeWidth="1" />
+
+              {/* Bar number — top of header */}
+              <text x={x0 + 6} y={14}
+                fontSize="10" fontFamily="Arial, sans-serif"
+                fill={sel ? "rgba(255,235,150,0.9)" : "rgba(255,255,255,0.30)"}>
+                {label}
               </text>
-              {/* chord symbol */}
-              <text x={x0 + bw / 2} y={svgH - 10} textAnchor="middle"
-                fontSize="12" fontFamily="Arial, sans-serif"
-                fill={play ? "#8bd3a8" : sel ? "#e0b44c" : "rgba(255,255,255,0.65)"}>
+
+              {/* Chord symbol — large, above the staff, centered */}
+              <text x={x0 + bw / 2} y={38}
+                textAnchor="middle"
+                fontSize="15" fontFamily="Arial, sans-serif" fontWeight="700"
+                fill={
+                  play ? "#8bd3a8"
+                  : sel  ? "#f0d070"
+                  : "rgba(255,255,255,0.88)"
+                }>
                 {bar.chord}
               </text>
             </g>
@@ -173,7 +197,7 @@ export default function NotationLane({ bars, activeIndex, onSelectBar, playheadI
         {/* Dashed melodic contour */}
         {contour.length > 2 && (
           <polyline points={contour.join(" ")} fill="none"
-            stroke="rgba(255,255,255,0.12)" strokeWidth="1.5"
+            stroke="rgba(255,255,255,0.10)" strokeWidth="1.5"
             strokeDasharray="4 4" strokeLinejoin="round" />
         )}
 
@@ -182,17 +206,24 @@ export default function NotationLane({ bars, activeIndex, onSelectBar, playheadI
           const sel  = i === activeIndex
           const play = i === playheadIndex
 
-          const arrColor = play ? "#8bd3a8" : sel ? "#e0b44c" : "#c9a7ff"
-          const depColor = play ? "#8bd3a8" : sel ? "#f0d48a" : "#8bd3a8"
+          // Arrival = structural note for THIS chord → RED
+          // Departure = leading tone toward NEXT chord → GREEN
+          const arrColor = play ? "#8bd3a8"
+                         : sel  ? "#ff6b6b"
+                         : "#e05050"
 
-          // Slur arc between the two notes (bows above both noteheads)
-          const arcY = Math.min(arrY, depY) - 20
-          const slur = `M ${arrX + 6} ${arrY - 5} Q ${(arrX + depX) / 2} ${arcY} ${depX - 6} ${depY - 5}`
+          const depColor = play ? "#8bd3a8"
+                         : sel  ? "#69e080"
+                         : "#4caf7d"
+
+          // Slur arc between the two notes
+          const arcY = Math.min(arrY, depY) - 22
+          const slur = `M ${arrX + 6} ${arrY - 6} Q ${(arrX + depX) / 2} ${arcY} ${depX - 6} ${depY - 6}`
 
           return (
             <g key={`n-${i}`} onClick={() => onSelectBar(i)} style={{ cursor: "pointer" }}>
               <path d={slur} fill="none"
-                stroke="rgba(255,255,255,0.18)" strokeWidth="1.2" />
+                stroke="rgba(255,255,255,0.15)" strokeWidth="1.2" />
               <Notehead x={arrX} y={arrY} pos={arrP}
                 color={arrColor} label={bar.arrivalNote} />
               <Notehead x={depX} y={depY} pos={depP}
