@@ -16,11 +16,13 @@ const FRET_COUNT   = 12
 const MARKER_FRETS = [3, 5, 7, 9, 12]
 const NUM_FRET_LABELS = [1, 3, 5, 7, 9, 12]
 
-export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes = null, view = "chord", tuningName = "Standard", targetNotes = [] }) {
+export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes = null, view = "chord", tuningName = "Standard", targetNotes = [], passingNotes = [], guideToneNotes = [] }) {
   const displayNotes = view === "scale" && scaleNotes?.length ? scaleNotes : chordNotes
-  const noteSet   = new Set(displayNotes.map(n => norm(n)))
-  const targetSet = new Set((targetNotes ?? []).map(n => norm(n)))
-  const root      = norm(rootNote)
+  const noteSet    = new Set(displayNotes.map(n => norm(n)))
+  const targetSet  = new Set((targetNotes  ?? []).map(n => norm(n)))
+  const passingSet = new Set((passingNotes ?? []).map(n => norm(n)))
+  const guideSet   = new Set((guideToneNotes ?? []).map(n => norm(n)))
+  const root       = norm(rootNote)
 
   const strings     = TUNINGS[tuningName] || TUNINGS.Standard
   const numStrings  = strings.length
@@ -47,25 +49,38 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
     if (openChroma === -1) return
     for (let f = 0; f <= FRET_COUNT; f++) {
       const noteName = NOTES_FLAT[(openChroma + f) % 12]
-      const inChord  = noteSet.has(noteName)
-      const inTarget = targetSet.has(noteName)
-      if (!inChord && !inTarget) continue
-      const isRoot   = noteName === root
-      const isTarget = !isRoot && inTarget
+      const inChord   = noteSet.has(noteName)
+      const inTarget  = targetSet.has(noteName)
+      const inPassing = passingSet.has(noteName)
+      const inGuide   = guideSet.has(noteName)
+      if (!inChord && !inTarget && !inPassing && !inGuide) continue
+      const isRoot    = noteName === root
+      const isTarget  = !isRoot && inTarget
+      const isPassing = !isRoot && !isTarget && inPassing
+      const isGuide   = !isRoot && !isTarget && !isPassing && inGuide
+      // Color priority: root > resolution target > bebop passing > guide tone > scale/chord
+      const color = isRoot    ? "#BD2031"
+                  : isTarget  ? "#E09B3D"   // amber  — resolution target note
+                  : isPassing ? "#56C568"   // green  — bebop chromatic passing tone
+                  : isGuide   ? "#FFD54F"   // gold   — guide tones (3rd / 7th)
+                  : view === "scale" ? "#3A78C9"  // blue  — scale tone
+                  : "#3A9C5A"               // green  — chord tone
       dots.push({
-        key:     `${si}-${f}`,
-        cx:      dotX(f),
-        cy:      strY(si),
-        r:       isRoot ? 10 : 9,
-        color:   isRoot ? "#BD2031" : isTarget ? "#E09B3D" : view === "scale" ? "#3A78C9" : "#3A9C5A",
-        label:   noteName,
-        isRoot,
-        isTarget,
+        key:  `${si}-${f}`,
+        cx:   dotX(f),
+        cy:   strY(si),
+        r:    isRoot ? 10 : 9,
+        color,
+        label: noteName,
+        isRoot, isTarget, isPassing, isGuide,
       })
     }
   })
-  // Target notes rendered last so they always appear on top of scale/chord dots
-  dots.sort((a, b) => (a.isTarget ? 1 : 0) - (b.isTarget ? 1 : 0))
+  // Render overlays last (guide → passing → target) so they always paint over scale dots
+  dots.sort((a, b) => {
+    const rank = d => d.isTarget ? 3 : d.isPassing ? 2 : d.isGuide ? 1 : 0
+    return rank(a) - rank(b)
+  })
 
   const midY = Y_TOP + (STR_SPAN / 2)
 

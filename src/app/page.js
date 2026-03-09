@@ -127,7 +127,9 @@ export default function Home() {
   const [showFretboard, setShowFretboard] = useState(false)
   const [fretboardView, setFretboardView] = useState("chord")
   const [fretboardTuning, setFretboardTuning] = useState("Standard")
-  const [scaleFilter, setScaleFilter] = useState(null)  // null | "pentatonic" | "hexatonic" | "bebop"
+  const [scaleFilter, setScaleFilter] = useState(null)  // null | "pentatonic" | "hexatonic"
+  const [bebopOverlay, setBebopOverlay] = useState(false)   // adds chromatic passing tone on top
+  const [targetsOverlay, setTargetsOverlay] = useState(false) // adds guide tones (3rd/7th) on top
   const [practiceMode, setPracticeMode] = useState(false)
   const [paletteIndex, setPaletteIndex] = useState(0)
   const [gridColumns, setGridColumns] = useState(4)
@@ -234,13 +236,27 @@ export default function Home() {
   }, [fretboardBar])
 
   const displayedScaleNotes = useMemo(() => {
-    if (scaleFilter === "targets") {
-      return targets[fretboardBarIndex]?.currentGuideTones ?? []
-    }
-    const raw = fretboardScaleData[0]?.notes ?? []
+    const raw   = fretboardScaleData[0]?.notes ?? []
     const tonic = fretboardBar.userTonic ?? fretboardBar.root
-    return applyScaleFilter(raw, tonic, fretboardBar.quality, scaleFilter)
-  }, [fretboardScaleData, fretboardBar, fretboardBarIndex, scaleFilter, targets])
+    return applyScaleFilter(raw, tonic, fretboardBar.quality, scaleFilter) // null | penta | hexa
+  }, [fretboardScaleData, fretboardBar, scaleFilter])
+
+  // Bebop: the extra chromatic passing tone on top of the current base scale
+  const bebopPassingNotes = useMemo(() => {
+    if (!bebopOverlay) return []
+    const raw   = fretboardScaleData[0]?.notes ?? []
+    const tonic = fretboardBar.userTonic ?? fretboardBar.root
+    const base  = applyScaleFilter(raw, tonic, fretboardBar.quality, scaleFilter)
+    const withBebop = applyScaleFilter(base, tonic, fretboardBar.quality, "bebop")
+    const baseSet   = new Set(base)
+    return withBebop.filter(n => !baseSet.has(n))
+  }, [bebopOverlay, fretboardScaleData, fretboardBar, scaleFilter])
+
+  // Guide tones (3rd / 7th) overlay when targets button is active
+  const guideToneDisplayNotes = useMemo(() => {
+    if (!targetsOverlay) return []
+    return targets[fretboardBarIndex]?.currentGuideTones ?? []
+  }, [targetsOverlay, targets, fretboardBarIndex])
 
   const romanNumerals = useMemo(() => {
     return bars.map((bar) => chordToRoman(bar.root, bar.quality, keyRoot, keyMode))
@@ -563,9 +579,9 @@ export default function Home() {
               style={{
                 padding: "9px 14px",
                 borderRadius: "10px",
-                border: practiceMode ? "1px solid #8bd3a8" : "1px solid rgba(255,255,255,0.18)",
-                background: practiceMode ? "rgba(139,211,168,0.12)" : "rgba(255,255,255,0.05)",
-                color: practiceMode ? "#8bd3a8" : "rgba(255,255,255,0.55)",
+                border: practiceMode ? "1px solid #8bd3a8" : "1px solid var(--db-panel-border)",
+                background: practiceMode ? "rgba(139,211,168,0.12)" : "var(--db-panel-bg)",
+                color: practiceMode ? "#8bd3a8" : "var(--db-text)",
                 cursor: "pointer",
                 fontWeight: 700,
                 fontSize: "0.88rem",
@@ -579,8 +595,8 @@ export default function Home() {
               style={{
                 padding: "9px 14px",
                 borderRadius: "10px",
-                border: "1px solid rgba(255,255,255,0.18)",
-                background: "rgba(255,255,255,0.05)",
+                border: "1px solid var(--db-panel-border)",
+                background: "var(--db-panel-bg)",
                 color: "var(--db-accent)",
                 cursor: "pointer",
                 fontWeight: 700,
@@ -912,37 +928,61 @@ export default function Home() {
             <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "10px", flexWrap: "wrap" }}>
               <div style={{ ...eyebrowStyle, marginBottom: 0 }}>FRETBOARD</div>
 
+              {/* View: Chord / Scale */}
               <div style={{ display: "flex", gap: "4px" }}>
                 {["chord", "scale"].map((v) => (
                   <button key={v} onClick={() => setFretboardView(v)} style={{
                     padding: "4px 10px", borderRadius: "6px", fontSize: "0.8rem", cursor: "pointer",
-                    background: fretboardView === v ? "rgba(224,180,76,0.18)" : "rgba(255,255,255,0.05)",
-                    border: fretboardView === v ? "1px solid #e0b44c" : "1px solid rgba(255,255,255,0.12)",
-                    color: fretboardView === v ? "#e0b44c" : "rgba(255,255,255,0.55)",
+                    background: fretboardView === v ? "rgba(224,180,76,0.22)" : "var(--db-panel-bg)",
+                    border:     fretboardView === v ? "1px solid #e0b44c" : "1px solid var(--db-panel-border)",
+                    color:      fretboardView === v ? "#e0b44c" : "var(--db-text)",
                     fontWeight: fretboardView === v ? 700 : 400,
+                    opacity:    fretboardView === v ? 1 : 0.7,
                   }}>
                     {v === "chord" ? "Chord" : "Scale"}
                   </button>
                 ))}
               </div>
 
+              {/* Base scale shape — mutually exclusive */}
               <div style={{ display: "flex", gap: "4px" }}>
-                {["pentatonic","hexatonic","bebop","targets"].map((f) => (
-                  <button key={f} onClick={() => {
-                    const next = scaleFilter === f ? null : f
-                    setScaleFilter(next)
-                    if (next === "targets") setFretboardView("scale")
-                  }} style={{
+                {["pentatonic","hexatonic"].map((f) => (
+                  <button key={f} onClick={() => setScaleFilter(prev => prev === f ? null : f)} style={{
                     padding: "4px 10px", borderRadius: "6px", fontSize: "0.8rem", cursor: "pointer",
-                    background: scaleFilter === f ? "rgba(139,211,168,0.18)" : "rgba(255,255,255,0.05)",
-                    border: scaleFilter === f ? "1px solid #8bd3a8" : "1px solid rgba(255,255,255,0.12)",
-                    color: scaleFilter === f ? "#8bd3a8" : "rgba(255,255,255,0.55)",
+                    background: scaleFilter === f ? "rgba(127,200,255,0.22)" : "var(--db-panel-bg)",
+                    border:     scaleFilter === f ? "1px solid #7fc8ff" : "1px solid var(--db-panel-border)",
+                    color:      scaleFilter === f ? "#7fc8ff" : "var(--db-text)",
                     fontWeight: scaleFilter === f ? 700 : 400,
+                    opacity:    scaleFilter === f ? 1 : 0.7,
                     textTransform: "capitalize",
                   }}>
                     {f}
                   </button>
                 ))}
+              </div>
+
+              {/* Additive overlays */}
+              <div style={{ display: "flex", gap: "4px" }}>
+                <button onClick={() => setBebopOverlay(p => !p)} style={{
+                  padding: "4px 10px", borderRadius: "6px", fontSize: "0.8rem", cursor: "pointer",
+                  background: bebopOverlay ? "rgba(86,197,104,0.22)" : "var(--db-panel-bg)",
+                  border:     bebopOverlay ? "1px solid #56C568" : "1px solid var(--db-panel-border)",
+                  color:      bebopOverlay ? "#56C568" : "var(--db-text)",
+                  fontWeight: bebopOverlay ? 700 : 400,
+                  opacity:    bebopOverlay ? 1 : 0.7,
+                }}>
+                  +Bebop
+                </button>
+                <button onClick={() => setTargetsOverlay(p => !p)} style={{
+                  padding: "4px 10px", borderRadius: "6px", fontSize: "0.8rem", cursor: "pointer",
+                  background: targetsOverlay ? "rgba(255,213,79,0.22)" : "var(--db-panel-bg)",
+                  border:     targetsOverlay ? "1px solid #FFD54F" : "1px solid var(--db-panel-border)",
+                  color:      targetsOverlay ? "#c49800" : "var(--db-text)",
+                  fontWeight: targetsOverlay ? 700 : 400,
+                  opacity:    targetsOverlay ? 1 : 0.7,
+                }}>
+                  +Guide Tones
+                </button>
               </div>
 
               <select
@@ -960,7 +1000,7 @@ export default function Home() {
                 {fretboardBar.userTonic && fretboardBar.userTonic !== fretboardBar.root
                   ? ` (${fretboardBar.userTonic})` : ""}
                 {fretboardView === "scale"
-                  ? ` · ${scaleFilter === "targets" ? "guide tones" : (scaleFilter ?? fretboardScaleData[0]?.name ?? "")}`
+                  ? ` · ${scaleFilter ?? fretboardScaleData[0]?.name ?? ""}`
                   : ""}
               </div>
             </div>
@@ -970,15 +1010,19 @@ export default function Home() {
               rootNote={fretboardBar.userTonic ?? fretboardBar.root}
               scaleNotes={displayedScaleNotes}
               targetNotes={fretboardTargetNotes}
+              passingNotes={bebopPassingNotes}
+              guideToneNotes={guideToneDisplayNotes}
               view={fretboardView}
               tuningName={fretboardTuning}
             />
 
-            <div style={{ marginTop: "8px", display: "flex", gap: "14px", fontSize: "0.78rem", opacity: 0.55 }}>
-              <span><span style={{ color: "#BD2031" }}>●</span> Root</span>
-              <span><span style={{ color: "#3A9C5A" }}>●</span> Chord tone</span>
-              <span><span style={{ color: "#3A78C9" }}>●</span> Scale tone</span>
-              <span><span style={{ color: "#E09B3D" }}>●</span> Target note</span>
+            <div style={{ marginTop: "8px", display: "flex", gap: "14px", fontSize: "0.78rem", flexWrap: "wrap" }} >
+              <span style={{ opacity: 0.55 }}><span style={{ color: "#BD2031" }}>●</span> Root</span>
+              <span style={{ opacity: 0.55 }}><span style={{ color: "#3A9C5A" }}>●</span> Chord tone</span>
+              <span style={{ opacity: 0.55 }}><span style={{ color: "#3A78C9" }}>●</span> Scale tone</span>
+              {bebopOverlay   && <span style={{ opacity: 0.85 }}><span style={{ color: "#56C568" }}>●</span> Bebop passing</span>}
+              {targetsOverlay && <span style={{ opacity: 0.85 }}><span style={{ color: "#FFD54F" }}>●</span> Guide tones</span>}
+              <span style={{ opacity: 0.55 }}><span style={{ color: "#E09B3D" }}>●</span> Target note</span>
             </div>
           </div>
         )}
@@ -1629,7 +1673,7 @@ const selectStyle = {
   borderRadius: "8px",
   background: "var(--db-input-bg)",
   color: "var(--db-text)",
-  border: "1px solid rgba(255,255,255,0.12)",
+  border: "1px solid var(--db-panel-border)",
 }
 
 const inlineLabelStyle = {
