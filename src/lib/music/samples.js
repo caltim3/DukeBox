@@ -18,11 +18,10 @@ const PIANO_URLS = {
 
 // Drum sample map — files live at public/samples/drums/
 const DRUM_URLS = {
-  kick:         "/samples/drums/kick.mp3",
-  snare:        "/samples/drums/snare.mp3",
-  hihat:        "/samples/drums/hihat.mp3",
-  "hihat-open": "/samples/drums/hihat-open.mp3",
-  ride:         "/samples/drums/ride.mp3",
+  kick:  "/samples/drums/jazzkick.mp3",   // jazz kick drum
+  ride:  "/samples/drums/jazzhat.mp3",    // jazz ride cymbal (using hat sample)
+  hihat: "/samples/drums/HiHat.mp3",      // closed hi-hat (beats 2 & 4)
+  snare: "/samples/drums/jazzsnare.mp3",  // jazz snare
 }
 
 // Bass always uses the synth — add BASS_URLS + _bass here when good samples are ready

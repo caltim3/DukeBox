@@ -1522,22 +1522,38 @@ export default function Home() {
         {/* ── FRET FLOW ─────────────────────────────────────────────── */}
         {(() => {
           const FRET_FLOW_SCALES = [
-            { value: "major",            label: "Major (Ionian)" },
-            { value: "minor",            label: "Natural Minor (Aeolian)" },
-            { value: "dorian",           label: "Dorian" },
-            { value: "phrygian",         label: "Phrygian" },
-            { value: "lydian",           label: "Lydian" },
-            { value: "mixolydian",       label: "Mixolydian" },
-            { value: "locrian",          label: "Locrian" },
-            { value: "harmonic minor",   label: "Harmonic Minor" },
-            { value: "melodic minor",    label: "Melodic Minor" },
-            { value: "major pentatonic", label: "Major Pentatonic" },
-            { value: "minor pentatonic", label: "Minor Pentatonic" },
-            { value: "blues",            label: "Blues" },
-            { value: "bebop major",      label: "Bebop Major" },
-            { value: "bebop minor",      label: "Bebop Minor" },
-            { value: "whole tone",       label: "Whole Tone" },
-            { value: "diminished",       label: "Diminished (half-whole)" },
+            // ── Diatonic modes ──────────────────────────────────────────
+            { value: "major",                 label: "Major (Ionian)" },
+            { value: "dorian",                label: "Dorian" },
+            { value: "phrygian",              label: "Phrygian" },
+            { value: "lydian",                label: "Lydian" },
+            { value: "mixolydian",            label: "Mixolydian" },
+            { value: "minor",                 label: "Natural Minor (Aeolian)" },
+            { value: "locrian",               label: "Locrian" },
+            // ── Harmonic / melodic minor family ─────────────────────────
+            { value: "harmonic minor",        label: "Harmonic Minor" },
+            { value: "melodic minor",         label: "Melodic Minor" },
+            { value: "harmonic major",        label: "Harmonic Major" },
+            { value: "double harmonic major", label: "Double Harmonic Major" },
+            // ── Symmetric / exotic ───────────────────────────────────────
+            { value: "whole tone",            label: "Whole Tone" },
+            { value: "whole-half diminished", label: "Diminished (Whole-Half)" },
+            { value: "half-whole diminished", label: "Diminished (Half-Whole)" },
+            { value: "enigmatic",             label: "Enigmatic" },
+            // ── Altered / modal jazz ─────────────────────────────────────
+            { value: "altered",               label: "Altered (Superlocrian)" },
+            { value: "lydian dominant",       label: "Lydian Dominant" },
+            // ── Bebop scales (8-note) ────────────────────────────────────
+            { value: "bebop",                 label: "Bebop Dominant" },
+            { value: "bebop major",           label: "Bebop Major" },
+            { value: "bebop minor",           label: "Bebop Dorian" },
+            { value: "bebop locrian",         label: "Bebop Locrian" },
+            // ── Pentatonic & blues ───────────────────────────────────────
+            { value: "major pentatonic",      label: "Major Pentatonic" },
+            { value: "minor pentatonic",      label: "Minor Pentatonic" },
+            { value: "major blues",           label: "Major Blues" },
+            { value: "blues",                 label: "Blues (Minor Blues)" },
+            { value: "minor hexatonic",       label: "Minor Hexatonic" },
           ]
           const TUNING_NAMES = ["Standard", "Drop D", "Open G", "DADGAD"]
           const updateFFBoard = (idx, patch) =>
@@ -1767,7 +1783,8 @@ export default function Home() {
         {selectedApproachLine && (
           <div style={{ marginBottom: "20px" }}>
             <div style={eyebrowSmallStyle}>VOICE LEADING PHRASE</div>
-            <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "8px" }}>
+            <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "6px", flexWrap: "wrap" }}>
+              {/* Arrival: guide tone of THIS chord */}
               <span style={{
                 padding: "4px 10px", borderRadius: "8px",
                 background: "rgba(201,167,255,0.12)", border: "1px solid rgba(201,167,255,0.3)",
@@ -1775,23 +1792,37 @@ export default function Home() {
               }}>
                 {selectedApproachLine.arrivalNote || "—"}
               </span>
-              <span style={{ opacity: 0.4, fontSize: "0.85rem" }}>arrived</span>
+              <span style={{ opacity: 0.4, fontSize: "0.75rem" }}>this bar</span>
+
+              {/* Approach note — only shown for chromatic approaches */}
+              {selectedApproachLine.approachType !== "anchor" && (
+                <>
+                  <span style={{ opacity: 0.35 }}>→</span>
+                  <span style={{
+                    padding: "4px 10px", borderRadius: "8px",
+                    background: "rgba(240,190,60,0.12)", border: "1px solid rgba(240,190,60,0.3)",
+                    fontSize: "1.1rem", color: "#f0c040", fontWeight: 700,
+                  }}>
+                    {selectedApproachLine.departureNote || "—"}
+                  </span>
+                  <span style={{ opacity: 0.4, fontSize: "0.75rem" }}>
+                    {selectedApproachLine.approachType === "chromatic-above" ? "↑ approach" : "↓ approach"}
+                  </span>
+                </>
+              )}
+
+              {/* Landing note: actual guide tone of NEXT chord */}
               <span style={{ opacity: 0.35 }}>→</span>
               <span style={{
                 padding: "4px 10px", borderRadius: "8px",
                 background: "rgba(139,211,168,0.12)", border: "1px solid rgba(139,211,168,0.3)",
                 fontSize: "1.1rem", color: "var(--db-c-green)", fontWeight: 700,
               }}>
-                {selectedApproachLine.departureNote || "—"}
+                {selectedApproachLine.target || selectedApproachLine.departureNote || "—"}
               </span>
-              <span style={{ opacity: 0.4, fontSize: "0.85rem" }}>
-                → {selectedApproachLine.nextChord || "end"}
+              <span style={{ opacity: 0.4, fontSize: "0.75rem" }}>
+                lands in {selectedApproachLine.nextChord || "end"}
               </span>
-            </div>
-            <div style={{ fontSize: "0.82rem", opacity: 0.55 }}>
-              {selectedApproachLine.approachType === "chromatic-above" && "↑ half-step above target"}
-              {selectedApproachLine.approachType === "chromatic-below" && "↓ half-step below target"}
-              {selectedApproachLine.approachType === "anchor" && "settling on guide tone"}
             </div>
           </div>
         )}

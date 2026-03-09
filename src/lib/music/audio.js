@@ -219,14 +219,12 @@ export function stopAll() {
   if (lead)  try { lead.triggerRelease() } catch {}
 }
 
-function makePart(events, callback, loop, loopEnd) {
+function makePart(events, callback) {
   if (!events.length) return
   const part = new Tone.Part(callback, events)
   part.start(0)
-  if (loop) {
-    part.loop    = true
-    part.loopEnd = loopEnd
-  }
+  // Do NOT loop the Part itself — the Transport loop handles seamless repeats.
+  // Double-looping (Part + Transport) creates a tiny gap at the seam.
   activeParts.push(part)
 }
 
@@ -315,35 +313,41 @@ export async function startPlayback({
       } else {
         piano.triggerAttackRelease(ev.notes, ev.dur, time, ev.vel)
       }
-    }, loop, end)
+    })
   }
 
   // Walking bass (always uses synth — no bass samples)
   if (playBass) {
     makePart(walkingBass(bars, timing), (time, ev) => {
       bass.triggerAttackRelease(ev.note, ev.dur, time, ev.vel)
-    }, loop, end)
+    })
   }
 
   // Melody lead
   if (playMelody && approachLines?.length) {
     makePart(melodyEvents(approachLines, timing), (time, ev) => {
       lead.triggerAttackRelease(ev.note, ev.dur, time, ev.vel)
-    }, loop, end)
+    })
   }
 
-  // Drums
+  // Drums — use sampler if loaded, fall back to synthesis
   if (playDrums) {
     makePart(drumEvents(totalBts), (time, ev) => {
       const s = getSamplers()
-      if (s?.drums) {
-        try { s.drums.player(ev.inst).start(time) } catch {}
+      const drumLoaded = s?.drums?.loaded
+      if (drumLoaded) {
+        try { s.drums.player(ev.inst).start(time) } catch {
+          // sampler failed mid-stream — use synth fallback
+          if (ev.inst === "ride")  ride.triggerAttackRelease("16n", time, ev.vel)
+          if (ev.inst === "kick")  kick.triggerAttackRelease("C1",  "8n", time, ev.vel)
+          if (ev.inst === "hihat") hihat.triggerAttackRelease("16n", time, ev.vel)
+        }
       } else {
         if (ev.inst === "ride")  ride.triggerAttackRelease("16n", time, ev.vel)
         if (ev.inst === "kick")  kick.triggerAttackRelease("C1",  "8n", time, ev.vel)
         if (ev.inst === "hihat") hihat.triggerAttackRelease("16n", time, ev.vel)
       }
-    }, loop, end)
+    })
   }
 
   tr.start()
