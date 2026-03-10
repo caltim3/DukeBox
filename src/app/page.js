@@ -24,7 +24,7 @@ import {
 } from "@/lib/music/harmony"
 import { FORMS, FORM_CATEGORIES } from "@/lib/music/forms"
 import { chordToRoman } from "@/lib/music/roman"
-import { startPlayback as audioStart, stopAll as audioStop } from "@/lib/music/audio"
+import { startPlayback as audioStart, stopAll as audioStop, DRUM_STYLES } from "@/lib/music/audio"
 import { COMPING_STYLE_NAMES, DEFAULT_COMPING_STYLE, getVoiceLedVoicing } from "@/lib/music/comping"
 import Fretboard from "@/components/Fretboard"
 
@@ -112,6 +112,7 @@ export default function Home() {
   const [playChords, setPlayChords] = useState(true)
   const [playBass, setPlayBass] = useState(true)
   const [playDrums, setPlayDrums] = useState(true)
+  const [drumStyleIdx, setDrumStyleIdx] = useState(0)
   const [playMelody, setPlayMelody] = useState(false)
   const [swingAmount, setSwingAmount] = useState(0.5)
   const [playheadIndex, setPlayheadIndex] = useState(null)
@@ -506,6 +507,7 @@ export default function Home() {
           loop:          true,
           swing:         swingAmount,
           playChords, playBass, playDrums, playMelody, compingStyle,
+          drumStyle:     drumStyleIdx,
           onBar:  (localIdx) => setPlayheadIndex(startIndex + localIdx),
           onStop: () => { playingRef.current = false; setIsPlaying(false); setPlayheadIndex(null) },
         })
@@ -524,6 +526,7 @@ export default function Home() {
         loop:          false,
         swing:         swingAmount,
         playChords, playBass, playDrums, playMelody, compingStyle,
+        drumStyle:     drumStyleIdx,
         onBar:  (localIdx) => setPlayheadIndex(startIndex + localIdx),
         onStop: () => {
           playsLeft--
@@ -901,7 +904,18 @@ export default function Home() {
 
             <label style={inlineLabelStyle}>
               <input type="checkbox" checked={playDrums} onChange={(e) => setPlayDrums(e.target.checked)} />
-              Drums
+              <button
+                onClick={() => setDrumStyleIdx(i => (i + 1) % DRUM_STYLES.length)}
+                style={{
+                  ...buttonStyle(playDrums ? "var(--db-c-amber)" : "var(--db-muted)"),
+                  padding: "3px 10px",
+                  fontSize: "0.82rem",
+                  fontWeight: 600,
+                }}
+                title="Click to cycle through drum styles"
+              >
+                🥁 {DRUM_STYLES[drumStyleIdx].name}
+              </button>
             </label>
 
             <label style={inlineLabelStyle}>
@@ -952,20 +966,18 @@ export default function Home() {
             </button>
           </div>
 
-          <div style={eyebrowStyle}>NOTATION LANE</div>
+          <div style={eyebrowStyle}>MELODY LANE</div>
           <div style={{ fontSize: "0.78rem", opacity: 0.55, marginBottom: "8px", marginTop: "-4px" }}>
-            Staff view of arrival &amp; departure notes — see the voice-leading arc across the chart
+            Guide-tone skeleton — arrival (red) and departure (green) notes across the chart
           </div>
 
-          <div style={{ overflowX: "auto" }}>
-            <NotationLane
-              bars={notationBars}
-              activeIndex={selectedIndex}
-              onSelectBar={setSelectedIndex}
-              playheadIndex={playheadIndex}
-              barLabels={barLabels}
-            />
-          </div>
+          <NotationLane
+            bars={notationBars}
+            activeIndex={selectedIndex}
+            onSelectBar={setSelectedIndex}
+            playheadIndex={playheadIndex}
+            barLabels={barLabels}
+          />
 
           <div style={{ marginTop: "8px", fontSize: "0.9rem", opacity: 0.7 }}>
             Loop range: bars {Math.min(loopStart, loopEnd) + 1} to {Math.max(loopStart, loopEnd) + 1}
@@ -1077,60 +1089,6 @@ export default function Home() {
             </div>
           </div>
         )}
-
-        <div style={panelStyle}>
-          <div style={eyebrowStyle}>MELODY LANE</div>
-          <div style={{ fontSize: "0.78rem", opacity: 0.55, marginBottom: "8px", marginTop: "-4px" }}>
-            The structural note you arrive on and depart from for each chord — your melodic target per bar
-          </div>
-
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(90px, 1fr))",
-              gap: "8px",
-            }}
-          >
-            {approachLines.map((item, index) => {
-              const active = index === selectedIndex
-              const isPlayhead = index === playheadIndex
-
-              return (
-                <div
-                  key={`${item.chord}-lane-${index}`}
-                  style={{
-                    padding: "10px 8px",
-                    borderRadius: "10px",
-                    border: isPlayhead
-                      ? "1px solid var(--db-c-green)"
-                      : active
-                      ? "1px solid var(--db-c-pink)"
-                      : "1px solid var(--db-card-border)",
-                    background: isPlayhead
-                      ? "rgba(139,211,168,0.14)"
-                      : active
-                      ? "rgba(255,158,203,0.08)"
-                      : "var(--db-card-bg)",
-                    textAlign: "center",
-                  }}
-                >
-                  <div style={{ fontSize: "0.72rem", opacity: 0.55, marginBottom: "6px" }}>
-                    {bars[index].symbol}
-                  </div>
-                  <div style={{ display: "flex", gap: "4px", alignItems: "center", justifyContent: "center" }}>
-                    <span style={{ fontSize: "1rem", color: "var(--db-c-purple)", fontWeight: 700 }}>
-                      {item.arrivalNote || "—"}
-                    </span>
-                    <span style={{ opacity: 0.3, fontSize: "0.75rem" }}>→</span>
-                    <span style={{ fontSize: "1rem", color: "var(--db-c-green)", fontWeight: 700 }}>
-                      {item.departureNote || "—"}
-                    </span>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
 
         <div style={panelStyle}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>

@@ -1,4 +1,5 @@
 "use client"
+import { useEffect, useRef } from "react"
 
 // ─── Staff position math (treble clef) ────────────────────────────────────────
 // Bottom line = E4 = pos 0.  Each step = one diatonic step (line or space).
@@ -98,6 +99,20 @@ export default function NotationLane({
   const bw = (totalW - CLEF_W - R_PAD) / Math.max(n, 1)
   const svgH = TOP + 10 * STEP + 24  // staff (10 steps) + small bottom pad
 
+  // Auto-scroll: keep the active playhead bar visible — centred at 30% from left
+  const scrollRef = useRef(null)
+  useEffect(() => {
+    if (playheadIndex == null || !scrollRef.current) return
+    const el = scrollRef.current
+    const barLeft = CLEF_W + playheadIndex * bw
+    const target  = Math.max(0, barLeft - el.clientWidth * 0.3)
+    // Only scroll if the bar is outside the current viewport
+    const barRight = barLeft + bw
+    if (barRight > el.scrollLeft + el.clientWidth - 10 || barLeft < el.scrollLeft + 10) {
+      el.scrollTo({ left: target, behavior: "smooth" })
+    }
+  }, [playheadIndex, bw])
+
   // Convert staff position to SVG y-coordinate
   const yAt = pos => TOP + (8 - pos) * STEP
 
@@ -120,7 +135,7 @@ export default function NotationLane({
   const contour = barData.flatMap(d => [`${d.arrX},${d.arrY}`, `${d.depX},${d.depY}`])
 
   return (
-    <div style={{ overflowX: "auto", paddingBottom: "4px" }}>
+    <div ref={scrollRef} style={{ overflowX: "auto", paddingBottom: "4px" }}>
       <svg width={totalW} height={svgH} style={{ display: "block" }}>
 
         {/* Background */}

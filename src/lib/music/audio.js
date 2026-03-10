@@ -181,13 +181,50 @@ function melodyEvents(approachLines, timing) {
   return events
 }
 
-// ─── Drum pattern (8th-note grid) ─────────────────────────────────────────────
-// 8 steps per bar:  [beat1, +1, beat2, +2, beat3, +3, beat4, +4]
-const RIDE_V  = [0.55, 0.30, 0.55, 0,    0.55, 0.30, 0.55, 0   ]
-const KICK_V  = [0.75, 0,    0,    0,    0,    0,    0,    0   ]
-const HIHAT_V = [0,    0,    0.60, 0,    0,    0,    0.60, 0   ]
+// ─── Drum styles (8th-note grid, 8 steps per bar) ────────────────────────────
+// Step index:  0      1      2      3      4      5      6      7
+// Maps to:    beat1  +e1   beat2  +e2   beat3  +e3   beat4  +e4
+//             (1)   (&1)   (2)   (&2)   (3)   (&3)   (4)   (&4)
+export const DRUM_STYLES = [
+  {
+    name:  "Jazz Ride",
+    // Classic bebop: ride on 1 &1 2 3 &3 4, kick on 1, hi-hat foot on 2 & 4
+    ride:  [0.55, 0.30, 0.55, 0,    0.55, 0.30, 0.55, 0   ],
+    kick:  [0.75, 0,    0,    0,    0,    0,    0,    0   ],
+    hihat: [0,    0,    0.60, 0,    0,    0,    0.60, 0   ],
+  },
+  {
+    name:  "Four on Floor",
+    // Driving straight-8s: kick on every beat, ride on all 8ths, no hat
+    ride:  [0.60, 0.30, 0.60, 0.30, 0.60, 0.30, 0.60, 0.30],
+    kick:  [0.80, 0,    0.72, 0,    0.72, 0,    0.72, 0   ],
+    hihat: [0,    0,    0,    0,    0,    0,    0,    0   ],
+  },
+  {
+    name:  "Brushes",
+    // Intimate brush sweep: same ride shape but quieter, soft kick, light hat
+    ride:  [0.30, 0.16, 0.30, 0,    0.30, 0.16, 0.30, 0   ],
+    kick:  [0.38, 0,    0,    0,    0,    0,    0,    0   ],
+    hihat: [0,    0,    0.32, 0,    0,    0,    0.32, 0   ],
+  },
+  {
+    name:  "Bossa Nova",
+    // Cross-stick Latin feel: syncopated ride, kick on 1 & &2, hat on the &s
+    ride:  [0.55, 0,    0.45, 0.55, 0,    0.55, 0.45, 0   ],
+    kick:  [0.65, 0,    0,    0.58, 0,    0.52, 0,    0   ],
+    hihat: [0,    0.38, 0,    0,    0.38, 0,    0,    0.38],
+  },
+  {
+    name:  "Ballad",
+    // Sparse, spacious: beats 1 & 3 on ride, very light kick, hat on 2 & 4
+    ride:  [0.48, 0,    0.34, 0,    0.48, 0,    0.34, 0   ],
+    kick:  [0.50, 0,    0,    0,    0,    0,    0,    0   ],
+    hihat: [0,    0,    0.44, 0,    0,    0,    0.44, 0   ],
+  },
+]
 
-function drumEvents(totalBeats) {
+function drumEvents(totalBeats, pattern) {
+  const { ride: RIDE_V, kick: KICK_V, hihat: HIHAT_V } = pattern
   const events = []
   const numMeasures = Math.ceil(totalBeats / 4)
   for (let b = 0; b < numMeasures; b++) {
@@ -245,6 +282,7 @@ export async function startPlayback({
   playBass      = true,
   playDrums     = true,
   playMelody    = false,
+  drumStyle     = 0,
   compingStyle  = DEFAULT_COMPING_STYLE,
   onBar         = null,
   onStop        = null,
@@ -331,10 +369,15 @@ export async function startPlayback({
     })
   }
 
-  // Melody lead
+  // Melody lead — use piano sampler when available so timbre matches the chords
   if (playMelody && approachLines?.length) {
+    const { piano: pianoSampler } = getSamplers() ?? {}
     makePart(melodyEvents(approachLines, timing), (time, ev) => {
-      lead.triggerAttackRelease(ev.note, ev.dur, time, ev.vel)
+      if (pianoSampler) {
+        pianoSampler.triggerAttackRelease(ev.note, ev.dur, time, ev.vel)
+      } else {
+        lead.triggerAttackRelease(ev.note, ev.dur, time, ev.vel)
+      }
     })
   }
 
@@ -343,7 +386,8 @@ export async function startPlayback({
   if (playDrums) {
     const { drums: drumSampler } = getSamplers() ?? {}
     const drumLoaded = drumSampler?.loaded
-    makePart(drumEvents(totalBts), (time, ev) => {
+    const pattern = DRUM_STYLES[drumStyle] ?? DRUM_STYLES[0]
+    makePart(drumEvents(totalBts, pattern), (time, ev) => {
       if (drumLoaded) {
         try { drumSampler.player(ev.inst).start(time) } catch {
           playDrumSynth(ev.inst, time, ev.vel)  // sampler failed mid-stream
