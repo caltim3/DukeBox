@@ -175,7 +175,10 @@ function melodyEvents(approachLines, timing) {
       const absbeat = startBeat + (positions[idx] ?? 0)
       const m  = measure + Math.floor(absbeat / 4)
       const bt = absbeat % 4
-      events.push({ time: `${m}:${bt}:0`, note: `${noteName}5`, dur: "4n", vel: 0.55 })
+      // Place melody in right-hand register, minimum E5 (midi 76), so it sits above chord voicings
+      const midi5 = Note.midi(`${noteName}5`) ?? 0
+      const octave = midi5 >= 76 ? 5 : 6
+      events.push({ time: `${m}:${bt}:0`, note: `${noteName}${octave}`, dur: "4n", vel: 0.55 })
     })
   })
   return events

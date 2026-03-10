@@ -116,6 +116,27 @@ export function analyzeGuideToneMotion(chords) {
       })
     })
 
+    // Identify 3rd and 7th roles for voice-leading priority (7→3 = bebop resolution)
+    const curChord = Chord.get(current.symbol)
+    const nxtChord = Chord.get(next.symbol)
+    const cur7 = (curChord.notes || []).find((_, i) => curChord.intervals[i] === "7m" || curChord.intervals[i] === "7M")
+    const cur3 = (curChord.notes || []).find((_, i) => curChord.intervals[i] === "3M" || curChord.intervals[i] === "3m")
+    const nxt3 = (nxtChord.notes || []).find((_, i) => nxtChord.intervals[i] === "3M" || nxtChord.intervals[i] === "3m")
+    const nxt7 = (nxtChord.notes || []).find((_, i) => nxtChord.intervals[i] === "7m" || nxtChord.intervals[i] === "7M")
+
+    const motionPriority = (m) => {
+      if (m.from === cur7 && m.to === nxt3) return 0  // 7→3: traditional bebop resolution
+      if (m.from === cur3 && m.to === nxt7) return 1  // 3→7: secondary
+      if (m.smooth) return 2
+      return 3
+    }
+
+    const scored = [...motions].sort((a, b) => {
+      const pa = motionPriority(a), pb = motionPriority(b)
+      if (pa !== pb) return pa - pb
+      return (a.distance ?? 99) - (b.distance ?? 99)
+    })
+
     const smoothMotions = motions
       .filter((m) => m.smooth)
       .sort((a, b) => a.distance - b.distance)
@@ -126,7 +147,7 @@ export function analyzeGuideToneMotion(chords) {
         nextChord: next.symbol,
         all: motions,
         smooth: smoothMotions,
-        best: smoothMotions[0] || null,
+        best: scored[0] || null,
       },
     }
   })
@@ -255,7 +276,8 @@ export function noteToFrequency(note, octave = 4) {
 //   Note 2 = departure — chromatic approach note leading INTO the next bar's landing note
 //
 // Chain: bar0:[arrival, →bar1] | bar1:[bar0target, →bar2] | bar2:[bar1target, →bar3] …
-export function generateApproachLines(chords, phraseSeed = 0) {
+export function generateApproachLines(chords, approachMode = 0) {
+  // approachMode: 0 = always below, 1 = always above, 2 = no approach
   const targets = melodicTargets(chords)
 
   return targets.map((current, index) => {
@@ -280,13 +302,15 @@ export function generateApproachLines(chords, phraseSeed = 0) {
     let departureNote = null
     let approachType  = "anchor"
 
-    if (current.targetNote) {
-      // Chromatic half-step into next bar's landing note; alternate direction
-      const useAbove = (index + phraseSeed) % 2 === 1
-      departureNote = useAbove
-        ? aboveHalfStep(current.targetNote)
-        : belowHalfStep(current.targetNote)
-      approachType = useAbove ? "chromatic-above" : "chromatic-below"
+    if (approachMode !== 2 && current.targetNote) {
+      // Chromatic half-step into next bar's landing note; direction set by approachMode
+      if (approachMode === 1) {
+        departureNote = aboveHalfStep(current.targetNote)
+        approachType = "chromatic-above"
+      } else {
+        departureNote = belowHalfStep(current.targetNote)
+        approachType = "chromatic-below"
+      }
     } else {
       // Last bar: settle on secondary guide tone
       departureNote = current.currentGuideTones?.[1]
@@ -312,8 +336,8 @@ export function generateApproachLines(chords, phraseSeed = 0) {
   })
 }
 
-export function generateContinuousPhrase(chords, phraseSeed = 0, style = "smooth") {
-  return generateApproachLines(chords, phraseSeed, style).flatMap((item) => item.phrase || [])
+export function generateContinuousPhrase(chords, approachMode = 0) {
+  return generateApproachLines(chords, approachMode).flatMap((item) => item.phrase || [])
 }
 
 const RHYTHM_BANKS = [

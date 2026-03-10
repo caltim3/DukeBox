@@ -104,8 +104,7 @@ export default function Home() {
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [dragIndex, setDragIndex] = useState(null)
 
-  const [phraseSeed, setPhraseSeed] = useState(0)
-  const [rhythmSeed, setRhythmSeed] = useState(0)
+  const [approachMode, setApproachMode] = useState(0)  // 0=below, 1=above, 2=off
 
   const [tempo, setTempo] = useState(110)
   const [isPlaying, setIsPlaying] = useState(false)
@@ -183,20 +182,20 @@ export default function Home() {
   }, [bars])
 
   const melodySkeleton = useMemo(() => {
-    return generateMelodySkeleton(bars, phraseSeed)
-  }, [bars, phraseSeed])
+    return generateMelodySkeleton(bars, 0)
+  }, [bars])
 
   const approachLines = useMemo(() => {
-    return generateApproachLines(bars, phraseSeed)
-  }, [bars, phraseSeed])
+    return generateApproachLines(bars, approachMode)
+  }, [bars, approachMode])
 
   const phrase = useMemo(() => {
     return approachLines.flatMap(line => line.phrase)
   }, [approachLines])
 
   const rhythms = useMemo(() => {
-    return assignRhythmToBars(bars, rhythmSeed)
-  }, [bars, rhythmSeed])
+    return assignRhythmToBars(bars, 0)
+  }, [bars])
 
   const notationBars = useMemo(() => {
     return approachLines.map((line, i) => ({
@@ -341,19 +340,6 @@ export default function Home() {
 
   function handleDragEnd() {
     setDragIndex(null)
-  }
-
-  function regeneratePhrase() {
-    setPhraseSeed((prev) => prev + 1)
-  }
-
-  function regenerateRhythm() {
-    setRhythmSeed((prev) => prev + 1)
-  }
-
-  function regenerateSelectedBar() {
-    setPhraseSeed((prev) => prev + 1)
-    setRhythmSeed((prev) => prev + 1)
   }
 
   function applySuggestedSubstitution() {
@@ -855,16 +841,17 @@ export default function Home() {
               {isPlaying ? "⏹ Stop" : "▶ Play"}
             </button>
 
-            <button onClick={regeneratePhrase} style={buttonStyle("var(--db-c-purple)")}>
-              Regenerate Phrase
-            </button>
-
-            <button onClick={regenerateRhythm} style={buttonStyle("var(--db-c-green)")}>
-              Regenerate Rhythm
-            </button>
-
-            <button onClick={regenerateSelectedBar} style={buttonStyle("var(--db-c-blue)")}>
-              Regenerate Selected Bar
+            <button
+              onClick={() => setApproachMode(m => (m + 1) % 3)}
+              style={buttonStyle(
+                approachMode === 0 ? "var(--db-c-blue)"
+                : approachMode === 1 ? "var(--db-c-purple)"
+                : "var(--db-muted)"
+              )}
+            >
+              {approachMode === 0 ? "↓ Approach Below"
+               : approachMode === 1 ? "↑ Approach Above"
+               : "○ No Approach"}
             </button>
 
             <label style={inlineLabelStyle}>
