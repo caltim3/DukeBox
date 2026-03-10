@@ -1521,41 +1521,7 @@ export default function Home() {
 
         {/* ── FRET FLOW ─────────────────────────────────────────────── */}
         {(() => {
-          const FRET_FLOW_SCALES = [
-            // ── Diatonic modes ──────────────────────────────────────────
-            { value: "major",                 label: "Major (Ionian)" },
-            { value: "dorian",                label: "Dorian" },
-            { value: "phrygian",              label: "Phrygian" },
-            { value: "lydian",                label: "Lydian" },
-            { value: "mixolydian",            label: "Mixolydian" },
-            { value: "minor",                 label: "Natural Minor (Aeolian)" },
-            { value: "locrian",               label: "Locrian" },
-            // ── Harmonic / melodic minor family ─────────────────────────
-            { value: "harmonic minor",        label: "Harmonic Minor" },
-            { value: "melodic minor",         label: "Melodic Minor" },
-            { value: "harmonic major",        label: "Harmonic Major" },
-            { value: "double harmonic major", label: "Double Harmonic Major" },
-            // ── Symmetric / exotic ───────────────────────────────────────
-            { value: "whole tone",            label: "Whole Tone" },
-            { value: "whole-half diminished", label: "Diminished (Whole-Half)" },
-            { value: "half-whole diminished", label: "Diminished (Half-Whole)" },
-            { value: "enigmatic",             label: "Enigmatic" },
-            // ── Altered / modal jazz ─────────────────────────────────────
-            { value: "altered",               label: "Altered (Superlocrian)" },
-            { value: "lydian dominant",       label: "Lydian Dominant" },
-            // ── Bebop scales (8-note) ────────────────────────────────────
-            { value: "bebop",                 label: "Bebop Dominant" },
-            { value: "bebop major",           label: "Bebop Major" },
-            { value: "bebop minor",           label: "Bebop Dorian" },
-            { value: "bebop locrian",         label: "Bebop Locrian" },
-            // ── Pentatonic & blues ───────────────────────────────────────
-            { value: "major pentatonic",      label: "Major Pentatonic" },
-            { value: "minor pentatonic",      label: "Minor Pentatonic" },
-            { value: "major blues",           label: "Major Blues" },
-            { value: "blues",                 label: "Blues (Minor Blues)" },
-            { value: "minor hexatonic",       label: "Minor Hexatonic" },
-          ]
-          const TUNING_NAMES = ["Standard", "Drop D", "Open G", "DADGAD"]
+          // FRET_FLOW_SCALES and TUNING_NAMES are module-level constants (defined below Home()).
           const updateFFBoard = (idx, patch) =>
             setFretFlowBoards(prev => prev.map((b, i) => i === idx ? { ...b, ...patch } : b))
 
@@ -1785,11 +1751,7 @@ export default function Home() {
             <div style={eyebrowSmallStyle}>VOICE LEADING PHRASE</div>
             <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "6px", flexWrap: "wrap" }}>
               {/* Arrival: guide tone of THIS chord */}
-              <span style={{
-                padding: "4px 10px", borderRadius: "8px",
-                background: "rgba(201,167,255,0.12)", border: "1px solid rgba(201,167,255,0.3)",
-                fontSize: "1.1rem", color: "var(--db-c-purple)", fontWeight: 700,
-              }}>
+              <span style={notePillStyle("var(--db-c-purple)")}>
                 {selectedApproachLine.arrivalNote || "—"}
               </span>
               <span style={{ opacity: 0.4, fontSize: "0.75rem" }}>this bar</span>
@@ -1798,11 +1760,7 @@ export default function Home() {
               {selectedApproachLine.approachType !== "anchor" && (
                 <>
                   <span style={{ opacity: 0.35 }}>→</span>
-                  <span style={{
-                    padding: "4px 10px", borderRadius: "8px",
-                    background: "rgba(240,190,60,0.12)", border: "1px solid rgba(240,190,60,0.3)",
-                    fontSize: "1.1rem", color: "#f0c040", fontWeight: 700,
-                  }}>
+                  <span style={notePillStyle("#f0c040")}>
                     {selectedApproachLine.departureNote || "—"}
                   </span>
                   <span style={{ opacity: 0.4, fontSize: "0.75rem" }}>
@@ -1813,11 +1771,7 @@ export default function Home() {
 
               {/* Landing note: actual guide tone of NEXT chord */}
               <span style={{ opacity: 0.35 }}>→</span>
-              <span style={{
-                padding: "4px 10px", borderRadius: "8px",
-                background: "rgba(139,211,168,0.12)", border: "1px solid rgba(139,211,168,0.3)",
-                fontSize: "1.1rem", color: "var(--db-c-green)", fontWeight: 700,
-              }}>
+              <span style={notePillStyle("var(--db-c-green)")}>
                 {selectedApproachLine.target || selectedApproachLine.departureNote || "—"}
               </span>
               <span style={{ opacity: 0.4, fontSize: "0.75rem" }}>
@@ -1898,6 +1852,57 @@ function buttonStyle(colorVar) {
     fontWeight: 700,
   }
 }
+
+// Note pill — used in voice-leading phrase and melody lane displays.
+function notePillStyle(colorVar) {
+  return {
+    padding: "4px 10px",
+    borderRadius: "8px",
+    background: `color-mix(in srgb, ${colorVar} 12%, transparent)`,
+    border: `1px solid color-mix(in srgb, ${colorVar} 30%, transparent)`,
+    fontSize: "1.1rem",
+    color: colorVar,
+    fontWeight: 700,
+  }
+}
+
+// ─── FretFlow static data (never changes — defined once at module scope) ──────
+const FRET_FLOW_SCALES = [
+  // Diatonic modes
+  { value: "major",                 label: "Major (Ionian)" },
+  { value: "dorian",                label: "Dorian" },
+  { value: "phrygian",              label: "Phrygian" },
+  { value: "lydian",                label: "Lydian" },
+  { value: "mixolydian",            label: "Mixolydian" },
+  { value: "minor",                 label: "Natural Minor (Aeolian)" },
+  { value: "locrian",               label: "Locrian" },
+  // Harmonic / melodic minor family
+  { value: "harmonic minor",        label: "Harmonic Minor" },
+  { value: "melodic minor",         label: "Melodic Minor" },
+  { value: "harmonic major",        label: "Harmonic Major" },
+  { value: "double harmonic major", label: "Double Harmonic Major" },
+  // Symmetric / exotic
+  { value: "whole tone",            label: "Whole Tone" },
+  { value: "whole-half diminished", label: "Diminished (Whole-Half)" },
+  { value: "half-whole diminished", label: "Diminished (Half-Whole)" },
+  { value: "enigmatic",             label: "Enigmatic" },
+  // Altered / modal jazz
+  { value: "altered",               label: "Altered (Superlocrian)" },
+  { value: "lydian dominant",       label: "Lydian Dominant" },
+  // Bebop scales (8-note)
+  { value: "bebop",                 label: "Bebop Dominant" },
+  { value: "bebop major",           label: "Bebop Major" },
+  { value: "bebop minor",           label: "Bebop Dorian" },
+  { value: "bebop locrian",         label: "Bebop Locrian" },
+  // Pentatonic & blues
+  { value: "major pentatonic",      label: "Major Pentatonic" },
+  { value: "minor pentatonic",      label: "Minor Pentatonic" },
+  { value: "major blues",           label: "Major Blues" },
+  { value: "blues",                 label: "Blues (Minor Blues)" },
+  { value: "minor hexatonic",       label: "Minor Hexatonic" },
+]
+
+const TUNING_NAMES = ["Standard", "Drop D", "Open G", "DADGAD"]
 
 const selectStyle = {
   width: "100%",

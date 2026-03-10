@@ -16,12 +16,15 @@ const PIANO_URLS = {
   "Gb5": "/samples/piano/fs5.mp3",
 }
 
-// Drum sample map — files live at public/samples/drums/
+// Drum sample map — files live at public/samples/drums/.
+// Only instruments emitted by drumEvents() are listed; loading unused samples
+// wastes a network request on startup.
+// (jazzsnare.mp3 exists on disk — add it here + to drumEvents() when a 2-&-4
+//  snare pattern is desired.)
 const DRUM_URLS = {
-  kick:  "/samples/drums/jazzkick.mp3",   // jazz kick drum
-  ride:  "/samples/drums/jazzhat.mp3",    // jazz ride cymbal (using hat sample)
-  hihat: "/samples/drums/HiHat.mp3",      // closed hi-hat (beats 2 & 4)
-  snare: "/samples/drums/jazzsnare.mp3",  // jazz snare
+  kick:  "/samples/drums/jazzkick.mp3",  // beat 1
+  ride:  "/samples/drums/jazzhat.mp3",   // ride cymbal pattern
+  hihat: "/samples/drums/HiHat.mp3",     // closed hi-hat (beats 2 & 4)
 }
 
 // Bass always uses the synth — add BASS_URLS + _bass here when good samples are ready

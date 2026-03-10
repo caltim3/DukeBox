@@ -219,6 +219,13 @@ export function stopAll() {
   if (lead)  try { lead.triggerRelease() } catch {}
 }
 
+// Synth fallback for a single drum hit — used when the sampler isn't loaded or fails mid-stream.
+function playDrumSynth(inst, time, vel) {
+  if      (inst === "ride")  ride.triggerAttackRelease("16n", time, vel)
+  else if (inst === "kick")  kick.triggerAttackRelease("C1",  "8n", time, vel)
+  else if (inst === "hihat") hihat.triggerAttackRelease("16n", time, vel)
+}
+
 function makePart(events, callback) {
   if (!events.length) return
   const part = new Tone.Part(callback, events)
@@ -306,10 +313,11 @@ export async function startPlayback({
       }
     })
 
+    // Cache sampler references once — they're singletons that don't change during playback.
+    const samplers = getSamplers()
     makePart(events, (time, ev) => {
-      const s = getSamplers()
-      if (s?.piano) {
-        s.piano.triggerAttackRelease(ev.notes, ev.dur, time, ev.vel)
+      if (samplers?.piano) {
+        samplers.piano.triggerAttackRelease(ev.notes, ev.dur, time, ev.vel)
       } else {
         piano.triggerAttackRelease(ev.notes, ev.dur, time, ev.vel)
       }
@@ -330,22 +338,18 @@ export async function startPlayback({
     })
   }
 
-  // Drums — use sampler if loaded, fall back to synthesis
+  // Drums — use sampler if loaded, fall back to synth synthesis.
+  // Sampler load state is stable for the duration of playback, so check it once.
   if (playDrums) {
+    const { drums: drumSampler } = getSamplers() ?? {}
+    const drumLoaded = drumSampler?.loaded
     makePart(drumEvents(totalBts), (time, ev) => {
-      const s = getSamplers()
-      const drumLoaded = s?.drums?.loaded
       if (drumLoaded) {
-        try { s.drums.player(ev.inst).start(time) } catch {
-          // sampler failed mid-stream — use synth fallback
-          if (ev.inst === "ride")  ride.triggerAttackRelease("16n", time, ev.vel)
-          if (ev.inst === "kick")  kick.triggerAttackRelease("C1",  "8n", time, ev.vel)
-          if (ev.inst === "hihat") hihat.triggerAttackRelease("16n", time, ev.vel)
+        try { drumSampler.player(ev.inst).start(time) } catch {
+          playDrumSynth(ev.inst, time, ev.vel)  // sampler failed mid-stream
         }
       } else {
-        if (ev.inst === "ride")  ride.triggerAttackRelease("16n", time, ev.vel)
-        if (ev.inst === "kick")  kick.triggerAttackRelease("C1",  "8n", time, ev.vel)
-        if (ev.inst === "hihat") hihat.triggerAttackRelease("16n", time, ev.vel)
+        playDrumSynth(ev.inst, time, ev.vel)
       }
     })
   }
