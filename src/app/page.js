@@ -105,6 +105,7 @@ export default function Home() {
   const [dragIndex, setDragIndex] = useState(null)
 
   const [approachMode, setApproachMode] = useState(0)  // 0=below, 1=above, 2=off
+  const [chartKey, setChartKey] = useState("Bb")        // actual key the chart bars are notated in
 
   const [tempo, setTempo] = useState(110)
   const [isPlaying, setIsPlaying] = useState(false)
@@ -385,6 +386,7 @@ export default function Home() {
     if (form) {
       setBars(form.bars)
       setKeyRoot(form.keyRoot)
+      setChartKey(form.keyRoot)
       setKeyMode(form.keyMode)
       setSelectedIndex(0)
       setLoopStart(0)
@@ -396,6 +398,7 @@ export default function Home() {
     if (userEntry) {
       setBars(userEntry.bars)
       setKeyRoot(userEntry.keyRoot || "C")
+      setChartKey(userEntry.keyRoot || "C")
       setKeyMode(userEntry.keyMode || "major")
       setSelectedIndex(0)
       setLoopStart(0)
@@ -404,9 +407,10 @@ export default function Home() {
     }
   }
 
-  function handleTransposeChart(newKeyRoot) {
-    setBars((prev) => transposeChart(prev, keyRoot, newKeyRoot))
-    setKeyRoot(newKeyRoot)
+  function handleTransposeChart() {
+    if (keyRoot === chartKey) return
+    setBars((prev) => transposeChart(prev, chartKey, keyRoot))
+    setChartKey(keyRoot)
   }
 
   async function handleGenerateChart() {
@@ -427,6 +431,7 @@ export default function Home() {
       const { chart } = data
       setBars(chart.bars)
       setKeyRoot(chart.keyRoot || "C")
+      setChartKey(chart.keyRoot || "C")
       setKeyMode(chart.keyMode || "major")
       setSelectedForm("Custom")
       setSelectedIndex(0)
@@ -773,13 +778,10 @@ export default function Home() {
             </label>
 
             <button
-              onClick={() => {
-                const target = prompt("Transpose chart to key (e.g. G, Eb, F#):")
-                if (target && ROOTS.includes(target)) handleTransposeChart(target)
-              }}
-              style={buttonStyle("var(--db-c-blue)")}
+              onClick={handleTransposeChart}
+              style={buttonStyle(keyRoot !== chartKey ? "var(--db-c-amber)" : "var(--db-muted)")}
             >
-              Transpose Chart
+              Transpose Part
             </button>
 
             <label style={inlineLabelStyle}>

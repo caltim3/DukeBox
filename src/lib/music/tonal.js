@@ -418,10 +418,20 @@ export function applyScaleFilter(notes, root, quality, filter) {
         return buildFromSemitones(root, [0,2,4,7,9])    // major pentatonic: 1 2 3 5 6
       return buildFromSemitones(root, [0,3,5,7,10])      // minor pentatonic: 1 b3 4 5 b7
 
-    case "hexatonic":
-      if (["7alt","min7b5","dim7"].includes(quality))
-        return buildFromSemitones(root, [0,2,3,7,9,11])  // melodic minor: 1 2 b3 5 6 7
-      return buildFromSemitones(root, [0,2,4,7,9,11])    // major: 1 2 3 5 6 7
+    case "hexatonic": {
+      const q = quality || ""
+      // Half-dim / dim: Locrian #2 without b6 = 1 2 b3 4 b5 b7
+      if (q === "min7b5" || q === "dim7")
+        return buildFromSemitones(root, [0,2,3,5,6,10])
+      // Minor (Dorian): remove 4th = 1 2 b3 5 6 b7
+      if (q.startsWith("min") || q === "m7" || q === "m6" || q === "m9")
+        return buildFromSemitones(root, [0,2,3,7,9,10])
+      // Dominant (Mixolydian): remove 4th = 1 2 3 5 6 b7
+      if ((q.includes("7") || q.includes("9") || q.includes("13")) && !q.startsWith("maj"))
+        return buildFromSemitones(root, [0,2,4,7,9,10])
+      // Major (Ionian): remove 4th = 1 2 3 5 6 7
+      return buildFromSemitones(root, [0,2,4,7,9,11])
+    }
 
     case "bebop": {
       if (!notes.length) return notes
