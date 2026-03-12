@@ -1004,7 +1004,7 @@ export default function Home() {
 
               {/* Base scale shape — mutually exclusive */}
               <div style={{ display: "flex", gap: "4px" }}>
-                {["pentatonic","hexatonic"].map((f) => (
+                {["pentatonic","hexatonic","martino"].map((f) => (
                   <button key={f} onClick={() => setScaleFilter(prev => prev === f ? null : f)} style={{
                     padding: "4px 10px", borderRadius: "6px", fontSize: "0.8rem", cursor: "pointer",
                     background: scaleFilter === f ? "color-mix(in srgb, var(--db-c-blue) 20%, var(--db-bg))" : "var(--db-panel-bg)",
@@ -1014,7 +1014,7 @@ export default function Home() {
                     opacity:    scaleFilter === f ? 1 : 0.7,
                     textTransform: "capitalize",
                   }}>
-                    {f}
+                    {f === "martino" ? "Martino" : f}
                   </button>
                 ))}
               </div>
@@ -1058,7 +1058,7 @@ export default function Home() {
                 {fretboardBar.userTonic && fretboardBar.userTonic !== fretboardBar.root
                   ? ` (${fretboardBar.userTonic})` : ""}
                 {fretboardView === "scale"
-                  ? ` · ${scaleFilter ?? fretboardScaleData[0]?.name ?? ""}`
+                  ? ` · ${scaleFilter === "martino" ? "Martino" : (scaleFilter ?? fretboardScaleData[0]?.name ?? "")}`
                   : ""}
               </div>
             </div>

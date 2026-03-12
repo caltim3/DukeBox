@@ -532,6 +532,31 @@ export function applyScaleFilter(notes, root, quality, filter) {
       return buildFromSemitones(root, [0,2,4,7,9,11])
     }
 
+    case "martino": {
+      // Pat Martino's minor conversion — everything becomes a minor hexatonic
+      // (Dorian no 6: 1 2 b3 4 5 b7) built from a quality-dependent root.
+      // Guide tones and approach notes are unaffected (chord-tone based).
+      const q = quality || ""
+      // Major (maj7, maj6) → minor hexatonic from relative minor (6th = 9 st up)
+      if (q === "maj7" || q === "maj6") {
+        const relMinor = noteAtSemitones(root, 9)
+        return buildFromSemitones(relMinor, [0,2,3,5,7,10])
+      }
+      // Half-dim / dim → melodic minor hexatonic from root: 1 2 b3 5 6 M7
+      if (q === "min7b5" || q === "dim7")
+        return buildFromSemitones(root, [0,2,3,7,9,11])
+      // Minor (min7, min6, etc.) → minor hexatonic from root
+      if (q.startsWith("min") || q === "m7" || q === "m6" || q === "m9")
+        return buildFromSemitones(root, [0,2,3,5,7,10])
+      // Dominant (7, 7alt, etc.) → minor hexatonic from 5th (7 st up)
+      if ((q.includes("7") || q.includes("9") || q.includes("13")) && !q.startsWith("maj")) {
+        const fifth = noteAtSemitones(root, 7)
+        return buildFromSemitones(fifth, [0,2,3,5,7,10])
+      }
+      // Fallback → minor hexatonic from root
+      return buildFromSemitones(root, [0,2,3,5,7,10])
+    }
+
     case "bebop": {
       if (!notes.length) return notes
       const rootChroma = Note.chroma(root)
