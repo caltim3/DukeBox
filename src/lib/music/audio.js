@@ -8,9 +8,41 @@ const JAZZ_SPELLING = {
   5: "F", 6: "Gb", 7: "G", 8: "Ab", 9: "A", 10: "Bb", 11: "B",
 }
 
+// Bass sample helpers ─────────────────────────────────────────────────────────
+// Maps flat/natural note names → sharp-file notation used in sample filenames
+const FLAT_TO_BASS = {
+  "C":"C","Db":"Cs","D":"D","Eb":"Ds","E":"E",
+  "F":"F","Gb":"Fs","G":"G","Ab":"Gs","A":"A","Bb":"As","B":"B",
+}
+const BASS_MIDI_MIN = 28  // E1
+const BASS_MIDI_MAX = 48  // C3
+
+// Round-robin state: persists across play/stop to prevent machine-gun repetition
+let _bassRRState = {}
+
+// Converts a note string (e.g. "Bb2") to a sample key (e.g. "As2_soft_rr1")
+function buildBassKey(noteStr) {
+  const m = noteStr.match(/^([A-G][b#]?)(-?\d+)$/)
+  if (!m) return null
+  const [, letter, octStr] = m
+  const fileLetter = FLAT_TO_BASS[letter]
+  if (!fileLetter) return null
+  let octave = parseInt(octStr)
+  const midi = Note.midi(noteStr)
+  if (midi == null) return null
+  if (midi < BASS_MIDI_MIN) octave += Math.ceil((BASS_MIDI_MIN - midi) / 12)
+  if (midi > BASS_MIDI_MAX) octave -= Math.ceil((midi - BASS_MIDI_MAX) / 12)
+  const filePitch = `${fileLetter}${octave}`
+  const vel = Math.random() < 0.6 ? "soft" : "hard"
+  const rrKey = `${filePitch}_${vel}`
+  const lastRR = _bassRRState[rrKey]
+  const rr = lastRR === undefined ? (Math.random() < 0.5 ? 1 : 2) : lastRR === 1 ? 2 : 1
+  _bassRRState[rrKey] = rr
+  return `${filePitch}_${vel}_rr${rr}`
+}
+
 // ─── Singleton synths (created once per browser session) ─────────────────────
 let piano = null
-let bass  = null
 let lead  = null
 let kick  = null
 let ride  = null
@@ -30,12 +62,6 @@ function ensureSynths() {
     modulationEnvelope: { attack: 0.002, decay: 0.2, sustain: 0.3, release: 0.5 },
   }).toDestination()
   piano.volume.value = -14
-
-  bass = new Tone.Synth({
-    oscillator: { type: "triangle" },
-    envelope: { attack: 0.005, decay: 0.5, sustain: 0.15, release: 0.6 },
-  }).toDestination()
-  bass.volume.value = -8
 
   lead = new Tone.Synth({
     oscillator: { type: "sine" },
@@ -365,10 +391,17 @@ export async function startPlayback({
     })
   }
 
-  // Walking bass (always uses synth — no bass samples)
+  // Walking bass — upright bass sampler with velocity, jitter, and round-robin humanization
   if (playBass) {
+    const { bass: bassPlayers } = getSamplers()
     makePart(walkingBass(bars, timing), (time, ev) => {
-      bass.triggerAttackRelease(ev.note, ev.dur, time, ev.vel)
+      if (!bassPlayers) return
+      const key = buildBassKey(ev.note)
+      if (!key) return
+      const player = bassPlayers.player(key)
+      if (!player) return
+      player.volume.value = (Math.random() - 0.5) * 4   // ±2 dB gain variation
+      player.start(time + (Math.random() - 0.5) * 0.02) // ±10 ms timing jitter
     })
   }
 

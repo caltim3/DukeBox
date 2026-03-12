@@ -27,10 +27,18 @@ const DRUM_URLS = {
   hihat: "/samples/drums/HiHat.mp3",     // closed hi-hat (beats 2 & 4)
 }
 
-// Bass always uses the synth — add BASS_URLS + _bass here when good samples are ready
+// Bass sample map — files live at public/samples/bass/
+// 21 pitches (E1–C3) × 2 velocities (soft/hard) × 2 round robins = 84 files
+const BASS_PITCHES = ["E1","F1","Fs1","G1","Gs1","A1","As1","B1","C2","Cs2","D2","Ds2","E2","F2","Fs2","G2","Gs2","A2","As2","B2","C3"]
+const BASS_URLS = {}
+for (const p of BASS_PITCHES)
+  for (const v of ["soft","hard"])
+    for (const r of [1,2])
+      BASS_URLS[`${p}_${v}_rr${r}`] = `/samples/bass/${p}_${v}_rr${r}.mp3`
 
 let _piano = null
 let _drums  = null
+let _bass   = null
 let _loadPromise = null
 
 /**
@@ -47,6 +55,7 @@ export async function initSamplers() {
     // 1. Create both instruments synchronously — registers all URLs with Tone
     let pianoRef = null
     let drumsRef = null
+    let bassRef  = null
 
     try {
       pianoRef = new Tone.Sampler({ urls: PIANO_URLS, release: 1.2 }).toDestination()
@@ -62,6 +71,13 @@ export async function initSamplers() {
       console.warn("DukeBox: Drums player creation failed.", err)
     }
 
+    try {
+      bassRef = new Tone.Players({ urls: BASS_URLS, fadeOut: 0.04 }).toDestination()
+      bassRef.volume.value = -8
+    } catch (err) {
+      console.warn("DukeBox: Bass player creation failed.", err)
+    }
+
     // 2. Single await — waits for ALL registered buffers together
     try {
       await Tone.loaded()
@@ -73,22 +89,23 @@ export async function initSamplers() {
     // 3. Assign regardless of partial failures — null stays null if creation failed
     _piano = pianoRef
     _drums = drumsRef
+    _bass  = bassRef
   })()
 
   return _loadPromise
 }
 
 /**
- * Returns { piano, drums } — null for any that failed to create.
- * Bass is intentionally omitted; the walking-bass synth is always used.
+ * Returns { piano, drums, bass } — null for any that failed to create.
  */
 export function getSamplers() {
-  return { piano: _piano, drums: _drums }
+  return { piano: _piano, drums: _drums, bass: _bass }
 }
 
 export function disposeSamplers() {
   try { _piano?.dispose() } catch {}
   try { _drums?.dispose() } catch {}
-  _piano = _drums = null
+  try { _bass?.dispose()  } catch {}
+  _piano = _drums = _bass = null
   _loadPromise = null
 }
