@@ -105,6 +105,7 @@ export default function Home() {
   const [dragIndex, setDragIndex] = useState(null)
 
   const [approachMode, setApproachMode] = useState(0)  // 0=below, 1=above, 2=off
+  const [alteredMode, setAlteredMode] = useState(false) // dominant V7 departs via b13/b9 altered extension
   const [chartKey, setChartKey] = useState("Bb")        // actual key the chart bars are notated in
 
   const [tempo, setTempo] = useState(110)
@@ -187,8 +188,8 @@ export default function Home() {
   }, [bars])
 
   const approachLines = useMemo(() => {
-    return generateApproachLines(bars, approachMode)
-  }, [bars, approachMode])
+    return generateApproachLines(bars, approachMode, alteredMode)
+  }, [bars, approachMode, alteredMode])
 
   const phrase = useMemo(() => {
     return approachLines.flatMap(line => line.phrase)
@@ -854,6 +855,13 @@ export default function Home() {
               {approachMode === 0 ? "↓ Approach Below"
                : approachMode === 1 ? "↑ Approach Above"
                : "○ No Approach"}
+            </button>
+
+            <button
+              onClick={() => setAlteredMode(m => !m)}
+              style={buttonStyle(alteredMode ? "var(--db-c-amber)" : "var(--db-muted)")}
+            >
+              {alteredMode ? "🌙 Night On" : "○ Night Off"}
             </button>
 
             <label style={inlineLabelStyle}>
@@ -1703,15 +1711,24 @@ export default function Home() {
               </span>
               <span style={{ opacity: 0.4, fontSize: "0.75rem" }}>this bar</span>
 
-              {/* Approach note — only shown for chromatic approaches */}
+              {/* Approach note — labelled by type */}
               {selectedApproachLine.approachType !== "anchor" && (
                 <>
                   <span style={{ opacity: 0.35 }}>→</span>
-                  <span style={notePillStyle("#f0c040")}>
+                  <span style={notePillStyle(
+                    selectedApproachLine.approachType === "seventh-resolution" ? "var(--db-c-green)"
+                    : selectedApproachLine.approachType?.startsWith("altered") ? "var(--db-c-amber)"
+                    : "#f0c040"
+                  )}>
                     {selectedApproachLine.departureNote || "—"}
                   </span>
                   <span style={{ opacity: 0.4, fontSize: "0.75rem" }}>
-                    {selectedApproachLine.approachType === "chromatic-above" ? "↑ approach" : "↓ approach"}
+                    {selectedApproachLine.approachType === "chromatic-above"   ? "↑ chromatic"
+                    : selectedApproachLine.approachType === "chromatic-below"  ? "↓ chromatic"
+                    : selectedApproachLine.approachType === "seventh-resolution" ? "↓ 7→3"
+                    : selectedApproachLine.approachType === "altered-b13"      ? "♭13 night"
+                    : selectedApproachLine.approachType === "altered-b9"       ? "♭9 night"
+                    : "approach"}
                   </span>
                 </>
               )}

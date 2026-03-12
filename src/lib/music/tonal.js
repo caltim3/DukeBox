@@ -101,45 +101,64 @@ export function analyzeGuideToneMotion(chords) {
     }
 
     const next = progression[index + 1]
-    const motions = []
 
+    const curChord = Chord.get(current.symbol)
+    const nxtChord = Chord.get(next.symbol)
+    const curNotes = current.notes || curChord.notes || []     // all chord tones
+    const nxtNotes = next.notes   || nxtChord.notes || []
+    const curIvls  = curChord.intervals || []
+    const nxtIvls  = nxtChord.intervals || []
+
+    // Guide-tone role extraction (3rd and 7th)
+    const cur7 = curNotes.find((_, i) => curIvls[i] === "7m" || curIvls[i] === "7M")
+    const cur3 = curNotes.find((_, i) => curIvls[i] === "3M" || curIvls[i] === "3m")
+    const nxt3 = nxtNotes.find((_, i) => nxtIvls[i] === "3M" || nxtIvls[i] === "3m")
+    const nxt7 = nxtNotes.find((_, i) => nxtIvls[i] === "7m" || nxtIvls[i] === "7M")
+
+    // Guide-tone-only motions (kept for backward-compat smooth/all arrays)
+    const motions = []
     ;(current.guideTones || []).forEach((fromNote) => {
       ;(next.guideTones || []).forEach((toNote) => {
         const distance = semitoneDistance(fromNote, toNote)
-
-        motions.push({
-          from: fromNote,
-          to: toNote,
-          distance,
-          smooth: distance !== null && distance <= 2,
-        })
+        motions.push({ from: fromNote, to: toNote, distance, smooth: distance !== null && distance <= 2 })
       })
     })
 
-    // Identify 3rd and 7th roles for voice-leading priority (7→3 = bebop resolution)
-    const curChord = Chord.get(current.symbol)
-    const nxtChord = Chord.get(next.symbol)
-    const cur7 = (curChord.notes || []).find((_, i) => curChord.intervals[i] === "7m" || curChord.intervals[i] === "7M")
-    const cur3 = (curChord.notes || []).find((_, i) => curChord.intervals[i] === "3M" || curChord.intervals[i] === "3m")
-    const nxt3 = (nxtChord.notes || []).find((_, i) => nxtChord.intervals[i] === "3M" || nxtChord.intervals[i] === "3m")
-    const nxt7 = (nxtChord.notes || []).find((_, i) => nxtChord.intervals[i] === "7m" || nxtChord.intervals[i] === "7M")
+    const smoothMotions = motions.filter((m) => m.smooth).sort((a, b) => a.distance - b.distance)
 
-    const motionPriority = (m) => {
-      if (m.from === cur7 && m.to === nxt3) return 0  // 7→3: traditional bebop resolution
-      if (m.from === cur3 && m.to === nxt7) return 1  // 3→7: secondary
-      if (m.smooth) return 2
-      return 3
+    // ── Rule 1: Perfect 4th/5th root movement → force 7→3 gravity ────────────
+    const p4p5 = isP4orP5Movement(current.symbol, next.symbol)
+    if (p4p5 && cur7 && nxt3) {
+      const dist = semitoneDistance(cur7, nxt3)
+      return {
+        ...current,
+        nextMotion: {
+          nextChord: next.symbol,
+          all: motions,
+          smooth: smoothMotions,
+          best: { from: cur7, to: nxt3, distance: dist, smooth: dist !== null && dist <= 2, rule: "p4p5-gravity" },
+          p4p5: true,
+        },
+      }
     }
 
-    const scored = [...motions].sort((a, b) => {
-      const pa = motionPriority(a), pb = motionPriority(b)
-      if (pa !== pb) return pa - pb
-      return (a.distance ?? 99) - (b.distance ?? 99)
+    // ── Rule 2: Other intervals → compare ALL chord tones, guide-tone tie-break ─
+    const allMotions = []
+    curNotes.forEach((fromNote) => {
+      nxtNotes.forEach((toNote) => {
+        const distance = semitoneDistance(fromNote, toNote)
+        const toIdx = nxtNotes.indexOf(toNote)
+        const toIvl = nxtIvls[toIdx] || ""
+        const landsOnGT = toIvl === "3M" || toIvl === "3m" || toIvl === "7m" || toIvl === "7M"
+        allMotions.push({ from: fromNote, to: toNote, distance, landsOnGT,
+          smooth: distance !== null && distance <= 2 })
+      })
     })
-
-    const smoothMotions = motions
-      .filter((m) => m.smooth)
-      .sort((a, b) => a.distance - b.distance)
+    allMotions.sort((a, b) => {
+      const da = a.distance ?? 99, db = b.distance ?? 99
+      if (da !== db) return da - db
+      return (b.landsOnGT ? 1 : 0) - (a.landsOnGT ? 1 : 0)  // prefer landing on guide tone
+    })
 
     return {
       ...current,
@@ -147,7 +166,8 @@ export function analyzeGuideToneMotion(chords) {
         nextChord: next.symbol,
         all: motions,
         smooth: smoothMotions,
-        best: scored[0] || null,
+        best: allMotions[0] || null,
+        p4p5: false,
       },
     }
   })
@@ -205,6 +225,25 @@ function belowHalfStep(note) {
 
 function aboveWholeStep(note) {
   return Note.simplify(Note.transpose(note, Interval.fromSemitones(2)))
+}
+
+// Extract root letter (with accidental) from any chord symbol — fallback for non-standard symbols
+function extractRoot(symbol) {
+  const m = (symbol || "").match(/^([A-G][b#]?)/)
+  return m ? m[1] : null
+}
+
+// Returns true if the root movement from symbolA to symbolB is a Perfect 4th (5 st) or P5 (7 st).
+// P4 up = 5 semitones; P5 up = 7 semitones. In jazz ii-V-I, every step is P4 up (a "falling fifth").
+function isP4orP5Movement(symbolA, symbolB) {
+  const ta = Chord.get(symbolA).tonic || extractRoot(symbolA)
+  const tb = Chord.get(symbolB).tonic || extractRoot(symbolB)
+  if (!ta || !tb) return false
+  const a = Note.chroma(ta)
+  const b = Note.chroma(tb)
+  if (a == null || b == null) return false
+  const asc = (b - a + 12) % 12
+  return asc === 5 || asc === 7
 }
 
 function belowWholeStep(note) {
@@ -276,68 +315,128 @@ export function noteToFrequency(note, octave = 4) {
 //   Note 2 = departure — chromatic approach note leading INTO the next bar's landing note
 //
 // Chain: bar0:[arrival, →bar1] | bar1:[bar0target, →bar2] | bar2:[bar1target, →bar3] …
-export function generateApproachLines(chords, approachMode = 0) {
-  // approachMode: 0 = always below, 1 = always above, 2 = no approach
+export function generateApproachLines(chords, approachMode = 0, alteredMode = false) {
+  // approachMode: 0 = below, 1 = above, 2 = off
+  // alteredMode: dominant V7 departs via b13 (→maj) or b9 (→min) instead of a chord tone
   const targets = melodicTargets(chords)
+
+  // Melodic contour tracking — prevent >3 consecutive downward arrivals (Rule 3)
+  let consecutiveDown = 0
+  let prevArrivalNote  = null
 
   return targets.map((current, index) => {
     // ── Note 1: arrival ─────────────────────────────────────────────────────
     let arrivalNote
     if (index === 0) {
-      // First bar: start on the guide tone most connected to bar 1 (sourceNote),
-      // fallback to 3rd then root.
       const chord = Chord.get(chords[0].symbol)
       const notes = chord.notes || []
       const ivls  = chord.intervals || []
       const third = notes.find((_, i) => ivls[i] === "3M" || ivls[i] === "3m")
       arrivalNote = current.sourceNote || third || notes[0] || null
     } else {
-      // Subsequent bars: land on the target we were heading toward last bar
       arrivalNote = targets[index - 1].targetNote
         || current.currentGuideTones?.[0]
         || null
     }
 
-    // ── Note 2: departure approach ──────────────────────────────────────────
+    // ── Rule 3: Melodic Contour Filter ─────────────────────────────────────
+    // If melody has moved DOWN for 3+ consecutive bars, jump up to nearest chord tone
+    // in the P4-M6 range (4–9 semitones above) to "breathe" like a human player.
+    if (index > 0 && prevArrivalNote && arrivalNote) {
+      const prevC = Note.chroma(prevArrivalNote)
+      const curC  = Note.chroma(arrivalNote)
+      if (prevC !== null && curC !== null) {
+        const movedDown = (curC - prevC + 12) % 12 > 6
+        if (movedDown) {
+          consecutiveDown++
+          if (consecutiveDown >= 3) {
+            const chordData  = Chord.get(chords[index].symbol)
+            const chordTones = chordData.notes || []
+            let resetNote = null, bestUp = Infinity
+            for (const tone of chordTones) {
+              const tc = Note.chroma(tone)
+              if (tc == null) continue
+              const up = (tc - prevC + 12) % 12
+              if (up >= 4 && up <= 9 && up < bestUp) { resetNote = tone; bestUp = up }
+            }
+            if (resetNote) { arrivalNote = resetNote; consecutiveDown = 0 }
+          }
+        } else {
+          consecutiveDown = 0
+        }
+      }
+    }
+    prevArrivalNote = arrivalNote
+
+    // ── Note 2: departure ───────────────────────────────────────────────────
     let departureNote = null
     let approachType  = "anchor"
 
-    if (approachMode !== 2 && current.targetNote) {
-      // Chromatic half-step into next bar's landing note; direction set by approachMode
+    const nextSymbol   = index < chords.length - 1 ? chords[index + 1]?.symbol : null
+    const barQuality   = chords[index]?.quality || ""
+    const nextQuality  = chords[index + 1]?.quality || ""
+    const isDominant   = barQuality === "7" || barQuality === "7alt"
+      || (barQuality.includes("7") && !barQuality.startsWith("maj")
+          && !barQuality.startsWith("min") && !barQuality.includes("dim"))
+    const nextIsMinor  = nextQuality.startsWith("min") || nextQuality === "m7"
+      || nextQuality === "m6" || nextQuality.includes("dim")
+
+    // ── Rule 4: Altered / Night Mode (dominant V7 departure) ─────────────────
+    if (alteredMode && isDominant && nextSymbol) {
+      const tonic = Chord.get(current.chord).tonic || extractRoot(current.chord)
+      if (tonic) {
+        if (nextIsMinor) {
+          // b9 = 1 semitone above root (tension into minor resolution)
+          departureNote = Note.simplify(Note.transpose(tonic, Interval.fromSemitones(1)))
+          approachType  = "altered-b9"
+        } else {
+          // b13 = 8 semitones above root (augmented 5th / minor 6th, into major resolution)
+          departureNote = Note.simplify(Note.transpose(tonic, Interval.fromSemitones(8)))
+          approachType  = "altered-b13"
+        }
+      }
+
+    // ── Rule 1: P4/P5 movement → use 7th of current chord as departure ───────
+    } else if (approachMode !== 2 && nextSymbol && isP4orP5Movement(current.chord, nextSymbol) && current.sourceNote) {
+      // sourceNote = best.from = 7th of current chord (from 7→3 gravity in analyzeGuideToneMotion)
+      departureNote = current.sourceNote
+      approachType  = "seventh-resolution"
+
+    // ── Standard: chromatic half-step approach ───────────────────────────────
+    } else if (approachMode !== 2 && current.targetNote) {
       if (approachMode === 1) {
         departureNote = aboveHalfStep(current.targetNote)
-        approachType = "chromatic-above"
+        approachType  = "chromatic-above"
       } else {
         departureNote = belowHalfStep(current.targetNote)
-        approachType = "chromatic-below"
+        approachType  = "chromatic-below"
       }
+
+    // ── Last bar / no approach ───────────────────────────────────────────────
     } else {
-      // Last bar: settle on secondary guide tone
       departureNote = current.currentGuideTones?.[1]
         || current.currentGuideTones?.[0]
         || arrivalNote
     }
 
-    const phrase = [arrivalNote, departureNote].filter(
-      n => n && Note.chroma(n) != null
-    )
+    const phrase = [arrivalNote, departureNote].filter(n => n && Note.chroma(n) != null)
 
     return {
       barIndex: index,
       chord: current.chord,
       phrase,
-      arrivalNote: arrivalNote || null,
+      arrivalNote:   arrivalNote   || null,
       departureNote: departureNote || null,
-      target: current.targetNote || null,
-      approach: departureNote || null,
+      target:        current.targetNote || null,
+      approach:      departureNote || null,
       approachType,
-      nextChord: current.nextChord || null,
+      nextChord:     current.nextChord || null,
     }
   })
 }
 
-export function generateContinuousPhrase(chords, approachMode = 0) {
-  return generateApproachLines(chords, approachMode).flatMap((item) => item.phrase || [])
+export function generateContinuousPhrase(chords, approachMode = 0, alteredMode = false) {
+  return generateApproachLines(chords, approachMode, alteredMode).flatMap((item) => item.phrase || [])
 }
 
 const RHYTHM_BANKS = [
