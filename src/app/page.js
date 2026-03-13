@@ -99,6 +99,14 @@ const INITIAL_BARS = [
   { root: "F",  quality: "7", symbol: "F7",   section: "A" },
 ]
 
+const STARTER_PRESETS = [
+  { id: "jazz-blues-bb",  label: "Jazz Blues in Bb" },
+  { id: "major-251",      label: "Major ii-V-I Cycle" },
+  { id: "minor-251",      label: "Minor ii-V-I Cycle" },
+  { id: "rhythm-changes", label: "Rhythm Changes" },
+  { id: "autumn-leaves",  label: "Autumn Leaves (Gm)" },
+]
+
 export default function Home() {
   const [bars, setBars] = useState(INITIAL_BARS)
   const [selectedIndex, setSelectedIndex] = useState(0)
@@ -147,6 +155,14 @@ export default function Home() {
   const [scrollMode, setScrollMode] = useState(false)
 
   // FretFlow: static scale workout boards (up to 4)
+  const [controlMode, setControlMode] = useState("basic")
+  const [openControlPanels, setOpenControlPanels] = useState({
+    playback: true,
+    harmony: false,
+    chart: true,
+    layout: false,
+  })
+
   const [fretFlowCount, setFretFlowCount] = useState(1)
   const [fretFlowBoards, setFretFlowBoards] = useState([
     { root: "C", scale: "major",    tuning: "Standard" },
@@ -469,6 +485,63 @@ export default function Home() {
     setSelectedForm("Custom")
   }
 
+  function toggleControlPanel(panelName) {
+    setOpenControlPanels((prev) => ({ ...prev, [panelName]: !prev[panelName] }))
+  }
+
+  function setPracticeModeAndTempo(enabled) {
+    practiceModeRef.current = enabled
+    setPracticeMode(enabled)
+    if (enabled) setTempo(50)
+    if (isPlaying) {
+      stopPlayback()
+      startPlayback().catch(console.error)
+    }
+  }
+
+  function loadStarter(starterId) {
+    switch (starterId) {
+      case "jazz-blues-bb":
+        loadForm("12-Bar Jazz Blues (Bb)")
+        break
+      case "rhythm-changes":
+        loadForm("Rhythm Changes (Bb)")
+        break
+      case "autumn-leaves":
+        loadForm("Autumn Leaves (Gm)")
+        break
+      case "major-251": {
+        const cycle = [
+          { root: "D", quality: "min7",  symbol: "Dm7"   },
+          { root: "G", quality: "7",     symbol: "G7"    },
+          { root: "C", quality: "maj7",  symbol: "Cmaj7" },
+          { root: "C", quality: "maj7",  symbol: "Cmaj7" },
+        ]
+        setBars(cycle)
+        setKeyRoot("C"); setChartKey("C"); setKeyMode("major")
+        setSelectedForm("Custom"); setSelectedIndex(0)
+        setLoopStart(0); setLoopEnd(cycle.length - 1)
+        break
+      }
+      case "minor-251": {
+        const cycle = [
+          { root: "B", quality: "min7b5", symbol: "Bm7b5" },
+          { root: "E", quality: "7",      symbol: "E7"    },
+          { root: "A", quality: "min7",   symbol: "Am7"   },
+          { root: "A", quality: "min7",   symbol: "Am7"   },
+        ]
+        setBars(cycle)
+        setKeyRoot("A"); setChartKey("A"); setKeyMode("minor")
+        setSelectedForm("Custom"); setSelectedIndex(0)
+        setLoopStart(0); setLoopEnd(cycle.length - 1)
+        break
+      }
+      default:
+        break
+    }
+    setPracticeModeAndTempo(true)
+  }
+
   function stopPlayback() {
     playingRef.current = false
     audioStop()
@@ -619,6 +692,50 @@ export default function Home() {
         <p style={{ opacity: 0.75, marginBottom: "24px" }}>
           Drag measures, edit chords, hear the phrase, regenerate ideas, and inspect harmonic context live.
         </p>
+
+        {/* ── Start Practicing Fast ─────────────────────────────── */}
+        <div style={{
+          ...panelStyle,
+          marginBottom: "16px",
+          border: "1px solid color-mix(in srgb, var(--db-c-green) 30%, transparent)",
+          background: "color-mix(in srgb, var(--db-c-green) 5%, var(--db-bg))",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
+            <div style={{ ...eyebrowStyle, marginBottom: 0, color: "var(--db-c-green)" }}>START PRACTICING FAST</div>
+          </div>
+          <div style={{ fontSize: "0.78rem", opacity: 0.6, marginBottom: "12px" }}>
+            Load a starter chart and begin at slow tempo — ideal for building muscle memory
+          </div>
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+            <button
+              onClick={() => setPracticeModeAndTempo(!practiceMode)}
+              style={{
+                padding: "8px 14px", borderRadius: "10px", cursor: "pointer", fontWeight: 700, fontSize: "0.88rem",
+                border: practiceMode ? "1px solid var(--db-c-green)" : "1px solid var(--db-panel-border)",
+                background: practiceMode ? "rgba(139,211,168,0.14)" : "var(--db-panel-bg)",
+                color: practiceMode ? "var(--db-c-green)" : "var(--db-text)",
+              }}
+              title={practiceMode ? "Disable practice mode" : "Enable practice mode at 50 BPM"}
+            >
+              {practiceMode ? "🐢 Practice On (50 BPM)" : "💡 Enable Practice Mode"}
+            </button>
+            {STARTER_PRESETS.map(({ id, label }) => (
+              <button
+                key={id}
+                onClick={() => loadStarter(id)}
+                style={{
+                  padding: "7px 12px", borderRadius: "8px", fontSize: "0.85rem", cursor: "pointer",
+                  background: "var(--db-panel-bg)",
+                  border: "1px solid var(--db-panel-border)",
+                  color: "var(--db-text)",
+                  fontWeight: 500,
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
 
         {/* ── AI Chart Generator ────────────────────────────────── */}
         <div style={{
@@ -797,171 +914,215 @@ export default function Home() {
         </div>
 
         <div style={panelStyle}>
-          <div
-            style={{
-              display: "flex",
-              gap: "10px",
-              alignItems: "center",
-              flexWrap: "wrap",
-              marginBottom: "12px",
-            }}
-          >
-            <button
-              onClick={() => {
-                const newMode = !practiceMode
-                practiceModeRef.current = newMode
-                setPracticeMode(newMode)
-                if (isPlaying) { stopPlayback(); startPlayback().catch(console.error) }
-              }}
-              style={{
-                padding: "9px 14px", borderRadius: "10px", cursor: "pointer", fontWeight: 700, fontSize: "0.88rem",
-                border: practiceMode ? "1px solid var(--db-c-green)" : "1px solid var(--db-panel-border)",
-                background: practiceMode ? "rgba(139,211,168,0.12)" : "var(--db-panel-bg)",
-                color: practiceMode ? "var(--db-c-green)" : "var(--db-text)",
-              }}
-              title={practiceMode ? "Click to restore original tempo" : "Slow tempo to 50 BPM for practice"}
-            >
-              {practiceMode ? "🐢 Practice (50 BPM)" : "💡 Practice Mode"}
-            </button>
-
-            <button
-              onClick={() => setPaletteIndex((i) => (i + 1) % PALETTES.length)}
-              style={{
-                padding: "9px 14px", borderRadius: "10px", cursor: "pointer", fontWeight: 700, fontSize: "0.88rem",
-                border: "1px solid var(--db-panel-border)",
-                background: "var(--db-panel-bg)",
-                color: "var(--db-accent)",
-              }}
-              title="Cycle color palette"
-            >
-              🎨 {palette.name}
-            </button>
-
-            <button
-              onClick={isPlaying ? stopPlayback : () => startPlayback().catch(console.error)}
-              style={buttonStyle("var(--db-c-amber)")}
-            >
-              {isPlaying ? "⏹ Stop" : "▶ Play"}
-            </button>
-
-            <button
-              onClick={() => setApproachMode(m => (m + 1) % 3)}
-              style={buttonStyle(
-                approachMode === 0 ? "var(--db-c-blue)"
-                : approachMode === 1 ? "var(--db-c-purple)"
-                : "var(--db-muted)"
-              )}
-            >
-              {approachMode === 0 ? "↓ Approach Below"
-               : approachMode === 1 ? "↑ Approach Above"
-               : "○ No Approach"}
-            </button>
-
-            <button
-              onClick={() => setAlteredMode(m => !m)}
-              style={buttonStyle(alteredMode ? "var(--db-c-amber)" : "var(--db-muted)")}
-            >
-              {alteredMode ? "🌙 Night On" : "○ Night Off"}
-            </button>
-
-            <label style={inlineLabelStyle}>
-              Tempo
-              <input
-                type="range"
-                min="70"
-                max="180"
-                value={tempo}
-                onChange={(e) => setTempo(Number(e.target.value))}
-              />
-              <span>{tempo}</span>
-            </label>
-
-            <label style={inlineLabelStyle}>
-              <input type="checkbox" checked={playChords} onChange={(e) => setPlayChords(e.target.checked)} />
-              Piano
-            </label>
-
-            <label style={inlineLabelStyle}>
-              <span style={{ opacity: 0.7 }}>Pianist</span>
-              <select
-                value={compingStyle}
-                onChange={(e) => setCompingStyle(e.target.value)}
-                style={{ ...selectStyle, width: "auto", padding: "5px 8px", fontSize: "0.85rem" }}
-              >
-                {COMPING_STYLE_NAMES.map((name) => (
-                  <option key={name} value={name}>{name}</option>
-                ))}
-              </select>
-            </label>
-
-            <label style={inlineLabelStyle}>
-              <input type="checkbox" checked={playBass} onChange={(e) => setPlayBass(e.target.checked)} />
-              Bass
-            </label>
-
-            <label style={inlineLabelStyle}>
-              <input type="checkbox" checked={playDrums} onChange={(e) => setPlayDrums(e.target.checked)} />
+          {/* ── Basic / Advanced toggle ────────────────────────────── */}
+          <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "14px" }}>
+            {["basic", "advanced"].map((mode) => (
               <button
-                onClick={() => setDrumStyleIdx(i => (i + 1) % DRUM_STYLES.length)}
+                key={mode}
+                onClick={() => setControlMode(mode)}
                 style={{
-                  ...buttonStyle(playDrums ? "var(--db-c-amber)" : "var(--db-muted)"),
-                  padding: "3px 10px",
-                  fontSize: "0.82rem",
-                  fontWeight: 600,
+                  padding: "5px 14px", borderRadius: "8px", fontSize: "0.82rem", cursor: "pointer",
+                  background: controlMode === mode ? "color-mix(in srgb, var(--db-c-blue) 15%, var(--db-bg))" : "var(--db-panel-bg)",
+                  border:     controlMode === mode ? "1px solid var(--db-c-blue)" : "1px solid var(--db-panel-border)",
+                  color:      controlMode === mode ? "var(--db-c-blue)" : "var(--db-muted)",
+                  fontWeight: controlMode === mode ? 700 : 400,
+                  textTransform: "capitalize",
                 }}
-                title="Click to cycle through drum styles"
               >
-                🥁 {DRUM_STYLES[drumStyleIdx].name}
+                {mode}
               </button>
-            </label>
-
-            <label style={inlineLabelStyle}>
-              <input type="checkbox" checked={playMelody} onChange={(e) => setPlayMelody(e.target.checked)} />
-              Melody
-            </label>
-
-            <label style={inlineLabelStyle}>
-              Swing
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={Math.round(swingAmount * 100)}
-                onChange={(e) => setSwingAmount(Number(e.target.value) / 100)}
-                style={{ width: "70px" }}
-              />
-              <span style={{ minWidth: "28px", fontSize: "0.85rem", opacity: 0.8 }}>
-                {Math.round(swingAmount * 100)}%
-              </span>
-            </label>
-
-            <label style={inlineLabelStyle}>
-              <input
-                type="checkbox"
-                checked={loopEnabled}
-                onChange={(e) => setLoopEnabled(e.target.checked)}
-              />
-              Loop
-            </label>
-
-            <button onClick={() => setLoopStart(selectedIndex)} style={buttonStyle("var(--db-c-gold)")}>
-              Set Loop Start
-            </button>
-
-            <button onClick={() => setLoopEnd(selectedIndex)} style={buttonStyle("var(--db-c-gold)")}>
-              Set Loop End
-            </button>
-
-            <button
-              onClick={() => setShowFretboard((p) => !p)}
-              style={{
-                ...buttonStyle(showFretboard ? "var(--db-c-amber)" : "var(--db-c-blue)"),
-                marginLeft: "auto",
-              }}
-            >
-              {showFretboard ? "Hide Fretboard" : "🎸 Fretboard"}
-            </button>
+            ))}
           </div>
+
+          {/* ── Section 1: Playback & Practice ─────────────────────── */}
+          <div style={{ marginBottom: "12px" }}>
+            <div
+              onClick={() => toggleControlPanel("playback")}
+              style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", marginBottom: "8px" }}
+            >
+              <div style={{ ...eyebrowStyle, marginBottom: 0 }}>PLAYBACK & PRACTICE</div>
+              <span style={{ fontSize: "0.75rem", opacity: 0.5 }}>{openControlPanels.playback ? "▼" : "▶"}</span>
+            </div>
+            {openControlPanels.playback && (
+              <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
+                <button
+                  onClick={isPlaying ? stopPlayback : () => startPlayback().catch(console.error)}
+                  style={buttonStyle("var(--db-c-amber)")}
+                >
+                  {isPlaying ? "⏹ Stop" : "▶ Play"}
+                </button>
+
+                <button
+                  onClick={() => setPracticeModeAndTempo(!practiceMode)}
+                  style={{
+                    padding: "9px 14px", borderRadius: "10px", cursor: "pointer", fontWeight: 700, fontSize: "0.88rem",
+                    border: practiceMode ? "1px solid var(--db-c-green)" : "1px solid var(--db-panel-border)",
+                    background: practiceMode ? "rgba(139,211,168,0.12)" : "var(--db-panel-bg)",
+                    color: practiceMode ? "var(--db-c-green)" : "var(--db-text)",
+                  }}
+                  title={practiceMode ? "Click to restore original tempo" : "Slow tempo to 50 BPM for practice"}
+                >
+                  {practiceMode ? "🐢 Practice (50 BPM)" : "💡 Practice Mode"}
+                </button>
+
+                <label style={inlineLabelStyle}>
+                  Tempo
+                  <input type="range" min="70" max="180" value={tempo} onChange={(e) => setTempo(Number(e.target.value))} />
+                  <span>{tempo}</span>
+                </label>
+
+                <label style={inlineLabelStyle}>
+                  Swing
+                  <input
+                    type="range" min="0" max="100"
+                    value={Math.round(swingAmount * 100)}
+                    onChange={(e) => setSwingAmount(Number(e.target.value) / 100)}
+                    style={{ width: "70px" }}
+                  />
+                  <span style={{ minWidth: "28px", fontSize: "0.85rem", opacity: 0.8 }}>
+                    {Math.round(swingAmount * 100)}%
+                  </span>
+                </label>
+
+                <label style={inlineLabelStyle}>
+                  <input type="checkbox" checked={playChords} onChange={(e) => setPlayChords(e.target.checked)} />
+                  Piano
+                </label>
+
+                <label style={inlineLabelStyle}>
+                  <span style={{ opacity: 0.7 }}>Comping Style</span>
+                  <select
+                    value={compingStyle}
+                    onChange={(e) => setCompingStyle(e.target.value)}
+                    style={{ ...selectStyle, width: "auto", padding: "5px 8px", fontSize: "0.85rem" }}
+                  >
+                    {COMPING_STYLE_NAMES.map((name) => (
+                      <option key={name} value={name}>{name}</option>
+                    ))}
+                  </select>
+                </label>
+
+                <label style={inlineLabelStyle}>
+                  <input type="checkbox" checked={playBass} onChange={(e) => setPlayBass(e.target.checked)} />
+                  Bass
+                </label>
+
+                <label style={inlineLabelStyle}>
+                  <input type="checkbox" checked={playDrums} onChange={(e) => setPlayDrums(e.target.checked)} />
+                  <button
+                    onClick={() => setDrumStyleIdx(i => (i + 1) % DRUM_STYLES.length)}
+                    style={{
+                      ...buttonStyle(playDrums ? "var(--db-c-amber)" : "var(--db-muted)"),
+                      padding: "3px 10px", fontSize: "0.82rem", fontWeight: 600,
+                    }}
+                    title="Click to cycle through drum styles"
+                  >
+                    🥁 {DRUM_STYLES[drumStyleIdx].name}
+                  </button>
+                </label>
+
+                <label style={inlineLabelStyle}>
+                  <input type="checkbox" checked={playMelody} onChange={(e) => setPlayMelody(e.target.checked)} />
+                  Melody
+                </label>
+              </div>
+            )}
+          </div>
+
+          {/* ── Section 2: Chart Navigation & Loop ─────────────────── */}
+          <div style={{ marginBottom: "12px" }}>
+            <div
+              onClick={() => toggleControlPanel("chart")}
+              style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", marginBottom: "8px" }}
+            >
+              <div style={{ ...eyebrowStyle, marginBottom: 0 }}>CHART NAVIGATION & LOOP</div>
+              <span style={{ fontSize: "0.75rem", opacity: 0.5 }}>{openControlPanels.chart ? "▼" : "▶"}</span>
+            </div>
+            {openControlPanels.chart && (
+              <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
+                <label style={inlineLabelStyle}>
+                  <input type="checkbox" checked={loopEnabled} onChange={(e) => setLoopEnabled(e.target.checked)} />
+                  Loop
+                </label>
+                <button onClick={() => setLoopStart(selectedIndex)} style={buttonStyle("var(--db-c-gold)")}>
+                  Set Start at Selected Bar
+                </button>
+                <button onClick={() => setLoopEnd(selectedIndex)} style={buttonStyle("var(--db-c-gold)")}>
+                  Set End at Selected Bar
+                </button>
+                <button
+                  onClick={() => setShowFretboard((p) => !p)}
+                  style={buttonStyle(showFretboard ? "var(--db-c-amber)" : "var(--db-c-blue)")}
+                >
+                  {showFretboard ? "Hide Fretboard" : "🎸 Fretboard"}
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* ── Section 3: Harmony Tools (advanced) ────────────────── */}
+          {controlMode === "advanced" && (
+            <div style={{ marginBottom: "12px" }}>
+              <div
+                onClick={() => toggleControlPanel("harmony")}
+                style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", marginBottom: "8px" }}
+              >
+                <div style={{ ...eyebrowStyle, marginBottom: 0 }}>HARMONY TOOLS</div>
+                <span style={{ fontSize: "0.75rem", opacity: 0.5 }}>{openControlPanels.harmony ? "▼" : "▶"}</span>
+              </div>
+              {openControlPanels.harmony && (
+                <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
+                  <button
+                    onClick={() => setApproachMode(m => (m + 1) % 3)}
+                    style={buttonStyle(
+                      approachMode === 0 ? "var(--db-c-blue)"
+                      : approachMode === 1 ? "var(--db-c-purple)"
+                      : "var(--db-muted)"
+                    )}
+                  >
+                    {approachMode === 0 ? "Approach Tone: ↓ Below"
+                     : approachMode === 1 ? "Approach Tone: ↑ Above"
+                     : "Approach Tone: ○ Off"}
+                  </button>
+                  <button
+                    onClick={() => setAlteredMode(m => !m)}
+                    style={buttonStyle(alteredMode ? "var(--db-c-amber)" : "var(--db-muted)")}
+                  >
+                    {alteredMode ? "🌙 Altered Dominant Color: On" : "○ Altered Dominant Color: Off"}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Section 4: Layout & Theme (advanced) ───────────────── */}
+          {controlMode === "advanced" && (
+            <div style={{ marginBottom: "12px" }}>
+              <div
+                onClick={() => toggleControlPanel("layout")}
+                style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", marginBottom: "8px" }}
+              >
+                <div style={{ ...eyebrowStyle, marginBottom: 0 }}>LAYOUT & THEME</div>
+                <span style={{ fontSize: "0.75rem", opacity: 0.5 }}>{openControlPanels.layout ? "▼" : "▶"}</span>
+              </div>
+              {openControlPanels.layout && (
+                <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
+                  <button
+                    onClick={() => setPaletteIndex((i) => (i + 1) % PALETTES.length)}
+                    style={{
+                      padding: "9px 14px", borderRadius: "10px", cursor: "pointer", fontWeight: 700, fontSize: "0.88rem",
+                      border: "1px solid var(--db-panel-border)",
+                      background: "var(--db-panel-bg)",
+                      color: "var(--db-accent)",
+                    }}
+                    title="Cycle color palette"
+                  >
+                    🎨 {palette.name}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
 
           <div style={eyebrowStyle}>MELODY LANE</div>
           <div style={{ fontSize: "0.78rem", opacity: 0.55, marginBottom: "8px", marginTop: "-4px" }}>
