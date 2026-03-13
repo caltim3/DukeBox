@@ -8,24 +8,19 @@ import {
   buildChordSymbol,
   chordInfo,
   scaleNotes,
-  guideTones,
   analyzeGuideToneMotion,
   melodicTargets,
-  generateMelodySkeleton,
   generateApproachLines,
   assignRhythmToBars,
   getRecommendedScalesFromQuality,
   transposeChart,
   applyScaleFilter,
 } from "@/lib/music/tonal"
-import {
-  analyzeProgressionContext,
-  suggestContextualSubstitution,
-} from "@/lib/music/harmony"
+import { analyzeProgressionContext } from "@/lib/music/harmony"
 import { FORMS, FORM_CATEGORIES } from "@/lib/music/forms"
 import { chordToRoman } from "@/lib/music/roman"
 import { startPlayback as audioStart, stopAll as audioStop, DRUM_STYLES } from "@/lib/music/audio"
-import { COMPING_STYLE_NAMES, DEFAULT_COMPING_STYLE, getVoiceLedVoicing } from "@/lib/music/comping"
+import { COMPING_STYLE_NAMES, DEFAULT_COMPING_STYLE } from "@/lib/music/comping"
 import Fretboard from "@/components/Fretboard"
 
 const PALETTES = [
@@ -181,12 +176,6 @@ export default function Home() {
 
   const selectedBar = bars[selectedIndex]
 
-  const info = useMemo(() => chordInfo(selectedBar.symbol), [selectedBar])
-
-  const guides = useMemo(() => {
-    return guideTones(selectedBar.symbol)
-  }, [selectedBar])
-
   const progression = useMemo(() => {
     return analyzeGuideToneMotion(bars)
   }, [bars])
@@ -197,10 +186,6 @@ export default function Home() {
 
   const targets = useMemo(() => {
     return melodicTargets(bars)
-  }, [bars])
-
-  const melodySkeleton = useMemo(() => {
-    return generateMelodySkeleton(bars, 0)
   }, [bars])
 
   const approachLines = useMemo(() => {
@@ -223,21 +208,7 @@ export default function Home() {
     }))
   }, [approachLines, bars])
 
-  const selectedMotion = progression[selectedIndex]?.nextMotion || null
-  const selectedTarget = targets[selectedIndex] || null
-  const selectedMelodyNote = melodySkeleton[selectedIndex] || null
-  const selectedApproachLine = approachLines[selectedIndex] || null
-  const selectedRhythm = rhythms[selectedIndex] || null
-
   const recommendedScales = getRecommendedScalesFromQuality(selectedBar.quality)
-
-  const currentVoicing = useMemo(() => {
-    try { return getVoiceLedVoicing(selectedBar.symbol, null, playBass) } catch { return [] }
-  }, [selectedBar, playBass])
-
-  const suggestedSub = useMemo(() => {
-    return suggestContextualSubstitution(bars, selectedIndex, "inside")
-  }, [bars, selectedIndex])
 
   const scaleData = useMemo(() => {
     const tonic = selectedBar.userTonic ?? selectedBar.root
@@ -358,14 +329,6 @@ export default function Home() {
 
   function handleDragEnd() {
     setDragIndex(null)
-  }
-
-  function applySuggestedSubstitution() {
-    if (!suggestedSub) return
-    updateBar(selectedIndex, {
-      root: suggestedSub.root,
-      quality: suggestedSub.quality,
-    })
   }
 
   function addBar(afterIndex) {
@@ -740,7 +703,7 @@ export default function Home() {
         background: "var(--db-bg)",
         color: "var(--db-text)",
         display: "grid",
-        gridTemplateColumns: "minmax(0, 1fr) 340px",
+        gridTemplateColumns: "minmax(0, 1fr)",
         gap: "24px",
         padding: "24px",
         fontFamily: "Arial, sans-serif",
@@ -1386,10 +1349,8 @@ export default function Home() {
               const active = index === selectedIndex
               const guide = progression[index]?.guideTones || []
               const target = targets[index]
-              const melody = melodySkeleton[index]
-              const approach = approachLines[index]
-              const rhythm = rhythms[index]
               const context = harmonicContext[index]
+              const intervals = chordInfo(bar.symbol).intervals || []
               const isPlayhead = index === playheadIndex
               const inLoop =
                 index >= Math.min(loopStart, loopEnd) && index <= Math.max(loopStart, loopEnd)
@@ -1509,28 +1470,20 @@ export default function Home() {
                     </div>
                   )}
 
-                  <div style={{ fontSize: "0.78rem", color: "var(--db-c-gold)", marginBottom: "4px" }}>
-                    Function: {context?.functionLabel || "—"}
-                  </div>
-
-                  <div style={{ fontSize: "0.76rem", color: "var(--db-c-salmon)", marginBottom: "6px" }}>
+                  <div style={{ fontSize: "0.76rem", color: "var(--db-c-salmon)", marginBottom: "4px" }}>
                     Cadence: {context?.cadenceLabels?.join(", ") || "—"}
                   </div>
 
-                  <div style={{ fontSize: "0.82rem", color: "var(--db-c-amber)", marginBottom: "6px" }}>
-                    GT: {guide.length ? guide.join(" / ") : "—"}
+                  <div style={{ fontSize: "0.76rem", color: "var(--db-c-amber)", marginBottom: "4px" }}>
+                    Guide Tones: {guide.length ? guide.join(" / ") : "—"}
                   </div>
 
-                  <div style={{ fontSize: "0.8rem", color: "var(--db-c-pink)", marginBottom: "6px" }}>
-                    Melody: {melody?.note || "—"}
+                  <div style={{ fontSize: "0.76rem", color: "var(--db-c-blue)", marginBottom: "4px" }}>
+                    Intervals: {intervals.length ? intervals.join(" · ") : "—"}
                   </div>
 
-                  <div style={{ fontSize: "0.8rem", color: "var(--db-c-purple)", marginBottom: "6px" }}>
-                    Phrase: {approach?.phrase?.length ? approach.phrase.join(" → ") : "—"}
-                  </div>
-
-                  <div style={{ fontSize: "0.78rem", color: "var(--db-c-green)", marginBottom: "8px" }}>
-                    Rhythm: {rhythm?.rhythm || "—"}
+                  <div style={{ fontSize: "0.76rem", color: "var(--db-c-green)", marginBottom: "6px" }}>
+                    Target: {target?.targetNote || "—"}
                   </div>
 
                   {/* Per-bar chord editor */}
@@ -1739,211 +1692,6 @@ export default function Home() {
         })()}
       </section>
 
-      <aside style={{
-        ...sidePanelStyle,
-        minWidth: 0,
-        position: "sticky",
-        top: "24px",
-        alignSelf: "start",
-        maxHeight: "calc(100vh - 48px)",
-        overflowY: "auto",
-      }}>
-        <h2 style={{ fontSize: "1.8rem", marginBottom: "12px", color: "var(--db-accent)" }}>
-          Bar {selectedIndex + 1}: {selectedBar.symbol}
-        </h2>
-
-        <div style={{ marginBottom: "18px" }}>
-          <div style={eyebrowSmallStyle}>EDIT CHORD</div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
-            <div>
-              <div style={miniLabelStyle}>Root</div>
-              <select
-                value={selectedBar.root}
-                onChange={(e) => updateBar(selectedIndex, { root: e.target.value })}
-                style={selectStyle}
-              >
-                {ROOTS.map((root) => (
-                  <option key={root} value={root}>
-                    {root}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <div style={miniLabelStyle}>Quality</div>
-              <select
-                value={selectedBar.quality}
-                onChange={(e) => updateBar(selectedIndex, { quality: e.target.value })}
-                style={selectStyle}
-              >
-                {QUALITIES.map((q) => (
-                  <option key={q.value} value={q.value}>
-                    {q.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {suggestedSub && (
-            <div style={{ marginTop: "10px" }}>
-              <button onClick={applySuggestedSubstitution} style={buttonStyle("var(--db-c-pink)")}>
-                Suggest Substitution: {suggestedSub.symbol} ({suggestedSub.label})
-              </button>
-
-              <div style={{ marginTop: "6px", fontSize: "0.9rem", opacity: 0.75 }}>
-                {suggestedSub.reason}
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div style={{ marginBottom: "20px" }}>
-          <div style={{ fontSize: "0.85rem", opacity: 0.65, marginBottom: "6px" }}>
-            HARMONIC ROLE
-          </div>
-
-          <div style={{ fontSize: "1rem", color: "var(--db-c-gold)", marginBottom: "6px" }}>
-            {harmonicContext[selectedIndex]?.functionLabel || "—"}
-          </div>
-
-          <div style={{ fontSize: "0.95rem", color: "var(--db-c-salmon)" }}>
-            {harmonicContext[selectedIndex]?.cadenceLabels?.length
-              ? harmonicContext[selectedIndex].cadenceLabels.join(" · ")
-              : "No cadence label"}
-          </div>
-        </div>
-
-        <InfoBlock title="CHORD TONES" value={info.notes?.join("  ·  ") || "None"} />
-        <InfoBlock
-          title="GUIDE TONES"
-          value={guides.length ? guides.join("  →  ") : "None"}
-          color="var(--db-c-amber)"
-        />
-        <InfoBlock title="INTERVALS" value={info.intervals?.join("  ·  ") || "None"} />
-
-        {currentVoicing.length > 0 && (
-          <div style={{ marginBottom: "20px" }}>
-            <div style={eyebrowSmallStyle}>PIANO VOICING</div>
-            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-              {currentVoicing.map((note, i) => (
-                <span key={i} style={{
-                  padding: "4px 9px", borderRadius: "7px", fontSize: "0.95rem", fontWeight: 700,
-                  background: i === 0 && !playBass ? "rgba(189,32,49,0.18)" : "color-mix(in srgb, var(--db-c-purple) 12%, transparent)",
-                  border: i === 0 && !playBass ? "1px solid rgba(189,32,49,0.4)" : "1px solid color-mix(in srgb, var(--db-c-purple) 35%, transparent)",
-                  color: i === 0 && !playBass ? "#ff7a7a" : "var(--db-c-purple)",
-                }}>
-                  {note}
-                </span>
-              ))}
-            </div>
-            <div style={{ marginTop: "5px", fontSize: "0.75rem", opacity: 0.45 }}>
-              {playBass ? "rootless voicing" : "with root"}
-            </div>
-          </div>
-        )}
-
-        {selectedMotion && (
-          <div style={{ marginBottom: "20px" }}>
-            <div style={eyebrowSmallStyle}>VOICE LEADING TO {selectedMotion.nextChord}</div>
-            {selectedMotion.best ? (
-              <div style={{ fontSize: "1rem", color: "var(--db-c-green)", marginBottom: "8px" }}>
-                Best motion: {selectedMotion.best.from} → {selectedMotion.best.to} ({selectedMotion.best.distance} semitone{selectedMotion.best.distance !== 1 ? "s" : ""})
-              </div>
-            ) : (
-              <div style={{ fontSize: "1rem", opacity: 0.7, marginBottom: "8px" }}>
-                No especially smooth motion found.
-              </div>
-            )}
-          </div>
-        )}
-
-
-        {selectedMelodyNote && (
-          <div style={{ marginBottom: "20px" }}>
-            <div style={eyebrowSmallStyle}>SKELETON MELODY NOTE</div>
-            <div style={{ fontSize: "1.15rem", color: "var(--db-c-pink)" }}>
-              {selectedMelodyNote.note ? (
-                <>
-                  Play <strong>{selectedMelodyNote.note}</strong> as the structural note for this bar.
-                </>
-              ) : (
-                "No melody note available."
-              )}
-            </div>
-          </div>
-        )}
-
-        {selectedApproachLine && (
-          <div style={{ marginBottom: "20px" }}>
-            <div style={eyebrowSmallStyle}>VOICE LEADING PHRASE</div>
-            <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "6px", flexWrap: "wrap" }}>
-              {/* Arrival: guide tone of THIS chord */}
-              <span style={notePillStyle("var(--db-c-purple)")}>
-                {selectedApproachLine.arrivalNote || "—"}
-              </span>
-              <span style={{ opacity: 0.4, fontSize: "0.75rem" }}>this bar</span>
-
-              {/* Approach note — labelled by type */}
-              {selectedApproachLine.approachType !== "anchor" && (
-                <>
-                  <span style={{ opacity: 0.35 }}>→</span>
-                  <span style={notePillStyle(
-                    selectedApproachLine.approachType === "seventh-resolution" ? "var(--db-c-green)"
-                    : selectedApproachLine.approachType?.startsWith("altered") ? "var(--db-c-amber)"
-                    : "#f0c040"
-                  )}>
-                    {selectedApproachLine.departureNote || "—"}
-                  </span>
-                  <span style={{ opacity: 0.4, fontSize: "0.75rem" }}>
-                    {selectedApproachLine.approachType === "chromatic-above"   ? "↑ chromatic"
-                    : selectedApproachLine.approachType === "chromatic-below"  ? "↓ chromatic"
-                    : selectedApproachLine.approachType === "seventh-resolution" ? "↓ 7→3"
-                    : selectedApproachLine.approachType === "altered-b13"      ? "♭13 night"
-                    : selectedApproachLine.approachType === "altered-b9"       ? "♭9 night"
-                    : "approach"}
-                  </span>
-                </>
-              )}
-
-              {/* Landing note: actual guide tone of NEXT chord */}
-              <span style={{ opacity: 0.35 }}>→</span>
-              <span style={notePillStyle("var(--db-c-green)")}>
-                {selectedApproachLine.target || selectedApproachLine.departureNote || "—"}
-              </span>
-              <span style={{ opacity: 0.4, fontSize: "0.75rem" }}>
-                lands in {selectedApproachLine.nextChord || "end"}
-              </span>
-            </div>
-          </div>
-        )}
-
-        {selectedRhythm && (
-          <div style={{ marginBottom: "20px" }}>
-            <div style={eyebrowSmallStyle}>RHYTHM TAG</div>
-            <div style={{ fontSize: "1.05rem", color: "var(--db-c-green)" }}>{selectedRhythm.rhythm}</div>
-          </div>
-        )}
-
-
-        <div>
-          <div style={eyebrowSmallStyle}>SCALE OPTIONS</div>
-          <div style={{ display: "grid", gap: "10px" }}>
-            {scaleData.map((scale) => (
-              <div key={scale.name} style={scaleCardStyle}>
-                <div style={{ fontWeight: 700, marginBottom: "4px", textTransform: "capitalize" }}>
-                  {scale.name}
-                </div>
-                <div style={{ opacity: 0.8, fontSize: "0.95rem" }}>
-                  {scale.notes?.length ? scale.notes.join("  ·  ") : "No notes found"}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </aside>
     </main>
     </>
   )
