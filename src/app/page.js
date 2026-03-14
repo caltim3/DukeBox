@@ -114,6 +114,7 @@ export default function Home() {
   const [chartKey, setChartKey] = useState("Bb")        // actual key the chart bars are notated in
 
   const [tempo, setTempo] = useState(110)
+  const [originalTempo, setOriginalTempo] = useState(110)  // song's natural BPM, restored on Play Mode
   const [isPlaying, setIsPlaying] = useState(false)
   const [playChords, setPlayChords] = useState(true)
   const [playBass, setPlayBass] = useState(true)
@@ -360,8 +361,12 @@ export default function Home() {
     if (selectedIndex > index) setSelectedIndex((s) => s + 1)
   }
 
-  function loadForm(formName) {
+  function loadForm(formName, { exitPractice = false } = {}) {
     setSelectedForm(formName)
+    if (exitPractice) {
+      practiceModeRef.current = false
+      setPracticeMode(false)
+    }
     const form = FORMS[formName]
     if (form) {
       setBars(form.bars)
@@ -371,7 +376,9 @@ export default function Home() {
       setSelectedIndex(0)
       setLoopStart(0)
       setLoopEnd(form.bars.length - 1)
-      if (form.tempo) setTempo(form.tempo)
+      const t = form.tempo || 110
+      setTempo(t)
+      setOriginalTempo(t)
       return
     }
     const userEntry = userLibrary.find((e) => e.name === formName)
@@ -383,7 +390,9 @@ export default function Home() {
       setSelectedIndex(0)
       setLoopStart(0)
       setLoopEnd(userEntry.bars.length - 1)
-      if (userEntry.tempo) setTempo(userEntry.tempo)
+      const t = userEntry.tempo || 110
+      setTempo(t)
+      setOriginalTempo(t)
     }
   }
 
@@ -455,7 +464,7 @@ export default function Home() {
   function setPracticeModeAndTempo(enabled) {
     practiceModeRef.current = enabled
     setPracticeMode(enabled)
-    if (enabled) setTempo(50)
+    setTempo(enabled ? 50 : originalTempo)
     if (isPlaying) {
       stopPlayback()
       startPlayback().catch(console.error)
@@ -500,6 +509,7 @@ export default function Home() {
         setKeyRoot("Ab"); setChartKey("Ab"); setKeyMode("major")
         setSelectedForm("Custom"); setSelectedIndex(0)
         setLoopStart(0); setLoopEnd(attya.length - 1)
+        setOriginalTempo(120)
         break
       }
       case "major-251": {
@@ -523,6 +533,7 @@ export default function Home() {
         setKeyRoot("C"); setChartKey("C"); setKeyMode("major")
         setSelectedForm("Custom"); setSelectedIndex(0)
         setLoopStart(0); setLoopEnd(cycle.length - 1)
+        setOriginalTempo(120)
         break
       }
       case "minor-251": {
@@ -546,6 +557,7 @@ export default function Home() {
         setKeyRoot("A"); setChartKey("A"); setKeyMode("minor")
         setSelectedForm("Custom"); setSelectedIndex(0)
         setLoopStart(0); setLoopEnd(cycle.length - 1)
+        setOriginalTempo(120)
         break
       }
       default:
@@ -553,6 +565,7 @@ export default function Home() {
     }
 
     // Set practice mode at 50 BPM AFTER loadForm so our tempo always wins
+    // (originalTempo was already set above — either by loadForm or setOriginalTempo(120))
     practiceModeRef.current = true
     setPracticeMode(true)
     setTempo(50)
@@ -874,7 +887,7 @@ export default function Home() {
               <span style={{ opacity: 0.7, marginRight: "4px" }}>Form</span>
               <select
                 value={selectedForm}
-                onChange={(e) => loadForm(e.target.value)}
+                onChange={(e) => loadForm(e.target.value, { exitPractice: true })}
                 style={{ ...selectStyle, width: "auto", padding: "6px 10px" }}
               >
                 <option value="Custom">Custom</option>
@@ -970,14 +983,20 @@ export default function Home() {
                 <button
                   onClick={() => setPracticeModeAndTempo(!practiceMode)}
                   style={{
-                    padding: "9px 14px", borderRadius: "10px", cursor: "pointer", fontWeight: 700, fontSize: "0.88rem",
-                    border: practiceMode ? "1px solid var(--db-c-green)" : "1px solid var(--db-panel-border)",
-                    background: practiceMode ? "rgba(139,211,168,0.12)" : "var(--db-panel-bg)",
-                    color: practiceMode ? "var(--db-c-green)" : "var(--db-text)",
+                    padding: "9px 16px", borderRadius: "10px", cursor: "pointer", fontWeight: 700, fontSize: "0.88rem",
+                    border: practiceMode
+                      ? "1px solid var(--db-c-green)"
+                      : "1px solid var(--db-c-blue)",
+                    background: practiceMode
+                      ? "color-mix(in srgb, var(--db-c-green) 12%, var(--db-bg))"
+                      : "color-mix(in srgb, var(--db-c-blue) 10%, var(--db-bg))",
+                    color: practiceMode ? "var(--db-c-green)" : "var(--db-c-blue)",
                   }}
-                  title={practiceMode ? "Click to restore original tempo" : "Slow tempo to 50 BPM for practice"}
+                  title={practiceMode
+                    ? `Click to switch to Play Mode — restores ${originalTempo} BPM`
+                    : "Click to switch to Practice Mode — slows to 50 BPM"}
                 >
-                  {practiceMode ? "🐢 Practice (50 BPM)" : "💡 Practice Mode"}
+                  {practiceMode ? "📖 Practice Mode" : "🎷 Play Mode"}
                 </button>
 
                 <label style={inlineLabelStyle}>
