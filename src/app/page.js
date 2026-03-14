@@ -742,7 +742,7 @@ export default function Home() {
           background: "color-mix(in srgb, var(--db-c-green) 5%, var(--db-bg))",
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
-            <div style={{ ...eyebrowStyle, marginBottom: 0, color: "var(--db-c-green)" }}>START PRACTICING FAST</div>
+            <div style={{ ...eyebrowStyle, marginBottom: 0, color: "var(--db-c-green)" }}>START PRACTICING</div>
           </div>
           <div style={{ fontSize: "0.78rem", opacity: 0.6, marginBottom: "12px" }}>
             Load a starter chart and begin at slow tempo — ideal for building muscle memory
