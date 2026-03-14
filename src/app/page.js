@@ -25,23 +25,23 @@ import Fretboard from "@/components/Fretboard"
 
 const PALETTES = [
   {
-    // BB Light Mode — clean daylight (DEFAULT)
-    name: "Day",
-    bg: "#f0f0f0",          text: "#1a1a1a",
-    accent: "#0056b3",
-    panelBg: "rgba(0,0,0,0.04)",        panelBorder: "rgba(0,0,0,0.12)",
-    sideBg:  "rgba(0,86,179,0.05)",     sideBorder:  "rgba(0,86,179,0.16)",
-    inputBg: "#e0e0e0",
-    cardBg: "rgba(0,0,0,0.05)",         cardBorder: "rgba(0,0,0,0.15)",
-    muted: "rgba(0,0,0,0.4)",
-    // Semantic label colors — dark/saturated for legibility on light bg
-    cPurple: "#5c2d91",  cGreen: "#1a7a4a",  cBlue: "#0056b3",
-    cAmber:  "#8a6200",  cGold:  "#6e5000",  cSalmon: "#b83020",
-    cPink:   "#9e0055",
+    // Lady Day — crisp white daylight, vivid blues & greens (DEFAULT)
+    name: "Lady Day",
+    bg: "#ffffff",          text: "#111827",
+    accent: "#1d4ed8",
+    panelBg: "rgba(0,0,0,0.025)",       panelBorder: "rgba(0,0,0,0.10)",
+    sideBg:  "rgba(29,78,216,0.04)",    sideBorder:  "rgba(29,78,216,0.14)",
+    inputBg: "#f3f4f6",
+    cardBg: "rgba(0,0,0,0.03)",         cardBorder: "rgba(0,0,0,0.11)",
+    muted: "rgba(0,0,0,0.38)",
+    // Vivid semantic colors — high contrast on white
+    cPurple: "#7c3aed",  cGreen: "#16a34a",  cBlue: "#2563eb",
+    cAmber:  "#b45309",  cGold:  "#a16207",  cSalmon: "#dc2626",
+    cPink:   "#be185d",
   },
   {
-    // BB Dark Mode 1 — deep forest green + gold
-    name: "Forest",
+    // Grant Green — deep forest green + gold
+    name: "Grant Green",
     bg: "#283618",          text: "#fefae0",
     accent: "#dda15e",
     panelBg: "rgba(221,161,94,0.07)",  panelBorder: "rgba(221,161,94,0.22)",
@@ -54,27 +54,13 @@ const PALETTES = [
     cPink:   "var(--db-c-pink)",
   },
   {
-    // BB Dark Mode 2 — deep navy + cyan
-    name: "Ocean",
+    // Bird's Blues — deep navy + cyan
+    name: "Bird's Blues",
     bg: "#0a1128",          text: "#fefcfb",
     accent: "#61dafb",
     panelBg: "rgba(18,130,162,0.08)",  panelBorder: "rgba(18,130,162,0.28)",
     sideBg:  "rgba(18,130,162,0.06)",  sideBorder:  "rgba(18,130,162,0.38)",
     inputBg: "#001844",
-    cardBg: "rgba(255,255,255,0.04)",  cardBorder: "rgba(255,255,255,0.1)",
-    muted: "rgba(255,255,255,0.4)",
-    cPurple: "var(--db-c-purple)",  cGreen: "var(--db-c-green)",  cBlue: "var(--db-c-blue)",
-    cAmber:  "var(--db-c-amber)",  cGold:  "var(--db-c-gold)",  cSalmon: "var(--db-c-salmon)",
-    cPink:   "var(--db-c-pink)",
-  },
-  {
-    // BB Dark Mode 3 — dark olive/khaki + burnt orange
-    name: "Prairie",
-    bg: "#2A2F20",          text: "#F0EFEB",
-    accent: "#D97904",
-    panelBg: "rgba(138,154,91,0.08)",  panelBorder: "rgba(138,154,91,0.24)",
-    sideBg:  "rgba(138,154,91,0.06)",  sideBorder:  "rgba(138,154,91,0.33)",
-    inputBg: "#31372B",
     cardBg: "rgba(255,255,255,0.04)",  cardBorder: "rgba(255,255,255,0.1)",
     muted: "rgba(255,255,255,0.4)",
     cPurple: "var(--db-c-purple)",  cGreen: "var(--db-c-green)",  cBlue: "var(--db-c-blue)",
@@ -462,12 +448,15 @@ export default function Home() {
   }
 
   function setPracticeModeAndTempo(enabled) {
+    const newTempo = enabled ? 50 : originalTempo
     practiceModeRef.current = enabled
     setPracticeMode(enabled)
-    setTempo(enabled ? 50 : originalTempo)
+    setTempo(newTempo)
     if (isPlaying) {
       stopPlayback()
-      startPlayback().catch(console.error)
+      // Pass newTempo directly — setTempo() is async and the closure would
+      // still read the old value if we let startPlayback() capture it
+      startPlayback(newTempo).catch(console.error)
     }
   }
 
@@ -581,7 +570,7 @@ export default function Home() {
     setPlayheadIndex(null)
   }
 
-  async function startPlayback() {
+  async function startPlayback(overrideTempo = null) {
     playingRef.current = false  // cancel any pending repeats from previous run
     stopPlayback()
     playingRef.current = true
@@ -590,7 +579,9 @@ export default function Home() {
     const endIndex    = loopEnabled ? Math.max(loopStart, loopEnd) : bars.length - 1
     const slicedBars  = bars.slice(startIndex, endIndex + 1)
     const slicedLines = approachLines.slice(startIndex, endIndex + 1)
-    const effectiveTempo = practiceModeRef.current ? 50 : tempo
+    // overrideTempo lets callers bypass the stale React state closure (e.g. when
+    // setPracticeModeAndTempo calls startPlayback before setTempo() has committed)
+    const effectiveTempo = practiceModeRef.current ? 50 : (overrideTempo ?? tempo)
 
     setIsPlaying(true)
 
