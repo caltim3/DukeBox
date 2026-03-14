@@ -871,7 +871,7 @@ export default function Home() {
 
         {/* ── Song Settings ─────────────────────────────────────── */}
         <div style={{ ...panelStyle, marginBottom: "16px" }}>
-          <div style={eyebrowStyle}>SONG SETTINGS</div>
+          <div style={eyebrowStyle}>SONGBOOK</div>
           <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
 
             <label style={inlineLabelStyle}>
