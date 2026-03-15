@@ -80,6 +80,25 @@ const INITIAL_BARS = [
   { root: "F",  quality: "7", symbol: "F7",   section: "A" },
 ]
 
+// Converts Tonal.js interval notation → readable jazz shorthand
+// e.g. "3m" → "m3", "5d" → "b5", "7M" → "M7", "1P" → "R"
+function formatInterval(ivl) {
+  const map = {
+    "1P": "R",
+    "2m": "m2",  "2M": "M2",  "2A": "#2",
+    "3m": "m3",  "3M": "M3",
+    "4P": "P4",  "4A": "#4",
+    "5d": "b5",  "5P": "P5",  "5A": "#5",
+    "6m": "m6",  "6M": "M6",
+    "7d": "dim7","7m": "m7",  "7M": "M7",
+    "8P": "R",
+    "9m": "b9",  "9M": "9",   "9A": "#9",
+    "11P":"P11", "11A":"#11",
+    "13m":"b13", "13M":"13",
+  }
+  return map[ivl] ?? ivl
+}
+
 const STARTER_PRESETS = [
   { id: "jazz-blues-bb",  label: "Jazz Blues in Bb" },
   { id: "major-251",      label: "Major ii-V-I Cycle" },
@@ -1360,7 +1379,7 @@ export default function Home() {
               const guide = progression[index]?.guideTones || []
               const target = targets[index]
               const context = harmonicContext[index]
-              const intervals = chordInfo(bar.symbol).intervals || []
+              const { intervals: rawIntervals = [], notes: chordNotes = [] } = chordInfo(bar.symbol)
               const isPlayhead = index === playheadIndex
               const inLoop =
                 index >= Math.min(loopStart, loopEnd) && index <= Math.max(loopStart, loopEnd)
@@ -1480,20 +1499,31 @@ export default function Home() {
                     </div>
                   )}
 
-                  <div style={{ fontSize: "0.76rem", color: "var(--db-c-salmon)", marginBottom: "4px" }}>
-                    Cadence: {context?.cadenceLabels?.join(", ") || "—"}
+                  {/* 3 — Cadence */}
+                  <div style={{ fontSize: "0.74rem", color: "var(--db-c-salmon)", marginBottom: "3px" }}>
+                    <span style={{ opacity: 0.55 }}>Cadence </span>{context?.cadenceLabels?.join(", ") || "—"}
                   </div>
 
-                  <div style={{ fontSize: "0.76rem", color: "var(--db-c-amber)", marginBottom: "4px" }}>
-                    Guide Tones: {guide.length ? guide.join(" / ") : "—"}
+                  {/* 4 — Intervals */}
+                  <div style={{ fontSize: "0.74rem", color: "var(--db-c-blue)", marginBottom: "3px" }}>
+                    <span style={{ opacity: 0.55 }}>Intervals </span>
+                    {rawIntervals.length ? rawIntervals.map(formatInterval).join("  ") : "—"}
                   </div>
 
-                  <div style={{ fontSize: "0.76rem", color: "var(--db-c-blue)", marginBottom: "4px" }}>
-                    Intervals: {intervals.length ? intervals.join(" · ") : "—"}
+                  {/* 5 — Chord Spelling */}
+                  <div style={{ fontSize: "0.74rem", color: "var(--db-c-purple)", marginBottom: "3px" }}>
+                    <span style={{ opacity: 0.55 }}>Spelling </span>
+                    {chordNotes.length ? chordNotes.join("  ") : "—"}
                   </div>
 
-                  <div style={{ fontSize: "0.76rem", color: "var(--db-c-green)", marginBottom: "6px" }}>
-                    Target: {target?.targetNote || "—"}
+                  {/* 6 — Guide Tones (3rd & 7th) */}
+                  <div style={{ fontSize: "0.74rem", color: "var(--db-c-amber)", marginBottom: "3px" }}>
+                    <span style={{ opacity: 0.55 }}>Guide Tones </span>{guide.length ? guide.join(" / ") : "—"}
+                  </div>
+
+                  {/* 7 — Next Target */}
+                  <div style={{ fontSize: "0.74rem", color: "var(--db-c-green)", marginBottom: "6px" }}>
+                    <span style={{ opacity: 0.55 }}>Next Target </span>{target?.targetNote || "—"}
                   </div>
 
                   {/* Per-bar chord editor */}
