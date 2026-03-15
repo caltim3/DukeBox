@@ -311,11 +311,11 @@ export function noteToFrequency(note, octave = 4) {
 }
 
 // Two-note-per-bar voice leading chain:
-//   Note 1 = arrival  — the guide tone we LANDED on (7→3 resolution from previous bar)
-//   Note 2 = departure — the 7th of current chord if it steps smoothly (≤2 st) to the
-//            next arrival; otherwise a half-step chromatic approach from below
+//   Note 1 = arrival  — the 3rd or 7th we LAND on (from previous bar's 7→3 resolution)
+//   Note 2 = departure — the OTHER guide tone (7th if we arrived on 3rd, etc.) which then
+//            steps smoothly (≤2 st) into the next bar's arrival; chromatic below as fallback
 //
-// Chain: bar0:[3rd, →bar1] | bar1:[3rd/7th, →bar2] | bar2:[3rd/7th, →bar3] …
+// Chain: bar0:[3rd, 7th→] | bar1:[3rd, 7th→] | bar2:[3rd, 7th→] …
 export function generateApproachLines(chords) {
   const targets = melodicTargets(chords)
 
@@ -324,14 +324,18 @@ export function generateApproachLines(chords) {
   let prevArrivalNote  = null
 
   return targets.map((current, index) => {
+    // Pre-compute chord tones and 3rd — reused for arrival, contour reset, and correction
+    const chordData  = Chord.get(chords[index].symbol)
+    const chordTones = chordData.notes || []
+    const chordIvls  = chordData.intervals || []
+    const chordThird = chordTones.find((_, i) => chordIvls[i] === "3M" || chordIvls[i] === "3m")
+
     // ── Note 1: arrival ─────────────────────────────────────────────────────
+    // Always prefer the 3rd as starting / arriving note so that the OTHER guide
+    // tone (7th, stored as sourceNote) is available as a distinct departure note.
     let arrivalNote
     if (index === 0) {
-      const chord = Chord.get(chords[0].symbol)
-      const notes = chord.notes || []
-      const ivls  = chord.intervals || []
-      const third = notes.find((_, i) => ivls[i] === "3M" || ivls[i] === "3m")
-      arrivalNote = current.sourceNote || third || notes[0] || null
+      arrivalNote = chordThird || current.sourceNote || chordTones[0] || null
     } else {
       arrivalNote = targets[index - 1].targetNote
         || current.currentGuideTones?.[0]
@@ -349,8 +353,6 @@ export function generateApproachLines(chords) {
         if (movedDown) {
           consecutiveDown++
           if (consecutiveDown >= 3) {
-            const chordData  = Chord.get(chords[index].symbol)
-            const chordTones = chordData.notes || []
             let resetNote = null, bestUp = Infinity
             for (const tone of chordTones) {
               const tc = Note.chroma(tone)
@@ -365,6 +367,16 @@ export function generateApproachLines(chords) {
         }
       }
     }
+
+    // ── Guide-tone arrival correction ────────────────────────────────────────
+    // If the arrival note is the same as sourceNote (the note we'll depart on),
+    // the bar would show no motion: phrase = [X, X].  Swap to the 3rd so each bar
+    // always demonstrates both guide tones — arrival (3rd) then departure (7th).
+    if (current.sourceNote && arrivalNote === current.sourceNote
+        && chordThird && chordThird !== current.sourceNote) {
+      arrivalNote = chordThird
+    }
+
     prevArrivalNote = arrivalNote
 
     // ── Note 2: departure ───────────────────────────────────────────────────
