@@ -11,7 +11,6 @@ import {
   analyzeGuideToneMotion,
   melodicTargets,
   generateApproachLines,
-  assignRhythmToBars,
   getRecommendedScalesFromQuality,
   transposeChart,
   applyScaleFilter,
@@ -114,8 +113,6 @@ export default function Home() {
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [dragIndex, setDragIndex] = useState(null)
 
-  const [approachMode, setApproachMode] = useState(0)  // 0=below, 1=above, 2=off
-  const [alteredMode, setAlteredMode] = useState(false) // dominant V7 departs via b13/b9 altered extension
   const [chartKey, setChartKey] = useState("Bb")        // actual key the chart bars are notated in
 
   const [tempo, setTempo] = useState(110)
@@ -159,7 +156,6 @@ export default function Home() {
 
   // FretFlow: static scale workout boards (up to 4)
   const [openControlPanels, setOpenControlPanels] = useState({
-    harmony: false,
     chart: true,
   })
 
@@ -195,16 +191,12 @@ export default function Home() {
   }, [bars])
 
   const approachLines = useMemo(() => {
-    return generateApproachLines(bars, approachMode, alteredMode)
-  }, [bars, approachMode, alteredMode])
+    return generateApproachLines(bars)
+  }, [bars])
 
   const phrase = useMemo(() => {
     return approachLines.flatMap(line => line.phrase)
   }, [approachLines])
-
-  const rhythms = useMemo(() => {
-    return assignRhythmToBars(bars, 0)
-  }, [bars])
 
   const notationBars = useMemo(() => {
     return approachLines.map((line, i) => ({
@@ -1103,36 +1095,9 @@ export default function Home() {
             )}
           </div>
 
-          {/* ── Section 3: Harmony Tools ────────────────────────────── */}
-          <div style={{ marginBottom: "12px" }}>
-            <div
-              onClick={() => toggleControlPanel("harmony")}
-              style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", marginBottom: "8px" }}
-            >
-              <div style={{ ...eyebrowStyle, marginBottom: 0 }}>HARMONY TOOLS</div>
-              <span style={{ fontSize: "0.75rem", opacity: 0.5 }}>{openControlPanels.harmony ? "▼" : "▶"}</span>
-            </div>
-            {openControlPanels.harmony && (
-              <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
-                <button
-                  onClick={() => setApproachMode(m => (m + 1) % 3)}
-                  style={buttonStyle(
-                    approachMode === 0 ? "var(--db-c-blue)"
-                    : approachMode === 1 ? "var(--db-c-purple)"
-                    : "var(--db-muted)"
-                  )}
-                >
-                  {approachMode === 0 ? "Approach Tone: ↓ Below"
-                   : approachMode === 1 ? "Approach Tone: ↑ Above"
-                   : "Approach Tone: ○ Off"}
-                </button>
-              </div>
-            )}
-          </div>
-
           <div style={eyebrowStyle}>MELODY LANE</div>
           <div style={{ fontSize: "0.78rem", opacity: 0.55, marginBottom: "8px", marginTop: "-4px" }}>
-            Guide-tone skeleton — arrival (red) and departure (green) notes across the chart
+            7→3 guide-tone voice leading — arrival note (red) and departure note (green) per bar
           </div>
 
           <NotationLane
@@ -1620,25 +1585,10 @@ export default function Home() {
         <div style={panelStyle}>
           <div style={eyebrowStyle}>CONTINUOUS PHRASE</div>
           <div style={{ fontSize: "0.78rem", opacity: 0.55, marginBottom: "8px", marginTop: "-4px" }}>
-            All approach notes stitched together — the full improvised line across every bar as one phrase
+            7→3 guide-tone line across the full chart — the melodic skeleton bar by bar
           </div>
           <div style={{ fontSize: "1rem", lineHeight: 1.9, color: "var(--db-c-purple)" }}>
             {phrase.length ? phrase.join("  →  ") : "No phrase generated"}
-          </div>
-        </div>
-
-        <div style={panelStyle}>
-          <div style={eyebrowStyle}>RHYTHMIC SHAPE</div>
-          <div style={{ fontSize: "0.78rem", opacity: 0.55, marginBottom: "8px", marginTop: "-4px" }}>
-            When to play each chord's key note — the rhythmic skeleton of the phrase (beat placement per bar)
-          </div>
-          <div style={{ fontSize: "1rem", lineHeight: 1.9, color: "var(--db-c-green)" }}>
-            {rhythms.map((item, index) => (
-              <span key={`${item.chord}-rhythm-${index}`}>
-                <strong>{bars[index].symbol}</strong> [{item.rhythm}]
-                {index < rhythms.length - 1 ? "   |   " : ""}
-              </span>
-            ))}
           </div>
         </div>
 

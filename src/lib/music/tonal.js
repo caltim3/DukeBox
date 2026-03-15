@@ -311,13 +311,12 @@ export function noteToFrequency(note, octave = 4) {
 }
 
 // Two-note-per-bar voice leading chain:
-//   Note 1 = arrival  — where we LANDED coming from the previous bar's target
-//   Note 2 = departure — chromatic approach note leading INTO the next bar's landing note
+//   Note 1 = arrival  — the guide tone we LANDED on (7→3 resolution from previous bar)
+//   Note 2 = departure — the 7th of current chord if it steps smoothly (≤2 st) to the
+//            next arrival; otherwise a half-step chromatic approach from below
 //
-// Chain: bar0:[arrival, →bar1] | bar1:[bar0target, →bar2] | bar2:[bar1target, →bar3] …
-export function generateApproachLines(chords, approachMode = 0, alteredMode = false) {
-  // approachMode: 0 = below, 1 = above, 2 = off
-  // alteredMode: dominant V7 departs via b13 (→maj) or b9 (→min) instead of a chord tone
+// Chain: bar0:[3rd, →bar1] | bar1:[3rd/7th, →bar2] | bar2:[3rd/7th, →bar3] …
+export function generateApproachLines(chords) {
   const targets = melodicTargets(chords)
 
   // Melodic contour tracking — prevent >3 consecutive downward arrivals (Rule 3)
@@ -369,54 +368,35 @@ export function generateApproachLines(chords, approachMode = 0, alteredMode = fa
     prevArrivalNote = arrivalNote
 
     // ── Note 2: departure ───────────────────────────────────────────────────
+    // Priority 1: sourceNote (7th) resolves by ≤2 semitones to targetNote (3rd) → pure 7→3 step
+    // Priority 2: no clean step resolution → chromatic half-step from below
+    // Priority 3: last bar or no target → hold a guide tone
     let departureNote = null
     let approachType  = "anchor"
 
-    const nextSymbol   = index < chords.length - 1 ? chords[index + 1]?.symbol : null
-    const barQuality   = chords[index]?.quality || ""
-    const nextQuality  = chords[index + 1]?.quality || ""
-    const isDominant   = barQuality === "7" || barQuality === "7alt"
-      || (barQuality.includes("7") && !barQuality.startsWith("maj")
-          && !barQuality.startsWith("min") && !barQuality.includes("dim"))
-    const nextIsMinor  = nextQuality.startsWith("min") || nextQuality === "m7"
-      || nextQuality === "m6" || nextQuality.includes("dim")
+    const nextSymbol = index < chords.length - 1 ? chords[index + 1]?.symbol : null
 
-    // ── Rule 4: Altered / Night Mode (dominant V7 departure) ─────────────────
-    if (alteredMode && isDominant && nextSymbol) {
-      const tonic = Chord.get(current.chord).tonic || extractRoot(current.chord)
-      if (tonic) {
-        if (nextIsMinor) {
-          // b9 = 1 semitone above root (tension into minor resolution)
-          departureNote = Note.simplify(Note.transpose(tonic, Interval.fromSemitones(1)))
-          approachType  = "altered-b9"
-        } else {
-          // b13 = 8 semitones above root (augmented 5th / minor 6th, into major resolution)
-          departureNote = Note.simplify(Note.transpose(tonic, Interval.fromSemitones(8)))
-          approachType  = "altered-b13"
-        }
-      }
-
-    // ── Rule 1: P4/P5 movement → use 7th of current chord as departure ───────
-    } else if (approachMode !== 2 && nextSymbol && isP4orP5Movement(current.chord, nextSymbol) && current.sourceNote) {
-      // sourceNote = best.from = 7th of current chord (from 7→3 gravity in analyzeGuideToneMotion)
-      departureNote = current.sourceNote
-      approachType  = "seventh-resolution"
-
-    // ── Standard: chromatic half-step approach ───────────────────────────────
-    } else if (approachMode !== 2 && current.targetNote) {
-      if (approachMode === 1) {
-        departureNote = aboveHalfStep(current.targetNote)
-        approachType  = "chromatic-above"
+    if (nextSymbol && current.sourceNote && current.targetNote) {
+      const stepDist = semitoneDistance(current.sourceNote, current.targetNote)
+      if (stepDist !== null && stepDist <= 2) {
+        // Clean 7→3 (or guide-tone → guide-tone) step resolution — use the source note itself
+        departureNote = current.sourceNote
+        approachType  = "guide-tone-step"
       } else {
+        // No smooth step — approach the next target from a half-step below
         departureNote = belowHalfStep(current.targetNote)
         approachType  = "chromatic-below"
       }
-
-    // ── Last bar / no approach ───────────────────────────────────────────────
+    } else if (nextSymbol && current.targetNote) {
+      // Have a target but no clear source note — approach from below
+      departureNote = belowHalfStep(current.targetNote)
+      approachType  = "chromatic-below"
     } else {
+      // Last bar or no next chord — rest on a guide tone
       departureNote = current.currentGuideTones?.[1]
         || current.currentGuideTones?.[0]
         || arrivalNote
+      approachType  = "anchor"
     }
 
     const phrase = [arrivalNote, departureNote].filter(n => n && Note.chroma(n) != null)
@@ -435,8 +415,8 @@ export function generateApproachLines(chords, approachMode = 0, alteredMode = fa
   })
 }
 
-export function generateContinuousPhrase(chords, approachMode = 0, alteredMode = false) {
-  return generateApproachLines(chords, approachMode, alteredMode).flatMap((item) => item.phrase || [])
+export function generateContinuousPhrase(chords) {
+  return generateApproachLines(chords).flatMap((item) => item.phrase || [])
 }
 
 const RHYTHM_BANKS = [
