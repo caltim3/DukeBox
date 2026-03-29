@@ -11,6 +11,7 @@ import {
   analyzeGuideToneMotion,
   melodicTargets,
   generateApproachLines,
+  martinoMapper,
   getRecommendedScalesFromQuality,
   transposeChart,
   applyScaleFilter,
@@ -226,6 +227,13 @@ export default function Home() {
 
   const fretboardInfo = useMemo(() => chordInfo(fretboardBar.symbol), [fretboardBar])
 
+  // When Martino mode is active, compute the remapped display root/quality for the fretboard.
+  // Everything else (audio, guide tones, notation) continues to use the original fretboardBar data.
+  const martinoMap = useMemo(() => {
+    if (scaleFilter !== "martino") return null
+    return martinoMapper(fretboardBar.root, fretboardBar.quality)
+  }, [scaleFilter, fretboardBar])
+
   const fretboardScaleData = useMemo(() => {
     const tonic = fretboardBar.userTonic ?? fretboardBar.root
     if (fretboardBar.userScale) {
@@ -236,21 +244,32 @@ export default function Home() {
   }, [fretboardBar])
 
   const displayedScaleNotes = useMemo(() => {
+    // Martino mode: remap to display root/quality and apply hexatonic formula from that root.
+    // The `applyScaleFilter("martino")` path also works, but using the mapper explicitly keeps
+    // the fretboard rootNote and label in sync with the same computed values.
+    if (martinoMap) {
+      const { displayRoot, displayQuality } = martinoMap
+      return applyScaleFilter([], displayRoot, displayQuality, "hexatonic")
+    }
     const raw   = fretboardScaleData[0]?.notes ?? []
     const tonic = fretboardBar.userTonic ?? fretboardBar.root
-    return applyScaleFilter(raw, tonic, fretboardBar.quality, scaleFilter) // null | penta | hexa
-  }, [fretboardScaleData, fretboardBar, scaleFilter])
+    return applyScaleFilter(raw, tonic, fretboardBar.quality, scaleFilter)
+  }, [fretboardScaleData, fretboardBar, scaleFilter, martinoMap])
 
   // Bebop: the extra chromatic passing tone on top of the current base scale
   const bebopPassingNotes = useMemo(() => {
     if (!bebopOverlay) return []
-    const raw   = fretboardScaleData[0]?.notes ?? []
-    const tonic = fretboardBar.userTonic ?? fretboardBar.root
-    const base  = applyScaleFilter(raw, tonic, fretboardBar.quality, scaleFilter)
-    const withBebop = applyScaleFilter(base, tonic, fretboardBar.quality, "bebop")
+    // In Martino mode use the display root/quality so the bebop tone relates to
+    // the minor shape being shown, not the original chord.
+    const effectiveRoot    = martinoMap ? martinoMap.displayRoot    : (fretboardBar.userTonic ?? fretboardBar.root)
+    const effectiveQuality = martinoMap ? martinoMap.displayQuality : fretboardBar.quality
+    const base     = martinoMap
+      ? applyScaleFilter([], effectiveRoot, effectiveQuality, "hexatonic")
+      : applyScaleFilter(fretboardScaleData[0]?.notes ?? [], effectiveRoot, effectiveQuality, scaleFilter)
+    const withBebop = applyScaleFilter(base, effectiveRoot, effectiveQuality, "bebop")
     const baseSet   = new Set(base)
     return withBebop.filter(n => !baseSet.has(n))
-  }, [bebopOverlay, fretboardScaleData, fretboardBar, scaleFilter])
+  }, [bebopOverlay, fretboardScaleData, fretboardBar, scaleFilter, martinoMap])
 
   // Guide tones (3rd / 7th) overlay when targets button is active
   const guideToneDisplayNotes = useMemo(() => {
@@ -1189,16 +1208,18 @@ export default function Home() {
                 {fretboardBar.symbol}
                 {fretboardBar.userTonic && fretboardBar.userTonic !== fretboardBar.root
                   ? ` (${fretboardBar.userTonic})` : ""}
-                {fretboardView === "scale"
-                  ? ` · ${scaleFilter === "martino" ? "Martino" : (scaleFilter ?? fretboardScaleData[0]?.name ?? "")}`
-                  : ""}
+                {fretboardView === "scale" ? ` · ${
+                  martinoMap
+                    ? `Martino → ${martinoMap.displayRoot}m${martinoMap.displayQuality === "min7b5" ? " (melodic)" : ""}`
+                    : (scaleFilter ?? fretboardScaleData[0]?.name ?? "")
+                }` : ""}
               </div>
             </div>
 
             <div style={{ overflowX: "auto", marginBottom: "4px" }}>
               <Fretboard
                 chordNotes={fretboardInfo.notes || []}
-                rootNote={fretboardBar.userTonic ?? fretboardBar.root}
+                rootNote={martinoMap ? martinoMap.displayRoot : (fretboardBar.userTonic ?? fretboardBar.root)}
                 scaleNotes={displayedScaleNotes}
                 targetNotes={[]}
                 passingNotes={bebopPassingNotes}

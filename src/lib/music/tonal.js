@@ -479,6 +479,31 @@ function buildFromSemitones(root, list) {
 }
 
 /**
+ * Pat Martino's minor conversion: maps any chord type to the minor hexatonic
+ * root and quality that represents it on the fretboard.
+ *
+ *   m7 / m6          → same root,          displayQuality: "min7"   (Dorian no-6)
+ *   maj7 / maj6      → relative minor +9st, displayQuality: "min7"   (e.g. C → A)
+ *   7 / 7alt / dom   → 5th +7st,            displayQuality: "min7"   (e.g. G → D)
+ *   m7b5 / dim7      → same root,           displayQuality: "min7b5" (melodic hex)
+ *
+ * Only affects the fretboard scale display — guide tones, audio, and notation
+ * all continue to use the original chord data.
+ */
+export function martinoMapper(root, quality) {
+  const q = quality || ""
+  if (q === "maj7" || q === "maj6")
+    return { displayRoot: noteAtSemitones(root, 9), displayQuality: "min7" }
+  if (q === "min7b5" || q === "dim7")
+    return { displayRoot: root, displayQuality: "min7b5" }
+  if (q.startsWith("min") || q === "m7" || q === "m6" || q === "m9")
+    return { displayRoot: root, displayQuality: "min7" }
+  if ((q.includes("7") || q.includes("9") || q.includes("13")) && !q.startsWith("maj"))
+    return { displayRoot: noteAtSemitones(root, 7), displayQuality: "min7" }
+  return { displayRoot: root, displayQuality: "min7" }
+}
+
+/**
  * Apply a scale filter to the given notes for fretboard display.
  *
  * "pentatonic" — replaces notes with a 5-note pentatonic based on quality:
@@ -511,42 +536,26 @@ export function applyScaleFilter(notes, root, quality, filter) {
 
     case "hexatonic": {
       const q = quality || ""
-      // Half-dim / dim: Locrian #2 without b6 = 1 2 b3 4 b5 b7
+      // Half-dim / dim: melodic minor hex = 1 2 b3 5 6 M7
       if (q === "min7b5" || q === "dim7")
-        return buildFromSemitones(root, [0,2,3,5,6,10])
-      // Minor (Dorian): remove 4th = 1 2 b3 4 5 b7
+        return buildFromSemitones(root, [0,2,3,7,9,11])
+      // Minor (Dorian minus 6): 1 2 b3 4 5 b7
       if (q.startsWith("min") || q === "m7" || q === "m6" || q === "m9")
         return buildFromSemitones(root, [0,2,3,5,7,10])
-      // Dominant (Mixolydian): remove 4th = 1 2 3 5 6 b7
+      // Dominant (Mixolydian minus 4): 1 2 3 5 6 b7
       if ((q.includes("7") || q.includes("9") || q.includes("13")) && !q.startsWith("maj"))
         return buildFromSemitones(root, [0,2,4,7,9,10])
-      // Major (Ionian): remove 4th = 1 2 3 5 6 7
+      // Major (Ionian minus 4): 1 2 3 5 6 7
       return buildFromSemitones(root, [0,2,4,7,9,11])
     }
 
     case "martino": {
-      // Pat Martino's minor conversion — everything becomes a minor hexatonic
-      // (Dorian no 6: 1 2 b3 4 5 b7) built from a quality-dependent root.
-      // Guide tones and approach notes are unaffected (chord-tone based).
-      const q = quality || ""
-      // Major (maj7, maj6) → minor hexatonic from relative minor (6th = 9 st up)
-      if (q === "maj7" || q === "maj6") {
-        const relMinor = noteAtSemitones(root, 9)
-        return buildFromSemitones(relMinor, [0,2,3,5,7,10])
-      }
-      // Half-dim / dim → melodic minor hexatonic from root: 1 2 b3 5 6 M7
-      if (q === "min7b5" || q === "dim7")
-        return buildFromSemitones(root, [0,2,3,7,9,11])
-      // Minor (min7, min6, etc.) → minor hexatonic from root
-      if (q.startsWith("min") || q === "m7" || q === "m6" || q === "m9")
-        return buildFromSemitones(root, [0,2,3,5,7,10])
-      // Dominant (7, 7alt, etc.) → minor hexatonic from 5th (7 st up)
-      if ((q.includes("7") || q.includes("9") || q.includes("13")) && !q.startsWith("maj")) {
-        const fifth = noteAtSemitones(root, 7)
-        return buildFromSemitones(fifth, [0,2,3,5,7,10])
-      }
-      // Fallback → minor hexatonic from root
-      return buildFromSemitones(root, [0,2,3,5,7,10])
+      // Delegate root/quality remapping to martinoMapper, then apply the
+      // appropriate hexatonic formula from the display root.
+      const { displayRoot, displayQuality } = martinoMapper(root, quality)
+      if (displayQuality === "min7b5")
+        return buildFromSemitones(displayRoot, [0,2,3,7,9,11])  // melodic hex: 1 2 b3 5 6 M7
+      return buildFromSemitones(displayRoot, [0,2,3,5,7,10])    // standard hex: 1 2 b3 4 5 b7
     }
 
     case "bebop": {
