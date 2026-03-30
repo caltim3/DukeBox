@@ -21,9 +21,17 @@ import {
 import { analyzeProgressionContext } from "@/lib/music/harmony"
 import { FORMS, FORM_CATEGORIES } from "@/lib/music/forms"
 import { chordToRoman } from "@/lib/music/roman"
-import { startPlayback as audioStart, stopAll as audioStop, DRUM_STYLES } from "@/lib/music/audio"
+import { DRUM_STYLES } from "@/lib/music/audioConstants"
 import { COMPING_STYLE_NAMES, DEFAULT_COMPING_STYLE } from "@/lib/music/comping"
 import Fretboard from "@/components/Fretboard"
+
+// audio.js (Tone.js) is loaded lazily on first play so AudioContext is only
+// created after a user gesture, avoiding the browser autoplay-policy warning.
+let _audioMod = null
+async function loadAudio() {
+  if (!_audioMod) _audioMod = await import("@/lib/music/audio")
+  return _audioMod
+}
 
 const PALETTES = [
   {
@@ -603,7 +611,7 @@ export default function Home() {
 
   function stopPlayback() {
     playingRef.current = false
-    audioStop()
+    _audioMod?.stopAll()   // no-op if audio hasn't been loaded yet
     setIsPlaying(false)
     setPlayheadIndex(null)
   }
@@ -622,6 +630,9 @@ export default function Home() {
     const effectiveTempo = practiceModeRef.current ? 50 : (overrideTempo ?? tempo)
 
     setIsPlaying(true)
+
+    // Load Tone.js lazily — AudioContext is only created here, after user gesture
+    const { startPlayback: audioStart } = await loadAudio()
 
     if (loopEnabled) {
       // Infinite seamless loop
@@ -702,7 +713,7 @@ export default function Home() {
       const stored = localStorage.getItem("dukebox-library")
       if (stored) setUserLibrary(JSON.parse(stored))
     } catch {}
-    return () => audioStop()
+    return () => _audioMod?.stopAll()  // stop audio if loaded when component unmounts
   }, [])
 
   // Auto-play after loadStarter commits new bars to state
