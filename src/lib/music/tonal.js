@@ -510,9 +510,11 @@ export function martinoMapper(root, quality) {
  *   major types (maj7, maj6, 7) → major pentatonic  1 2 3 5 6
  *   all other types             → minor pentatonic  1 b3 4 5 b7
  *
- * "hexatonic" — Randy Vincent's two hexatonic families:
- *   melodic-minor family (7alt, min7b5, dim7) → 1 2 b3 5 6 7
- *   major family (maj7, m7, dom7 inside, etc.) → 1 2 3 5 6 7
+ * "hexatonic" — Randy Vincent's three hexatonic families (correct root remapping):
+ *   maj7 / maj6   → majorHex      1 2 3 5 6 7   from root
+ *   min7 / m7     → minorHex      1 2 b3 4 5 b7 from root
+ *   7 / dom       → melodicMinHex 1 2 b3 5 6 7  from root+1 (e.g. G7 → Ab hex)
+ *   min7b5 / dim7 → melodicMinHex 1 2 b3 5 6 7  from root+3 (e.g. Dm7b5 → F hex)
  *
  * "bebop" — adds one chromatic passing tone to the existing scale:
  *   dominant (7, 7alt)             → add M7 (between b7 and root)
@@ -536,16 +538,20 @@ export function applyScaleFilter(notes, root, quality, filter) {
 
     case "hexatonic": {
       const q = quality || ""
-      // Half-dim / dim: melodic minor hex = 1 2 b3 5 6 M7
+      // Half-dim / dim: melodicMinorHex from the minor 3rd above root
+      // e.g. Dm7b5 (root=D) → F melodicMinorHex: F G Ab C D E
       if (q === "min7b5" || q === "dim7")
-        return buildFromSemitones(root, [0,2,3,7,9,11])
-      // Minor (Dorian minus 6): 1 2 b3 4 5 b7
+        return buildFromSemitones(noteAtSemitones(root, 3), [0,2,3,7,9,11])
+      // Minor: minorHex from root (Dorian minus 6): 1 2 b3 4 5 b7
+      // e.g. Dm7 → D E F G A C
       if (q.startsWith("min") || q === "m7" || q === "m6" || q === "m9")
         return buildFromSemitones(root, [0,2,3,5,7,10])
-      // Dominant (Mixolydian minus 4): 1 2 3 5 6 b7
+      // Dominant: melodicMinorHex from half step above root (altered family)
+      // e.g. G7 → Ab melodicMinorHex: Ab Bb B Eb F G
       if ((q.includes("7") || q.includes("9") || q.includes("13")) && !q.startsWith("maj"))
-        return buildFromSemitones(root, [0,2,4,7,9,10])
-      // Major (Ionian minus 4): 1 2 3 5 6 7
+        return buildFromSemitones(noteAtSemitones(root, 1), [0,2,3,7,9,11])
+      // Major: majorHex from root: 1 2 3 5 6 7
+      // e.g. Cmaj7 → C D E G A B
       return buildFromSemitones(root, [0,2,4,7,9,11])
     }
 
@@ -577,6 +583,40 @@ export function applyScaleFilter(notes, root, quality, filter) {
     default:
       return notes
   }
+}
+
+/**
+ * Chromatic passing tones to layer on top of a hexatonic scale (bebop overlay).
+ *
+ * minorHex + bebop → add M7 (between b7 and root) and b9 (between root and M2)
+ *   e.g. D minorHex → add C# and Eb
+ *
+ * majorHex + bebop → add the relative minor's two chromatic passing tones
+ *   = b6 (relative minor's M7) and b7 (relative minor's b9)
+ *   e.g. C majorHex (rel. minor = A) → add Ab and Bb
+ *
+ * melodicMinorHex chords (dom7, min7b5): no additions defined, returns [].
+ */
+export function getHexatonicBebopNotes(root, quality) {
+  const q = quality || ""
+  const rChroma = Note.chroma(root)
+  if (rChroma == null) return []
+
+  // minorHex: add M7 (root+11) and b9 (root+1)
+  if (q.startsWith("min") || q === "m7" || q === "m6" || q === "m9")
+    return [
+      CHROMATIC_NOTES[(rChroma + 11) % 12],  // M7
+      CHROMATIC_NOTES[(rChroma +  1) % 12],  // b9
+    ]
+
+  // majorHex: add b6 (root+8) and b7 (root+10) — relative minor's chromatic tones
+  if (q === "maj7" || q === "maj6")
+    return [
+      CHROMATIC_NOTES[(rChroma +  8) % 12],  // b6 (rel. minor's M7)
+      CHROMATIC_NOTES[(rChroma + 10) % 12],  // b7 (rel. minor's b9)
+    ]
+
+  return []
 }
 
 export function phraseToNotationData(approachLines) {

@@ -12,6 +12,7 @@ import {
   melodicTargets,
   generateApproachLines,
   martinoMapper,
+  getHexatonicBebopNotes,
   getRecommendedScalesFromQuality,
   transposeChart,
   applyScaleFilter,
@@ -256,16 +257,22 @@ export default function Home() {
     return applyScaleFilter(raw, tonic, fretboardBar.quality, scaleFilter)
   }, [fretboardScaleData, fretboardBar, scaleFilter, martinoMap])
 
-  // Bebop: the extra chromatic passing tone on top of the current base scale
+  // Bebop: chromatic passing tones shown in green over the current scale.
+  // Hexatonic and Martino modes use dedicated two-note passing tone rules
+  // (M7+b9 for minorHex, b6+b7 for majorHex) instead of the standard single-note bebop.
   const bebopPassingNotes = useMemo(() => {
     if (!bebopOverlay) return []
-    // In Martino mode use the display root/quality so the bebop tone relates to
-    // the minor shape being shown, not the original chord.
     const effectiveRoot    = martinoMap ? martinoMap.displayRoot    : (fretboardBar.userTonic ?? fretboardBar.root)
     const effectiveQuality = martinoMap ? martinoMap.displayQuality : fretboardBar.quality
-    const base     = martinoMap
-      ? applyScaleFilter([], effectiveRoot, effectiveQuality, "hexatonic")
-      : applyScaleFilter(fretboardScaleData[0]?.notes ?? [], effectiveRoot, effectiveQuality, scaleFilter)
+
+    if (scaleFilter === "hexatonic" || martinoMap) {
+      const base    = applyScaleFilter([], effectiveRoot, effectiveQuality, "hexatonic")
+      const baseSet = new Set(base)
+      return getHexatonicBebopNotes(effectiveRoot, effectiveQuality).filter(n => n && !baseSet.has(n))
+    }
+
+    // Standard bebop: one chromatic passing tone on top of the current scale
+    const base      = applyScaleFilter(fretboardScaleData[0]?.notes ?? [], effectiveRoot, effectiveQuality, scaleFilter)
     const withBebop = applyScaleFilter(base, effectiveRoot, effectiveQuality, "bebop")
     const baseSet   = new Set(base)
     return withBebop.filter(n => !baseSet.has(n))
