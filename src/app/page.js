@@ -13,6 +13,7 @@ import {
   generateApproachLines,
   martinoMapper,
   getHexatonicBebopNotes,
+  fretFlowScaleNotes,
   getRecommendedScalesFromQuality,
   transposeChart,
   applyScaleFilter,
@@ -1654,7 +1655,7 @@ export default function Home() {
                 gap: "16px",
               }}>
                 {fretFlowBoards.slice(0, fretFlowCount).map((board, idx) => {
-                  const notes = scaleNotes(board.scale, board.root)
+                  const notes = fretFlowScaleNotes(board.scale, board.root)
                   return (
                     <div key={idx} style={{
                       background: "var(--db-card-bg)",
@@ -1773,7 +1774,19 @@ function notePillStyle(colorVar) {
 
 // ─── FretFlow static data (never changes — defined once at module scope) ──────
 const FRET_FLOW_SCALES = [
-  // Diatonic modes
+  // ── Hexatonic (custom formulas — Randy Vincent / Pat Martino system) ──────
+  { value: "hex:minor",             label: "Minor Hexatonic  1 2 b3 4 5 b7" },
+  { value: "hex:major",             label: "Major Hexatonic  1 2 3 5 6 7" },
+  { value: "hex:melodic",           label: "Melodic Minor Hexatonic  1 2 b3 5 6 7" },
+  // ── Chord arpeggios ───────────────────────────────────────────────────────
+  { value: "chord:maj7",            label: "Maj7 Arpeggio  1 3 5 7" },
+  { value: "chord:m7",              label: "m7 Arpeggio  1 b3 5 b7" },
+  { value: "chord:7",               label: "Dom7 Arpeggio  1 3 5 b7" },
+  { value: "chord:m7b5",            label: "m7b5 Arpeggio  1 b3 b5 b7" },
+  { value: "chord:dim7",            label: "Dim7 Arpeggio  1 b3 b5 bb7" },
+  { value: "chord:6",               label: "Maj6 Arpeggio  1 3 5 6" },
+  { value: "chord:m6",              label: "m6 Arpeggio  1 b3 5 6" },
+  // ── Diatonic modes ────────────────────────────────────────────────────────
   { value: "major",                 label: "Major (Ionian)" },
   { value: "dorian",                label: "Dorian" },
   { value: "phrygian",              label: "Phrygian" },
@@ -1781,30 +1794,29 @@ const FRET_FLOW_SCALES = [
   { value: "mixolydian",            label: "Mixolydian" },
   { value: "minor",                 label: "Natural Minor (Aeolian)" },
   { value: "locrian",               label: "Locrian" },
-  // Harmonic / melodic minor family
+  // ── Harmonic / melodic minor family ──────────────────────────────────────
   { value: "harmonic minor",        label: "Harmonic Minor" },
   { value: "melodic minor",         label: "Melodic Minor" },
   { value: "harmonic major",        label: "Harmonic Major" },
   { value: "double harmonic major", label: "Double Harmonic Major" },
-  // Symmetric / exotic
+  // ── Symmetric / exotic ───────────────────────────────────────────────────
   { value: "whole tone",            label: "Whole Tone" },
   { value: "whole-half diminished", label: "Diminished (Whole-Half)" },
   { value: "half-whole diminished", label: "Diminished (Half-Whole)" },
   { value: "enigmatic",             label: "Enigmatic" },
-  // Altered / modal jazz
+  // ── Altered / modal jazz ─────────────────────────────────────────────────
   { value: "altered",               label: "Altered (Superlocrian)" },
   { value: "lydian dominant",       label: "Lydian Dominant" },
-  // Bebop scales (8-note)
+  // ── Bebop scales (8-note) ────────────────────────────────────────────────
   { value: "bebop",                 label: "Bebop Dominant" },
   { value: "bebop major",           label: "Bebop Major" },
   { value: "bebop minor",           label: "Bebop Dorian" },
   { value: "bebop locrian",         label: "Bebop Locrian" },
-  // Pentatonic & blues
+  // ── Pentatonic & blues ───────────────────────────────────────────────────
   { value: "major pentatonic",      label: "Major Pentatonic" },
   { value: "minor pentatonic",      label: "Minor Pentatonic" },
   { value: "major blues",           label: "Major Blues" },
   { value: "blues",                 label: "Blues (Minor Blues)" },
-  { value: "minor hexatonic",       label: "Minor Hexatonic" },
 ]
 
 const TUNING_NAMES = ["Standard", "Drop D", "Open G", "DADGAD"]

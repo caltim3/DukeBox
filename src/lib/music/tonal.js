@@ -619,6 +619,28 @@ export function getHexatonicBebopNotes(root, quality) {
   return []
 }
 
+/**
+ * Resolve scale notes for FretFlow boards.
+ * Handles three namespaces:
+ *   "hex:minor"   → minorHex      [0,2,3,5,7,10]  from root
+ *   "hex:major"   → majorHex      [0,2,4,7,9,11]  from root
+ *   "hex:melodic" → melodicMinHex [0,2,3,7,9,11]  from root
+ *   "chord:<sfx>" → chord arpeggio notes via Tonal chord lookup
+ *   anything else → Tonal.js Scale.get fallback
+ *
+ * Bypasses Tonal.js's built-in "minor hexatonic" (which uses M7 not b7).
+ */
+export function fretFlowScaleNotes(scaleValue, root) {
+  if (scaleValue === "hex:minor")   return buildFromSemitones(root, [0,2,3,5,7,10])
+  if (scaleValue === "hex:major")   return buildFromSemitones(root, [0,2,4,7,9,11])
+  if (scaleValue === "hex:melodic") return buildFromSemitones(root, [0,2,3,7,9,11])
+  if (scaleValue.startsWith("chord:")) {
+    const suffix = scaleValue.slice(6)   // e.g. "maj7", "m7", "7", "m7b5", "dim7", "6", "m6"
+    return Chord.get(`${root}${suffix}`).notes || []
+  }
+  return Scale.get(`${root} ${scaleValue}`).notes || []
+}
+
 export function phraseToNotationData(approachLines) {
   return approachLines.map((item, index) => {
     const phrase = item.phrase || []
