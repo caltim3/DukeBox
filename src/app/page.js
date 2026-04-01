@@ -22,7 +22,7 @@ import { analyzeProgressionContext } from "@/lib/music/harmony"
 import { FORMS, FORM_CATEGORIES } from "@/lib/music/forms"
 import { chordToRoman } from "@/lib/music/roman"
 import { DRUM_STYLES } from "@/lib/music/audioConstants"
-import { exportLeadSheet } from "@/lib/music/leadsheet"
+import { exportLeadSheet, exportMusicXML } from "@/lib/music/leadsheet"
 import { COMPING_STYLE_NAMES, DEFAULT_COMPING_STYLE } from "@/lib/music/comping"
 import Fretboard from "@/components/Fretboard"
 
@@ -965,6 +965,14 @@ export default function Home() {
               title="Export lead sheet as PDF (Real Book style)"
             >
               ↓ Lead Sheet PDF
+            </button>
+
+            <button
+              onClick={() => exportMusicXML({ bars, approachLines, title: selectedForm, tempo: originalTempo })}
+              style={{ ...buttonStyle("var(--db-c-blue)"), padding: "6px 12px", fontSize: "0.82rem" }}
+              title="Export as MusicXML — open in MuseScore, Sibelius, Finale, etc."
+            >
+              ↓ MusicXML
             </button>
 
             <label style={inlineLabelStyle}>

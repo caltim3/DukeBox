@@ -5,6 +5,46 @@
 
 import { Note } from "@tonaljs/tonal"
 
+// ─── XML escape helper ────────────────────────────────────────────────────────
+function esc(str) {
+  return String(str || "")
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;")
+}
+
+// ─── Chord symbol → MusicXML kind + root ─────────────────────────────────────
+function parseChordForMXL(symbol) {
+  if (!symbol) return null
+  const m = symbol.match(/^([A-G](b{1,2}|#{1,2})?)/)
+  if (!m) return null
+  const rootStr = m[1]
+  const rootNote = Note.get(rootStr)
+  if (!rootNote.letter) return null
+  const q = symbol.slice(rootStr.length)
+  let kind, kindText
+  if (/m7b5|min7b5/.test(q))               { kind = "half-diminished";     kindText = "ø7"  }
+  else if (/dim7|°7/.test(q))              { kind = "diminished-seventh";  kindText = "°7"  }
+  else if (/dim|°/.test(q))               { kind = "diminished";           kindText = "°"   }
+  else if (/maj7|M7/.test(q))             { kind = "major-seventh";        kindText = "Δ7"  }
+  else if (/maj|Maj/.test(q))             { kind = "major";                kindText = "Δ"   }
+  else if (/m7|min7|-7/.test(q))          { kind = "minor-seventh";        kindText = "-7"  }
+  else if (/m(?!a)|min|-(?!7)/.test(q))   { kind = "minor";                kindText = "-"   }
+  else if (/7sus4?|sus/.test(q))          { kind = "suspended-fourth";     kindText = "sus" }
+  else if (/7/.test(q))                   { kind = "dominant";             kindText = "7"   }
+  else                                    { kind = "major";                kindText = ""    }
+  return { step: rootNote.letter, alter: rootNote.alt ?? 0, kind, kindText }
+}
+
+// ─── Note → MusicXML pitch ────────────────────────────────────────────────────
+function noteToMXL(noteOct) {
+  const m = String(noteOct || "").match(/^([A-G])(b{1,2}|#{1,2})?(\d)$/)
+  if (!m) return null
+  const alter = m[2] === "bb" ? -2 : m[2] === "b" ? -1 : m[2] === "#" ? 1 : m[2] === "##" ? 2 : 0
+  const acc   = m[2] === "bb" ? "double-flat" : m[2] === "b" ? "flat"
+              : m[2] === "#"  ? "sharp"       : m[2] === "##" ? "double-sharp" : null
+  return { step: m[1], alter, octave: parseInt(m[3]), accidental: acc }
+}
+
 // ─── Chord symbol → Real Book notation ───────────────────────────────────────
 function rbChord(symbol) {
   if (!symbol) return ""
@@ -347,4 +387,109 @@ export async function exportLeadSheet({ bars, approachLines, title, tempo }) {
 
   const safeName = songName.replace(/[^A-Z0-9 ]/g, "").trim().replace(/ +/g, "_") || "lead_sheet"
   pdf.save(`${safeName}.pdf`)
+}
+
+// ─── MusicXML export ──────────────────────────────────────────────────────────
+// Produces a standard .xml file openable in MuseScore, Sibelius, Finale, etc.
+// Professional notation software renders correctly — no canvas issues.
+export function exportMusicXML({ bars, approachLines, title, tempo }) {
+  const songName = (title || "Lead Sheet").replace(/\s*\([^)]*\)\s*$/, "").toUpperCase()
+  const bpm = tempo || 120
+
+  // Pre-compute note pairs (same logic as PDF export)
+  let prevMidi = null
+  const notePairs = (approachLines || []).map(line => {
+    const [a, d] = line.phrase || []
+    const an = assignOctave(a, prevMidi)
+    if (an) prevMidi = Note.midi(an) ?? prevMidi
+    const dn = assignOctave(d, prevMidi)
+    if (dn) prevMidi = Note.midi(dn) ?? prevMidi
+    return [an, dn]
+  })
+
+  const x = []  // xml lines
+  x.push('<?xml version="1.0" encoding="UTF-8"?>')
+  x.push('<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 4.0 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd">')
+  x.push('<score-partwise version="4.0">')
+  x.push(`  <work><work-title>${esc(songName)}</work-title></work>`)
+  x.push('  <identification><encoding><software>DukeBox</software></encoding></identification>')
+  x.push('  <part-list><score-part id="P1"><part-name>Guide Tones</part-name></score-part></part-list>')
+  x.push('  <part id="P1">')
+
+  let prevSection = null
+
+  bars.forEach((bar, i) => {
+    const [an, dn] = notePairs[i] || []
+    const beats    = bar.beats ?? 4
+
+    x.push(`    <measure number="${i + 1}">`)
+
+    // First measure: clef, time, key, tempo
+    if (i === 0) {
+      x.push('      <attributes>')
+      x.push('        <divisions>2</divisions>')
+      x.push('        <key><fifths>0</fifths></key>')
+      x.push('        <time><beats>4</beats><beat-type>4</beat-type></time>')
+      x.push('        <clef><sign>G</sign><line>2</line></clef>')
+      x.push('      </attributes>')
+      x.push('      <direction placement="above">')
+      x.push('        <direction-type><metronome parentheses="no">')
+      x.push(`          <beat-unit>quarter</beat-unit><per-minute>${bpm}</per-minute>`)
+      x.push('        </metronome></direction-type>')
+      x.push(`        <sound tempo="${bpm}"/>`)
+      x.push('      </direction>')
+    }
+
+    // Section / rehearsal mark
+    if (bar.section && bar.section !== prevSection) {
+      prevSection = bar.section
+      const raw   = bar.section.replace(/\s*\(.*\)/g, "").trim()
+      const label = raw.length > 7 ? raw[0].toUpperCase() : raw
+      x.push('      <direction placement="above"><direction-type>')
+      x.push(`        <rehearsal enclosure="square">${esc(label)}</rehearsal>`)
+      x.push('      </direction-type></direction>')
+    }
+
+    // Chord symbol
+    const ch = parseChordForMXL(bar.symbol)
+    if (ch) {
+      x.push('      <harmony>')
+      x.push(`        <root><root-step>${ch.step}</root-step>${ch.alter !== 0 ? `<root-alter>${ch.alter}</root-alter>` : ""}</root>`)
+      x.push(`        <kind text="${esc(ch.kindText)}">${ch.kind}</kind>`)
+      x.push('      </harmony>')
+    }
+
+    // Helper: emit a note or rest
+    const addNote = (noteOct) => {
+      if (!noteOct) {
+        x.push('      <note><rest/><duration>2</duration><type>half</type></note>')
+        return
+      }
+      const p = noteToMXL(noteOct)
+      if (!p) { x.push('      <note><rest/><duration>2</duration><type>half</type></note>'); return }
+      x.push('      <note>')
+      x.push(`        <pitch><step>${p.step}</step>${p.alter !== 0 ? `<alter>${p.alter}</alter>` : ""}<octave>${p.octave}</octave></pitch>`)
+      x.push(`        <duration>2</duration><type>half</type>`)
+      if (p.accidental) x.push(`        <accidental>${p.accidental}</accidental>`)
+      x.push('      </note>')
+    }
+
+    addNote(an)
+    if (beats >= 4) addNote(dn)
+    else x.push('      <note><rest/><duration>2</duration><type>half</type></note>')
+
+    x.push('    </measure>')
+  })
+
+  x.push('  </part>')
+  x.push('</score-partwise>')
+
+  const blob = new Blob([x.join("\n")], { type: "application/vnd.recordare.musicxml+xml" })
+  const url  = URL.createObjectURL(blob)
+  const a    = document.createElement("a")
+  a.href     = url
+  const safe = songName.replace(/[^A-Z0-9 ]/g, "").trim().replace(/ +/g, "_") || "lead_sheet"
+  a.download = `${safe}.xml`
+  a.click()
+  URL.revokeObjectURL(url)
 }
