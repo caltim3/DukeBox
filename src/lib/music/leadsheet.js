@@ -38,14 +38,17 @@ function toVFKey(noteOct) {
 // treble clef staff (E4 bottom line – F5 top line, max 1 ledger line).
 function assignOctave(noteName, prevMidi) {
   if (!noteName) return null
-  const MIDI_MIN = 60  // C4 — hard floor
-  const MIDI_MAX = 79  // G5 — hard ceiling
+  // E4 (bottom staff line) → G5 (one space above top line).
+  // Nothing below the staff — note heads would overflow into the next row's chord zone.
+  const MIDI_MIN = 64  // E4 — bottom staff line, no ledger lines needed
+  const MIDI_MAX = 79  // G5 — one space above top line
   if (prevMidi == null) {
-    // First note: prefer inside the staff (E4–F5, MIDI 64–77)
+    // First note: prefer middle of the staff (G4–D5, MIDI 67–74)
     for (const oct of [4, 5]) {
       const midi = Note.midi(noteName + oct)
-      if (midi != null && midi >= 64 && midi <= 77) return noteName + oct
+      if (midi != null && midi >= 67 && midi <= 74) return noteName + oct
     }
+    // Fallback: anywhere in hard bounds
     for (const oct of [4, 5]) {
       const midi = Note.midi(noteName + oct)
       if (midi != null && midi >= MIDI_MIN && midi <= MIDI_MAX) return noteName + oct
@@ -150,13 +153,18 @@ export async function exportLeadSheet({ bars, approachLines, title, tempo }) {
   // Row height: divide available space evenly across all rows
   const ROW_H = Math.floor((H - MT - MB) / NROWS)
 
-  // Chord zone height above the stave top line.
-  // We want chord text to sit ~20 px above the stave top.
-  // VexFlow stave = 40 px tall (5 lines × 10 px spacing).
-  // Keep at least 44 px below stave top for the stave + one ledger line below.
-  const CHORD_ZONE   = Math.max(36, ROW_H - 44)   // space above stave
+  // Chord zone = space reserved above the stave top for chord symbols.
+  // Stave is 40 px tall. With notes clamped to E4–G5 (on or above the bottom
+  // staff line), note heads never fall below staveY+40, so we only need a small
+  // clearance below the stave (≥ 6 px).
+  // CHORD_TY is the chord-text baseline offset from rowY.  We keep 26 px between
+  // the chord text baseline and the stave top so text sits clearly above the staff.
+  const STAVE_BELOW  = 8                            // px clearance below stave bottom
+  const CHORD_ABOVE  = 26                           // px gap: chord-text baseline → stave top
+  const CHORD_FONT   = 22                           // approx chord text cap-height px
+  const CHORD_ZONE   = Math.max(40, ROW_H - 40 - STAVE_BELOW) // space above stave
   const STAVE_OFFSET = CHORD_ZONE                   // staveY = rowY + CHORD_ZONE
-  const CHORD_TY     = CHORD_ZONE - 18             // chord text Y offset from rowY
+  const CHORD_TY     = CHORD_ZONE - CHORD_ABOVE    // chord-text baseline: 26 px above stave
 
   // ── Assign octaves ────────────────────────────────────────────────────────
   let prevMidi = null
