@@ -34,21 +34,33 @@ function toVFKey(noteOct) {
 }
 
 // ─── Octave assignment for guide-tone melody ──────────────────────────────────
-// Keeps notes in C3–C6 and as close as possible to the previous note.
+// Hard-clamps to C4–G5 (MIDI 60–79) so notes stay within or just outside the
+// treble clef staff (E4 bottom line – F5 top line).  The old A2–C6 range let
+// notes fall to e.g. Bb3 (MIDI 58) because it was numerically closer to the
+// previous note than Bb4 (MIDI 70) — producing notes below the staff that
+// collided with the chord symbols of the row below.
 function assignOctave(noteName, prevMidi) {
   if (!noteName) return null
+  // Hard bounds: C4 (middle C, 1 ledger line below) → G5 (1 ledger line above)
+  const MIDI_MIN = 60  // C4
+  const MIDI_MAX = 79  // G5
   if (prevMidi == null) {
-    // First note: anchor in the middle of treble clef (B3–E5)
+    // First note: prefer squarely inside the staff (E4–F5, MIDI 64–77)
     for (const oct of [4, 5]) {
       const midi = Note.midi(noteName + oct)
-      if (midi != null && midi >= 59 && midi <= 76) return noteName + oct
+      if (midi != null && midi >= 64 && midi <= 77) return noteName + oct
+    }
+    // Fallback: anywhere in hard bounds
+    for (const oct of [4, 5]) {
+      const midi = Note.midi(noteName + oct)
+      if (midi != null && midi >= MIDI_MIN && midi <= MIDI_MAX) return noteName + oct
     }
     return noteName + "4"
   }
   let best = null, bestDist = Infinity
   for (const oct of [3, 4, 5, 6]) {
     const midi = Note.midi(noteName + oct)
-    if (midi == null || midi < 45 || midi > 84) continue // A2–C6 safe range
+    if (midi == null || midi < MIDI_MIN || midi > MIDI_MAX) continue
     const d = Math.abs(midi - prevMidi)
     if (d < bestDist) { bestDist = d; best = noteName + oct }
   }
@@ -139,9 +151,10 @@ export async function exportLeadSheet({ bars, approachLines, title, tempo }) {
   const NROWS = Math.ceil(bars.length / BPR)
   const BAR_W = (W - ML - MR) / BPR
   // Scale row height so everything fits on one page
-  const ROW_H = Math.min(106, Math.floor((H - MT - MB) / NROWS))
-  const CHORD_ZONE  = 38   // px above stave reserved for chord symbols
+  const CHORD_ZONE   = 50   // px above stave top reserved for chord symbols
   const STAVE_OFFSET = CHORD_ZONE
+  // At least CHORD_ZONE + stave (40) + 16px clearance below stave per row
+  const ROW_H = Math.min(CHORD_ZONE + 40 + 20, Math.floor((H - MT - MB) / NROWS))
 
   // ── Assign octaves to guide-tone notes ───────────────────────────────────
   let prevMidi = null
