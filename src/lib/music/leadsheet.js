@@ -1,6 +1,7 @@
 // Lead sheet PDF export — Real Book handwritten style
-// VexFlow (Petaluma font) for notation, jsPDF for output.
-// Both are lazy-loaded so they don't affect page-load bundle size.
+// VexFlow (Petaluma font) draws stave + clef only.
+// Notes are drawn manually on canvas for reliable, pixel-exact placement.
+// jsPDF assembles pages.
 
 import { Note } from "@tonaljs/tonal"
 
@@ -20,22 +21,14 @@ function rbChord(symbol) {
     .replace(/7sus4|sus4/g, "sus")
 }
 
-// ─── Accidental / key helpers ─────────────────────────────────────────────────
+// ─── Accidental helper ────────────────────────────────────────────────────────
 function getAcc(noteName) {
   const m = (noteName || "").match(/^[A-G](bb|##|b|#)?/)
   return (m && m[1]) || ""
 }
 
-function toVFKey(noteOct) {
-  const m = (noteOct || "").match(/^([A-G](?:bb|##|b|#)?)(\d)$/)
-  if (!m) return "b/4"
-  return m[1].toLowerCase() + "/" + m[2]
-}
-
 // ─── Octave assignment ────────────────────────────────────────────────────────
 // Clamp to E4–F5 (MIDI 64–77): fully within the treble clef staff.
-// This prevents note heads from straying into the chord-symbol zone above
-// or past the staff bottom into the next row.
 function assignOctave(noteName, prevMidi) {
   if (!noteName) return null
   const MIDI_MIN = 64  // E4 — bottom staff line
@@ -43,13 +36,22 @@ function assignOctave(noteName, prevMidi) {
   if (prevMidi == null) {
     for (const oct of [4, 5]) {
       const midi = Note.midi(noteName + oct)
-      if (midi != null && midi >= 67 && midi <= 74) return noteName + oct // G4–D5 centre
+      if (midi != null && midi >= 67 && midi <= 74) return noteName + oct
     }
     for (const oct of [4, 5]) {
       const midi = Note.midi(noteName + oct)
       if (midi != null && midi >= MIDI_MIN && midi <= MIDI_MAX) return noteName + oct
     }
-    return noteName + "4"
+    // No octave in preferred/valid range — pick closest to centre (B4=71)
+    let best = null, bestDist = Infinity
+    for (const oct of [3, 4, 5, 6]) {
+      const midi = Note.midi(noteName + oct)
+      if (midi == null) continue
+      const clamped = Math.max(MIDI_MIN, Math.min(MIDI_MAX, midi))
+      const d = Math.abs(clamped - 71)
+      if (d < bestDist) { bestDist = d; best = noteName + oct }
+    }
+    return best || noteName + "5"
   }
   let best = null, bestDist = Infinity
   for (const oct of [3, 4, 5, 6]) {
@@ -58,7 +60,17 @@ function assignOctave(noteName, prevMidi) {
     const d = Math.abs(midi - prevMidi)
     if (d < bestDist) { bestDist = d; best = noteName + oct }
   }
-  return best || noteName + "4"
+  if (best) return best
+  // Fallback: find closest clamped octave
+  let fallback = null, fallbackDist = Infinity
+  for (const oct of [3, 4, 5, 6]) {
+    const midi = Note.midi(noteName + oct)
+    if (midi == null) continue
+    const clamped = Math.max(MIDI_MIN, Math.min(MIDI_MAX, midi))
+    const d = Math.abs(clamped - prevMidi)
+    if (d < fallbackDist) { fallbackDist = d; fallback = noteName + oct }
+  }
+  return fallback || noteName + "5"
 }
 
 // ─── Handwritten font loader ──────────────────────────────────────────────────
@@ -75,29 +87,84 @@ async function loadHandwrittenFont() {
   } catch { /* fall back to cursive */ }
 }
 
-// ─── Layout constants (fixed, not dynamic) ───────────────────────────────────
-// Fixed row height ensures chord symbols always have room above the stave.
-// Charts that don't fit on one page flow onto additional pages automatically.
+// ─── Layout constants ─────────────────────────────────────────────────────────
 const PAGE_W  = 816
 const PAGE_H  = 1056
-const ML      = 52    // left margin
-const MR      = 52    // right margin
+const ML      = 52
+const MR      = 52
 const MT1     = 116   // top margin page 1 (after title block)
 const MTX     = 36    // top margin page 2+
-const MB      = 40    // bottom margin
+const MB      = 40
 const BPR     = 4     // bars per row
 
-const ROW_H       = 106   // px — total height allocated per row
-const CHORD_ZONE  = 44    // px above stave top line for chord symbols
-// Chord text baseline sits CHORD_GAP px above the stave top line.
-// The treble clef extends ~28 px above the top staff line; 32 px clears it.
-const CHORD_GAP   = 32
-const CHORD_TY    = CHORD_ZONE - CHORD_GAP  // baseline Y offset from rowY  (= 12)
-const STAVE_Y_OFF = CHORD_ZONE              // stave top Y offset from rowY  (= 44)
-// stave occupies [rowY+44 … rowY+84].  Below-stave clearance = ROW_H - 84 = 22 px.
+const ROW_H       = 106
+const CHORD_ZONE  = 44    // px above stave top reserved for chord symbols
+const CHORD_GAP   = 32    // chord text baseline this many px above stave top line
+const CHORD_TY    = CHORD_ZONE - CHORD_GAP   // = 12 — Y offset of chord baseline from rowY
+const STAVE_Y_OFF = CHORD_ZONE               // stave top Y offset from rowY (= 44)
+// stave occupies rowY+44 … rowY+84.  Below-stave clearance = ROW_H-84 = 22 px.
 
-const ROWS_P1 = Math.floor((PAGE_H - MT1 - MB) / ROW_H)   // rows on page 1
-const ROWS_PX = Math.floor((PAGE_H - MTX - MB) / ROW_H)   // rows on page 2+
+const ROWS_P1 = Math.floor((PAGE_H - MT1 - MB) / ROW_H)
+const ROWS_PX = Math.floor((PAGE_H - MTX - MB) / ROW_H)
+
+// ─── Manual note rendering ────────────────────────────────────────────────────
+// Diatonic letter → steps above C within one octave
+const DIATONIC = { C: 0, D: 1, E: 2, F: 3, G: 4, A: 5, B: 6 }
+
+// Y coordinate of a note's centre on the stave.
+// staveTop = Y of the top staff line (= F5 in treble clef).
+// Staff spans staveTop (F5) → staveTop+40 (E4), 5px per diatonic step.
+function noteY(noteOct, staveTop) {
+  const m = String(noteOct || "").match(/^([A-G])(b{1,2}|#{1,2})?(\d)$/)
+  if (!m) return staveTop + 20  // fallback: B4 (middle line)
+  const stepsAboveE4 = (parseInt(m[3]) - 4) * 7 + DIATONIC[m[1]] - 2
+  return staveTop + 40 - stepsAboveE4 * 5
+}
+
+// Draw an open half-note head + stem.
+function drawHalfNote(c, cx, staveTop, noteOct) {
+  const acc  = getAcc(String(noteOct).replace(/\d$/, ""))
+  const y    = noteY(noteOct, staveTop)
+  const midY = staveTop + 20   // B4, middle staff line
+  const up   = y >= midY       // stem up when note is at/below middle
+
+  c.save()
+  c.strokeStyle = "#000"
+  c.lineWidth   = 1.6
+
+  // Open ellipse (half-note head, slightly tilted)
+  c.beginPath()
+  c.ellipse(cx, y, 5.5, 4, -0.2, 0, Math.PI * 2)
+  c.fillStyle = "#fff"
+  c.fill()
+  c.stroke()
+
+  // Stem (right side when up, left when down)
+  const sx  = up ? cx + 5 : cx - 5
+  const dir = up ? -1 : 1
+  c.beginPath()
+  c.moveTo(sx, y + dir * 3)
+  c.lineTo(sx, y + dir * 34)
+  c.stroke()
+
+  // Accidental glyph to the left of the head
+  if (acc) {
+    const glyph = acc === "b" ? "♭" : acc === "#" ? "♯"
+                : acc === "bb" ? "♭♭" : "♯♯"
+    c.font      = "bold 12px serif"
+    c.textAlign = "right"
+    c.fillStyle = "#000"
+    c.fillText(glyph, cx - 8, y + 4)
+  }
+
+  c.restore()
+}
+
+// Draw a half rest (filled rectangle sitting on the middle line).
+function drawHalfRest(c, cx, staveTop) {
+  c.fillStyle = "#000"
+  c.fillRect(cx - 7, staveTop + 20, 14, 5)
+}
 
 // ─── Render one page to a canvas ─────────────────────────────────────────────
 function renderPage({
@@ -105,7 +172,7 @@ function renderPage({
   bars, notePairs, rowStart, rowCount,
   VF, HW,
 }) {
-  const { Renderer, Stave, StaveNote, Voice, Formatter, Accidental, Barline } = VF
+  const { Renderer, Stave, Barline } = VF
   const BAR_W = (PAGE_W - ML - MR) / BPR
 
   const c = canvas.getContext("2d")
@@ -115,27 +182,25 @@ function renderPage({
   const renderer = new Renderer(canvas, Renderer.Backends.CANVAS)
   renderer.resize(PAGE_W, PAGE_H)
   const vf = renderer.getContext()
-  // Do NOT call vf.scale() — c and vf share the same 2D context;
-  // scaling one would compound on the other.
 
   // ── Title block (page 1 only) ───────────────────────────────────────────
   if (isFirstPage) {
-    c.font = `bold 60px ${HW}`
+    c.font      = `bold 60px ${HW}`
     c.textAlign = "center"
     c.fillStyle = "#000"
     c.fillText(songName, PAGE_W / 2, 72)
 
-    c.font = `18px ${HW}`
+    c.font      = `18px ${HW}`
     c.textAlign = "left"
     c.fillText(`♩ = ${tempo}`, 56, 100)
 
-    c.font = `italic 13px ${HW}`
+    c.font      = `italic 13px ${HW}`
     c.textAlign = "right"
     c.fillStyle = "#444"
     c.fillText("DukeBox Guide Tones", PAGE_W - 56, 100)
 
     c.strokeStyle = "#000"
-    c.lineWidth = 1
+    c.lineWidth   = 1
     c.beginPath()
     c.moveTo(52, 108); c.lineTo(PAGE_W - 52, 108)
     c.stroke()
@@ -157,7 +222,7 @@ function renderPage({
       const isFirstInRow = col === 0
       const isLastBar    = barIdx === bars.length - 1
 
-      // ── Stave ───────────────────────────────────────────────────────────
+      // ── Stave (VexFlow draws clef + 5 lines + barlines) ─────────────────
       const stave = new Stave(staveX, staveY, BAR_W)
       if (isVeryFirst)       stave.addClef("treble").addTimeSignature("4/4")
       else if (isFirstInRow) stave.addClef("treble")
@@ -169,7 +234,7 @@ function renderPage({
         prevSection = bar.section
         const raw   = bar.section.replace(/\s*\(.*\)/g, "").trim()
         const label = raw.length > 7 ? raw.slice(0, 1).toUpperCase() : raw
-        // Place box to the left of the chord symbol, vertically centred in CHORD_ZONE
+        // Box sits left of chord text, vertically centred in CHORD_ZONE
         const lx = staveX + (isFirstInRow ? 26 : 5)
         const ly = rowY + CHORD_TY
 
@@ -187,9 +252,8 @@ function renderPage({
 
       // ── Chord symbol ─────────────────────────────────────────────────────
       const chordTxt = rbChord(bar.symbol || "")
-      // Start chord text after clef/time-sig on first bars
-      const chordX = staveX + (isVeryFirst ? 64 : isFirstInRow ? 34 : 8)
-      const chordY = rowY + CHORD_TY
+      const chordX   = staveX + (isVeryFirst ? 64 : isFirstInRow ? 34 : 8)
+      const chordY   = rowY + CHORD_TY
 
       c.save()
       c.font      = `bold 20px ${HW}`
@@ -198,30 +262,23 @@ function renderPage({
       c.fillText(chordTxt, chordX, chordY)
       c.restore()
 
-      // ── Guide-tone notes ──────────────────────────────────────────────────
+      // ── Guide-tone notes (manual canvas drawing) ──────────────────────────
       const [an, dn] = notePairs[barIdx] || []
-      const beats    = bar.beats ?? 4
+      const beats     = bar.beats ?? 4
 
-      const makeNote = (noteOct, dur) => {
-        if (!noteOct) {
-          return new StaveNote({ keys: ["b/4"], duration: dur === "h" ? "hr" : "wr" })
-        }
-        const sn  = new StaveNote({ clef: "treble", keys: [toVFKey(noteOct)], duration: dur })
-        const acc = getAcc(noteOct.replace(/\d$/, ""))
-        if (acc) sn.addModifier(new Accidental(acc), 0)
-        return sn
+      // Horizontal space occupied by clef/time-sig on the left of this bar
+      const usedLeft  = isVeryFirst ? 72 : isFirstInRow ? 42 : 14
+      const noteAreaW = BAR_W - usedLeft - 10
+      const x1 = staveX + usedLeft + noteAreaW * 0.28
+      const x2 = staveX + usedLeft + noteAreaW * 0.72
+
+      if (an)       drawHalfNote(c, x1, staveY, an)
+      else          drawHalfRest(c, x1, staveY)
+
+      if (beats >= 4) {
+        if (dn)     drawHalfNote(c, x2, staveY, dn)
+        else        drawHalfRest(c, x2, staveY)
       }
-
-      const notes    = beats >= 4
-        ? [makeNote(an, "h"), makeNote(dn, "h")]
-        : [makeNote(an, "h")]
-      const numBeats = beats >= 4 ? 4 : 2
-
-      const voice = new Voice({ num_beats: numBeats, beat_value: 4 }).setStrict(false)
-      voice.addTickables(notes)
-      const fmtW = BAR_W - (isVeryFirst ? 74 : isFirstInRow ? 44 : 24)
-      new Formatter().joinVoices([voice]).format([voice], fmtW)
-      voice.draw(vf, stave)
     }
   }
 }
@@ -242,19 +299,18 @@ export async function exportLeadSheet({ bars, approachLines, title, tempo }) {
   const songName = (title || "Lead Sheet").replace(/\s*\([^)]*\)\s*$/, "").toUpperCase()
   const NROWS    = Math.ceil(bars.length / BPR)
 
-  // ── Assign octaves to all guide-tone notes up front ───────────────────────
+  // ── Assign octaves to all guide-tone notes ────────────────────────────────
   let prevMidi = null
   const notePairs = (approachLines || []).map(line => {
     const [a, d] = line.phrase || []
     const an = assignOctave(a, prevMidi)
-    if (an) prevMidi = Note.midi(an)
+    if (an) prevMidi = Note.midi(an) ?? prevMidi
     const dn = assignOctave(d, prevMidi)
-    if (dn) prevMidi = Note.midi(dn)
+    if (dn) prevMidi = Note.midi(dn) ?? prevMidi
     return [an, dn]
   })
 
   // ── Paginate ──────────────────────────────────────────────────────────────
-  // Page 1 gets ROWS_P1 rows; subsequent pages get ROWS_PX rows each.
   const pageRowCounts = []
   let rowsLeft = NROWS
   pageRowCounts.push(Math.min(rowsLeft, ROWS_P1)); rowsLeft -= ROWS_P1
@@ -262,14 +318,14 @@ export async function exportLeadSheet({ bars, approachLines, title, tempo }) {
     pageRowCounts.push(Math.min(rowsLeft, ROWS_PX)); rowsLeft -= ROWS_PX
   }
 
-  // ── Render each page to a canvas and collect images ───────────────────────
+  // ── Render each page ──────────────────────────────────────────────────────
   const pdf = new jsPDF({ orientation: "portrait", unit: "in", format: "letter" })
   let rowStart = 0
 
   for (let pi = 0; pi < pageRowCounts.length; pi++) {
-    const canvas = document.createElement("canvas")
-    canvas.width  = PAGE_W
-    canvas.height = PAGE_H
+    const canvas   = document.createElement("canvas")
+    canvas.width   = PAGE_W
+    canvas.height  = PAGE_H
 
     renderPage({
       canvas,
