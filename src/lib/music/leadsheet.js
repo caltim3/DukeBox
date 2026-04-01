@@ -3,7 +3,7 @@
 // Notes are drawn manually on canvas for reliable, pixel-exact placement.
 // jsPDF assembles pages.
 
-import { Note } from "@tonaljs/tonal"
+import { Note, Chord } from "@tonaljs/tonal"
 
 // ─── XML escape helper ────────────────────────────────────────────────────────
 function esc(str) {
@@ -389,42 +389,103 @@ export async function exportLeadSheet({ bars, approachLines, title, tempo }) {
   pdf.save(`${safeName}.pdf`)
 }
 
+// ─── Chord voicing helpers ────────────────────────────────────────────────────
+
+// Get the 4 chord tones (1-3-5-7) from a symbol. Returns note names without octave.
+function chordTones(symbol) {
+  if (!symbol) return null
+  const ch = Chord.get(symbol)
+  if (!ch.notes || ch.notes.length < 2) return null
+  const notes = ch.notes.slice(0, 4)
+  if (notes.length === 3) notes.push(notes[0])  // double root for triads
+  return notes.length >= 4 ? notes : null
+}
+
+// Close-position voicing starting with `notes[0]` at or above `baseMidi`.
+// Returns an array of MIDI numbers ascending from baseMidi.
+function closeVoicing(notes, baseMidi) {
+  const midis = []
+  let floor = baseMidi
+  for (const note of notes) {
+    for (let oct = 2; oct <= 7; oct++) {
+      const m = Note.midi(note + oct)
+      if (m != null && m >= floor) { midis.push(m); floor = m + 1; break }
+    }
+  }
+  return midis
+}
+
+// All 4 rotations (inversions) of a chord as close-position voicings.
+// Each rotation starts at or above `baseMidi`.
+function allInversions(notes, baseMidi) {
+  return notes.map((_, i) => {
+    const rotated = [...notes.slice(i), ...notes.slice(0, i)]
+    return closeVoicing(rotated, baseMidi)
+  })
+}
+
+// Pick the inversion of `notes` whose voicing has minimum total semitone
+// distance to `targetMidis` (the next chord's root position voicing).
+function bestInversionFor(notes, targetMidis, baseMidi) {
+  const invs = allInversions(notes, baseMidi - 6)  // ±6 below base to allow range
+  let best = invs[0], bestDist = Infinity
+  for (const inv of invs) {
+    const len  = Math.min(inv.length, targetMidis.length)
+    const dist = inv.slice(0, len).reduce((s, m, i) => s + Math.abs(m - targetMidis[i]), 0)
+    if (dist < bestDist) { bestDist = dist; best = inv }
+  }
+  return best
+}
+
+// Convert a MIDI number to a MusicXML pitch object.
+function midiToMXLPitch(midi) {
+  const name = Note.fromMidi(midi)  // e.g. "Eb4"
+  return noteToMXL(name)
+}
+
 // ─── MusicXML export ──────────────────────────────────────────────────────────
-// Produces a standard .xml file openable in MuseScore, Sibelius, Finale, etc.
-// Professional notation software renders correctly — no canvas issues.
-export function exportMusicXML({ bars, approachLines, title, tempo }) {
+// Each measure: half-note chord 1 = root position 1-3-5-7,
+//               half-note chord 2 = voice-leading inversion toward next chord.
+// Opens perfectly in MuseScore (free), Sibelius, Finale, Noteflight.
+export function exportMusicXML({ bars, title, tempo }) {
   const songName = (title || "Lead Sheet").replace(/\s*\([^)]*\)\s*$/, "").toUpperCase()
   const bpm = tempo || 120
+  const BASE_MIDI = 60  // C4 — root voicings start here
 
-  // Pre-compute note pairs (same logic as PDF export)
-  let prevMidi = null
-  const notePairs = (approachLines || []).map(line => {
-    const [a, d] = line.phrase || []
-    const an = assignOctave(a, prevMidi)
-    if (an) prevMidi = Note.midi(an) ?? prevMidi
-    const dn = assignOctave(d, prevMidi)
-    if (dn) prevMidi = Note.midi(dn) ?? prevMidi
-    return [an, dn]
+  // Pre-compute both voicings for every bar
+  const voicings = bars.map((bar, i) => {
+    const tones = chordTones(bar.symbol)
+    if (!tones) return null
+
+    const rootMidis = closeVoicing(tones, BASE_MIDI)
+
+    // Voice-lead inversion: minimize distance to next bar's root position
+    const nextTones = chordTones(bars[i + 1]?.symbol)
+    let vlMidis = rootMidis
+    if (nextTones) {
+      const nextRoot = closeVoicing(nextTones, BASE_MIDI)
+      vlMidis = bestInversionFor(tones, nextRoot, BASE_MIDI)
+    }
+
+    return { rootMidis, vlMidis }
   })
 
-  const x = []  // xml lines
+  const x = []
   x.push('<?xml version="1.0" encoding="UTF-8"?>')
   x.push('<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 4.0 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd">')
   x.push('<score-partwise version="4.0">')
   x.push(`  <work><work-title>${esc(songName)}</work-title></work>`)
   x.push('  <identification><encoding><software>DukeBox</software></encoding></identification>')
-  x.push('  <part-list><score-part id="P1"><part-name>Guide Tones</part-name></score-part></part-list>')
+  x.push('  <part-list><score-part id="P1"><part-name>Chord Voicings</part-name></score-part></part-list>')
   x.push('  <part id="P1">')
 
   let prevSection = null
 
   bars.forEach((bar, i) => {
-    const [an, dn] = notePairs[i] || []
-    const beats    = bar.beats ?? 4
-
+    const beats = bar.beats ?? 4
+    const v     = voicings[i]
     x.push(`    <measure number="${i + 1}">`)
 
-    // First measure: clef, time, key, tempo
     if (i === 0) {
       x.push('      <attributes>')
       x.push('        <divisions>2</divisions>')
@@ -433,14 +494,11 @@ export function exportMusicXML({ bars, approachLines, title, tempo }) {
       x.push('        <clef><sign>G</sign><line>2</line></clef>')
       x.push('      </attributes>')
       x.push('      <direction placement="above">')
-      x.push('        <direction-type><metronome parentheses="no">')
-      x.push(`          <beat-unit>quarter</beat-unit><per-minute>${bpm}</per-minute>`)
-      x.push('        </metronome></direction-type>')
+      x.push(`        <direction-type><metronome parentheses="no"><beat-unit>quarter</beat-unit><per-minute>${bpm}</per-minute></metronome></direction-type>`)
       x.push(`        <sound tempo="${bpm}"/>`)
       x.push('      </direction>')
     }
 
-    // Section / rehearsal mark
     if (bar.section && bar.section !== prevSection) {
       prevSection = bar.section
       const raw   = bar.section.replace(/\s*\(.*\)/g, "").trim()
@@ -450,7 +508,6 @@ export function exportMusicXML({ bars, approachLines, title, tempo }) {
       x.push('      </direction-type></direction>')
     }
 
-    // Chord symbol
     const ch = parseChordForMXL(bar.symbol)
     if (ch) {
       x.push('      <harmony>')
@@ -459,23 +516,27 @@ export function exportMusicXML({ bars, approachLines, title, tempo }) {
       x.push('      </harmony>')
     }
 
-    // Helper: emit a note or rest
-    const addNote = (noteOct) => {
-      if (!noteOct) {
+    // Emit a 4-note half-note chord from an array of MIDI numbers.
+    // First note is normal; subsequent notes carry <chord/> to stack them.
+    const addChord = (midis, isFirstChord) => {
+      if (!midis || midis.length === 0) {
         x.push('      <note><rest/><duration>2</duration><type>half</type></note>')
         return
       }
-      const p = noteToMXL(noteOct)
-      if (!p) { x.push('      <note><rest/><duration>2</duration><type>half</type></note>'); return }
-      x.push('      <note>')
-      x.push(`        <pitch><step>${p.step}</step>${p.alter !== 0 ? `<alter>${p.alter}</alter>` : ""}<octave>${p.octave}</octave></pitch>`)
-      x.push(`        <duration>2</duration><type>half</type>`)
-      if (p.accidental) x.push(`        <accidental>${p.accidental}</accidental>`)
-      x.push('      </note>')
+      midis.forEach((midi, ni) => {
+        const p = midiToMXLPitch(midi)
+        if (!p) return
+        x.push('      <note>')
+        if (ni > 0) x.push('        <chord/>')
+        x.push(`        <pitch><step>${p.step}</step>${p.alter !== 0 ? `<alter>${p.alter}</alter>` : ""}<octave>${p.octave}</octave></pitch>`)
+        x.push('        <duration>2</duration><type>half</type>')
+        if (p.accidental) x.push(`        <accidental>${p.accidental}</accidental>`)
+        x.push('      </note>')
+      })
     }
 
-    addNote(an)
-    if (beats >= 4) addNote(dn)
+    addChord(v?.rootMidis)
+    if (beats >= 4) addChord(v?.vlMidis)
     else x.push('      <note><rest/><duration>2</duration><type>half</type></note>')
 
     x.push('    </measure>')
@@ -487,7 +548,7 @@ export function exportMusicXML({ bars, approachLines, title, tempo }) {
   const blob = new Blob([x.join("\n")], { type: "application/vnd.recordare.musicxml+xml" })
   const url  = URL.createObjectURL(blob)
   const a    = document.createElement("a")
-  a.href     = url
+  a.href = url
   const safe = songName.replace(/[^A-Z0-9 ]/g, "").trim().replace(/ +/g, "_") || "lead_sheet"
   a.download = `${safe}.xml`
   a.click()
