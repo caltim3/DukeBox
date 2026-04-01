@@ -1,6 +1,6 @@
 // Lead sheet PDF export — Real Book handwritten style
-// Uses VexFlow (Petaluma font) for notation + jsPDF for output.
-// Both are loaded dynamically so Tone.js / bundle size are unaffected.
+// VexFlow (Petaluma font) for notation, jsPDF for output.
+// Both are lazy-loaded so they don't affect page-load bundle size.
 
 import { Note } from "@tonaljs/tonal"
 
@@ -26,7 +26,6 @@ function getAcc(noteName) {
   return (m && m[1]) || ""
 }
 
-// "Bb4" → "bb/4",  "F#5" → "f#/5",  "C4" → "c/4"
 function toVFKey(noteOct) {
   const m = (noteOct || "").match(/^([A-G](?:bb|##|b|#)?)(\d)$/)
   if (!m) return "b/4"
@@ -34,21 +33,18 @@ function toVFKey(noteOct) {
 }
 
 // ─── Octave assignment ────────────────────────────────────────────────────────
-// Hard-clamps to C4–G5 (MIDI 60–79) so notes always stay within/near the
-// treble clef staff (E4 bottom line – F5 top line, max 1 ledger line).
+// Clamp to E4–F5 (MIDI 64–77): fully within the treble clef staff.
+// This prevents note heads from straying into the chord-symbol zone above
+// or past the staff bottom into the next row.
 function assignOctave(noteName, prevMidi) {
   if (!noteName) return null
-  // E4 (bottom staff line) → G5 (one space above top line).
-  // Nothing below the staff — note heads would overflow into the next row's chord zone.
-  const MIDI_MIN = 64  // E4 — bottom staff line, no ledger lines needed
-  const MIDI_MAX = 79  // G5 — one space above top line
+  const MIDI_MIN = 64  // E4 — bottom staff line
+  const MIDI_MAX = 77  // F5 — top staff line
   if (prevMidi == null) {
-    // First note: prefer middle of the staff (G4–D5, MIDI 67–74)
     for (const oct of [4, 5]) {
       const midi = Note.midi(noteName + oct)
-      if (midi != null && midi >= 67 && midi <= 74) return noteName + oct
+      if (midi != null && midi >= 67 && midi <= 74) return noteName + oct // G4–D5 centre
     }
-    // Fallback: anywhere in hard bounds
     for (const oct of [4, 5]) {
       const midi = Note.midi(noteName + oct)
       if (midi != null && midi >= MIDI_MIN && midi <= MIDI_MAX) return noteName + oct
@@ -65,7 +61,7 @@ function assignOctave(noteName, prevMidi) {
   return best || noteName + "4"
 }
 
-// ─── Load Caveat (handwritten) font ───────────────────────────────────────────
+// ─── Handwritten font loader ──────────────────────────────────────────────────
 async function loadHandwrittenFont() {
   try {
     if (!document.querySelector("link[data-dukebox-caveat]")) {
@@ -79,151 +75,121 @@ async function loadHandwrittenFont() {
   } catch { /* fall back to cursive */ }
 }
 
-// ─── Main export ──────────────────────────────────────────────────────────────
-export async function exportLeadSheet({ bars, approachLines, title, tempo }) {
-  const [VF, { jsPDF }] = await Promise.all([
-    import("vexflow"),
-    import("jspdf"),
-  ])
+// ─── Layout constants (fixed, not dynamic) ───────────────────────────────────
+// Fixed row height ensures chord symbols always have room above the stave.
+// Charts that don't fit on one page flow onto additional pages automatically.
+const PAGE_W  = 816
+const PAGE_H  = 1056
+const ML      = 52    // left margin
+const MR      = 52    // right margin
+const MT1     = 116   // top margin page 1 (after title block)
+const MTX     = 36    // top margin page 2+
+const MB      = 40    // bottom margin
+const BPR     = 4     // bars per row
 
+const ROW_H       = 106   // px — total height allocated per row
+const CHORD_ZONE  = 44    // px above stave top line for chord symbols
+// Chord text baseline sits CHORD_GAP px above the stave top line.
+// The treble clef extends ~28 px above the top staff line; 32 px clears it.
+const CHORD_GAP   = 32
+const CHORD_TY    = CHORD_ZONE - CHORD_GAP  // baseline Y offset from rowY  (= 12)
+const STAVE_Y_OFF = CHORD_ZONE              // stave top Y offset from rowY  (= 44)
+// stave occupies [rowY+44 … rowY+84].  Below-stave clearance = ROW_H - 84 = 22 px.
+
+const ROWS_P1 = Math.floor((PAGE_H - MT1 - MB) / ROW_H)   // rows on page 1
+const ROWS_PX = Math.floor((PAGE_H - MTX - MB) / ROW_H)   // rows on page 2+
+
+// ─── Render one page to a canvas ─────────────────────────────────────────────
+function renderPage({
+  canvas, isFirstPage, songName, tempo,
+  bars, notePairs, rowStart, rowCount,
+  VF, HW,
+}) {
   const { Renderer, Stave, StaveNote, Voice, Formatter, Accidental, Barline } = VF
+  const BAR_W = (PAGE_W - ML - MR) / BPR
 
-  // Petaluma = VexFlow's handwritten music engraving font (Real Book look)
-  try { VF.Flow?.setMusicFont?.("Petaluma") } catch {}
-  try { VF.setMusicFont?.("Petaluma")       } catch {}
-
-  await loadHandwrittenFont()
-
-  // ── Canvas ────────────────────────────────────────────────────────────────
-  // No SCALE multiplier. c and vf share the SAME canvas 2D context; applying
-  // scale transforms to both would compound them (2× × 2× = 4×), causing
-  // VexFlow stave/note coordinates to mismatch raw canvas text coordinates.
-  // 816×1056 at 96 DPI = 8.5×11" — fine quality for a practice PDF.
-  const W = 816, H = 1056
-  const canvas = document.createElement("canvas")
-  canvas.width  = W
-  canvas.height = H
-
-  // Raw 2D context for title, chord text, section boxes
   const c = canvas.getContext("2d")
   c.fillStyle = "#fff"
-  c.fillRect(0, 0, W, H)
+  c.fillRect(0, 0, PAGE_W, PAGE_H)
 
-  // VexFlow renderer — shares the same underlying 2D context as c
   const renderer = new Renderer(canvas, Renderer.Backends.CANVAS)
-  renderer.resize(W, H)
+  renderer.resize(PAGE_W, PAGE_H)
   const vf = renderer.getContext()
-  // Do NOT call vf.scale() — c and vf are the same context; scaling one
-  // already affects the other.
+  // Do NOT call vf.scale() — c and vf share the same 2D context;
+  // scaling one would compound on the other.
 
-  // ── Title block ───────────────────────────────────────────────────────────
-  const songName = (title || "Lead Sheet")
-    .replace(/\s*\([^)]*\)\s*$/, "")  // strip "(Ab)" / "(Gm)" key suffixes
-    .toUpperCase()
+  // ── Title block (page 1 only) ───────────────────────────────────────────
+  if (isFirstPage) {
+    c.font = `bold 60px ${HW}`
+    c.textAlign = "center"
+    c.fillStyle = "#000"
+    c.fillText(songName, PAGE_W / 2, 72)
 
-  const HW = `"Caveat", "Bradley Hand", "Segoe Script", cursive`
+    c.font = `18px ${HW}`
+    c.textAlign = "left"
+    c.fillText(`♩ = ${tempo}`, 56, 100)
 
-  c.font = `bold 60px ${HW}`
-  c.textAlign = "center"
-  c.fillStyle = "#000"
-  c.fillText(songName, W / 2, 72)
+    c.font = `italic 13px ${HW}`
+    c.textAlign = "right"
+    c.fillStyle = "#444"
+    c.fillText("DukeBox Guide Tones", PAGE_W - 56, 100)
 
-  c.font = `18px ${HW}`
-  c.textAlign = "left"
-  c.fillText(`♩ = ${tempo || 120}`, 56, 100)
+    c.strokeStyle = "#000"
+    c.lineWidth = 1
+    c.beginPath()
+    c.moveTo(52, 108); c.lineTo(PAGE_W - 52, 108)
+    c.stroke()
+  }
 
-  c.font = `italic 13px ${HW}`
-  c.textAlign = "right"
-  c.fillStyle = "#444"
-  c.fillText("DukeBox Guide Tones", W - 56, 100)
-
-  c.strokeStyle = "#000"
-  c.lineWidth = 1
-  c.beginPath()
-  c.moveTo(52, 108); c.lineTo(W - 52, 108)
-  c.stroke()
-
-  // ── Layout constants ──────────────────────────────────────────────────────
-  const ML = 52, MR = 52
-  const MT = 116, MB = 40
-  const BPR   = 4
-  const NROWS = Math.ceil(bars.length / BPR)
-  const BAR_W = (W - ML - MR) / BPR
-
-  // Row height: divide available space evenly across all rows
-  const ROW_H = Math.floor((H - MT - MB) / NROWS)
-
-  // Chord zone = space reserved above the stave top for chord symbols.
-  // Stave is 40 px tall. With notes clamped to E4–G5 (on or above the bottom
-  // staff line), note heads never fall below staveY+40, so we only need a small
-  // clearance below the stave (≥ 6 px).
-  // CHORD_TY is the chord-text baseline offset from rowY.  We keep 26 px between
-  // the chord text baseline and the stave top so text sits clearly above the staff.
-  const STAVE_BELOW  = 8                            // px clearance below stave bottom
-  const CHORD_ABOVE  = 26                           // px gap: chord-text baseline → stave top
-  const CHORD_FONT   = 22                           // approx chord text cap-height px
-  const CHORD_ZONE   = Math.max(40, ROW_H - 40 - STAVE_BELOW) // space above stave
-  const STAVE_OFFSET = CHORD_ZONE                   // staveY = rowY + CHORD_ZONE
-  const CHORD_TY     = CHORD_ZONE - CHORD_ABOVE    // chord-text baseline: 26 px above stave
-
-  // ── Assign octaves ────────────────────────────────────────────────────────
-  let prevMidi = null
-  const notePairs = (approachLines || []).map(line => {
-    const [a, d] = line.phrase || []
-    const an = assignOctave(a, prevMidi)
-    if (an) prevMidi = Note.midi(an)
-    const dn = assignOctave(d, prevMidi)
-    if (dn) prevMidi = Note.midi(dn)
-    return [an, dn]
-  })
-
-  // ── Render rows ───────────────────────────────────────────────────────────
+  const MT = isFirstPage ? MT1 : MTX
   let prevSection = null
 
-  for (let row = 0; row < NROWS; row++) {
-    const rowY   = MT + row * ROW_H
-    const staveY = rowY + STAVE_OFFSET
+  for (let ri = 0; ri < rowCount; ri++) {
+    const rowY   = MT + ri * ROW_H
+    const staveY = rowY + STAVE_Y_OFF
 
     for (let col = 0; col < BPR; col++) {
-      const barIdx       = row * BPR + col
+      const barIdx       = (rowStart + ri) * BPR + col
       if (barIdx >= bars.length) break
       const bar          = bars[barIdx]
       const staveX       = ML + col * BAR_W
-      const isFirst      = barIdx === 0
+      const isVeryFirst  = barIdx === 0
       const isFirstInRow = col === 0
       const isLastBar    = barIdx === bars.length - 1
 
-      // ── Stave ─────────────────────────────────────────────────────────
+      // ── Stave ───────────────────────────────────────────────────────────
       const stave = new Stave(staveX, staveY, BAR_W)
-      if (isFirst)           stave.addClef("treble").addTimeSignature("4/4")
+      if (isVeryFirst)       stave.addClef("treble").addTimeSignature("4/4")
       else if (isFirstInRow) stave.addClef("treble")
       if (isLastBar) stave.setEndBarType(Barline.type.END)
       stave.setContext(vf).draw()
 
-      // ── Section label — boxed, Real Book style ─────────────────────────
+      // ── Section label ────────────────────────────────────────────────────
       if (bar.section && bar.section !== prevSection) {
         prevSection = bar.section
         const raw   = bar.section.replace(/\s*\(.*\)/g, "").trim()
         const label = raw.length > 7 ? raw.slice(0, 1).toUpperCase() : raw
-        const lx    = staveX + (isFirstInRow ? 28 : 6)
-        const ly    = rowY + CHORD_TY
+        // Place box to the left of the chord symbol, vertically centred in CHORD_ZONE
+        const lx = staveX + (isFirstInRow ? 26 : 5)
+        const ly = rowY + CHORD_TY
 
         c.save()
-        c.font        = `bold 13px ${HW}`
+        c.font        = `bold 12px ${HW}`
         c.textAlign   = "center"
         c.fillStyle   = "#000"
         c.strokeStyle = "#000"
         c.lineWidth   = 1.5
         const tw = c.measureText(label).width
-        c.strokeRect(lx - tw / 2 - 5, ly - 14, tw + 10, 17)
+        c.strokeRect(lx - tw / 2 - 4, ly - 13, tw + 8, 16)
         c.fillText(label, lx, ly)
         c.restore()
       }
 
-      // ── Chord symbol ──────────────────────────────────────────────────
+      // ── Chord symbol ─────────────────────────────────────────────────────
       const chordTxt = rbChord(bar.symbol || "")
-      const chordX   = staveX + (isFirst ? 64 : isFirstInRow ? 34 : 8)
-      const chordY   = rowY + CHORD_TY
+      // Start chord text after clef/time-sig on first bars
+      const chordX = staveX + (isVeryFirst ? 64 : isFirstInRow ? 34 : 8)
+      const chordY = rowY + CHORD_TY
 
       c.save()
       c.font      = `bold 20px ${HW}`
@@ -232,14 +198,13 @@ export async function exportLeadSheet({ bars, approachLines, title, tempo }) {
       c.fillText(chordTxt, chordX, chordY)
       c.restore()
 
-      // ── Guide-tone notes ──────────────────────────────────────────────
+      // ── Guide-tone notes ──────────────────────────────────────────────────
       const [an, dn] = notePairs[barIdx] || []
       const beats    = bar.beats ?? 4
 
       const makeNote = (noteOct, dur) => {
         if (!noteOct) {
-          const rd = dur === "h" ? "hr" : "wr"
-          return new StaveNote({ keys: ["b/4"], duration: rd })
+          return new StaveNote({ keys: ["b/4"], duration: dur === "h" ? "hr" : "wr" })
         }
         const sn  = new StaveNote({ clef: "treble", keys: [toVFKey(noteOct)], duration: dur })
         const acc = getAcc(noteOct.replace(/\d$/, ""))
@@ -254,17 +219,75 @@ export async function exportLeadSheet({ bars, approachLines, title, tempo }) {
 
       const voice = new Voice({ num_beats: numBeats, beat_value: 4 }).setStrict(false)
       voice.addTickables(notes)
-
-      const fmtW = BAR_W - (isFirst ? 74 : isFirstInRow ? 44 : 24)
+      const fmtW = BAR_W - (isVeryFirst ? 74 : isFirstInRow ? 44 : 24)
       new Formatter().joinVoices([voice]).format([voice], fmtW)
       voice.draw(vf, stave)
     }
   }
+}
 
-  // ── Export PDF ────────────────────────────────────────────────────────────
-  const imgData  = canvas.toDataURL("image/png", 1.0)
-  const pdf      = new jsPDF({ orientation: "portrait", unit: "in", format: "letter" })
-  pdf.addImage(imgData, "PNG", 0, 0, 8.5, 11)
+// ─── Main export ──────────────────────────────────────────────────────────────
+export async function exportLeadSheet({ bars, approachLines, title, tempo }) {
+  const [VF, { jsPDF }] = await Promise.all([
+    import("vexflow"),
+    import("jspdf"),
+  ])
+
+  try { VF.Flow?.setMusicFont?.("Petaluma") } catch {}
+  try { VF.setMusicFont?.("Petaluma")       } catch {}
+
+  await loadHandwrittenFont()
+
+  const HW       = `"Caveat", "Bradley Hand", "Segoe Script", cursive`
+  const songName = (title || "Lead Sheet").replace(/\s*\([^)]*\)\s*$/, "").toUpperCase()
+  const NROWS    = Math.ceil(bars.length / BPR)
+
+  // ── Assign octaves to all guide-tone notes up front ───────────────────────
+  let prevMidi = null
+  const notePairs = (approachLines || []).map(line => {
+    const [a, d] = line.phrase || []
+    const an = assignOctave(a, prevMidi)
+    if (an) prevMidi = Note.midi(an)
+    const dn = assignOctave(d, prevMidi)
+    if (dn) prevMidi = Note.midi(dn)
+    return [an, dn]
+  })
+
+  // ── Paginate ──────────────────────────────────────────────────────────────
+  // Page 1 gets ROWS_P1 rows; subsequent pages get ROWS_PX rows each.
+  const pageRowCounts = []
+  let rowsLeft = NROWS
+  pageRowCounts.push(Math.min(rowsLeft, ROWS_P1)); rowsLeft -= ROWS_P1
+  while (rowsLeft > 0) {
+    pageRowCounts.push(Math.min(rowsLeft, ROWS_PX)); rowsLeft -= ROWS_PX
+  }
+
+  // ── Render each page to a canvas and collect images ───────────────────────
+  const pdf = new jsPDF({ orientation: "portrait", unit: "in", format: "letter" })
+  let rowStart = 0
+
+  for (let pi = 0; pi < pageRowCounts.length; pi++) {
+    const canvas = document.createElement("canvas")
+    canvas.width  = PAGE_W
+    canvas.height = PAGE_H
+
+    renderPage({
+      canvas,
+      isFirstPage: pi === 0,
+      songName,
+      tempo: tempo || 120,
+      bars,
+      notePairs,
+      rowStart,
+      rowCount: pageRowCounts[pi],
+      VF,
+      HW,
+    })
+
+    if (pi > 0) pdf.addPage()
+    pdf.addImage(canvas.toDataURL("image/png", 1.0), "PNG", 0, 0, 8.5, 11)
+    rowStart += pageRowCounts[pi]
+  }
 
   const safeName = songName.replace(/[^A-Z0-9 ]/g, "").trim().replace(/ +/g, "_") || "lead_sheet"
   pdf.save(`${safeName}.pdf`)
