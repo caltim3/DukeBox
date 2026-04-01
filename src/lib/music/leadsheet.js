@@ -26,31 +26,26 @@ function getAcc(noteName) {
   return (m && m[1]) || ""
 }
 
-// Convert "Bb4" → "bb/4",  "F#5" → "f#/5",  "C4" → "c/4"
+// "Bb4" → "bb/4",  "F#5" → "f#/5",  "C4" → "c/4"
 function toVFKey(noteOct) {
   const m = (noteOct || "").match(/^([A-G](?:bb|##|b|#)?)(\d)$/)
   if (!m) return "b/4"
   return m[1].toLowerCase() + "/" + m[2]
 }
 
-// ─── Octave assignment for guide-tone melody ──────────────────────────────────
-// Hard-clamps to C4–G5 (MIDI 60–79) so notes stay within or just outside the
-// treble clef staff (E4 bottom line – F5 top line).  The old A2–C6 range let
-// notes fall to e.g. Bb3 (MIDI 58) because it was numerically closer to the
-// previous note than Bb4 (MIDI 70) — producing notes below the staff that
-// collided with the chord symbols of the row below.
+// ─── Octave assignment ────────────────────────────────────────────────────────
+// Hard-clamps to C4–G5 (MIDI 60–79) so notes always stay within/near the
+// treble clef staff (E4 bottom line – F5 top line, max 1 ledger line).
 function assignOctave(noteName, prevMidi) {
   if (!noteName) return null
-  // Hard bounds: C4 (middle C, 1 ledger line below) → G5 (1 ledger line above)
-  const MIDI_MIN = 60  // C4
-  const MIDI_MAX = 79  // G5
+  const MIDI_MIN = 60  // C4 — hard floor
+  const MIDI_MAX = 79  // G5 — hard ceiling
   if (prevMidi == null) {
-    // First note: prefer squarely inside the staff (E4–F5, MIDI 64–77)
+    // First note: prefer inside the staff (E4–F5, MIDI 64–77)
     for (const oct of [4, 5]) {
       const midi = Note.midi(noteName + oct)
       if (midi != null && midi >= 64 && midi <= 77) return noteName + oct
     }
-    // Fallback: anywhere in hard bounds
     for (const oct of [4, 5]) {
       const midi = Note.midi(noteName + oct)
       if (midi != null && midi >= MIDI_MIN && midi <= MIDI_MAX) return noteName + oct
@@ -78,12 +73,11 @@ async function loadHandwrittenFont() {
       document.head.appendChild(link)
     }
     await document.fonts.load('bold 52px "Caveat"')
-  } catch { /* fall back to cursive system font */ }
+  } catch { /* fall back to cursive */ }
 }
 
-// ─── Main export function ─────────────────────────────────────────────────────
+// ─── Main export ──────────────────────────────────────────────────────────────
 export async function exportLeadSheet({ bars, approachLines, title, tempo }) {
-  // Lazy-load heavy libraries — keeps page load fast
   const [VF, { jsPDF }] = await Promise.all([
     import("vexflow"),
     import("jspdf"),
@@ -91,72 +85,80 @@ export async function exportLeadSheet({ bars, approachLines, title, tempo }) {
 
   const { Renderer, Stave, StaveNote, Voice, Formatter, Accidental, Barline } = VF
 
-  // Petaluma = VexFlow's built-in handwritten music engraving font
+  // Petaluma = VexFlow's handwritten music engraving font (Real Book look)
   try { VF.Flow?.setMusicFont?.("Petaluma") } catch {}
   try { VF.setMusicFont?.("Petaluma")       } catch {}
 
   await loadHandwrittenFont()
 
-  // ── Canvas (2× for crisp PDF quality) ────────────────────────────────────
-  const W = 816, H = 1056, SCALE = 2
+  // ── Canvas ────────────────────────────────────────────────────────────────
+  // No SCALE multiplier. c and vf share the SAME canvas 2D context; applying
+  // scale transforms to both would compound them (2× × 2× = 4×), causing
+  // VexFlow stave/note coordinates to mismatch raw canvas text coordinates.
+  // 816×1056 at 96 DPI = 8.5×11" — fine quality for a practice PDF.
+  const W = 816, H = 1056
   const canvas = document.createElement("canvas")
-  canvas.width  = W * SCALE
-  canvas.height = H * SCALE
+  canvas.width  = W
+  canvas.height = H
+
+  // Raw 2D context for title, chord text, section boxes
   const c = canvas.getContext("2d")
-  c.scale(SCALE, SCALE)
   c.fillStyle = "#fff"
   c.fillRect(0, 0, W, H)
 
-  // VexFlow renderer on the same canvas
+  // VexFlow renderer — shares the same underlying 2D context as c
   const renderer = new Renderer(canvas, Renderer.Backends.CANVAS)
-  renderer.resize(W * SCALE, H * SCALE)
+  renderer.resize(W, H)
   const vf = renderer.getContext()
-  vf.scale(SCALE, SCALE)
+  // Do NOT call vf.scale() — c and vf are the same context; scaling one
+  // already affects the other.
 
   // ── Title block ───────────────────────────────────────────────────────────
   const songName = (title || "Lead Sheet")
-    .replace(/\s*\([^)]*\)\s*$/, "")   // strip "(Ab)" key suffixes
+    .replace(/\s*\([^)]*\)\s*$/, "")  // strip "(Ab)" / "(Gm)" key suffixes
     .toUpperCase()
 
   const HW = `"Caveat", "Bradley Hand", "Segoe Script", cursive`
 
-  // Large handwritten title
   c.font = `bold 60px ${HW}`
   c.textAlign = "center"
   c.fillStyle = "#000"
-  c.fillText(songName, W / 2, 76)
+  c.fillText(songName, W / 2, 72)
 
-  // Tempo (bottom-left of title block)
   c.font = `18px ${HW}`
   c.textAlign = "left"
-  c.fillText(`♩ = ${tempo || 120}`, 56, 106)
+  c.fillText(`♩ = ${tempo || 120}`, 56, 100)
 
-  // Subtitle (bottom-right)
   c.font = `italic 13px ${HW}`
   c.textAlign = "right"
   c.fillStyle = "#444"
-  c.fillText("DukeBox Guide Tones", W - 56, 106)
+  c.fillText("DukeBox Guide Tones", W - 56, 100)
 
-  // Rule under title block
   c.strokeStyle = "#000"
   c.lineWidth = 1
   c.beginPath()
-  c.moveTo(52, 114); c.lineTo(W - 52, 114)
+  c.moveTo(52, 108); c.lineTo(W - 52, 108)
   c.stroke()
 
-  // ── Layout ────────────────────────────────────────────────────────────────
+  // ── Layout constants ──────────────────────────────────────────────────────
   const ML = 52, MR = 52
-  const MT = 122, MB = 40
-  const BPR  = 4                        // bars per row
+  const MT = 116, MB = 40
+  const BPR   = 4
   const NROWS = Math.ceil(bars.length / BPR)
   const BAR_W = (W - ML - MR) / BPR
-  // Scale row height so everything fits on one page
-  const CHORD_ZONE   = 50   // px above stave top reserved for chord symbols
-  const STAVE_OFFSET = CHORD_ZONE
-  // At least CHORD_ZONE + stave (40) + 16px clearance below stave per row
-  const ROW_H = Math.min(CHORD_ZONE + 40 + 20, Math.floor((H - MT - MB) / NROWS))
 
-  // ── Assign octaves to guide-tone notes ───────────────────────────────────
+  // Row height: divide available space evenly across all rows
+  const ROW_H = Math.floor((H - MT - MB) / NROWS)
+
+  // Chord zone height above the stave top line.
+  // We want chord text to sit ~20 px above the stave top.
+  // VexFlow stave = 40 px tall (5 lines × 10 px spacing).
+  // Keep at least 44 px below stave top for the stave + one ledger line below.
+  const CHORD_ZONE   = Math.max(36, ROW_H - 44)   // space above stave
+  const STAVE_OFFSET = CHORD_ZONE                   // staveY = rowY + CHORD_ZONE
+  const CHORD_TY     = CHORD_ZONE - 18             // chord text Y offset from rowY
+
+  // ── Assign octaves ────────────────────────────────────────────────────────
   let prevMidi = null
   const notePairs = (approachLines || []).map(line => {
     const [a, d] = line.phrase || []
@@ -175,36 +177,35 @@ export async function exportLeadSheet({ bars, approachLines, title, tempo }) {
     const staveY = rowY + STAVE_OFFSET
 
     for (let col = 0; col < BPR; col++) {
-      const barIdx = row * BPR + col
+      const barIdx       = row * BPR + col
       if (barIdx >= bars.length) break
-      const bar   = bars[barIdx]
-      const staveX = ML + col * BAR_W
-      const isFirst       = barIdx === 0
-      const isFirstInRow  = col === 0
-      const isLastBar     = barIdx === bars.length - 1
+      const bar          = bars[barIdx]
+      const staveX       = ML + col * BAR_W
+      const isFirst      = barIdx === 0
+      const isFirstInRow = col === 0
+      const isLastBar    = barIdx === bars.length - 1
 
-      // ── Stave ──────────────────────────────────────────────────────────
+      // ── Stave ─────────────────────────────────────────────────────────
       const stave = new Stave(staveX, staveY, BAR_W)
-      if (isFirst)      stave.addClef("treble").addTimeSignature("4/4")
+      if (isFirst)           stave.addClef("treble").addTimeSignature("4/4")
       else if (isFirstInRow) stave.addClef("treble")
       if (isLastBar) stave.setEndBarType(Barline.type.END)
       stave.setContext(vf).draw()
 
-      // ── Section label (boxed, Real Book style) ────────────────────────
+      // ── Section label — boxed, Real Book style ─────────────────────────
       if (bar.section && bar.section !== prevSection) {
         prevSection = bar.section
-        // Shorten long section names: "A (last)" → "A", "Bridge" stays
         const raw   = bar.section.replace(/\s*\(.*\)/g, "").trim()
         const label = raw.length > 7 ? raw.slice(0, 1).toUpperCase() : raw
         const lx    = staveX + (isFirstInRow ? 28 : 6)
-        const ly    = rowY + CHORD_ZONE - 3
+        const ly    = rowY + CHORD_TY
 
         c.save()
-        c.font = `bold 13px ${HW}`
-        c.textAlign = "center"
-        c.fillStyle  = "#000"
+        c.font        = `bold 13px ${HW}`
+        c.textAlign   = "center"
+        c.fillStyle   = "#000"
         c.strokeStyle = "#000"
-        c.lineWidth  = 1.5
+        c.lineWidth   = 1.5
         const tw = c.measureText(label).width
         c.strokeRect(lx - tw / 2 - 5, ly - 14, tw + 10, 17)
         c.fillText(label, lx, ly)
@@ -213,12 +214,11 @@ export async function exportLeadSheet({ bars, approachLines, title, tempo }) {
 
       // ── Chord symbol ──────────────────────────────────────────────────
       const chordTxt = rbChord(bar.symbol || "")
-      // Offset right enough to clear clef / time sig on first bars
-      const chordX = staveX + (isFirst ? 64 : isFirstInRow ? 34 : 9)
-      const chordY = rowY + CHORD_ZONE - 3
+      const chordX   = staveX + (isFirst ? 64 : isFirstInRow ? 34 : 8)
+      const chordY   = rowY + CHORD_TY
 
       c.save()
-      c.font = `bold 20px ${HW}`
+      c.font      = `bold 20px ${HW}`
       c.textAlign = "left"
       c.fillStyle = "#000"
       c.fillText(chordTxt, chordX, chordY)
@@ -226,47 +226,38 @@ export async function exportLeadSheet({ bars, approachLines, title, tempo }) {
 
       // ── Guide-tone notes ──────────────────────────────────────────────
       const [an, dn] = notePairs[barIdx] || []
-      const beats = bar.beats ?? 4
+      const beats    = bar.beats ?? 4
 
       const makeNote = (noteOct, dur) => {
         if (!noteOct) {
-          const rd = dur === "h" ? "hr" : dur === "q" ? "qr" : "wr"
+          const rd = dur === "h" ? "hr" : "wr"
           return new StaveNote({ keys: ["b/4"], duration: rd })
         }
-        const key  = toVFKey(noteOct)
-        const sn   = new StaveNote({ clef: "treble", keys: [key], duration: dur })
-        const acc  = getAcc(noteOct.replace(/\d$/, ""))
+        const sn  = new StaveNote({ clef: "treble", keys: [toVFKey(noteOct)], duration: dur })
+        const acc = getAcc(noteOct.replace(/\d$/, ""))
         if (acc) sn.addModifier(new Accidental(acc), 0)
         return sn
       }
 
-      let notes
-      if (beats >= 4) {
-        notes = [makeNote(an, "h"), makeNote(dn, "h")]
-      } else {
-        // 2-beat bar: single half note
-        notes = [makeNote(an, "h")]
-      }
-
+      const notes    = beats >= 4
+        ? [makeNote(an, "h"), makeNote(dn, "h")]
+        : [makeNote(an, "h")]
       const numBeats = beats >= 4 ? 4 : 2
+
       const voice = new Voice({ num_beats: numBeats, beat_value: 4 }).setStrict(false)
       voice.addTickables(notes)
 
-      // Leave room for clef/time-sig on the left
       const fmtW = BAR_W - (isFirst ? 74 : isFirstInRow ? 44 : 24)
       new Formatter().joinVoices([voice]).format([voice], fmtW)
       voice.draw(vf, stave)
     }
   }
 
-  // ── Produce PDF ───────────────────────────────────────────────────────────
-  const imgData = canvas.toDataURL("image/png", 1.0)
-  const pdf = new jsPDF({ orientation: "portrait", unit: "in", format: "letter" })
+  // ── Export PDF ────────────────────────────────────────────────────────────
+  const imgData  = canvas.toDataURL("image/png", 1.0)
+  const pdf      = new jsPDF({ orientation: "portrait", unit: "in", format: "letter" })
   pdf.addImage(imgData, "PNG", 0, 0, 8.5, 11)
 
-  const safeName = songName
-    .replace(/[^A-Z0-9 ]/g, "")
-    .trim()
-    .replace(/ +/g, "_") || "lead_sheet"
+  const safeName = songName.replace(/[^A-Z0-9 ]/g, "").trim().replace(/ +/g, "_") || "lead_sheet"
   pdf.save(`${safeName}.pdf`)
 }
