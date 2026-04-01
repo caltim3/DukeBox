@@ -22,6 +22,7 @@ import { analyzeProgressionContext } from "@/lib/music/harmony"
 import { FORMS, FORM_CATEGORIES } from "@/lib/music/forms"
 import { chordToRoman } from "@/lib/music/roman"
 import { DRUM_STYLES } from "@/lib/music/audioConstants"
+import { exportLeadSheet } from "@/lib/music/leadsheet"
 import { COMPING_STYLE_NAMES, DEFAULT_COMPING_STYLE } from "@/lib/music/comping"
 import Fretboard from "@/components/Fretboard"
 
@@ -957,6 +958,14 @@ export default function Home() {
                 × Remove
               </button>
             )}
+
+            <button
+              onClick={() => exportLeadSheet({ bars, approachLines, title: selectedForm, tempo }).catch(console.error)}
+              style={{ ...buttonStyle("var(--db-c-purple)"), padding: "6px 12px", fontSize: "0.82rem" }}
+              title="Export lead sheet as PDF (Real Book style)"
+            >
+              ↓ Lead Sheet PDF
+            </button>
 
             <label style={inlineLabelStyle}>
               <span style={{ opacity: 0.7, marginRight: "4px" }}>Key</span>
