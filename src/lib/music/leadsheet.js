@@ -1,41 +1,150 @@
-// Lead sheet PDF export — Real Book handwritten style
-// VexFlow (Petaluma font) draws stave + clef only.
-// Notes are drawn manually on canvas for reliable, pixel-exact placement.
-// jsPDF assembles pages.
+// Lead sheet exports — Real Book handwritten style
+// PDF: pure canvas 2D (no VexFlow — its stave Y has a hidden +40px offset that
+//      made note placement impossible). Manual stave = exact coordinates.
+// MusicXML: standard interchange for MuseScore / Sibelius / Finale.
+// Both exports understand 1-chord (4-beat) and 2-chord (2-beat each) measures.
 
 import { Note, Chord } from "@tonaljs/tonal"
 
-// ─── XML escape helper ────────────────────────────────────────────────────────
+// ─── Measure grouping ─────────────────────────────────────────────────────────
+// s("Bm7b5 E7") produces [{beats:2},{beats:2}].  Group consecutive sub-4-beat
+// bars until they sum to 4 beats so each group = one visual measure.
+export function groupIntoMeasures(bars) {
+  const measures = []
+  let i = 0
+  while (i < bars.length) {
+    const b = bars[i].beats ?? 4
+    if (b >= 4) { measures.push([bars[i]]); i++; continue }
+    const group = []
+    let total = 0
+    while (i < bars.length && total < 4) {
+      const nb = bars[i].beats ?? 4
+      if (nb >= 4) break          // don't absorb a full-beat bar
+      group.push(bars[i]); total += nb; i++
+    }
+    measures.push(group)
+  }
+  return measures
+}
+
+// ─── Chord helpers ────────────────────────────────────────────────────────────
+function rbChord(symbol) {
+  if (!symbol) return ""
+  return symbol
+    .replace(/maj7/g, "Δ").replace(/maj6/g, "Δ6").replace(/maj/g, "Δ")
+    .replace(/min7b5|m7b5/g, "ø7").replace(/dim7/g, "°7").replace(/dim/g, "°")
+    .replace(/min7|m7/g, "-7").replace(/min|m(?=[^a]|$)/g, "-")
+    .replace(/7alt/g, "7alt").replace(/7sus4|sus4/g, "sus")
+}
+
+function getAcc(noteName) {
+  const m = (noteName || "").match(/^[A-G](bb|##|b|#)?/)
+  return (m && m[1]) || ""
+}
+
+// ─── Octave assignment (E4–F5, entirely on staff) ────────────────────────────
+function assignOctave(noteName, prevMidi) {
+  if (!noteName) return null
+  const MIN = 64, MAX = 77
+  const tryRange = (target) => {
+    let best = null, bestDist = Infinity
+    for (const oct of [3, 4, 5, 6]) {
+      const midi = Note.midi(noteName + oct)
+      if (midi == null || midi < MIN || midi > MAX) continue
+      const d = Math.abs(midi - target)
+      if (d < bestDist) { bestDist = d; best = noteName + oct }
+    }
+    return best
+  }
+  if (prevMidi == null) {
+    // prefer G4–D5 centre
+    for (const oct of [4, 5]) {
+      const midi = Note.midi(noteName + oct)
+      if (midi != null && midi >= 67 && midi <= 74) return noteName + oct
+    }
+    return tryRange(71) || noteName + "5"
+  }
+  return tryRange(prevMidi) || tryRange(71) || noteName + "5"
+}
+
+// Get 3rd and 7th of a chord symbol as guide tones
+function guideTones(symbol) {
+  if (!symbol) return [null, null]
+  const ch = Chord.get(symbol)
+  if (!ch.notes || ch.notes.length < 2) return [null, null]
+  const third   = ch.notes[1] ?? null
+  const seventh = ch.notes[ch.notes.length - 1] ?? null
+  return [third, seventh]
+}
+
+// ─── Chord voicing helpers (for MusicXML) ────────────────────────────────────
+function chordTones(symbol) {
+  if (!symbol) return null
+  const ch = Chord.get(symbol)
+  if (!ch.notes || ch.notes.length < 2) return null
+  const notes = ch.notes.slice(0, 4)
+  if (notes.length === 3) notes.push(notes[0])
+  return notes.length >= 4 ? notes : null
+}
+
+function closeVoicing(notes, baseMidi) {
+  const midis = []
+  let floor = baseMidi
+  for (const note of notes) {
+    for (let oct = 2; oct <= 7; oct++) {
+      const m = Note.midi(note + oct)
+      if (m != null && m >= floor) { midis.push(m); floor = m + 1; break }
+    }
+  }
+  return midis
+}
+
+function allInversions(notes, baseMidi) {
+  return notes.map((_, i) => {
+    const rot = [...notes.slice(i), ...notes.slice(0, i)]
+    return closeVoicing(rot, baseMidi)
+  })
+}
+
+function bestInversionFor(notes, targetMidis, baseMidi) {
+  const invs = allInversions(notes, baseMidi - 6)
+  let best = invs[0], bestDist = Infinity
+  for (const inv of invs) {
+    const len  = Math.min(inv.length, targetMidis.length)
+    const dist = inv.slice(0, len).reduce((s, m, i) => s + Math.abs(m - targetMidis[i]), 0)
+    if (dist < bestDist) { bestDist = dist; best = inv }
+  }
+  return best
+}
+
+// ─── XML helpers ─────────────────────────────────────────────────────────────
 function esc(str) {
   return String(str || "")
     .replace(/&/g, "&amp;").replace(/</g, "&lt;")
     .replace(/>/g, "&gt;").replace(/"/g, "&quot;")
 }
 
-// ─── Chord symbol → MusicXML kind + root ─────────────────────────────────────
 function parseChordForMXL(symbol) {
   if (!symbol) return null
   const m = symbol.match(/^([A-G](b{1,2}|#{1,2})?)/)
   if (!m) return null
-  const rootStr = m[1]
-  const rootNote = Note.get(rootStr)
+  const rootNote = Note.get(m[1])
   if (!rootNote.letter) return null
-  const q = symbol.slice(rootStr.length)
+  const q = symbol.slice(m[1].length)
   let kind, kindText
-  if (/m7b5|min7b5/.test(q))               { kind = "half-diminished";     kindText = "ø7"  }
-  else if (/dim7|°7/.test(q))              { kind = "diminished-seventh";  kindText = "°7"  }
-  else if (/dim|°/.test(q))               { kind = "diminished";           kindText = "°"   }
-  else if (/maj7|M7/.test(q))             { kind = "major-seventh";        kindText = "Δ7"  }
-  else if (/maj|Maj/.test(q))             { kind = "major";                kindText = "Δ"   }
-  else if (/m7|min7|-7/.test(q))          { kind = "minor-seventh";        kindText = "-7"  }
-  else if (/m(?!a)|min|-(?!7)/.test(q))   { kind = "minor";                kindText = "-"   }
-  else if (/7sus4?|sus/.test(q))          { kind = "suspended-fourth";     kindText = "sus" }
-  else if (/7/.test(q))                   { kind = "dominant";             kindText = "7"   }
-  else                                    { kind = "major";                kindText = ""    }
+  if (/m7b5|min7b5/.test(q))             { kind = "half-diminished";    kindText = "ø7"  }
+  else if (/dim7|°7/.test(q))            { kind = "diminished-seventh"; kindText = "°7"  }
+  else if (/dim|°/.test(q))              { kind = "diminished";          kindText = "°"   }
+  else if (/maj7|M7/.test(q))            { kind = "major-seventh";       kindText = "Δ7"  }
+  else if (/maj|Maj/.test(q))            { kind = "major";               kindText = "Δ"   }
+  else if (/m7|min7|-7/.test(q))         { kind = "minor-seventh";       kindText = "-7"  }
+  else if (/m(?!a)|min|-(?!7)/.test(q))  { kind = "minor";               kindText = "-"   }
+  else if (/7sus4?|sus/.test(q))         { kind = "suspended-fourth";    kindText = "sus" }
+  else if (/7/.test(q))                  { kind = "dominant";            kindText = "7"   }
+  else                                   { kind = "major";               kindText = ""    }
   return { step: rootNote.letter, alter: rootNote.alt ?? 0, kind, kindText }
 }
 
-// ─── Note → MusicXML pitch ────────────────────────────────────────────────────
 function noteToMXL(noteOct) {
   const m = String(noteOct || "").match(/^([A-G])(b{1,2}|#{1,2})?(\d)$/)
   if (!m) return null
@@ -45,72 +154,129 @@ function noteToMXL(noteOct) {
   return { step: m[1], alter, octave: parseInt(m[3]), accidental: acc }
 }
 
-// ─── Chord symbol → Real Book notation ───────────────────────────────────────
-function rbChord(symbol) {
-  if (!symbol) return ""
-  return symbol
-    .replace(/maj7/g, "Δ")
-    .replace(/maj6/g, "Δ6")
-    .replace(/maj/g, "Δ")
-    .replace(/min7b5|m7b5/g, "ø7")
-    .replace(/dim7/g, "°7")
-    .replace(/dim/g, "°")
-    .replace(/min7|m7/g, "-7")
-    .replace(/min|m(?=[^a]|$)/g, "-")
-    .replace(/7alt/g, "7alt")
-    .replace(/7sus4|sus4/g, "sus")
+function midiToMXLPitch(midi) { return noteToMXL(Note.fromMidi(midi)) }
+
+// ─── Layout constants ─────────────────────────────────────────────────────────
+const PAGE_W  = 816
+const PAGE_H  = 1056
+const ML      = 52
+const MR      = 52
+const MT1     = 116   // top margin page 1
+const MTX     = 36    // top margin page 2+
+const MB      = 40
+const BPR     = 4     // measures per row
+
+// No VexFlow offset! staveTop IS where the top staff line is drawn.
+const ROW_H      = 108
+const STAVE_Y_OFF = 40   // top staff line at rowY + 40
+const CHORD_TY    = 24   // chord text baseline at rowY + 24 (16px above stave top)
+
+const ROWS_P1 = Math.floor((PAGE_H - MT1 - MB) / ROW_H)
+const ROWS_PX = Math.floor((PAGE_H - MTX - MB) / ROW_H)
+
+// ─── Manual stave drawing (replaces VexFlow stave) ───────────────────────────
+// staveTop = exact Y of the top staff line
+function drawStave(c, x, staveTop, width, { showClef, showTimeSig, isLast, HW }) {
+  c.save()
+  c.strokeStyle = "#000"
+  c.lineWidth   = 1.1
+
+  // 5 staff lines
+  for (let i = 0; i <= 4; i++) {
+    c.beginPath()
+    c.moveTo(x, staveTop + i * 10)
+    c.lineTo(x + width, staveTop + i * 10)
+    c.stroke()
+  }
+
+  // Opening bar line
+  c.beginPath(); c.moveTo(x, staveTop); c.lineTo(x, staveTop + 40); c.stroke()
+
+  // Closing bar line (double bar at final measure)
+  if (isLast) {
+    c.lineWidth = 1.1
+    c.beginPath(); c.moveTo(x+width-4, staveTop); c.lineTo(x+width-4, staveTop+40); c.stroke()
+    c.lineWidth = 3.5
+    c.beginPath(); c.moveTo(x+width, staveTop); c.lineTo(x+width, staveTop+40); c.stroke()
+  } else {
+    c.beginPath(); c.moveTo(x+width, staveTop); c.lineTo(x+width, staveTop+40); c.stroke()
+  }
+
+  // Treble clef — 𝄞 (U+1D11E), baseline ~12px below bottom staff line
+  if (showClef) {
+    c.fillStyle    = "#000"
+    c.font         = '56px "Times New Roman", "Georgia", serif'
+    c.textAlign    = "left"
+    c.textBaseline = "alphabetic"
+    c.fillText("\u{1D11E}", x + 3, staveTop + 52)
+  }
+
+  // Time signature 4/4 (first bar of entire chart)
+  if (showTimeSig) {
+    c.font         = `bold 20px ${HW}`
+    c.textAlign    = "center"
+    c.textBaseline = "alphabetic"
+    c.fillStyle    = "#000"
+    const tsX = x + (showClef ? 36 : 10)
+    c.fillText("4", tsX, staveTop + 14)
+    c.fillText("4", tsX, staveTop + 32)
+  }
+
+  c.restore()
 }
 
-// ─── Accidental helper ────────────────────────────────────────────────────────
-function getAcc(noteName) {
-  const m = (noteName || "").match(/^[A-G](bb|##|b|#)?/)
-  return (m && m[1]) || ""
+// Thin half-bar divider inside a measure (for 2-chord bars)
+function drawHalfBarLine(c, x, staveTop) {
+  c.save()
+  c.strokeStyle = "#000"
+  c.lineWidth   = 0.8
+  c.setLineDash([2, 2])
+  c.beginPath(); c.moveTo(x, staveTop); c.lineTo(x, staveTop + 40); c.stroke()
+  c.setLineDash([])
+  c.restore()
 }
 
-// ─── Octave assignment ────────────────────────────────────────────────────────
-// Clamp to E4–F5 (MIDI 64–77): fully within the treble clef staff.
-function assignOctave(noteName, prevMidi) {
-  if (!noteName) return null
-  const MIDI_MIN = 64  // E4 — bottom staff line
-  const MIDI_MAX = 77  // F5 — top staff line
-  if (prevMidi == null) {
-    for (const oct of [4, 5]) {
-      const midi = Note.midi(noteName + oct)
-      if (midi != null && midi >= 67 && midi <= 74) return noteName + oct
-    }
-    for (const oct of [4, 5]) {
-      const midi = Note.midi(noteName + oct)
-      if (midi != null && midi >= MIDI_MIN && midi <= MIDI_MAX) return noteName + oct
-    }
-    // No octave in preferred/valid range — pick closest to centre (B4=71)
-    let best = null, bestDist = Infinity
-    for (const oct of [3, 4, 5, 6]) {
-      const midi = Note.midi(noteName + oct)
-      if (midi == null) continue
-      const clamped = Math.max(MIDI_MIN, Math.min(MIDI_MAX, midi))
-      const d = Math.abs(clamped - 71)
-      if (d < bestDist) { bestDist = d; best = noteName + oct }
-    }
-    return best || noteName + "5"
+// ─── Manual note rendering ────────────────────────────────────────────────────
+const DIATONIC = { C:0, D:1, E:2, F:3, G:4, A:5, B:6 }
+
+// Pixel Y for a note, given the exact top staff line Y.
+function noteY(noteOct, staveTop) {
+  const m = String(noteOct || "").match(/^([A-G])(b{1,2}|#{1,2})?(\d)$/)
+  if (!m) return staveTop + 20
+  const steps = (parseInt(m[3]) - 4) * 7 + DIATONIC[m[1]] - 2
+  return staveTop + 40 - steps * 5
+}
+
+function drawHalfNote(c, cx, staveTop, noteOct) {
+  const acc  = getAcc(String(noteOct).replace(/\d$/, ""))
+  const y    = noteY(noteOct, staveTop)
+  const up   = y >= staveTop + 20
+
+  c.save()
+  c.strokeStyle = "#000"; c.lineWidth = 1.6
+
+  c.beginPath()
+  c.ellipse(cx, y, 5.5, 4, -0.2, 0, Math.PI * 2)
+  c.fillStyle = "#fff"; c.fill(); c.stroke()
+
+  const sx = up ? cx + 5 : cx - 5
+  const dir = up ? -1 : 1
+  c.beginPath()
+  c.moveTo(sx, y + dir * 3)
+  c.lineTo(sx, y + dir * 34)
+  c.stroke()
+
+  if (acc) {
+    const g = acc === "b" ? "♭" : acc === "#" ? "♯" : acc === "bb" ? "♭♭" : "♯♯"
+    c.font = "bold 12px serif"; c.textAlign = "right"; c.fillStyle = "#000"
+    c.fillText(g, cx - 8, y + 4)
   }
-  let best = null, bestDist = Infinity
-  for (const oct of [3, 4, 5, 6]) {
-    const midi = Note.midi(noteName + oct)
-    if (midi == null || midi < MIDI_MIN || midi > MIDI_MAX) continue
-    const d = Math.abs(midi - prevMidi)
-    if (d < bestDist) { bestDist = d; best = noteName + oct }
-  }
-  if (best) return best
-  // Fallback: find closest clamped octave
-  let fallback = null, fallbackDist = Infinity
-  for (const oct of [3, 4, 5, 6]) {
-    const midi = Note.midi(noteName + oct)
-    if (midi == null) continue
-    const clamped = Math.max(MIDI_MIN, Math.min(MIDI_MAX, midi))
-    const d = Math.abs(clamped - prevMidi)
-    if (d < fallbackDist) { fallbackDist = d; fallback = noteName + oct }
-  }
-  return fallback || noteName + "5"
+  c.restore()
+}
+
+function drawHalfRest(c, cx, staveTop) {
+  c.fillStyle = "#000"
+  c.fillRect(cx - 7, staveTop + 20, 14, 5)
 }
 
 // ─── Handwritten font loader ──────────────────────────────────────────────────
@@ -127,230 +293,143 @@ async function loadHandwrittenFont() {
   } catch { /* fall back to cursive */ }
 }
 
-// ─── Layout constants ─────────────────────────────────────────────────────────
-const PAGE_W  = 816
-const PAGE_H  = 1056
-const ML      = 52
-const MR      = 52
-const MT1     = 116   // top margin page 1 (after title block)
-const MTX     = 36    // top margin page 2+
-const MB      = 40
-const BPR     = 4     // bars per row
-
-const ROW_H       = 106
-const CHORD_ZONE  = 44    // px above stave top reserved for chord symbols
-const CHORD_GAP   = 32    // chord text baseline this many px above stave top line
-const CHORD_TY    = CHORD_ZONE - CHORD_GAP   // = 12 — Y offset of chord baseline from rowY
-const STAVE_Y_OFF = CHORD_ZONE               // stave top Y offset from rowY (= 44)
-// stave occupies rowY+44 … rowY+84.  Below-stave clearance = ROW_H-84 = 22 px.
-
-const ROWS_P1 = Math.floor((PAGE_H - MT1 - MB) / ROW_H)
-const ROWS_PX = Math.floor((PAGE_H - MTX - MB) / ROW_H)
-
-// ─── Manual note rendering ────────────────────────────────────────────────────
-// Diatonic letter → steps above C within one octave
-const DIATONIC = { C: 0, D: 1, E: 2, F: 3, G: 4, A: 5, B: 6 }
-
-// Y coordinate of a note's centre on the stave.
-// staveTop = Y of the top staff line (= F5 in treble clef).
-// Staff spans staveTop (F5) → staveTop+40 (E4), 5px per diatonic step.
-function noteY(noteOct, staveTop) {
-  const m = String(noteOct || "").match(/^([A-G])(b{1,2}|#{1,2})?(\d)$/)
-  if (!m) return staveTop + 20  // fallback: B4 (middle line)
-  const stepsAboveE4 = (parseInt(m[3]) - 4) * 7 + DIATONIC[m[1]] - 2
-  return staveTop + 40 - stepsAboveE4 * 5
-}
-
-// Draw an open half-note head + stem.
-function drawHalfNote(c, cx, staveTop, noteOct) {
-  const acc  = getAcc(String(noteOct).replace(/\d$/, ""))
-  const y    = noteY(noteOct, staveTop)
-  const midY = staveTop + 20   // B4, middle staff line
-  const up   = y >= midY       // stem up when note is at/below middle
-
-  c.save()
-  c.strokeStyle = "#000"
-  c.lineWidth   = 1.6
-
-  // Open ellipse (half-note head, slightly tilted)
-  c.beginPath()
-  c.ellipse(cx, y, 5.5, 4, -0.2, 0, Math.PI * 2)
-  c.fillStyle = "#fff"
-  c.fill()
-  c.stroke()
-
-  // Stem (right side when up, left when down)
-  const sx  = up ? cx + 5 : cx - 5
-  const dir = up ? -1 : 1
-  c.beginPath()
-  c.moveTo(sx, y + dir * 3)
-  c.lineTo(sx, y + dir * 34)
-  c.stroke()
-
-  // Accidental glyph to the left of the head
-  if (acc) {
-    const glyph = acc === "b" ? "♭" : acc === "#" ? "♯"
-                : acc === "bb" ? "♭♭" : "♯♯"
-    c.font      = "bold 12px serif"
-    c.textAlign = "right"
-    c.fillStyle = "#000"
-    c.fillText(glyph, cx - 8, y + 4)
-  }
-
-  c.restore()
-}
-
-// Draw a half rest (filled rectangle sitting on the middle line).
-function drawHalfRest(c, cx, staveTop) {
-  c.fillStyle = "#000"
-  c.fillRect(cx - 7, staveTop + 20, 14, 5)
-}
-
-// ─── Render one page to a canvas ─────────────────────────────────────────────
-function renderPage({
-  canvas, isFirstPage, songName, tempo,
-  bars, notePairs, rowStart, rowCount,
-  VF, HW,
-}) {
-  const { Renderer, Stave, Barline } = VF
+// ─── Render one PDF page ──────────────────────────────────────────────────────
+function renderPage({ canvas, isFirstPage, songName, tempo, measures,
+                      rowStart, rowCount, HW }) {
   const BAR_W = (PAGE_W - ML - MR) / BPR
-
-  const c = canvas.getContext("2d")
+  const c     = canvas.getContext("2d")
   c.fillStyle = "#fff"
   c.fillRect(0, 0, PAGE_W, PAGE_H)
 
-  const renderer = new Renderer(canvas, Renderer.Backends.CANVAS)
-  renderer.resize(PAGE_W, PAGE_H)
-  const vf = renderer.getContext()
-
-  // ── Title block (page 1 only) ───────────────────────────────────────────
+  // Title block (page 1 only)
   if (isFirstPage) {
-    c.font      = `bold 60px ${HW}`
-    c.textAlign = "center"
-    c.fillStyle = "#000"
+    c.font = `bold 60px ${HW}`; c.textAlign = "center"; c.fillStyle = "#000"
+    c.textBaseline = "alphabetic"
     c.fillText(songName, PAGE_W / 2, 72)
 
-    c.font      = `18px ${HW}`
-    c.textAlign = "left"
+    c.font = `18px ${HW}`; c.textAlign = "left"
     c.fillText(`♩ = ${tempo}`, 56, 100)
 
-    c.font      = `italic 13px ${HW}`
-    c.textAlign = "right"
-    c.fillStyle = "#444"
+    c.font = `italic 13px ${HW}`; c.textAlign = "right"; c.fillStyle = "#444"
     c.fillText("DukeBox Guide Tones", PAGE_W - 56, 100)
 
-    c.strokeStyle = "#000"
-    c.lineWidth   = 1
-    c.beginPath()
-    c.moveTo(52, 108); c.lineTo(PAGE_W - 52, 108)
-    c.stroke()
+    c.strokeStyle = "#000"; c.lineWidth = 1
+    c.beginPath(); c.moveTo(52, 108); c.lineTo(PAGE_W - 52, 108); c.stroke()
   }
 
   const MT = isFirstPage ? MT1 : MTX
   let prevSection = null
 
   for (let ri = 0; ri < rowCount; ri++) {
-    const rowY   = MT + ri * ROW_H
-    const staveY = rowY + STAVE_Y_OFF
+    const rowY    = MT + ri * ROW_H
+    const staveTop = rowY + STAVE_Y_OFF
+    const chordY  = rowY + CHORD_TY
 
     for (let col = 0; col < BPR; col++) {
-      const barIdx       = (rowStart + ri) * BPR + col
-      if (barIdx >= bars.length) break
-      const bar          = bars[barIdx]
-      const staveX       = ML + col * BAR_W
-      const isVeryFirst  = barIdx === 0
-      const isFirstInRow = col === 0
-      const isLastBar    = barIdx === bars.length - 1
+      const mIdx = (rowStart + ri) * BPR + col
+      if (mIdx >= measures.length) break
+      const measure     = measures[mIdx]
+      const staveX      = ML + col * BAR_W
+      const isVeryFirst = mIdx === 0
+      const isFirstCol  = col === 0
+      const isLast      = mIdx === measures.length - 1
 
-      // ── Stave (VexFlow draws clef + 5 lines + barlines) ─────────────────
-      const stave = new Stave(staveX, staveY, BAR_W)
-      if (isVeryFirst)       stave.addClef("treble").addTimeSignature("4/4")
-      else if (isFirstInRow) stave.addClef("treble")
-      if (isLastBar) stave.setEndBarType(Barline.type.END)
-      stave.setContext(vf).draw()
+      // ── Draw stave (manual — no VexFlow offset surprises) ────────────────
+      drawStave(c, staveX, staveTop, BAR_W, {
+        showClef:     isVeryFirst || isFirstCol,
+        showTimeSig:  isVeryFirst,
+        isLast,
+        HW,
+      })
+
+      // Space consumed by clef + time sig on left of this bar
+      const clefW = isVeryFirst ? 58 : isFirstCol ? 36 : 10
 
       // ── Section label ────────────────────────────────────────────────────
-      if (bar.section && bar.section !== prevSection) {
-        prevSection = bar.section
-        const raw   = bar.section.replace(/\s*\(.*\)/g, "").trim()
-        const label = raw.length > 7 ? raw.slice(0, 1).toUpperCase() : raw
-        // Box sits left of chord text, vertically centred in CHORD_ZONE
-        const lx = staveX + (isFirstInRow ? 26 : 5)
-        const ly = rowY + CHORD_TY
-
+      const firstBar = measure[0]
+      if (firstBar.section && firstBar.section !== prevSection) {
+        prevSection = firstBar.section
+        const raw   = firstBar.section.replace(/\s*\(.*\)/g, "").trim()
+        const label = raw.length > 7 ? raw[0].toUpperCase() : raw
+        const lx    = staveX + clefW - 4
         c.save()
-        c.font        = `bold 12px ${HW}`
-        c.textAlign   = "center"
-        c.fillStyle   = "#000"
-        c.strokeStyle = "#000"
-        c.lineWidth   = 1.5
+        c.font = `bold 12px ${HW}`; c.textAlign = "center"
+        c.fillStyle = "#000"; c.strokeStyle = "#000"; c.lineWidth = 1.5
         const tw = c.measureText(label).width
-        c.strokeRect(lx - tw / 2 - 4, ly - 13, tw + 8, 16)
-        c.fillText(label, lx, ly)
+        c.strokeRect(lx - tw/2 - 4, chordY - 13, tw + 8, 16)
+        c.fillText(label, lx, chordY)
         c.restore()
       }
 
-      // ── Chord symbol ─────────────────────────────────────────────────────
-      const chordTxt = rbChord(bar.symbol || "")
-      const chordX   = staveX + (isVeryFirst ? 64 : isFirstInRow ? 34 : 8)
-      const chordY   = rowY + CHORD_TY
+      if (measure.length === 1) {
+        // ── Single-chord measure (4 beats) ───────────────────────────────
+        const bar = measure[0]
+        c.save()
+        c.font = `bold 20px ${HW}`; c.textAlign = "left"; c.fillStyle = "#000"
+        c.textBaseline = "alphabetic"
+        c.fillText(rbChord(bar.symbol), staveX + clefW, chordY)
+        c.restore()
 
-      c.save()
-      c.font      = `bold 20px ${HW}`
-      c.textAlign = "left"
-      c.fillStyle = "#000"
-      c.fillText(chordTxt, chordX, chordY)
-      c.restore()
+        // Guide tones: 3rd (left) and 7th (right)
+        const [g3, g7] = bar._gt || [null, null]
+        const noteArea  = BAR_W - clefW - 8
+        const x1 = staveX + clefW + noteArea * 0.28
+        const x2 = staveX + clefW + noteArea * 0.72
+        if (g3) drawHalfNote(c, x1, staveTop, g3)
+        else    drawHalfRest(c, x1, staveTop)
+        if (g7) drawHalfNote(c, x2, staveTop, g7)
+        else    drawHalfRest(c, x2, staveTop)
 
-      // ── Guide-tone notes (manual canvas drawing) ──────────────────────────
-      const [an, dn] = notePairs[barIdx] || []
-      const beats     = bar.beats ?? 4
+      } else {
+        // ── Two-chord measure (2 beats each) ─────────────────────────────
+        const half = BAR_W / 2
+        drawHalfBarLine(c, staveX + half, staveTop)
 
-      // Horizontal space occupied by clef/time-sig on the left of this bar
-      const usedLeft  = isVeryFirst ? 72 : isFirstInRow ? 42 : 14
-      const noteAreaW = BAR_W - usedLeft - 10
-      const x1 = staveX + usedLeft + noteAreaW * 0.28
-      const x2 = staveX + usedLeft + noteAreaW * 0.72
+        measure.forEach((bar, hi) => {
+          const hx       = staveX + hi * half
+          const chordOff = hi === 0 ? clefW : 8
 
-      if (an)       drawHalfNote(c, x1, staveY, an)
-      else          drawHalfRest(c, x1, staveY)
+          c.save()
+          c.font = `bold 18px ${HW}`; c.textAlign = "left"; c.fillStyle = "#000"
+          c.textBaseline = "alphabetic"
+          c.fillText(rbChord(bar.symbol), hx + chordOff, chordY)
+          c.restore()
 
-      if (beats >= 4) {
-        if (dn)     drawHalfNote(c, x2, staveY, dn)
-        else        drawHalfRest(c, x2, staveY)
+          const [g3, g7] = bar._gt || [null, null]
+          // One note per half-bar (the 3rd, most important guide tone)
+          const nx = hx + (hi === 0 ? clefW : 8) + (half - (hi === 0 ? clefW : 8)) * 0.5
+          if (g3) drawHalfNote(c, nx, staveTop, g3)
+          else    drawHalfRest(c, nx, staveTop)
+        })
       }
     }
   }
 }
 
-// ─── Main export ──────────────────────────────────────────────────────────────
-export async function exportLeadSheet({ bars, approachLines, title, tempo }) {
-  const [VF, { jsPDF }] = await Promise.all([
-    import("vexflow"),
+// ─── PDF export ───────────────────────────────────────────────────────────────
+export async function exportLeadSheet({ bars, title, tempo }) {
+  const [, { jsPDF }] = await Promise.all([
+    loadHandwrittenFont(),
     import("jspdf"),
   ])
 
-  try { VF.Flow?.setMusicFont?.("Petaluma") } catch {}
-  try { VF.setMusicFont?.("Petaluma")       } catch {}
-
-  await loadHandwrittenFont()
-
-  const HW       = `"Caveat", "Bradley Hand", "Segoe Script", cursive`
+  const HW       = `"Caveat", "Bradley Hand", cursive`
   const songName = (title || "Lead Sheet").replace(/\s*\([^)]*\)\s*$/, "").toUpperCase()
-  const NROWS    = Math.ceil(bars.length / BPR)
 
-  // ── Assign octaves to all guide-tone notes ────────────────────────────────
+  // Assign guide tones to every bar (E4–F5 range, smooth voice leading)
   let prevMidi = null
-  const notePairs = (approachLines || []).map(line => {
-    const [a, d] = line.phrase || []
-    const an = assignOctave(a, prevMidi)
-    if (an) prevMidi = Note.midi(an) ?? prevMidi
-    const dn = assignOctave(d, prevMidi)
-    if (dn) prevMidi = Note.midi(dn) ?? prevMidi
-    return [an, dn]
+  const enriched = bars.map(bar => {
+    const [t3, t7] = guideTones(bar.symbol)
+    const g3 = assignOctave(t3, prevMidi)
+    if (g3) prevMidi = Note.midi(g3) ?? prevMidi
+    const g7 = assignOctave(t7, prevMidi)
+    if (g7) prevMidi = Note.midi(g7) ?? prevMidi
+    return { ...bar, _gt: [g3, g7] }
   })
 
-  // ── Paginate ──────────────────────────────────────────────────────────────
+  const measures = groupIntoMeasures(enriched)
+  const NROWS    = Math.ceil(measures.length / BPR)
+
   const pageRowCounts = []
   let rowsLeft = NROWS
   pageRowCounts.push(Math.min(rowsLeft, ROWS_P1)); rowsLeft -= ROWS_P1
@@ -358,116 +437,62 @@ export async function exportLeadSheet({ bars, approachLines, title, tempo }) {
     pageRowCounts.push(Math.min(rowsLeft, ROWS_PX)); rowsLeft -= ROWS_PX
   }
 
-  // ── Render each page ──────────────────────────────────────────────────────
   const pdf = new jsPDF({ orientation: "portrait", unit: "in", format: "letter" })
   let rowStart = 0
 
   for (let pi = 0; pi < pageRowCounts.length; pi++) {
-    const canvas   = document.createElement("canvas")
-    canvas.width   = PAGE_W
-    canvas.height  = PAGE_H
-
+    const canvas  = document.createElement("canvas")
+    canvas.width  = PAGE_W
+    canvas.height = PAGE_H
     renderPage({
-      canvas,
-      isFirstPage: pi === 0,
-      songName,
-      tempo: tempo || 120,
-      bars,
-      notePairs,
-      rowStart,
-      rowCount: pageRowCounts[pi],
-      VF,
-      HW,
+      canvas, isFirstPage: pi === 0, songName,
+      tempo: tempo || 120, measures, rowStart,
+      rowCount: pageRowCounts[pi], HW,
     })
-
     if (pi > 0) pdf.addPage()
     pdf.addImage(canvas.toDataURL("image/png", 1.0), "PNG", 0, 0, 8.5, 11)
     rowStart += pageRowCounts[pi]
   }
 
-  const safeName = songName.replace(/[^A-Z0-9 ]/g, "").trim().replace(/ +/g, "_") || "lead_sheet"
-  pdf.save(`${safeName}.pdf`)
-}
-
-// ─── Chord voicing helpers ────────────────────────────────────────────────────
-
-// Get the 4 chord tones (1-3-5-7) from a symbol. Returns note names without octave.
-function chordTones(symbol) {
-  if (!symbol) return null
-  const ch = Chord.get(symbol)
-  if (!ch.notes || ch.notes.length < 2) return null
-  const notes = ch.notes.slice(0, 4)
-  if (notes.length === 3) notes.push(notes[0])  // double root for triads
-  return notes.length >= 4 ? notes : null
-}
-
-// Close-position voicing starting with `notes[0]` at or above `baseMidi`.
-// Returns an array of MIDI numbers ascending from baseMidi.
-function closeVoicing(notes, baseMidi) {
-  const midis = []
-  let floor = baseMidi
-  for (const note of notes) {
-    for (let oct = 2; oct <= 7; oct++) {
-      const m = Note.midi(note + oct)
-      if (m != null && m >= floor) { midis.push(m); floor = m + 1; break }
-    }
-  }
-  return midis
-}
-
-// All 4 rotations (inversions) of a chord as close-position voicings.
-// Each rotation starts at or above `baseMidi`.
-function allInversions(notes, baseMidi) {
-  return notes.map((_, i) => {
-    const rotated = [...notes.slice(i), ...notes.slice(0, i)]
-    return closeVoicing(rotated, baseMidi)
-  })
-}
-
-// Pick the inversion of `notes` whose voicing has minimum total semitone
-// distance to `targetMidis` (the next chord's root position voicing).
-function bestInversionFor(notes, targetMidis, baseMidi) {
-  const invs = allInversions(notes, baseMidi - 6)  // ±6 below base to allow range
-  let best = invs[0], bestDist = Infinity
-  for (const inv of invs) {
-    const len  = Math.min(inv.length, targetMidis.length)
-    const dist = inv.slice(0, len).reduce((s, m, i) => s + Math.abs(m - targetMidis[i]), 0)
-    if (dist < bestDist) { bestDist = dist; best = inv }
-  }
-  return best
-}
-
-// Convert a MIDI number to a MusicXML pitch object.
-function midiToMXLPitch(midi) {
-  const name = Note.fromMidi(midi)  // e.g. "Eb4"
-  return noteToMXL(name)
+  const safe = songName.replace(/[^A-Z0-9 ]/g, "").trim().replace(/ +/g, "_") || "lead_sheet"
+  pdf.save(`${safe}.pdf`)
 }
 
 // ─── MusicXML export ──────────────────────────────────────────────────────────
-// Each measure: half-note chord 1 = root position 1-3-5-7,
-//               half-note chord 2 = voice-leading inversion toward next chord.
-// Opens perfectly in MuseScore (free), Sibelius, Finale, Noteflight.
+// Each logical measure = one <measure>:
+//   • 1-chord measure → half-note chord 1 (root pos) + half-note chord 2 (VL inversion)
+//   • 2-chord measure → half-note chord 1 (root pos) + half-note chord 2 (root pos)
 export function exportMusicXML({ bars, title, tempo }) {
   const songName = (title || "Lead Sheet").replace(/\s*\([^)]*\)\s*$/, "").toUpperCase()
-  const bpm = tempo || 120
-  const BASE_MIDI = 60  // C4 — root voicings start here
+  const bpm      = tempo || 120
+  const BASE     = 60  // C4 — root voicings start here
 
-  // Pre-compute both voicings for every bar
-  const voicings = bars.map((bar, i) => {
-    const tones = chordTones(bar.symbol)
-    if (!tones) return null
+  const measures = groupIntoMeasures(bars)
 
-    const rootMidis = closeVoicing(tones, BASE_MIDI)
-
-    // Voice-lead inversion: minimize distance to next bar's root position
-    const nextTones = chordTones(bars[i + 1]?.symbol)
-    let vlMidis = rootMidis
-    if (nextTones) {
-      const nextRoot = closeVoicing(nextTones, BASE_MIDI)
-      vlMidis = bestInversionFor(tones, nextRoot, BASE_MIDI)
+  // Pre-compute voicings for every measure
+  const voicings = measures.map((measure, mi) => {
+    if (measure.length === 1) {
+      // Single chord: root pos + voice-leading inversion toward next measure
+      const tones = chordTones(measure[0].symbol)
+      if (!tones) return null
+      const rootMidis = closeVoicing(tones, BASE)
+      const nextMeasure = measures[mi + 1]
+      let vlMidis = rootMidis
+      if (nextMeasure) {
+        const nextTones = chordTones(nextMeasure[0].symbol)
+        if (nextTones) {
+          const nextRoot = closeVoicing(nextTones, BASE)
+          vlMidis = bestInversionFor(tones, nextRoot, BASE)
+        }
+      }
+      return [rootMidis, vlMidis]
+    } else {
+      // Two chords: each gets its own root position voicing
+      return measure.map(bar => {
+        const tones = chordTones(bar.symbol)
+        return tones ? closeVoicing(tones, BASE) : null
+      })
     }
-
-    return { rootMidis, vlMidis }
   })
 
   const x = []
@@ -481,12 +506,10 @@ export function exportMusicXML({ bars, title, tempo }) {
 
   let prevSection = null
 
-  bars.forEach((bar, i) => {
-    const beats = bar.beats ?? 4
-    const v     = voicings[i]
-    x.push(`    <measure number="${i + 1}">`)
+  measures.forEach((measure, mi) => {
+    x.push(`    <measure number="${mi + 1}">`)
 
-    if (i === 0) {
+    if (mi === 0) {
       x.push('      <attributes>')
       x.push('        <divisions>2</divisions>')
       x.push('        <key><fifths>0</fifths></key>')
@@ -499,26 +522,31 @@ export function exportMusicXML({ bars, title, tempo }) {
       x.push('      </direction>')
     }
 
-    if (bar.section && bar.section !== prevSection) {
-      prevSection = bar.section
-      const raw   = bar.section.replace(/\s*\(.*\)/g, "").trim()
+    // Section label from first bar of the measure
+    const firstBar = measure[0]
+    if (firstBar.section && firstBar.section !== prevSection) {
+      prevSection = firstBar.section
+      const raw   = firstBar.section.replace(/\s*\(.*\)/g, "").trim()
       const label = raw.length > 7 ? raw[0].toUpperCase() : raw
       x.push('      <direction placement="above"><direction-type>')
       x.push(`        <rehearsal enclosure="square">${esc(label)}</rehearsal>`)
       x.push('      </direction-type></direction>')
     }
 
-    const ch = parseChordForMXL(bar.symbol)
-    if (ch) {
+    // Harmony element(s) — one per chord in the measure
+    measure.forEach((bar, bi) => {
+      const ch = parseChordForMXL(bar.symbol)
+      if (!ch) return
       x.push('      <harmony>')
+      // offset=2 divisions (= 2 beats) tells notation software the 2nd chord starts on beat 3
+      if (measure.length > 1 && bi > 0) x.push('        <offset>2</offset>')
       x.push(`        <root><root-step>${ch.step}</root-step>${ch.alter !== 0 ? `<root-alter>${ch.alter}</root-alter>` : ""}</root>`)
       x.push(`        <kind text="${esc(ch.kindText)}">${ch.kind}</kind>`)
       x.push('      </harmony>')
-    }
+    })
 
-    // Emit a 4-note half-note chord from an array of MIDI numbers.
-    // First note is normal; subsequent notes carry <chord/> to stack them.
-    const addChord = (midis, isFirstChord) => {
+    // Note chords
+    const addChord = (midis) => {
       if (!midis || midis.length === 0) {
         x.push('      <note><rest/><duration>2</duration><type>half</type></note>')
         return
@@ -535,9 +563,14 @@ export function exportMusicXML({ bars, title, tempo }) {
       })
     }
 
-    addChord(v?.rootMidis)
-    if (beats >= 4) addChord(v?.vlMidis)
-    else x.push('      <note><rest/><duration>2</duration><type>half</type></note>')
+    const v = voicings[mi]
+    if (v) {
+      addChord(v[0])
+      addChord(v[1])
+    } else {
+      x.push('      <note><rest/><duration>2</duration><type>half</type></note>')
+      x.push('      <note><rest/><duration>2</duration><type>half</type></note>')
+    }
 
     x.push('    </measure>')
   })

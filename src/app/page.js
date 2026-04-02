@@ -960,7 +960,7 @@ export default function Home() {
             )}
 
             <button
-              onClick={() => exportLeadSheet({ bars, approachLines, title: selectedForm, tempo: originalTempo }).catch(console.error)}
+              onClick={() => exportLeadSheet({ bars, title: selectedForm, tempo: originalTempo }).catch(console.error)}
               style={{ ...buttonStyle("var(--db-c-purple)"), padding: "6px 12px", fontSize: "0.82rem" }}
               title="Export lead sheet as PDF (Real Book style)"
             >
