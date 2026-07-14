@@ -19,15 +19,20 @@ function intervalBetweenRoots(fromRoot, toRoot) {
 }
 
 function isDominantQuality(quality) {
-  return quality === "7" || quality === "7alt"
+  return quality === "7" || quality === "7alt" || quality === "9" ||
+         quality === "7b9" || quality === "7sus4" || quality === "sus4"
 }
 
 function isMinorQuality(quality) {
-  return quality === "min7" || quality === "min6"
+  return quality === "min7" || quality === "min6" || quality === "min" ||
+         quality === "min9" || quality === "min6/9" || quality === "minadd9" ||
+         quality === "min(maj7)"
 }
 
 function isMajorQuality(quality) {
-  return quality === "maj7" || quality === "maj6"
+  return quality === "maj7" || quality === "maj6" || quality === "maj" ||
+         quality === "maj9" || quality === "6/9" || quality === "add9" ||
+         quality === "maj7#11"
 }
 
 function isHalfDimQuality(quality) {

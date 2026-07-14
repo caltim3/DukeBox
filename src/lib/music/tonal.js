@@ -17,6 +17,21 @@ export const QUALITIES = [
   { value: "7alt", label: "7alt" },
   { value: "maj6", label: "6" },
   { value: "min6", label: "m6" },
+  // ── Extended / modal colors (Desert Noir vocabulary) ──
+  { value: "maj", label: "maj (triad)" },
+  { value: "min", label: "m (triad)" },
+  { value: "maj9", label: "maj9" },
+  { value: "9", label: "9" },
+  { value: "6/9", label: "6/9" },
+  { value: "add9", label: "add9" },
+  { value: "sus4", label: "sus" },
+  { value: "7sus4", label: "7sus" },
+  { value: "7b9", label: "7b9" },
+  { value: "maj7#11", label: "maj7#11" },
+  { value: "min9", label: "m9" },
+  { value: "min6/9", label: "m6/9" },
+  { value: "minadd9", label: "m(add9)" },
+  { value: "min(maj7)", label: "m(maj7)" },
 ]
 
 export const QUALITY_TO_SYMBOL = {
@@ -28,10 +43,27 @@ export const QUALITY_TO_SYMBOL = {
   "7alt": "7alt",
   maj6: "6",
   min6: "m6",
+  // ── Extended / modal colors → @tonaljs-recognized symbols ──
+  maj: "",            // major triad
+  min: "m",           // minor triad
+  maj9: "maj9",
+  "9": "9",
+  "6/9": "6/9",
+  add9: "add9",
+  sus4: "sus4",
+  "7sus4": "7sus4",
+  "7b9": "7b9",
+  "maj7#11": "maj7#11",
+  min9: "m9",
+  "min6/9": "m69",
+  minadd9: "madd9",
+  "min(maj7)": "mMaj7",
+  NC: "",             // no chord — playback rests, display handled separately
 }
 
 export function buildChordSymbol(root, quality) {
-  const suffix = QUALITY_TO_SYMBOL[quality] || quality || ""
+  if (quality === "NC" || root == null) return "N.C."
+  const suffix = QUALITY_TO_SYMBOL[quality] ?? quality ?? ""
   return `${root}${suffix}`
 }
 
@@ -254,17 +286,34 @@ export function getRecommendedScalesFromQuality(quality) {
   switch (quality) {
     case "maj7":
     case "maj6":
+    case "maj":
+    case "maj9":
+    case "6/9":
+    case "add9":
       return ["major", "lydian"]
+    case "maj7#11":
+      return ["lydian", "major"]
     case "min7":
     case "min6":
+    case "min":
+    case "min9":
+    case "min6/9":
+    case "minadd9":
       return ["dorian", "aeolian", "melodic minor"]
+    case "min(maj7)":
+      return ["melodic minor", "harmonic minor"]
     case "min7b5":
       return ["locrian", "locrian #2"]
     case "dim7":
       return ["diminished"]
     case "7alt":
+    case "7b9":
       return ["altered", "whole tone", "lydian dominant"]
+    case "sus4":
+    case "7sus4":
+      return ["mixolydian", "dorian"]
     case "7":
+    case "9":
     default:
       return ["mixolydian", "lydian dominant", "altered"]
   }
@@ -457,10 +506,19 @@ export function transposeChart(bars, fromRoot, toRoot) {
   if (semitones === 0) return bars
 
   return bars.map((bar) => {
+    if (bar.quality === "NC") return bar   // N.C. rest — nothing to transpose
     const rootChroma = Note.chroma(bar.root)
     if (rootChroma == null) return bar
     const newRoot = JAZZ_SPELLING[(rootChroma + semitones) % 12]
-    return { ...bar, root: newRoot, symbol: buildChordSymbol(newRoot, bar.quality) }
+    // Carry a slash bass (tonic pedals etc.) through the transposition.
+    let newBass = bar.bass
+    if (bar.bass != null) {
+      const bassChroma = Note.chroma(bar.bass)
+      if (bassChroma != null) newBass = JAZZ_SPELLING[(bassChroma + semitones) % 12]
+    }
+    let symbol = buildChordSymbol(newRoot, bar.quality)
+    if (newBass != null) symbol += `/${newBass}`
+    return { ...bar, root: newRoot, bass: newBass, symbol }
   })
 }
 
@@ -492,7 +550,9 @@ function buildFromSemitones(root, list) {
  */
 export function martinoMapper(root, quality) {
   const q = quality || ""
-  if (q === "maj7" || q === "maj6")
+  const isMaj = q === "maj7" || q === "maj6" || q === "maj" || q === "maj9" ||
+                q === "maj7#11" || q === "6/9" || q === "add9"
+  if (isMaj)
     return { displayRoot: noteAtSemitones(root, 9), displayQuality: "min7" }
   if (q === "min7b5" || q === "dim7")
     return { displayRoot: root, displayQuality: "min7b5" }

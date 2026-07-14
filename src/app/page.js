@@ -19,7 +19,7 @@ import {
   applyScaleFilter,
 } from "@/lib/music/tonal"
 import { analyzeProgressionContext } from "@/lib/music/harmony"
-import { FORMS, FORM_CATEGORIES } from "@/lib/music/forms"
+import { FORMS, FORM_CATEGORIES, DESERT_NOIR_META } from "@/lib/music/forms"
 import { chordToRoman } from "@/lib/music/roman"
 import { DRUM_STYLES } from "@/lib/music/audioConstants"
 import { exportLeadSheet, exportMusicXML } from "@/lib/music/leadsheet"
@@ -297,6 +297,16 @@ export default function Home() {
   const romanNumerals = useMemo(() => {
     return bars.map((bar) => chordToRoman(bar.root, bar.quality, keyRoot, keyMode))
   }, [bars, keyRoot, keyMode])
+
+  // Desert Noir originals carry pedagogy + section (repeat/note) metadata.
+  const dnMeta = DESERT_NOIR_META[selectedForm] || null
+  const dnSectionMeta = useMemo(() => {
+    const secs = FORMS[selectedForm]?.sections
+    if (!secs) return null
+    const map = {}
+    secs.forEach((s) => { if (!(s.name in map)) map[s.name] = { repeat: s.repeat, note: s.note } })
+    return map
+  }, [selectedForm])
 
   // Human-readable bar labels that account for splits: 1, 2.1, 2.2, 3 …
   // Consecutive bars sharing the same sub-beat value are grouped into one logical measure.
@@ -1429,7 +1439,17 @@ export default function Home() {
                       marginBottom: "2px",
                     }}
                   >
-                    {bar.section} SECTION
+                    <span>{bar.section} SECTION</span>
+                    {dnSectionMeta?.[bar.section]?.repeat > 1 && (
+                      <span style={{ marginLeft: "8px", padding: "1px 7px", borderRadius: "20px", border: "1px solid var(--db-accent)", fontSize: "0.68rem", letterSpacing: "0.05em" }}>
+                        ×{dnSectionMeta[bar.section].repeat}
+                      </span>
+                    )}
+                    {dnSectionMeta?.[bar.section]?.note && (
+                      <span style={{ marginLeft: "10px", fontWeight: 400, fontStyle: "italic", opacity: 0.7, letterSpacing: "0.02em", textTransform: "none" }}>
+                        {dnSectionMeta[bar.section].note}
+                      </span>
+                    )}
                   </div>
                 )
               }
@@ -1737,6 +1757,8 @@ export default function Home() {
             </div>
           )
         })()}
+
+        {dnMeta && <DesertNoirPanel meta={dnMeta} />}
       </section>
 
     </main>
@@ -1749,6 +1771,102 @@ function InfoBlock({ title, value, color }) {
     <div style={{ marginBottom: "20px" }}>
       <div style={eyebrowSmallStyle}>{title}</div>
       <div style={{ fontSize: "1.1rem", color: color || "var(--db-text)" }}>{value}</div>
+    </div>
+  )
+}
+
+// ─── Desert Noir: pedagogy panel + Idea Dice ─────────────────────────────────
+const DN_PROMPTS = {
+  Bridge: [
+    "Change only the meter, not the chords",
+    "Hold 1 in the bass while upper structures move",
+    "Move to the parallel mode and preserve the melody contour",
+    "Remove the bass for the entire bridge",
+    "Use one chromatic chord once, then never explain it",
+    "Turn the groove into a slow processional",
+    "Shift the melody by one eighth note",
+    "Let the bridge crescendo physically while harmony barely changes",
+  ],
+  Melody: [
+    "Use only five distinct notes",
+    "Start every phrase on 9",
+    "Repeat the hook three times before changing one note",
+    "End each phrase on a non-chord tone",
+    "Write a two-bar question and two-bar answer",
+    "Reserve the widest interval for the last A section",
+    "Use one repeated note as percussion",
+    "Make the bridge melody a rhythmic displacement of the main hook",
+  ],
+  Arrangement: [
+    "Bass and drums alone for eight bars",
+    "Second guitar may play only harmonics",
+    "No cymbals until the final return",
+    "Use a dry lead tone in the wettest section",
+    "Double the melody only for four bars",
+    "Replace chords with two-note shells",
+    "Leave one full bar of silence before the return",
+    "Let delay feedback occupy the final two bars",
+  ],
+}
+
+function DesertNoirPanel({ meta }) {
+  const pick = (a) => a[Math.floor(Math.random() * a.length)]
+  const roll = () => ({
+    Bridge: pick(DN_PROMPTS.Bridge),
+    Melody: pick(DN_PROMPTS.Melody),
+    Arrangement: pick(DN_PROMPTS.Arrangement),
+  })
+  const [dice, setDice] = useState(roll)
+
+  const cards = [
+    ["Groove", meta.groove],
+    ["Bridge design", meta.bridgeTechnique],
+    ["Melody discipline", meta.melodyNote],
+    ["Tone", meta.tone],
+    ["Arrangement", meta.arrangement],
+  ].filter(([, v]) => v)
+
+  return (
+    <div style={{ ...panelStyle, marginTop: "24px" }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: "10px", flexWrap: "wrap", marginBottom: "6px" }}>
+        <div style={{ fontSize: "0.72rem", fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--db-accent)" }}>
+          {meta.collection} · {meta.number}
+        </div>
+        <div style={{ fontStyle: "italic", opacity: 0.8 }}>{meta.vibe} · {meta.modeLabel}</div>
+        <div style={{ marginLeft: "auto", fontSize: "0.8rem", opacity: 0.65 }}>{meta.meter}</div>
+      </div>
+      {meta.description && <p style={{ margin: "0 0 14px", lineHeight: 1.55, fontSize: "1.02rem" }}>{meta.description}</p>}
+
+      {(meta.melodyLine || meta.bassLine) && (
+        <div style={{ display: "flex", gap: "22px", flexWrap: "wrap", marginBottom: "14px", fontFamily: "var(--font-mono, monospace)", fontSize: "0.82rem" }}>
+          {meta.melodyLine && <div><span style={{ opacity: 0.6 }}>Melody </span>{meta.melodyLine}</div>}
+          {meta.bassLine && <div><span style={{ opacity: 0.6 }}>Bass </span>{meta.bassLine}</div>}
+        </div>
+      )}
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "12px", marginBottom: "18px" }}>
+        {cards.map(([title, value]) => (
+          <div key={title} style={{ border: "1px solid var(--db-panel-border)", borderRadius: "10px", padding: "12px 14px" }}>
+            <div style={{ fontSize: "0.66rem", fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--db-accent)", marginBottom: "6px" }}>{title}</div>
+            <div style={{ fontSize: "0.92rem", lineHeight: 1.5, opacity: 0.9 }}>{value}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ border: "1px dashed var(--db-accent)", borderRadius: "12px", padding: "14px 16px", background: "rgba(224,180,76,0.06)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
+          <div style={{ fontSize: "0.72rem", fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--db-accent)" }}>✦ Idea Dice</div>
+          <button onClick={() => setDice(roll())} style={{ marginLeft: "auto", padding: "4px 12px", borderRadius: "8px", border: "1px solid var(--db-accent)", background: "transparent", color: "var(--db-text)", cursor: "pointer", fontSize: "0.8rem" }}>
+            Roll
+          </button>
+        </div>
+        <div style={{ display: "grid", gap: "4px", fontSize: "0.95rem", lineHeight: 1.5 }}>
+          <div><b>Bridge:</b> {dice.Bridge}</div>
+          <div><b>Melody:</b> {dice.Melody}</div>
+          <div><b>Arrangement:</b> {dice.Arrangement}</div>
+        </div>
+        <div style={{ fontSize: "0.75rem", opacity: 0.6, marginTop: "8px" }}>Use a result as a revision constraint, not another layer to add.</div>
+      </div>
     </div>
   )
 }

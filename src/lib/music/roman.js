@@ -24,14 +24,33 @@ const QUALITY_SUFFIX = {
   "7alt":  "7alt",
   min7b5:  "ø7",
   dim7:    "°7",
+  // ── Extended / modal colors ──
+  maj:       "",
+  min:       "-",
+  maj9:      "Δ9",
+  "9":       "9",
+  "6/9":     "6/9",
+  add9:      "add9",
+  sus4:      "sus",
+  "7sus4":   "7sus",
+  "7b9":     "7♭9",
+  "maj7#11": "Δ7♯11",
+  min9:      "-9",
+  "min6/9":  "-6/9",
+  minadd9:   "-add9",
+  "min(maj7)": "-Δ7",
 }
 
 function isUppercase(quality) {
-  return quality === "maj7" || quality === "maj6" ||
-         quality === "7"    || quality === "7alt"
+  return quality === "maj7" || quality === "maj6" || quality === "maj" ||
+         quality === "maj9" || quality === "6/9" || quality === "add9" ||
+         quality === "maj7#11" || quality === "7" || quality === "7alt" ||
+         quality === "9" || quality === "7b9" || quality === "sus4" ||
+         quality === "7sus4"
 }
 
 export function chordToRoman(root, quality, keyRoot, keyMode = "major") {
+  if (quality === "NC" || root == null) return "N.C."
   const rootChroma = Note.chroma(root)
   const keyChroma  = Note.chroma(keyRoot)
 
