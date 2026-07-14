@@ -157,11 +157,13 @@ function walkingBass(bars, timing) {
   const events = []
   bars.forEach((bar, b) => {
     const { measure, beat: startBeat, beats } = timing[b]
+    if (bar.quality === "NC" || bar.symbol === "N.C.") return  // rest — no bass
     const chord = Chord.get(bar.symbol)
     const notes = chord.notes || [bar.root]
     const ivls  = chord.intervals || []
 
-    const root    = notes[0] || bar.root
+    // Slash chords (tonic pedals) sound their written bass note.
+    const root    = bar.bass || notes[0] || bar.root
     const fifth   = notes.find((_, i) => ivls[i] === "5P")          || root
     const third   = notes.find((_, i) => ivls[i]?.startsWith("3"))  || root
 
@@ -321,6 +323,8 @@ export async function startPlayback({
 
     bars.forEach((bar, i) => {
       const { measure, beat: barBeat, beats } = timing[i]
+      // N.C. — silence for the bar (prevVoicing carries so the next chord voice-leads).
+      if (bar.quality === "NC" || bar.symbol === "N.C.") return
       // Alt chords voice as plain dom7 — "alt" is a scale/tension suggestion, not a chord type
       const isAlt = bar.quality?.toLowerCase().includes("alt") || bar.symbol?.toLowerCase().includes("alt")
       const voicingSymbol = isAlt ? `${bar.root}7` : bar.symbol

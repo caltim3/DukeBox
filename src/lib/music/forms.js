@@ -1,6 +1,8 @@
 // Jazz form library for DukeBox
 // Original 6 forms + ~65 songs organized by category
 
+import { DESERT_NOIR_FORMS, DESERT_NOIR_META } from "./desertNoir"
+
 // ─── bar helpers ──────────────────────────────────────────────────────────────
 function b(root, quality, section = "A") {
   const sym = {
@@ -930,6 +932,7 @@ export const FORM_CATEGORIES = {
     "Sweet Dreams – Patsy Cline (G)",
     "Bittersweet – BHTM (A)",
   ],
+  "Desert Noir": Object.keys(DESERT_NOIR_FORMS),
 }
 
 export const FORMS = {
@@ -1010,6 +1013,13 @@ export const FORMS = {
   "Honky Tonk Women – Stones (G)":     HONKY_TONK_WOMEN,
   "Sweet Dreams – Patsy Cline (G)":    SWEET_DREAMS,
   "Bittersweet – BHTM (A)":            BITTERSWEET,
+  // ── Desert Noir (composer originals) ──────────────────────
+  ...DESERT_NOIR_FORMS,
 }
 
 export const FORM_NAMES = Object.keys(FORMS)
+
+// Per-song pedagogy + section metadata for the Desert Noir originals.
+// Keyed by form name; undefined for all other forms.
+export { DESERT_NOIR_META }
+export const DESERT_NOIR_FORM_NAMES = Object.keys(DESERT_NOIR_FORMS)
