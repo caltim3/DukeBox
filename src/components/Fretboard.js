@@ -10,6 +10,8 @@ const TUNINGS = {
   "Drop D":  ["D","A","D","G","B","E"],
   "Open G":  ["D","G","D","G","B","D"],
   DADGAD:    ["D","A","D","G","A","D"],
+  "Open D":  ["D","A","D","Gb","A","D"],
+  "Open E":  ["E","B","E","Ab","B","E"],
 }
 
 const FRET_COUNT   = 12

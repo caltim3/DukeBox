@@ -38,4 +38,30 @@ export const DRUM_STYLES = [
     kick:  [0.50, 0,    0,    0,    0,    0,    0,    0   ],
     hihat: [0,    0,    0.44, 0,    0,    0,    0.44, 0   ],
   },
+  // ── Ported from Bebop Blueprint rhythmic styles ──────────────────────────
+  // BB's snare/sidestick voice maps onto the ride sample in DukeBox's kit.
+  {
+    name:  "Freddie Green",
+    // Solid four feel: kick on all four beats, sidestick 2 & 4, hat on every 8th
+    ride:  [0,    0,    0.50, 0,    0,    0,    0.50, 0   ],
+    kick:  [0.75, 0,    0.58, 0,    0.65, 0,    0.58, 0   ],
+    hihat: [0.42, 0.40, 0.42, 0.40, 0.42, 0.40, 0.42, 0.40],
+  },
+  {
+    name:  "Charleston",
+    // Accents on 1 and the "and" of 2 — the rest of the bar breathes
+    ride:  [0,    0,    0,    0.85, 0,    0,    0,    0   ],
+    kick:  [0.85, 0,    0,    0.55, 0,    0,    0,    0   ],
+    hihat: [0.40, 0,    0,    0,    0,    0,    0.35, 0   ],
+  },
+  {
+    name:  "Son Clave 3:2",
+    // Two-bar pattern (16 slots). 3-side: 1, and-of-2, 4 · 2-side: 2, 3
+    ride:  [0.80, 0,    0,    0.72, 0,    0,    0.72, 0,
+            0,    0,    0.72, 0,    0.72, 0,    0,    0   ],
+    kick:  [0.70, 0,    0,    0,    0,    0,    0.58, 0,
+            0,    0,    0.58, 0,    0,    0,    0,    0   ],
+    hihat: [0.30, 0.28, 0.30, 0.28, 0.30, 0.28, 0.30, 0.28,
+            0.30, 0.28, 0.30, 0.28, 0.30, 0.28, 0.30, 0.28],
+  },
 ]

@@ -176,5 +176,88 @@ export function getVoiceLedVoicing(symbol, prevVoicing = null, rootless = false)
   scored.sort((a, b) => b.score - a.score)
   // 80% chance best, 20% second-best (adds natural variation)
   const pick = (scored.length > 1 && Math.random() > 0.8) ? scored[1] : scored[0]
-  return pick.realized
+  return refineVoicingRegister(pick.realized, prevVoicing, chord.tonic ?? null)
+}
+
+// ─── v2.1 register re-ranker — ported from Bebop Blueprint ───────────────────
+// Takes the chosen voicing, tries small octave mutations of the top/bottom
+// notes, and re-scores for a preferred comping pocket: bottom in E3–C4,
+// top in G4–C5. Penalizes semitone crunches, rewards compact 3rd–5th stacks
+// and the presence of guide tones, and keeps smoothness vs the previous voicing.
+
+const PREFER_BOTTOM_MIN = 52  // E3
+const PREFER_BOTTOM_MAX = 60  // C4
+const PREFER_TOP_MIN    = 67  // G4
+const PREFER_TOP_MAX    = 72  // C5
+
+function shiftOctave(noteWithOctave, delta) {
+  const m = String(noteWithOctave).match(/^([A-G][b#]?)(-?\d+)$/)
+  if (!m) return noteWithOctave
+  return `${m[1]}${parseInt(m[2], 10) + delta}`
+}
+
+function refineVoicingRegister(voicing, prevVoicing, rootName) {
+  if (!Array.isArray(voicing) || voicing.length < 2) return voicing
+
+  const mutate = (v, topShift, botShift) =>
+    v.map((n, i) => {
+      if (i === 0 && botShift) return shiftOctave(n, botShift)
+      if (i === v.length - 1 && topShift) return shiftOctave(n, topShift)
+      return n
+    })
+
+  const candidates = [
+    voicing,
+    mutate(voicing, +1, 0), mutate(voicing, 0, +1),
+    mutate(voicing, -1, 0), mutate(voicing, 0, -1),
+  ]
+
+  const rootChroma = rootName != null ? Note.chroma(rootName) : null
+
+  function scoreVoicing(v) {
+    const midis = v.map(midiOf).filter(m => m > 0).sort((a, b) => a - b)
+    if (midis.length !== v.length) return -1e6
+    let score = 0
+
+    const bottom = midis[0], top = midis[midis.length - 1]
+    if (bottom < PREFER_BOTTOM_MIN) score -= (PREFER_BOTTOM_MIN - bottom) * 1.5
+    if (bottom > PREFER_BOTTOM_MAX) score -= (bottom - PREFER_BOTTOM_MAX) * 1.0
+    if (top < PREFER_TOP_MIN)       score -= (PREFER_TOP_MIN - top) * 1.2
+    if (top > PREFER_TOP_MAX)       score -= (top - PREFER_TOP_MAX) * 1.2
+
+    // Adjacent intervals: no 1–2 semitone crunch; reward 3–7, avoid huge gaps
+    for (let i = 1; i < midis.length; i++) {
+      const d = midis[i] - midis[i - 1]
+      if (d <= 1) score -= 28
+      else if (d === 2) score -= 14
+      else if (d >= 3 && d <= 7) score += 7
+      else if (d >= 10) score -= (d - 9) * 2.2
+    }
+
+    // Encourage presence of guide tones (3rd and 7th; dim7's bb7 counts)
+    if (rootChroma != null) {
+      const pcs = midis.map(m => m % 12)
+      const has3 = pcs.includes((rootChroma + 4) % 12) || pcs.includes((rootChroma + 3) % 12)
+      const has7 = pcs.includes((rootChroma + 11) % 12) || pcs.includes((rootChroma + 10) % 12)
+                || pcs.includes((rootChroma + 9) % 12)
+      if (has3) score += 10
+      if (has7) score += 10
+    }
+
+    // Smoothness vs previous voicing
+    if (Array.isArray(prevVoicing) && prevVoicing.length === v.length) {
+      const prev = prevVoicing.map(midiOf).sort((a, b) => a - b)
+      let total = 0
+      for (let i = 0; i < prev.length; i++) total += Math.abs(prev[i] - midis[i])
+      score -= total * 0.5
+    }
+    return score
+  }
+
+  let best = voicing, bestScore = -1e9
+  for (const c of candidates) {
+    const s = scoreVoicing(c)
+    if (s > bestScore) { bestScore = s; best = c }
+  }
+  return best
 }

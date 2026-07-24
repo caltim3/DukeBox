@@ -848,6 +848,122 @@ const BITTERSWEET = {
 }
 
 // ─── Form catalog ─────────────────────────────────────────────────────────────
+// ─── Ported from Bebop Blueprint (caltim3/tonal) — progressions DukeBox lacked ─
+// Practice patterns, unique standards, alternate gypsy arrangements, and the
+// Dead / Stones catalog. Arrangements that differ from existing DukeBox forms
+// are kept as separate labeled entries (never merged).
+
+const BB_I_V7 = {
+  keyRoot: "C", keyMode: "major", tempo: 120,
+  bars: [...s("Cmaj7"), ...s("G7")],
+}
+
+const BB_VI_II_V_I = {
+  keyRoot: "C", keyMode: "major", tempo: 120,
+  bars: [...s("Am7"), ...s("Dm7"), ...s("G7"), ...s("Cmaj7")],
+}
+
+const BB_MINOR_251 = {
+  keyRoot: "G", keyMode: "minor", tempo: 110,
+  bars: [...s("Am7b5"), ...s("D7alt"), ...s("Gm7"), ...s("Gm7")],
+}
+
+// ii-V-I-I through all twelve keys via the circle of fourths, each key twice.
+const BB_251_ALL_KEYS = {
+  keyRoot: "C", keyMode: "major", tempo: 130,
+  bars: [
+    ["Dm7","G7","Cmaj7"],["Gm7","C7","Fmaj7"],["Cm7","F7","Bbmaj7"],
+    ["Fm7","Bb7","Ebmaj7"],["Bbm7","Eb7","Abmaj7"],["Ebm7","Ab7","Dbmaj7"],
+    ["Abm7","Db7","Gbmaj7"],["C#m7","F#7","Bmaj7"],["F#m7","B7","Emaj7"],
+    ["Bm7","E7","Amaj7"],["Em7","A7","Dmaj7"],["Am7","D7","Gmaj7"],
+  ].flatMap(([ii, V, I]) => [
+    ...s(ii), ...s(V), ...s(I), ...s(I),
+    ...s(ii), ...s(V), ...s(I), ...s(I),
+  ]),
+}
+
+// Freddie King — major/minor/diminished blend. The D/A–D/C measure keeps its
+// walking slash-bass line via explicit bass fields.
+const BB_SAME_OLD_BLUES = {
+  keyRoot: "D", keyMode: "major", tempo: 100,
+  bars: [
+    ...s("D"), ...s("F#7"), ...s("Bm"), ...s("Bm"),
+    ...s("D"), ...s("F#7"), ...s("Bm"), ...s("Am7 D9"),
+    ...s("G"), ...s("G#dim"),
+    { root: "D", quality: "maj7", symbol: "Dmaj7/A", section: "A", beats: 2, bass: "A" },
+    { root: "D", quality: "maj7", symbol: "Dmaj7/C", section: "A", beats: 2, bass: "C" },
+    ...s("B7"),
+    ...s("E7"), ...s("A7"), ...s("D"), ...s("A7"),
+  ],
+}
+
+const BB_IMPRESSIONS = {
+  keyRoot: "D", keyMode: "minor", tempo: 190,
+  bars: [
+    ...Array.from({ length: 8 }, () => s("Dm7", "A")).flat(),
+    ...Array.from({ length: 8 }, () => s("Dm7", "A2")).flat(),
+    ...Array.from({ length: 8 }, () => s("Ebm7", "B")).flat(),
+    ...Array.from({ length: 8 }, () => s("Dm7", "A3")).flat(),
+  ],
+}
+
+const BB_ROSE_ROOM_TRAD = {
+  keyRoot: "Ab", keyMode: "major", tempo: 160,
+  bars: [
+    "Bb7","Eb7","Abmaj7","Ab6","Ebm7","Ab7","Dbmaj7","Db6",
+    "Dbm7","Gb7","Abmaj7","F7","Bb7","Bb7","Bbm7","Eb7",
+    "Bb7","Eb7","Abmaj7","Ab6","Ebm7","Ab7","Dbmaj7","Db6",
+    "Dbm7","Gb7","Abmaj7","F7","Bb7","Eb7","Ab6","F7",
+  ].flatMap(c => s(c)),
+}
+
+const BB_DREAMS_ALT = {
+  keyRoot: "Bb", keyMode: "major", tempo: 185,
+  bars: [
+    "Bb6 G7","Cm7 F7","Bb6 Bbm6","F6 F7",
+    "Bb6 D7","Gm7 C7","F6 F#dim7","Bb6 F7",
+    "Bb6 G7","Cm7 F7","Bb6 Bbm6","F6 F7",
+    "Bb6 D7","Gm7 C7","F6 F7","Bb6",
+  ].flatMap(c => s(c)),
+}
+
+const BB_ALTHEA = {
+  keyRoot: "E", keyMode: "major", tempo: 100,
+  bars: [
+    ...["Bm","A","E","A","Bm","A","E","E"].flatMap(c => s(c, "Verse")),
+    ...["Bm","A","E","A","Bm","A","E","E"].flatMap(c => s(c, "Verse")),
+    ...["A","C#m","D","A","C#m","E","Bm","A","E"].flatMap(c => s(c, "Chorus")),
+  ],
+}
+
+const BB_SCARLET_BEGONIAS = {
+  keyRoot: "E", keyMode: "major", tempo: 102,
+  bars: [
+    ...["B","E","B","A","B"].flatMap(c => s(c, "Intro")),
+    ...["E","B","E","B","A","E","A","E","A","E","A","E","B"].flatMap(c => s(c, "Verse")),
+    ...["F#","B","A","E","F#","B","A","E","F#","A","B"].flatMap(c => s(c, "Bridge")),
+    ...["E","B","E","B","A","E","A","E","A","E","A","E","B"].flatMap(c => s(c, "Verse")),
+    ...["B","A","B","E","B","A","B"].flatMap(c => s(c, "Outro")),
+  ],
+}
+
+const BB_DEAD_FLOWERS = {
+  keyRoot: "D", keyMode: "major", tempo: 130,
+  bars: [
+    ...["D","A","G","D","D","A","G","D"].flatMap(c => s(c, "Verse")),
+    ...["A","D","A","D"].flatMap(c => s(c, "Pre")),
+    ...["G","D","D","G","D","D","G","D","D","D","A","G","D"].flatMap(c => s(c, "Chorus")),
+  ],
+}
+
+const BB_LOSER = {
+  keyRoot: "A", keyMode: "minor", tempo: 72,
+  bars: [
+    ...["Am","G","C","D","C","Em","Am","Am","C G","Em","D","C","C","Am","G","Am"].flatMap(c => s(c, "Verse")),
+    ...["G","D","A","G","D","A","G","D","A","C B7","Am","G D","Am"].flatMap(c => s(c, "Chorus")),
+  ],
+}
+
 export const FORM_CATEGORIES = {
   "Practice": [
     "Custom",
@@ -858,6 +974,10 @@ export const FORM_CATEGORIES = {
     "Rhythm Changes (Bb)",
     "Modal / So What (Dm)",
     "ii-V-I Etude (C)",
+    "I-V7 Vamp (C)",
+    "VI-II-V-I (C)",
+    "Minor ii-V-i (Gm)",
+    "ii-V-I All Keys Cycle",
   ],
   "Blues": [
     "Key to the Highway (A)",
@@ -894,6 +1014,7 @@ export const FORM_CATEGORIES = {
     "Embraceable You (G)",
     "There Will Never Be Another You (Eb)",
     "Days of Wine and Roses (F)",
+    "Impressions (Dm)",
   ],
   "Bebop": [
     "Rhythm Changes (Standard)",
@@ -913,7 +1034,9 @@ export const FORM_CATEGORIES = {
     "Nuages (G)",
     "Djangology (G)",
     "I'll See You in My Dreams (F)",
+    "I'll See You in My Dreams – Alt (Bb)",
     "Rose Room (Ab)",
+    "Rose Room – Traditional (Ab)",
     "Sweet Georgia Brown (Ab)",
     "After You've Gone (C)",
     "Belleville (D)",
@@ -931,6 +1054,11 @@ export const FORM_CATEGORIES = {
     "Honky Tonk Women – Stones (G)",
     "Sweet Dreams – Patsy Cline (G)",
     "Bittersweet – BHTM (A)",
+    "Althea – Grateful Dead (E)",
+    "Scarlet Begonias – Grateful Dead (E)",
+    "Loser – Grateful Dead (Am)",
+    "Dead Flowers – Stones (D)",
+    "Same Old Blues – Freddie King (D)",
   ],
   "Desert Noir": Object.keys(DESERT_NOIR_FORMS),
 }
@@ -946,6 +1074,10 @@ export const FORMS = {
   "Rhythm Changes (Bb)":               RHYTHM_CHANGES_BB,
   "Modal / So What (Dm)":              MODAL_D,
   "ii-V-I Etude (C)":                  II_V_I_C,
+  "I-V7 Vamp (C)":                     BB_I_V7,
+  "VI-II-V-I (C)":                     BB_VI_II_V_I,
+  "Minor ii-V-i (Gm)":                 BB_MINOR_251,
+  "ii-V-I All Keys Cycle":             BB_251_ALL_KEYS,
   // ── Blues ─────────────────────────────────────────────────
   "Key to the Highway (A)":            KEY_TO_HIGHWAY,
   "Now's The Time (F)":                NOWS_THE_TIME,
@@ -979,6 +1111,7 @@ export const FORMS = {
   "Embraceable You (G)":               EMBRACEABLE_YOU,
   "There Will Never Be Another You (Eb)": THERE_WILL_NEVER,
   "Days of Wine and Roses (F)":        DAYS_OF_WINE_AND_ROSES,
+  "Impressions (Dm)":                  BB_IMPRESSIONS,
   // ── Bebop ─────────────────────────────────────────────────
   "Rhythm Changes (Standard)":         RHYTHM_CHANGES_BB,
   "Rhythm Changes (Bebop)":            RHYTHM_CHANGES_BEBOP,
@@ -996,7 +1129,9 @@ export const FORMS = {
   "Nuages (G)":                        NUAGES,
   "Djangology (G)":                    DJANGOLOGY,
   "I'll See You in My Dreams (F)":     ILL_SEE_YOU_DJANGO,
+  "I'll See You in My Dreams – Alt (Bb)": BB_DREAMS_ALT,
   "Rose Room (Ab)":                    ROSE_ROOM_DJANGO,
+  "Rose Room – Traditional (Ab)":      BB_ROSE_ROOM_TRAD,
   "Sweet Georgia Brown (Ab)":          SWEET_GEORGIA_BROWN,
   "After You've Gone (C)":             AFTER_YOUVE_GONE,
   "Belleville (D)":                    BELLEVILLE,
@@ -1013,6 +1148,11 @@ export const FORMS = {
   "Honky Tonk Women – Stones (G)":     HONKY_TONK_WOMEN,
   "Sweet Dreams – Patsy Cline (G)":    SWEET_DREAMS,
   "Bittersweet – BHTM (A)":            BITTERSWEET,
+  "Althea – Grateful Dead (E)":        BB_ALTHEA,
+  "Scarlet Begonias – Grateful Dead (E)": BB_SCARLET_BEGONIAS,
+  "Loser – Grateful Dead (Am)":        BB_LOSER,
+  "Dead Flowers – Stones (D)":         BB_DEAD_FLOWERS,
+  "Same Old Blues – Freddie King (D)": BB_SAME_OLD_BLUES,
   // ── Desert Noir (composer originals) ──────────────────────
   ...DESERT_NOIR_FORMS,
 }

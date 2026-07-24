@@ -3,6 +3,7 @@ import { Chord, Note } from "@tonaljs/tonal"
 import { initSamplers, getSamplers } from "./samples"
 import { COMPING_STYLES, DEFAULT_COMPING_STYLE, getVoiceLedVoicing } from "./comping"
 import { DRUM_STYLES } from "./audioConstants"
+import { styledWalkingBass, DEFAULT_BASS_STYLE } from "./bassStyles"
 export { DRUM_STYLES }
 
 const JAZZ_SPELLING = {
@@ -220,14 +221,19 @@ function drumEvents(totalBeats, pattern) {
   const { ride: RIDE_V, kick: KICK_V, hihat: HIHAT_V } = pattern
   const events = []
   const numMeasures = Math.ceil(totalBeats / 4)
+  // Patterns may span multiple measures (e.g. Son Clave 3:2 = 16 slots / 2 bars);
+  // cycle through the pattern's measures as the chart advances.
+  const patternMeasures = Math.max(1, Math.floor(RIDE_V.length / 8))
   for (let b = 0; b < numMeasures; b++) {
+    const offset = (b % patternMeasures) * 8
     for (let s = 0; s < 8; s++) {
       const beat = Math.floor(s / 2)
       const sub  = (s % 2) * 2   // sixteenth position: 0 or 2
       const t    = `${b}:${beat}:${sub}`
-      if (RIDE_V[s])  events.push({ time: t, inst: "ride",  vel: RIDE_V[s] })
-      if (KICK_V[s])  events.push({ time: t, inst: "kick",  vel: KICK_V[s] })
-      if (HIHAT_V[s]) events.push({ time: t, inst: "hihat", vel: HIHAT_V[s] })
+      const p    = offset + s
+      if (RIDE_V[p])  events.push({ time: t, inst: "ride",  vel: RIDE_V[p] })
+      if (KICK_V[p])  events.push({ time: t, inst: "kick",  vel: KICK_V[p] })
+      if (HIHAT_V[p]) events.push({ time: t, inst: "hihat", vel: HIHAT_V[p] })
     }
   }
   return events
@@ -277,6 +283,8 @@ export async function startPlayback({
   playMelody    = false,
   drumStyle     = 0,
   compingStyle  = DEFAULT_COMPING_STYLE,
+  bassStyle     = DEFAULT_BASS_STYLE,
+  bassComplexity = 0.5,
   onBar         = null,
   onStop        = null,
 }) {
@@ -357,10 +365,14 @@ export async function startPlayback({
     })
   }
 
-  // Walking bass — upright bass sampler with velocity, jitter, and round-robin humanization
+  // Walking bass — upright bass sampler with velocity, jitter, and round-robin humanization.
+  // "Classic DukeBox" uses the original root–5th–3rd–approach generator; the
+  // bassist personalities (Chambers, Brown, Carter, Mingus, Pettiford) use the
+  // Bebop Blueprint line generator with the complexity dial.
   if (playBass) {
     const { bass: bassPlayers } = getSamplers()
-    makePart(walkingBass(bars, timing), (time, ev) => {
+    const bassEvents = styledWalkingBass(bars, timing, bassStyle, bassComplexity)
+    makePart(bassEvents.length ? bassEvents : walkingBass(bars, timing), (time, ev) => {
       if (!bassPlayers) return
       const key = buildBassKey(ev.note)
       if (!key) return
