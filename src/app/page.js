@@ -1639,6 +1639,9 @@ export default function Home() {
 
                 <label style={inlineLabelStyle}>
                   <input type="checkbox" checked={playDrums} onChange={(e) => setPlayDrums(e.target.checked)} />
+                  {/* Named like the other instruments — this used to show only the
+                      style name ("Jazz Ride"), so it didn't read as the drums toggle. */}
+                  Drums
                   <button
                     onClick={() => setDrumStyleIdx(i => (i + 1) % DRUM_STYLES.length)}
                     style={{
