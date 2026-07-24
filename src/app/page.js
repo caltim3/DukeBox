@@ -33,6 +33,8 @@ import { parseTonalUserSongs } from "@/lib/music/importTonal"
 import Fretboard from "@/components/Fretboard"
 import Runway from "@/components/Runway"
 import MetronomePanel from "@/components/MetronomePanel"
+import GigMode from "@/components/GigMode"
+import { useAuth, useCloudLibrary } from "@/lib/cloud"
 
 // audio.js (Tone.js) is loaded lazily on first play so AudioContext is only
 // created after a user gesture, avoiding the browser autoplay-policy warning.
@@ -165,11 +167,17 @@ export default function Home() {
   const [generationError, setGenerationError] = useState(null)
   const [showGenNotes, setShowGenNotes] = useState(false)
   const [compingStyle, setCompingStyle] = useState(DEFAULT_COMPING_STYLE)
-  const [userLibrary, setUserLibrary] = useState([])
   const [lastGenChart, setLastGenChart] = useState(null)
   const [showImportModal, setShowImportModal] = useState(false)
   const [importText, setImportText] = useState("")
   const [importStatus, setImportStatus] = useState(null)
+  const [showGig, setShowGig] = useState(false)
+
+  // Cloud-synced library (songs + setlists + prefs); auth via Supabase magic link.
+  // Degrades to localStorage when signed out or Supabase isn't configured.
+  const auth = useAuth()
+  const { library, setLibrary, status: syncStatus } = useCloudLibrary(auth.email)
+  const userLibrary = library.songs
   const [showFretboard, setShowFretboard] = useState(false)
   const [fretboardView, setFretboardView] = useState("chord")
   const [fretboardTuning, setFretboardTuning] = useState("Standard")
@@ -554,19 +562,30 @@ export default function Home() {
     if (!lastGenChart) return
     const name = prompt("Name this chart:")
     if (!name?.trim()) return
-    const entry = { ...lastGenChart, name: name.trim() }
-    const next = [...userLibrary.filter((e) => e.name !== entry.name), entry]
-    setUserLibrary(next)
-    try { localStorage.setItem("dukebox-library", JSON.stringify(next)) } catch {}
+    const entry = { ...lastGenChart, name: name.trim(), updatedAt: Date.now() }
+    setLibrary(lib => ({ ...lib, songs: [...lib.songs.filter(e => e.name !== entry.name), entry] }))
     setSelectedForm(entry.name)
     setLastGenChart(null)
   }
 
   function removeFromLibrary(name) {
-    const next = userLibrary.filter((e) => e.name !== name)
-    setUserLibrary(next)
-    try { localStorage.setItem("dukebox-library", JSON.stringify(next)) } catch {}
+    setLibrary(lib => ({ ...lib, songs: lib.songs.filter(e => e.name !== name) }))
     setSelectedForm("Custom")
+  }
+
+  // Load any Gig Mode / setlist tune into the editor and engine.
+  function loadGigSong({ bars, keyRoot, keyMode, tempo, autoplay }) {
+    if (playingRef.current) stopPlayback()
+    practiceModeRef.current = false
+    setPracticeMode(false)
+    setBars(bars)
+    setKeyRoot(keyRoot); setChartKey(keyRoot); setKeyMode(keyMode)
+    setSelectedForm("Custom"); setSelectedIndex(0)
+    setLoopStart(0); setLoopEnd(bars.length - 1)
+    const t = tempo || 110
+    setTempo(t); setOriginalTempo(t)
+    setShowGig(false)
+    if (autoplay) pendingStartRef.current = true
   }
 
   function toggleControlPanel(panelName) {
@@ -790,12 +809,10 @@ export default function Home() {
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, []) // intentionally empty — state accessed via refs
 
+  // Library hydration + cloud sync is handled by useCloudLibrary; here we only
+  // ensure audio stops if the component unmounts mid-playback.
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem("dukebox-library")
-      if (stored) setUserLibrary(JSON.parse(stored))
-    } catch {}
-    return () => _audioMod?.stopAll()  // stop audio if loaded when component unmounts
+    return () => _audioMod?.stopAll()
   }, [])
 
   // Auto-play after loadStarter commits new bars to state
@@ -863,11 +880,40 @@ export default function Home() {
           >
             🎨 {palette.name}
           </button>
+
+          <button
+            onClick={() => setShowGig(g => !g)}
+            style={{
+              padding: "6px 14px", borderRadius: "10px", cursor: "pointer", fontWeight: 700, fontSize: "0.9rem",
+              border: `1px solid ${showGig ? "var(--db-c-amber)" : "var(--db-panel-border)"}`,
+              background: showGig ? "color-mix(in srgb, var(--db-c-amber) 16%, var(--db-bg))" : "var(--db-panel-bg)",
+              color: showGig ? "var(--db-c-amber)" : "var(--db-accent)",
+              flexShrink: 0,
+            }}
+            title="Stage-ready charts, setlists, and gig playback"
+          >
+            🎤 Gig Mode
+          </button>
+
+          <SyncControl auth={auth} syncStatus={syncStatus} style={{ marginLeft: "auto" }} />
         </div>
 
         <p style={{ opacity: 0.75, marginBottom: "24px" }}>
           Drag measures, edit chords, hear the phrase, regenerate ideas, and inspect harmonic context live.
         </p>
+
+        {showGig && (
+          <div style={{ marginBottom: "20px" }}>
+            <GigMode
+              library={library}
+              setLibrary={setLibrary}
+              onLoadSong={loadGigSong}
+              panelStyle={panelStyle}
+              eyebrowStyle={eyebrowStyle}
+              selectStyle={selectStyle}
+            />
+          </div>
+        )}
 
         {/* ── Start Practicing Fast ─────────────────────────────── */}
         <div style={{
@@ -1162,12 +1208,11 @@ export default function Home() {
                   onClick={() => {
                     try {
                       const { entries, warnings } = parseTonalUserSongs(importText)
-                      const merged = [
-                        ...userLibrary.filter(e => !entries.some(n => n.name === e.name)),
-                        ...entries,
-                      ]
-                      setUserLibrary(merged)
-                      try { localStorage.setItem("dukebox-library", JSON.stringify(merged)) } catch {}
+                      const stamped = entries.map(e => ({ ...e, updatedAt: Date.now() }))
+                      setLibrary(lib => ({
+                        ...lib,
+                        songs: [...lib.songs.filter(e => !stamped.some(n => n.name === e.name)), ...stamped],
+                      }))
                       setImportStatus({ ok: true, msg: `Imported ${entries.length} song${entries.length === 1 ? "" : "s"}${warnings.length ? ` · ${warnings.join("; ")}` : ""}` })
                       setImportText("")
                     } catch (err) {
@@ -2055,6 +2100,61 @@ export default function Home() {
 
     </main>
     </>
+  )
+}
+
+// ─── Cloud-sync status + magic-link sign-in ──────────────────────────────────
+function SyncControl({ auth, syncStatus, style }) {
+  if (!auth.configured) return null
+
+  const label = {
+    local:   "Local only",
+    syncing: "Syncing…",
+    synced:  "Synced",
+    error:   "Sync error",
+  }[syncStatus] || ""
+
+  async function signIn() {
+    const email = prompt("Email for a magic sign-in link (syncs your songs & setlists across devices):")
+    if (!email?.trim()) return
+    const { error } = await auth.signIn(email.trim())
+    alert(error ? `Sign-in failed: ${error}` : "Check your email for the sign-in link.")
+  }
+
+  if (!auth.email) {
+    return (
+      <button
+        onClick={signIn}
+        style={{
+          ...style,
+          padding: "6px 12px", borderRadius: "10px", cursor: "pointer", fontSize: "0.82rem", fontWeight: 600,
+          border: "1px solid var(--db-panel-border)", background: "var(--db-panel-bg)", color: "var(--db-muted)",
+        }}
+        title="Sign in to sync songs and setlists across devices"
+      >
+        ☁ Sign in to sync
+      </button>
+    )
+  }
+
+  const dotColor = syncStatus === "error" ? "var(--db-c-salmon)"
+    : syncStatus === "syncing" ? "var(--db-c-amber)" : "var(--db-c-green)"
+
+  return (
+    <div style={{ ...style, display: "flex", alignItems: "center", gap: "8px", fontSize: "0.78rem", color: "var(--db-muted)" }}>
+      <span style={{ color: dotColor }}>●</span>
+      <span title={auth.email}>{label}</span>
+      <button
+        onClick={auth.signOut}
+        style={{
+          padding: "4px 10px", borderRadius: "8px", cursor: "pointer", fontSize: "0.78rem",
+          border: "1px solid var(--db-panel-border)", background: "var(--db-panel-bg)", color: "var(--db-muted)",
+        }}
+        title={`Signed in as ${auth.email}`}
+      >
+        Sign out
+      </button>
+    </div>
   )
 }
 

@@ -37,16 +37,32 @@ DukeBox module map after integration:
 | `src/components/Runway.jsx` | chord-anticipation strip | Runway quality-category colors + progress fill |
 | `src/app/page.js` | app shell | Anticipate (next-chord) fretboard, Barry/Hex filter buttons, bass style + complexity UI, Improv Guide button |
 
-## Later phases (not in this pass)
+## Done in later passes
 
-- **Gig mode** — absorb Rhino Gig Book (setlists, stage themes, print) from
-  Jupiter; its songs import into the unified song schema, gaining playback.
-- **Persistence** — replace localStorage silos (`dukebox-library`,
-  Tonal's `userBebopProgressions`) with Supabase tables + one-click importers.
-- **Jupiter seam** — point Jupiter's sidebar/cockpit/command-palette links at
-  the unified app; add it to `/api/suite`.
-- **Retirement** — only after every FEATURE_LEDGER row is ✅: banner+redirect
-  on the GitHub Pages Tonal, Jupiter Gig Book route redirect.
+- **Jupiter seam** ✅ — Jupiter's sidebar / cockpit / command-palette "Bebop
+  Blueprint" links now point at DukeBox (jupiter branch, PR #39). Old GitHub
+  Pages Tonal stays frozen and reachable as a reference.
+- **Gig Mode** ✅ — Rhino Gig Book absorbed: 21 songs extracted into
+  `gigbook.js`, stage view with themes + setlists + search + print
+  (`GigMode.jsx`), and — the payoff — every gig chart is playable through the
+  DukeBox engine. Song pool is a superset (gig book + user library + full
+  songbook = 117 tunes).
+- **Persistence** ✅ — songs, setlists, and prefs sync to the shared Jupiter
+  Supabase project via `dukebox_library` (RLS on auth email), magic-link auth,
+  with localStorage as offline cache + a v1→v2 migration. Tonal's
+  `userBebopProgressions` importer shipped in the parity pass.
+
+## Remaining / optional
+
+- **Deploy config** — for cloud sync in production, run
+  `supabase_dukebox_library.sql` once in the shared Supabase project. The anon
+  key + URL are baked in (public, RLS-protected, matching Jupiter); override
+  via `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` if desired.
+- **Jupiter Gig Book route** — can redirect `/rhino-gig-book` to DukeBox Gig
+  Mode once the cloud sync is confirmed in production (not yet done — the
+  Jupiter iframe still works standalone).
+- **Nice-to-haves** — forest/wine gig themes, reverb from the Tonal impulse,
+  guide-tone arrow animation, Notion export of gig setlists.
 
 Out of scope permanently (per owner): tutorials (Melodia, Jazz Cells,
 melodia-fretboard). Tonal's ChordScribe AI modal is superseded by DukeBox's
