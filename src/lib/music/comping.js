@@ -1,4 +1,5 @@
-import { Chord, Note } from "@tonaljs/tonal"
+import { Note } from "@tonaljs/tonal"
+import { getChord } from "./tonal"
 
 // ─── Pianist comping styles ───────────────────────────────────────────────────
 // Each hit: { t: fraction-of-bar (0=beat1, 0.25=beat2), vel: velocity 0-1, len: length fraction }
@@ -127,7 +128,7 @@ function buildRealized(pcVoicing, startOctave) {
  * @returns {string[]}               - Realized voicing with octaves
  */
 export function getVoiceLedVoicing(symbol, prevVoicing = null, rootless = false) {
-  const chord = Chord.get(symbol)
+  const chord = getChord(symbol)
   let baseNotes = chord.notes ?? []
   if (baseNotes.length === 0) return prevVoicing ?? []
 

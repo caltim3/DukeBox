@@ -1,5 +1,6 @@
 import * as Tone from "tone"
-import { Chord, Note } from "@tonaljs/tonal"
+import { Note } from "@tonaljs/tonal"
+import { getChord } from "./tonal"
 import { initSamplers, getSamplers, DEFAULT_DRUM_KIT } from "./samples"
 import { COMPING_STYLES, DEFAULT_COMPING_STYLE, getVoiceLedVoicing } from "./comping"
 import { DRUM_STYLES } from "./audioConstants"
@@ -117,7 +118,7 @@ function assignOctaves(noteNames, baseOctave = 4) {
 
 // Shell/guide-tone voicing. rootless = true when bass is playing the root.
 function chordVoicing(symbol, rootless = false) {
-  const chord = Chord.get(symbol)
+  const chord = getChord(symbol)
   if (!chord.notes?.length) return rootless ? ["E4", "Bb4"] : ["C3", "E4", "Bb4"]
 
   const { notes, intervals } = chord
@@ -159,7 +160,7 @@ function walkingBass(bars, timing) {
   bars.forEach((bar, b) => {
     const { measure, beat: startBeat, beats } = timing[b]
     if (bar.quality === "NC" || bar.symbol === "N.C.") return  // rest — no bass
-    const chord = Chord.get(bar.symbol)
+    const chord = getChord(bar.symbol)
     const notes = chord.notes || [bar.root]
     const ivls  = chord.intervals || []
 
