@@ -6,6 +6,31 @@ line references point at the frozen source.
 
 Status: ✅ ported · 🟡 partial / adapted · ⏳ planned · ⛔ superseded (not lost — replaced by a strictly more capable DukeBox feature)
 
+## Gig Mode — Rhino Gig Book (Jupiter `client/public/rhino-gig-book.html`, read-only)
+
+| Feature | Source | DukeBox destination | Status |
+|---|---|---|---|
+| 21 gig-book songs with metadata (key/feel/tempo/form/credit/ref artist/note) | `rhino-gig-book.html` | `gigbook.js` GIGBOOK_SONGS (extracted via `scripts/extract-gigbook.mjs`) | ✅ |
+| Section-labeled chord charts (slash chords preserved) | `rhino-gig-book.html` grid-wrap | `gigbook.js` sections + `parseGigChord`/`gigSongToBars` (all 592 chords parse) | ✅ |
+| Gig charts are **playable** with the full band | n/a (gig book had no audio) | `GigMode.jsx` Load/Play → `loadGigSong` into the engine | ✅ (integration payoff) |
+| Stage themes (paper / dark stage / midnight) | `rhino-gig-book.html` themeSelect | `GigMode.jsx` Paper/Stage/Midnight | ✅ (3 of 5; forest/wine can be added) |
+| Chord size control | `rhino-gig-book.html` fontSizeSlider | `GigMode.jsx` Size slider | ✅ |
+| Setlists: build, name, drag-reorder, add/remove | `rhino-gig-book.html` setlist mode | `GigMode.jsx` setlists (stored in synced library) | ✅ |
+| Search / filter songs | `rhino-gig-book.html` filterSetlistPicker | `GigMode.jsx` search box | ✅ |
+| Print full songbook / setlist | `rhino-gig-book.html` window.print / printSetlist | `GigMode.jsx` Print + `@media print` rules | ✅ |
+| Per-user cloud sync of edits | `server/routes/rhino-gig-book.ts` (server proxy) | `cloud.js` direct Supabase + RLS (songs, setlists, prefs) | ✅ |
+| Song pool spans gig book + user library + full DukeBox songbook | gig book only | `GigMode.jsx` buildPool (117 tunes) | ✅ (superset) |
+| Per-chart transpose / per-bar edit in the gig sheet | `rhino-gig-book.html` contenteditable | superseded — Load into DukeBox's editor for full transpose + editing | ⛔ |
+
+## Persistence & sync
+
+| Feature | Source | DukeBox destination | Status |
+|---|---|---|---|
+| Supabase client (shared Jupiter project) | Jupiter `client/src/lib/supabase.ts` | `lib/supabase.js` (env-overridable, degrades to local) | ✅ |
+| Magic-link auth | Jupiter `client/src/lib/auth-context.tsx` | `lib/cloud.js` useAuth + SyncControl | ✅ |
+| Cross-device library (songs + setlists + prefs) | rhino_gig_book precedent | `dukebox_library` table + `supabase_dukebox_library.sql` (RLS on auth email) | ✅ |
+| localStorage → cloud migration + offline fallback | n/a | `cloud.js` readLocalLibrary (v1→v2 migrate), mergeLibraries, debounced push | ✅ |
+
 ## Playback & rhythm
 
 | Feature | Tonal source | DukeBox destination | Status |
