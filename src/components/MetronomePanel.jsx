@@ -189,6 +189,7 @@ export default function MetronomePanel({ onBeforeStart, panelStyle, eyebrowStyle
             <button
               key={i}
               onClick={() => cycleCell(i)}
+              aria-label={`${isDownbeat ? `Beat ${beatNum}` : `Off-beat after ${beatNum}`}: ${state === 2 ? "accent" : state === 1 ? "normal" : "off"} — click to change`}
               title={state === 2 ? "Accent" : state === 1 ? "Normal" : "Off"}
               style={{
                 width: "44px", height: "44px", borderRadius: "8px", cursor: "pointer",

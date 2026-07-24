@@ -168,7 +168,7 @@ export default function GigMode({ library, setLibrary, onLoadSong, panelStyle, e
             Size
             <input type="range" min="16" max="40" value={chordSize} onChange={e => setChordSize(Number(e.target.value))} />
           </label>
-          <button onClick={() => window.print()} style={ghostBtn(theme)} title="Print — uses your browser's print dialog">🖨 Print</button>
+          <button onClick={() => window.print()} style={ghostBtn(theme)} aria-label="Print this chart" title="Print — uses your browser's print dialog">🖨 Print</button>
         </div>
       </div>
 
@@ -184,9 +184,9 @@ export default function GigMode({ library, setLibrary, onLoadSong, panelStyle, e
               <option value="">All tunes ({pool.length})</option>
               {setlists.map(s => <option key={s.id} value={s.id}>{s.name} ({s.songIds.length})</option>)}
             </select>
-            <button onClick={addSetlist} style={ghostBtn(theme)} title="New setlist">＋</button>
+            <button onClick={addSetlist} style={ghostBtn(theme)} aria-label="Create a new setlist" title="New setlist">＋</button>
             {currentSetlist && (
-              <button onClick={() => deleteSetlist(currentSetlist.id)} style={ghostBtn(theme)} title="Delete this setlist">🗑</button>
+              <button onClick={() => deleteSetlist(currentSetlist.id)} style={ghostBtn(theme)} aria-label={`Delete setlist ${currentSetlist.name}`} title="Delete this setlist">🗑</button>
             )}
           </div>
 
@@ -233,7 +233,7 @@ export default function GigMode({ library, setLibrary, onLoadSong, panelStyle, e
                     setlists.length > 0 && activeSetlist === null ? null : null
                   ) : null}
                   {currentSetlist && (
-                    <button onClick={e => { e.stopPropagation(); toggleInSetlist(song.id) }} style={ghostBtn(theme)} title="Remove from setlist">−</button>
+                    <button onClick={e => { e.stopPropagation(); toggleInSetlist(song.id) }} style={ghostBtn(theme)} aria-label={`Remove ${song.title} from setlist`} title="Remove from setlist">−</button>
                   )}
                 </div>
               )
