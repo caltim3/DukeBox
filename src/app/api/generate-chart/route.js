@@ -84,6 +84,19 @@ function validateChart(chart) {
   return chart
 }
 
+// Pull the generationNotes value out of a partially-received JSON string.
+// The schema emits generationNotes before the long bars array, so this lets the
+// client show the model's reasoning while the chart is still being written.
+function partialNotes(text) {
+  const m = text.match(/"generationNotes"\s*:\s*"((?:[^"\\]|\\.)*)/)
+  if (!m) return null
+  // Drop a dangling escape so the fragment stays parseable mid-stream
+  const body = m[1].replace(/\\$/, "")
+  try { return JSON.parse(`"${body}"`) } catch { return body }
+}
+
+const MODEL = "claude-opus-4-6"
+
 export async function POST(request) {
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json(
@@ -93,17 +106,64 @@ export async function POST(request) {
   }
 
   let prompt
+  let wantStream = false
   try {
     const body = await request.json()
     prompt = body.prompt?.trim()
+    wantStream = body.stream === true
     if (!prompt) throw new Error("No prompt provided")
   } catch {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
   }
 
+  // ── Streaming: server-sent events carrying notes as they arrive ──────────
+  if (wantStream) {
+    const encoder = new TextEncoder()
+    const body = new ReadableStream({
+      async start(controller) {
+        const send = (obj) => {
+          try { controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`)) } catch {}
+        }
+        let full = ""
+        let lastNotes = ""
+        try {
+          const stream = client.messages.stream({
+            model: MODEL,
+            max_tokens: 4096,
+            system: SYSTEM_PROMPT,
+            messages: [{ role: "user", content: prompt }],
+          })
+          for await (const evt of stream) {
+            if (evt.type === "content_block_delta" && evt.delta?.type === "text_delta") {
+              full += evt.delta.text
+              const notes = partialNotes(full)
+              if (notes && notes !== lastNotes) {
+                lastNotes = notes
+                send({ type: "notes", text: notes })
+              }
+            }
+          }
+          send({ type: "done", chart: validateChart(extractJSON(full)) })
+        } catch (err) {
+          send({ type: "error", error: err?.message || "Generation failed" })
+        } finally {
+          controller.close()
+        }
+      },
+    })
+    return new Response(body, {
+      headers: {
+        "Content-Type": "text/event-stream; charset=utf-8",
+        "Cache-Control": "no-cache, no-transform",
+        Connection: "keep-alive",
+      },
+    })
+  }
+
+  // ── Non-streaming (kept so the endpoint stays usable without SSE) ────────
   try {
     const message = await client.messages.create({
-      model: "claude-opus-4-6",
+      model: MODEL,
       max_tokens: 4096,
       system: SYSTEM_PROMPT,
       messages: [{ role: "user", content: prompt }],

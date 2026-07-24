@@ -28,8 +28,8 @@ A prioritized usability and interface improvement plan for DukeBox.
 | Labels | "Set Loop Start/End" → "Set Start/End at Selected Bar" |
 | Practice | Starter presets always boot in Practice Mode at 50 BPM |
 
-> **Status:** Phases 1–8 are implemented. Phase 9 (AI generation UX) is the
-> only one still open. Details noted per phase below.
+> **Status:** All 9 phases are implemented (Phase 3 partially — welcome overlay
+> and empty-state nudge remain). Details noted per phase below.
 
 ### Phase 2 — Information architecture ✅
 
@@ -102,7 +102,14 @@ not a certified full-surface AA audit.
 4. **Chart export** — copy chord changes as plain text (e.g. "| Dm7 | G7 | Cmaj7 | Cmaj7 |")
 5. **Per-bar loop** — double-click a bar to loop just that chord for isolated practice
 
-### Phase 9 — AI generation UX ⬜ (not started)
+### Phase 9 — AI generation UX ✅
+
+Generation now streams: `/api/generate-chart` accepts `stream: true` and returns
+SSE, so `generationNotes` (which the schema emits *before* the long `bars`
+array) renders live with a caret while the chart is still being written. The
+non-streaming path is kept for callers that don't want SSE. Prompt history is
+stored in `library.prefs.promptHistory`, so it syncs across devices like songs
+and setlists.
 
 1. **Prompt history** — small dropdown to re-run previous prompts
 2. **"Surprise me"** — random style/key button that generates a chart without a prompt

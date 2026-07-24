@@ -186,6 +186,7 @@ export default function Home() {
   const auth = useAuth()
   const { library, setLibrary, status: syncStatus } = useCloudLibrary(auth.email)
   const userLibrary = library.songs
+  const promptHistory = library.prefs?.promptHistory ?? []
   const [showFretboard, setShowFretboard] = useState(false)
   const [fretboardView, setFretboardView] = useState("chord")
   const [fretboardTuning, setFretboardTuning] = useState("Standard")
@@ -536,22 +537,18 @@ export default function Home() {
     setChartKey(keyRoot)
   }
 
-  async function handleGenerateChart() {
-    if (!promptText.trim() || isGenerating) return
+  // Generation streams server-sent events so the model's reasoning
+  // (generationNotes, which the schema emits before the long bars array) shows
+  // up live instead of only after the whole chart lands.
+  async function handleGenerateChart(overridePrompt = null) {
+    const prompt = (typeof overridePrompt === "string" ? overridePrompt : promptText).trim()
+    if (!prompt || isGenerating) return
     setIsGenerating(true)
     setGenerationError(null)
     setGenerationNotes(null)
+    setShowGenNotes(true)
 
-    try {
-      const res = await fetch("/api/generate-chart", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: promptText }),
-      })
-      const data = await res.json()
-      if (data.error) throw new Error(data.error)
-
-      const { chart } = data
+    const applyChart = (chart) => {
       setBars(chart.bars)
       setKeyRoot(chart.keyRoot || "C")
       setChartKey(chart.keyRoot || "C")
@@ -560,16 +557,78 @@ export default function Home() {
       setSelectedIndex(0)
       setLoopStart(0)
       setLoopEnd(chart.bars.length - 1)
-      if (chart.generationNotes) {
-        setGenerationNotes(chart.generationNotes)
-        setShowGenNotes(true)
+      if (chart.generationNotes) setGenerationNotes(chart.generationNotes)
+      setLastGenChart({
+        bars: chart.bars,
+        keyRoot: chart.keyRoot || "C",
+        keyMode: chart.keyMode || "major",
+        tempo: chart.tempo || tempo,
+      })
+      // Remember the prompt (most recent first, de-duped, capped) — rides along
+      // with the synced library so history follows you across devices.
+      setLibrary(lib => {
+        const prev = lib.prefs?.promptHistory ?? []
+        const next = [prompt, ...prev.filter(p => p !== prompt)].slice(0, 12)
+        return { ...lib, prefs: { ...lib.prefs, promptHistory: next } }
+      })
+    }
+
+    try {
+      const res = await fetch("/api/generate-chart", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt, stream: true }),
+      })
+      if (!res.ok || !res.body) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || `Request failed (${res.status})`)
       }
-      setLastGenChart({ bars: chart.bars, keyRoot: chart.keyRoot || "C", keyMode: chart.keyMode || "major", tempo: chart.tempo || tempo })
+
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ""
+      let done = false
+
+      while (!done) {
+        const { value, done: finished } = await reader.read()
+        if (finished) break
+        buffer += decoder.decode(value, { stream: true })
+
+        // SSE frames are separated by a blank line
+        const frames = buffer.split("\n\n")
+        buffer = frames.pop() ?? ""
+        for (const frame of frames) {
+          const line = frame.split("\n").find(l => l.startsWith("data:"))
+          if (!line) continue
+          let msg
+          try { msg = JSON.parse(line.slice(5).trim()) } catch { continue }
+          if (msg.type === "notes") {
+            setGenerationNotes(msg.text)
+          } else if (msg.type === "done") {
+            applyChart(msg.chart)
+            done = true
+          } else if (msg.type === "error") {
+            throw new Error(msg.error)
+          }
+        }
+      }
     } catch (err) {
       setGenerationError(err.message)
     } finally {
       setIsGenerating(false)
     }
+  }
+
+  // "Surprise me" — compose a random brief and generate straight from it.
+  function surpriseMe() {
+    const pick = (a) => a[Math.floor(Math.random() * a.length)]
+    const form  = pick(SURPRISE.forms)
+    const key   = pick(SURPRISE.keys)
+    const mood  = pick(SURPRISE.moods)
+    const device = pick(SURPRISE.devices)
+    const brief = `${form} in ${key}, ${mood}, featuring ${device}`
+    setPromptText(brief)
+    handleGenerateChart(brief)
   }
 
   function saveToLibrary() {
@@ -1167,7 +1226,58 @@ export default function Home() {
             </button>
           </div>
 
-          <div style={{ fontSize: "0.75rem", opacity: 0.45, marginTop: "6px" }}>
+          {/* Templates + Surprise me + prompt history */}
+          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "center", marginTop: "8px" }}>
+            <button
+              onClick={surpriseMe}
+              disabled={isGenerating}
+              style={{
+                padding: "4px 11px", borderRadius: "20px", fontSize: "0.78rem", cursor: "pointer",
+                border: "1px solid var(--db-c-purple)",
+                background: "color-mix(in srgb, var(--db-c-purple) 14%, var(--db-bg))",
+                color: "var(--db-c-purple)", fontWeight: 700,
+                opacity: isGenerating ? 0.5 : 1,
+              }}
+              title="Generate a chart from a random form, key, mood, and harmonic device"
+            >
+              🎲 Surprise me
+            </button>
+
+            {PROMPT_TEMPLATES.map((t) => (
+              <button
+                key={t}
+                onClick={() => setPromptText(t)}
+                disabled={isGenerating}
+                style={{
+                  padding: "4px 10px", borderRadius: "20px", fontSize: "0.75rem", cursor: "pointer",
+                  border: "1px solid var(--db-panel-border)", background: "var(--db-panel-bg)",
+                  color: "var(--db-text)", opacity: isGenerating ? 0.5 : 0.85,
+                }}
+                title="Use this as a starting point"
+              >
+                {t.length > 34 ? t.slice(0, 33) + "…" : t}
+              </button>
+            ))}
+          </div>
+
+          {promptHistory.length > 0 && (
+            <div style={{ display: "flex", gap: "6px", alignItems: "center", marginTop: "8px" }}>
+              <label style={{ fontSize: "0.75rem", opacity: 0.6 }} htmlFor="prompt-history">Recent</label>
+              <select
+                id="prompt-history"
+                value=""
+                onChange={(e) => { if (e.target.value) setPromptText(e.target.value) }}
+                style={{ ...selectStyle, flex: 1, padding: "5px 8px", fontSize: "0.78rem" }}
+              >
+                <option value="">Re-use a previous prompt…</option>
+                {promptHistory.map((p, i) => (
+                  <option key={i} value={p}>{p.length > 70 ? p.slice(0, 69) + "…" : p}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <div style={{ fontSize: "0.75rem", opacity: 0.6, marginTop: "6px" }}>
             ⌘ + Enter to generate
           </div>
 
@@ -1181,7 +1291,7 @@ export default function Home() {
             </div>
           )}
 
-          {generationNotes && (
+          {(generationNotes || isGenerating) && (
             <div style={{ marginTop: "10px" }}>
               <button
                 onClick={() => setShowGenNotes((p) => !p)}
@@ -1191,6 +1301,7 @@ export default function Home() {
                 }}
               >
                 {showGenNotes ? "▼" : "▶"} Generation Notes
+                {isGenerating && <span style={{ marginLeft: "6px", opacity: 0.75 }}>· writing…</span>}
               </button>
               {showGenNotes && (
                 <div style={{
@@ -1198,7 +1309,10 @@ export default function Home() {
                   background: "rgba(201,167,255,0.07)", border: "1px solid rgba(201,167,255,0.15)",
                   fontSize: "0.88rem", lineHeight: 1.6, opacity: 0.9,
                 }}>
-                  {generationNotes}
+                  {generationNotes || "…"}
+                  {isGenerating && generationNotes && (
+                    <span style={{ opacity: 0.6 }} aria-hidden="true"> ▍</span>
+                  )}
                 </div>
               )}
             </div>
@@ -2710,6 +2824,36 @@ const FRET_FLOW_SCALES = [
 ]
 
 const TUNING_NAMES = ["Standard", "Drop D", "Open G", "DADGAD", "Open D", "Open E"]
+
+// Ingredients for the "Surprise me" brief — combinations lean on forms and
+// devices the generator's system prompt already knows how to voice.
+const SURPRISE = {
+  forms: [
+    "a 12-bar blues", "a 12-bar minor blues", "a Bird blues", "a 32-bar AABA standard",
+    "Rhythm Changes", "a 16-bar modal tune", "a bossa nova", "a jazz waltz",
+    "a ballad", "an up-tempo bebop head",
+  ],
+  keys: ["C", "F", "Bb", "Eb", "Ab", "Db", "G", "D", "A", "E", "Bm", "Cm", "Dm", "Fm", "Gm"],
+  moods: [
+    "warm and nostalgic", "dark and brooding", "bright and swinging", "spacious and modal",
+    "restless and chromatic", "wistful", "gritty and blues-drenched", "elegant and understated",
+  ],
+  devices: [
+    "a tritone substitution", "a backdoor dominant", "Coltrane changes on the bridge",
+    "a Tadd Dameron turnaround", "modal interchange", "a deceptive cadence",
+    "passing diminished chords", "a secondary dominant chain", "an inserted ii-V",
+  ],
+}
+
+// Click-to-insert starting points for the prompt box.
+const PROMPT_TEMPLATES = [
+  "12-bar blues in F with a backdoor dominant",
+  "32-bar AABA in Eb with Coltrane changes on the bridge",
+  "Bossa nova in D minor, slow, deceptive cadence at bar 8",
+  "Minor blues in C with a tritone sub in the turnaround",
+  "Rhythm Changes in Bb, bebop bridge",
+  "Modal tune in D dorian, 16 bars, sparse harmony",
+]
 
 // How each bar's approach line reaches the next chord (from generateApproachLines)
 const APPROACH_PILLS = {

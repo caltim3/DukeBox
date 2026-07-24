@@ -30,9 +30,12 @@ export const DRUM_KITS = {
     ride:  "/samples/drums/Snare.mp3",   // snare carries the accent voice
     hihat: "/samples/drums/HiHat.mp3",
   },
+  // Second kit — sourced from the read-only tonal repo's original WAVs. The
+  // mp3s previously here were placeholders byte-identical to other samples
+  // (Kick2 == woodblock, Snare2 == HiHat), so the kit didn't actually differ.
   Makaya: {
-    kick:  "/samples/drums/Kick2.mp3",
-    ride:  "/samples/drums/Snare2.mp3",
+    kick:  "/samples/drums/Kick2.wav",
+    ride:  "/samples/drums/Snare2.wav",
     hihat: "/samples/drums/HiHat2.wav",
   },
   PhillyJoe: {
