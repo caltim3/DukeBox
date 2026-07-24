@@ -27,9 +27,12 @@ import { DRUM_STYLES } from "@/lib/music/audioConstants"
 import { exportLeadSheet, exportMusicXML } from "@/lib/music/leadsheet"
 import { COMPING_STYLE_NAMES, DEFAULT_COMPING_STYLE } from "@/lib/music/comping"
 import { BASS_STYLE_NAMES, DEFAULT_BASS_STYLE } from "@/lib/music/bassStyles"
-import { downloadImprovGuide } from "@/lib/music/improvGuide"
+import { downloadImprovGuide, buildImprovMapData } from "@/lib/music/improvGuide"
+import { DRUM_KIT_NAMES, DEFAULT_DRUM_KIT } from "@/lib/music/samples"
+import { parseTonalUserSongs } from "@/lib/music/importTonal"
 import Fretboard from "@/components/Fretboard"
 import Runway from "@/components/Runway"
+import MetronomePanel from "@/components/MetronomePanel"
 
 // audio.js (Tone.js) is loaded lazily on first play so AudioContext is only
 // created after a user gesture, avoiding the browser autoplay-policy warning.
@@ -141,6 +144,8 @@ export default function Home() {
   const [bassComplexity, setBassComplexity] = useState(0.5)
   const [playDrums, setPlayDrums] = useState(true)
   const [drumStyleIdx, setDrumStyleIdx] = useState(0)
+  const [drumKit, setDrumKit] = useState(DEFAULT_DRUM_KIT)
+  const [reverbAmount, setReverbAmount] = useState(0)
   const [playMelody, setPlayMelody] = useState(false)
   const [swingAmount, setSwingAmount] = useState(0.5)
   const [playheadIndex, setPlayheadIndex] = useState(null)
@@ -162,6 +167,9 @@ export default function Home() {
   const [compingStyle, setCompingStyle] = useState(DEFAULT_COMPING_STYLE)
   const [userLibrary, setUserLibrary] = useState([])
   const [lastGenChart, setLastGenChart] = useState(null)
+  const [showImportModal, setShowImportModal] = useState(false)
+  const [importText, setImportText] = useState("")
+  const [importStatus, setImportStatus] = useState(null)
   const [showFretboard, setShowFretboard] = useState(false)
   const [fretboardView, setFretboardView] = useState("chord")
   const [fretboardTuning, setFretboardTuning] = useState("Standard")
@@ -329,6 +337,31 @@ export default function Home() {
     () => (anticipateBar ? chordInfo(anticipateBar.symbol) : { notes: [] }),
     [anticipateBar]
   )
+
+  // Direction of each current guide tone toward the next chord's nearest guide
+  // tone — cyclic shortest path (ported from Bebop Blueprint's arrows, fixed:
+  // rendered per-dot in the SVG instead of a floating overlay).
+  const guideToneDirections = useMemo(() => {
+    if (!targetsOverlay || anticipateBarIndex == null) return null
+    const chroma = (n) => "C Db D Eb E F Gb G Ab A Bb B".split(" ").indexOf(n)
+    const cur = targets[fretboardBarIndex]?.currentGuideTones ?? []
+    const nxt = targets[anticipateBarIndex]?.currentGuideTones ?? []
+    if (!cur.length || !nxt.length) return null
+    const dirs = {}
+    for (const g of cur) {
+      const gc = chroma(g)
+      if (gc < 0) continue
+      let best = null
+      for (const t of nxt) {
+        const tc = chroma(t)
+        if (tc < 0) continue
+        const signed = ((tc - gc + 6 + 12) % 12) - 6   // shortest cyclic path, -6..+5
+        if (best === null || Math.abs(signed) < Math.abs(best)) best = signed
+      }
+      if (best !== null) dirs[g] = best > 0 ? "up" : best < 0 ? "down" : "same"
+    }
+    return dirs
+  }, [targetsOverlay, targets, fretboardBarIndex, anticipateBarIndex])
 
   const romanNumerals = useMemo(() => {
     return bars.map((bar) => chordToRoman(bar.root, bar.quality, keyRoot, keyMode))
@@ -691,7 +724,7 @@ export default function Home() {
           loop:          true,
           swing:         swingAmount,
           playChords, playBass, playDrums, playMelody, compingStyle,
-          bassStyle, bassComplexity,
+          bassStyle, bassComplexity, drumKit, reverbAmount,
           drumStyle:     drumStyleIdx,
           onBar:  (localIdx) => setPlayheadIndex(startIndex + localIdx),
           onStop: () => { playingRef.current = false; setIsPlaying(false); setPlayheadIndex(null) },
@@ -711,7 +744,7 @@ export default function Home() {
         loop:          false,
         swing:         swingAmount,
         playChords, playBass, playDrums, playMelody, compingStyle,
-        bassStyle, bassComplexity,
+        bassStyle, bassComplexity, drumKit, reverbAmount,
         drumStyle:     drumStyleIdx,
         onBar:  (localIdx) => setPlayheadIndex(startIndex + localIdx),
         onStop: () => {
@@ -1031,6 +1064,38 @@ export default function Home() {
               ↓ Improv Guide
             </button>
 
+            <button
+              onClick={async () => {
+                const token = prompt("Notion integration token (used once, never stored):")
+                if (!token?.trim()) return
+                try {
+                  const payload = buildImprovMapData({ bars, title: selectedForm, keyRoot, keyMode, tempo: originalTempo })
+                  const res = await fetch("/api/export-notion", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ token: token.trim(), ...payload }),
+                  })
+                  const data = await res.json()
+                  if (data.error) throw new Error(data.error)
+                  alert(`Exported to Notion${data.url ? `:\n${data.url}` : ""}`)
+                } catch (err) {
+                  alert(`Notion export failed: ${err.message}`)
+                }
+              }}
+              style={{ ...buttonStyle("var(--db-c-pink)"), padding: "6px 12px", fontSize: "0.82rem" }}
+              title="Create a Notion page with the improv map — summary table + per-bar collapsible roadmap"
+            >
+              → Notion
+            </button>
+
+            <button
+              onClick={() => { setShowImportModal(true); setImportText(""); setImportStatus(null) }}
+              style={{ ...buttonStyle("var(--db-c-blue)"), padding: "6px 12px", fontSize: "0.82rem" }}
+              title="Import songs you saved in Bebop Blueprint — paste localStorage['userBebopProgressions']"
+            >
+              ⇪ Import BB Songs
+            </button>
+
             <label style={inlineLabelStyle}>
               <span style={{ opacity: 0.7, marginRight: "4px" }}>Key</span>
               <select
@@ -1066,6 +1131,68 @@ export default function Home() {
               Roman Numerals
             </label>
           </div>
+
+          {/* Bebop Blueprint song importer */}
+          {showImportModal && (
+            <div style={{
+              marginTop: "12px", padding: "14px", borderRadius: "10px",
+              border: "1px solid var(--db-c-blue)",
+              background: "color-mix(in srgb, var(--db-c-blue) 5%, var(--db-bg))",
+            }}>
+              <div style={{ fontSize: "0.82rem", opacity: 0.75, marginBottom: "8px", lineHeight: 1.5 }}>
+                In Bebop Blueprint, open DevTools → Console and run{" "}
+                <code style={{ background: "var(--db-input-bg)", padding: "1px 5px", borderRadius: "4px" }}>
+                  copy(localStorage.getItem(&#39;userBebopProgressions&#39;))
+                </code>
+                {" "}— then paste here. Your saved songs become DukeBox library entries.
+              </div>
+              <textarea
+                value={importText}
+                onChange={(e) => setImportText(e.target.value)}
+                placeholder='{"My Custom Song": { "parts": [...], "splitStatus": [...], "defaultKey": "C", ... }}'
+                style={{
+                  width: "100%", minHeight: "90px", padding: "10px", borderRadius: "8px",
+                  border: "1px solid var(--db-panel-border)", background: "var(--db-input-bg)",
+                  color: "var(--db-text)", fontSize: "0.82rem", fontFamily: "monospace",
+                  boxSizing: "border-box", resize: "vertical",
+                }}
+              />
+              <div style={{ display: "flex", gap: "8px", marginTop: "8px", alignItems: "center", flexWrap: "wrap" }}>
+                <button
+                  onClick={() => {
+                    try {
+                      const { entries, warnings } = parseTonalUserSongs(importText)
+                      const merged = [
+                        ...userLibrary.filter(e => !entries.some(n => n.name === e.name)),
+                        ...entries,
+                      ]
+                      setUserLibrary(merged)
+                      try { localStorage.setItem("dukebox-library", JSON.stringify(merged)) } catch {}
+                      setImportStatus({ ok: true, msg: `Imported ${entries.length} song${entries.length === 1 ? "" : "s"}${warnings.length ? ` · ${warnings.join("; ")}` : ""}` })
+                      setImportText("")
+                    } catch (err) {
+                      setImportStatus({ ok: false, msg: err.message })
+                    }
+                  }}
+                  disabled={!importText.trim()}
+                  style={{ ...buttonStyle("var(--db-c-green)"), padding: "6px 14px", fontSize: "0.85rem", opacity: importText.trim() ? 1 : 0.5 }}
+                >
+                  Import
+                </button>
+                <button
+                  onClick={() => setShowImportModal(false)}
+                  style={{ ...buttonStyle("var(--db-muted)"), padding: "6px 14px", fontSize: "0.85rem" }}
+                >
+                  Close
+                </button>
+                {importStatus && (
+                  <span style={{ fontSize: "0.82rem", color: importStatus.ok ? "var(--db-c-green)" : "#ff8a8a" }}>
+                    {importStatus.msg}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         <div style={panelStyle}>
@@ -1194,6 +1321,27 @@ export default function Home() {
                   >
                     🥁 {DRUM_STYLES[drumStyleIdx].name}
                   </button>
+                  <select
+                    value={drumKit}
+                    onChange={(e) => setDrumKit(e.target.value)}
+                    style={{ ...selectStyle, width: "auto", padding: "4px 6px", fontSize: "0.8rem" }}
+                    title="Drum kit — sample set for the drum voices"
+                  >
+                    {DRUM_KIT_NAMES.map(k => <option key={k} value={k}>{k}</option>)}
+                  </select>
+                </label>
+
+                <label style={inlineLabelStyle} title="Reverb send for piano and drums — takes effect on the next Play">
+                  Reverb
+                  <input
+                    type="range" min="0" max="100"
+                    value={Math.round(reverbAmount * 100)}
+                    onChange={(e) => setReverbAmount(Number(e.target.value) / 100)}
+                    style={{ width: "60px" }}
+                  />
+                  <span style={{ minWidth: "28px", fontSize: "0.85rem", opacity: 0.8 }}>
+                    {Math.round(reverbAmount * 100)}%
+                  </span>
                 </label>
 
                 <label style={inlineLabelStyle}>
@@ -1377,6 +1525,7 @@ export default function Home() {
                 targetNotes={[]}
                 passingNotes={[...bebopPassingNotes, ...barryPassingNotes]}
                 guideToneNotes={guideToneDisplayNotes}
+                guideToneDirections={guideToneDirections}
                 view={fretboardView}
                 tuningName={fretboardTuning}
               />
@@ -1892,6 +2041,14 @@ export default function Home() {
             </div>
           )
         })()}
+
+        <MetronomePanel
+          onBeforeStart={stopPlayback}
+          panelStyle={panelStyle}
+          eyebrowStyle={eyebrowStyle}
+          selectStyle={selectStyle}
+          inlineLabelStyle={inlineLabelStyle}
+        />
 
         {dnMeta && <DesertNoirPanel meta={dnMeta} />}
       </section>

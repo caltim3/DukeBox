@@ -20,12 +20,12 @@ Status: ✅ ported · 🟡 partial / adapted · ⏳ planned · ⛔ superseded (n
 | Piano comping personalities (13) | `index.html:4086` | `comping.js` (12 present; `legacy_single` = single sustained hit) | ✅ |
 | Voice-led voicing engine (held/common-tone scoring) | `index.html:3995` | `comping.js getVoiceLedVoicing` (pre-existing) | ✅ |
 | v2.1 register re-ranker (comping window, crunch penalty, guide-tone reward) | `index.html:7855` | `comping.js refineVoicingRegister` | ✅ |
-| Metronome click/woodblock modes, per-instrument volume stack, tap tempo | `index.html:1156` | standalone Practice/metronome workspace | ⏳ |
+| BeatForge metronome: editable accent cells, click/woodblock/drums, tap tempo, volume + accent intensity, 2–7 beats/bar | `index.html:1156, 4639, 6553` | `metronome.js` + `MetronomePanel.jsx` (Transport-based — fixes setInterval drift) | ✅ |
 | Slow practice 50 BPM | `index.html:4572` | Practice Mode (pre-existing) | ✅ |
 | Swing feel | hidden toggle | swing slider (pre-existing, more capable) | ✅ |
 | Loop over measure range | `index.html:5742` | loop start/end (pre-existing) | ✅ |
-| Reverb dial | `index.html:3561` | ⏳ (Tone.js reverb send) | ⏳ |
-| 3 drum kits (Drums / Makaya / PhillyJoe) | `index.html:1558` | ⏳ (alternate sample banks) | ⏳ |
+| Reverb dial | `index.html:3561` | `audio.js` Tone.Reverb send + Reverb slider | ✅ |
+| Drum kits (Drums / Makaya / PhillyJoe) | `index.html:1558` | `samples.js` DRUM_KITS (Standard / Classic / Makaya / PhillyJoe) + kit picker | ✅ |
 
 ## Fretboard & scale recommendation during playback
 
@@ -37,7 +37,7 @@ Status: ✅ ported · 🟡 partial / adapted · ⏳ planned · ⛔ superseded (n
 | Barry Harris 6th-diminished overlay (maj/min/dom 8-note scales + passing tone) | `index.html:4455–4502` | `tonal.js barryHarrisScale` + Barry filter button | ✅ |
 | Chord-aware Hex mode (Locrian/Altered/WholeTone/Mixo/Dorian/Major hex) | `index.html:5869, 5915` | `tonal.js hexChoiceForChord` + Hex·Chord filter | ✅ |
 | Anticipate fretboard (next chord, loop-aware) | `index.html:5981, 6041` | Anticipate board in `page.js` | ✅ |
-| Guide-tone direction arrows | `index.html:6212` (disabled in source for artifacts) | ⏳ port-and-fix | ⏳ |
+| Guide-tone direction arrows | `index.html:6212` (disabled in source for artifacts) | `Fretboard.js` per-dot ▲▼● glyphs (no overlay layer → no artifacts) | ✅ |
 | Runway chord strip (7 quality categories, colors, progress fill) | `index.html:8050–8180` | `src/components/Runway.jsx` | ✅ |
 | Next-chord text display | `index.html:5016` | Runway + Anticipate label | ✅ |
 | Tunings: standard, drop D, open G, DADGAD, open D, open E | `index.html:1525` | `Fretboard.js` TUNINGS (open D / open E added) | ✅ |
@@ -56,7 +56,7 @@ Status: ✅ ported · 🟡 partial / adapted · ⏳ planned · ⛔ superseded (n
 | I'll See You In My Dreams (Django Alt.) | `index.html:1727` | forms | ✅ |
 | Althea, Scarlet Begonias, Loser (Grateful Dead), Dead Flowers (Stones) | `index.html:2441–2528` | forms Rock & Pop | ✅ |
 | Roman-numeral progression parser (slash/secondary dominants) | `index.html:3695` | superseded — forms are stored as absolute changes; Desert Noir has its own Roman resolver | ⛔ |
-| User-saved songs (localStorage) | `index.html:5644` | DukeBox library (pre-existing); importer for `userBebopProgressions` | ⏳ importer |
+| User-saved songs (localStorage) | `index.html:5644` | DukeBox library + `importTonal.js` paste-importer (preserves splits + per-bar scale choices; exotic dominant colors coerce to nearest family) | ✅ |
 | Split measures (two chords per bar) | `index.html:5548` | pre-existing split-bar model | ✅ |
 | Transpose progression to any key | `index.html:5293` | pre-existing transposeChart | ✅ |
 
@@ -65,6 +65,6 @@ Status: ✅ ported · 🟡 partial / adapted · ⏳ planned · ⛔ superseded (n
 | Feature | Tonal source | DukeBox destination | Status |
 |---|---|---|---|
 | Improv Guide markdown (5 levels, summary table, lead-sheet map, drills) | `index.html:7277` | `src/lib/music/improvGuide.js` + export button | ✅ |
-| Notion export | `index.html:7388` | ⏳ | ⏳ |
+| Notion export | `index.html:7388` | `/api/export-notion` server proxy (browser CORS can't reach the Notion API) + → Notion button; per-export token, never stored | ✅ |
 | Self-download offline copy | `index.html:8022` | superseded — DukeBox is deployed; PWA/offline is a later phase | ⛔ |
 | ChordScribe AI modal (unwired stub) | `index.html:7776` | superseded by working AI chart generator (`/api/generate-chart`) | ⛔ |

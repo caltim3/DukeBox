@@ -16,16 +16,39 @@ const PIANO_URLS = {
   "Gb5": "/samples/piano/fs5.mp3",
 }
 
-// Drum sample map — files live at public/samples/drums/.
-// Only instruments emitted by drumEvents() are listed; loading unused samples
-// wastes a network request on startup.
-// (jazzsnare.mp3 exists on disk — add it here + to drumEvents() when a 2-&-4
-//  snare pattern is desired.)
-const DRUM_URLS = {
-  kick:  "/samples/drums/jazzkick.mp3",  // beat 1
-  ride:  "/samples/drums/jazzhat.mp3",   // ride cymbal pattern
-  hihat: "/samples/drums/HiHat.mp3",     // closed hi-hat (beats 2 & 4)
+// Drum kits — files live at public/samples/drums/. Kit lineup ported from
+// Bebop Blueprint (Drums / Makaya / PhillyJoe); "Standard" keeps DukeBox's
+// original voices. Player keys are "<kit>:<instrument>".
+export const DRUM_KITS = {
+  Standard: {
+    kick:  "/samples/drums/jazzkick.mp3",
+    ride:  "/samples/drums/jazzhat.mp3",
+    hihat: "/samples/drums/HiHat.mp3",
+  },
+  Classic: {
+    kick:  "/samples/drums/Kick.mp3",
+    ride:  "/samples/drums/Snare.mp3",   // snare carries the accent voice
+    hihat: "/samples/drums/HiHat.mp3",
+  },
+  Makaya: {
+    kick:  "/samples/drums/Kick2.mp3",
+    ride:  "/samples/drums/Snare2.mp3",
+    hihat: "/samples/drums/HiHat2.mp3",
+  },
+  PhillyJoe: {
+    kick:  "/samples/drums/jazzkick.mp3",
+    ride:  "/samples/drums/jazzsnare.mp3",
+    hihat: "/samples/drums/jazzhat.mp3",
+  },
 }
+
+export const DRUM_KIT_NAMES = Object.keys(DRUM_KITS)
+export const DEFAULT_DRUM_KIT = "Standard"
+
+const DRUM_URLS = {}
+for (const [kit, insts] of Object.entries(DRUM_KITS))
+  for (const [inst, url] of Object.entries(insts))
+    DRUM_URLS[`${kit}:${inst}`] = url
 
 // Bass sample map — files live at public/samples/bass/
 // 21 pitches (E1–C3) × 2 velocities (soft/hard) × 2 round robins = 84 files

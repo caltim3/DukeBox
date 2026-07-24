@@ -1,6 +1,6 @@
 import * as Tone from "tone"
 import { Chord, Note } from "@tonaljs/tonal"
-import { initSamplers, getSamplers } from "./samples"
+import { initSamplers, getSamplers, DEFAULT_DRUM_KIT } from "./samples"
 import { COMPING_STYLES, DEFAULT_COMPING_STYLE, getVoiceLedVoicing } from "./comping"
 import { DRUM_STYLES } from "./audioConstants"
 import { styledWalkingBass, DEFAULT_BASS_STYLE } from "./bassStyles"
@@ -239,6 +239,28 @@ function drumEvents(totalBeats, pattern) {
   return events
 }
 
+// ─── Reverb send (ported from Bebop Blueprint's reverb dial) ─────────────────
+// A parallel send: piano + drums fan out into a gain → reverb → destination.
+// The dial controls the send gain; the dry path stays untouched.
+let _reverb = null
+let _revSend = null
+let _revConnected = false
+
+function ensureReverbSend(amount) {
+  if (!_reverb) {
+    _reverb = new Tone.Reverb({ decay: 2.5, wet: 1 }).toDestination()
+    _revSend = new Tone.Gain(0).connect(_reverb)
+  }
+  _revSend.gain.value = Math.max(0, Math.min(1, amount)) * 0.55
+  if (!_revConnected) {
+    const { piano: pianoSampler, drums } = getSamplers() ?? {}
+    try { pianoSampler?.connect(_revSend) } catch {}
+    try { drums?.connect(_revSend) } catch {}
+    try { piano?.connect(_revSend) } catch {}
+    _revConnected = true
+  }
+}
+
 // ─── Transport management ─────────────────────────────────────────────────────
 let activeParts   = []
 let scheduledIds  = []
@@ -285,6 +307,8 @@ export async function startPlayback({
   compingStyle  = DEFAULT_COMPING_STYLE,
   bassStyle     = DEFAULT_BASS_STYLE,
   bassComplexity = 0.5,
+  drumKit       = DEFAULT_DRUM_KIT,
+  reverbAmount  = 0,
   onBar         = null,
   onStop        = null,
 }) {
@@ -292,6 +316,7 @@ export async function startPlayback({
   stopAll()
   ensureSynths()
   await initSamplers()
+  ensureReverbSend(reverbAmount)
 
   const timing   = computeBarTiming(bars)
   const totalBts = totalBarBeats(bars)
@@ -403,8 +428,10 @@ export async function startPlayback({
     const pattern = DRUM_STYLES[drumStyle] ?? DRUM_STYLES[0]
     makePart(drumEvents(totalBts, pattern), (time, ev) => {
       if (drumLoaded) {
-        try { drumSampler.player(ev.inst).start(time) } catch {
-          playDrumSynth(ev.inst, time, ev.vel)  // sampler failed mid-stream
+        try { drumSampler.player(`${drumKit}:${ev.inst}`).start(time) } catch {
+          try { drumSampler.player(`${DEFAULT_DRUM_KIT}:${ev.inst}`).start(time) } catch {
+            playDrumSynth(ev.inst, time, ev.vel)  // sampler failed mid-stream
+          }
         }
       } else {
         playDrumSynth(ev.inst, time, ev.vel)

@@ -219,6 +219,30 @@ export function buildImprovGuideMarkdown({ bars, title = "Current Song", keyRoot
   return md
 }
 
+/**
+ * Structured improv-map data for non-markdown consumers (Notion export).
+ * Same content as the markdown table + roadmap, as plain objects.
+ */
+export function buildImprovMapData({ bars, title = "Current Song", keyRoot = "C", keyMode = "major", tempo }) {
+  const tableRows = []
+  const roadmap = []
+  bars.forEach((bar, i) => {
+    if (bar.quality === "NC") return
+    const next = bars.slice(i + 1).find(b => b.quality !== "NC") || null
+    const hx = hexForBar(bar)
+    tableRows.push({
+      section: sectionLabel(bar, i, bars.length),
+      bar: i + 1,
+      chord: bar.symbol,
+      hex: `${hx.name} (${hx.notes})`,
+      triads: triadsForBar(bar).slice(0, 2).map(t => t.replace(/\s*\(.+\)\s*$/, "")).join(" & ") || "—",
+      voiceLeading: voiceLeadingHint(bar, next),
+    })
+    roadmap.push({ bar: i + 1, chord: bar.symbol, levels: levelsForBar(bar, next) })
+  })
+  return { title, key: `${keyRoot} ${keyMode}`, tempo, tableRows, roadmap }
+}
+
 /** Build the guide and trigger a browser download. */
 export function downloadImprovGuide(opts) {
   const md = buildImprovGuideMarkdown(opts)
