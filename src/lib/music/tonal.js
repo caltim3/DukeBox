@@ -624,6 +624,14 @@ export function applyScaleFilter(notes, root, quality, filter) {
       return buildFromSemitones(displayRoot, [0,2,3,5,7,10])    // standard hex: 1 2 b3 4 5 b7
     }
 
+    case "barry":
+      // Barry Harris 6th-diminished — 8-note scale from the chord root
+      return barryHarrisScale(root, quality).notes
+
+    case "hexchord":
+      // Chord-aware hexatonic (Bebop Blueprint Hex mode) — built from the root
+      return hexChoiceForChord(root, quality).notes
+
     case "bebop": {
       if (!notes.length) return notes
       const rootChroma = Note.chroma(root)
@@ -643,6 +651,70 @@ export function applyScaleFilter(notes, root, quality, filter) {
     default:
       return notes
   }
+}
+
+// ─── Barry Harris 6th-diminished scales — ported from Bebop Blueprint ────────
+// 8-note "sixth diminished" families keyed to the chord quality:
+//   major:    major scale + #5 passing tone       1 2 3 4 5 #5 6 7
+//   minor:    melodic minor + b7 passing tone     1 2 b3 4 5 6 b7 7
+//   dominant: mixolydian + maj7 passing tone      1 2 3 4 5 6 b7 7
+function barryFamily(quality) {
+  const q = String(quality || "").toLowerCase()
+  if (q.startsWith("min") || (q.startsWith("m") && !q.startsWith("maj"))) return "minor"
+  if (q.includes("7") || q.includes("9") || q.includes("13") || q.includes("alt")) {
+    if (q.startsWith("maj")) return "major"
+    return "dominant"
+  }
+  return "major"
+}
+
+const BARRY_OFFSETS = {
+  minor:    { scale: [0, 2, 3, 5, 7, 9, 10, 11], passing: 10 },  // b7
+  dominant: { scale: [0, 2, 4, 5, 7, 9, 10, 11], passing: 11 },  // maj7
+  major:    { scale: [0, 2, 4, 5, 7, 8, 9, 11],  passing: 8  },  // #5
+}
+
+/**
+ * Barry Harris 6th-diminished scale for a chord.
+ * @returns {{ notes: string[], passingNote: string|null, family: string }}
+ */
+export function barryHarrisScale(root, quality) {
+  const family = barryFamily(quality)
+  const { scale, passing } = BARRY_OFFSETS[family]
+  return {
+    notes: buildFromSemitones(root, scale),
+    passingNote: noteAtSemitones(root, passing),
+    family,
+  }
+}
+
+// ─── Chord-aware hexatonic choice — ported from Bebop Blueprint Hex mode ─────
+// Unlike the Randy Vincent "hexatonic" filter (which remaps roots), this picks
+// a six-note scale built FROM the chord root, tuned to the chord's function.
+const HEX_INTERVALS = {
+  major:     [0, 2, 4, 7, 9, 11],   // Major minus 4
+  dominant:  [0, 2, 4, 7, 9, 10],   // Mixolydian minus 4
+  minor7:    [0, 2, 3, 5, 7, 10],   // Dorian minus 6
+  halfDim:   [0, 3, 5, 6, 8, 10],   // Locrian minus b2
+  wholeTone: [0, 2, 4, 6, 8, 10],
+  altered:   [0, 1, 4, 6, 9, 10],   // Curated altered tensions
+}
+
+export function hexChoiceForChord(root, quality) {
+  const q = String(quality || "").toLowerCase()
+  const isDom = (q.includes("7") || q.includes("9") || q.includes("13") || q.includes("alt"))
+             && !q.startsWith("maj") && !q.startsWith("min") && !q.startsWith("m")
+  if (q.includes("m7b5") || q.includes("min7b5"))
+    return { label: "Locrian Hex (no b2)", notes: buildFromSemitones(root, HEX_INTERVALS.halfDim) }
+  if (isDom && (q.includes("alt") || q.includes("b9") || q.includes("#9") || q.includes("#11") || q.includes("b13")))
+    return { label: "Altered Hex", notes: buildFromSemitones(root, HEX_INTERVALS.altered) }
+  if (isDom && (q.includes("aug") || q.includes("+") || q.includes("#5")))
+    return { label: "Whole Tone Hex", notes: buildFromSemitones(root, HEX_INTERVALS.wholeTone) }
+  if (isDom)
+    return { label: "Mixolydian Hex (no 4)", notes: buildFromSemitones(root, HEX_INTERVALS.dominant) }
+  if (q.startsWith("min") || (q.startsWith("m") && !q.startsWith("maj")))
+    return { label: "Dorian Hex (no 6)", notes: buildFromSemitones(root, HEX_INTERVALS.minor7) }
+  return { label: "Major Hex (no 4)", notes: buildFromSemitones(root, HEX_INTERVALS.major) }
 }
 
 /**
@@ -697,6 +769,12 @@ export function fretFlowScaleNotes(scaleValue, root) {
   if (scaleValue.startsWith("chord:")) {
     const suffix = scaleValue.slice(6)   // e.g. "maj7", "m7", "7", "m7b5", "dim7", "6", "m6"
     return Chord.get(`${root}${suffix}`).notes || []
+  }
+  // Explicit semitone lists ("ints:0,1,4,…") for scales Tonal.js doesn't name
+  // the same way — used for the Bebop Blueprint exotic-scale dictionary.
+  if (scaleValue.startsWith("ints:")) {
+    const semis = scaleValue.slice(5).split(",").map(Number).filter(Number.isFinite)
+    return buildFromSemitones(root, semis)
   }
   return Scale.get(`${root} ${scaleValue}`).notes || []
 }

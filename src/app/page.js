@@ -17,6 +17,8 @@ import {
   getRecommendedScalesFromQuality,
   transposeChart,
   applyScaleFilter,
+  barryHarrisScale,
+  hexChoiceForChord,
 } from "@/lib/music/tonal"
 import { analyzeProgressionContext } from "@/lib/music/harmony"
 import { FORMS, FORM_CATEGORIES, DESERT_NOIR_META } from "@/lib/music/forms"
@@ -24,7 +26,13 @@ import { chordToRoman } from "@/lib/music/roman"
 import { DRUM_STYLES } from "@/lib/music/audioConstants"
 import { exportLeadSheet, exportMusicXML } from "@/lib/music/leadsheet"
 import { COMPING_STYLE_NAMES, DEFAULT_COMPING_STYLE } from "@/lib/music/comping"
+import { BASS_STYLE_NAMES, DEFAULT_BASS_STYLE } from "@/lib/music/bassStyles"
+import { downloadImprovGuide, buildImprovMapData } from "@/lib/music/improvGuide"
+import { DRUM_KIT_NAMES, DEFAULT_DRUM_KIT } from "@/lib/music/samples"
+import { parseTonalUserSongs } from "@/lib/music/importTonal"
 import Fretboard from "@/components/Fretboard"
+import Runway from "@/components/Runway"
+import MetronomePanel from "@/components/MetronomePanel"
 
 // audio.js (Tone.js) is loaded lazily on first play so AudioContext is only
 // created after a user gesture, avoiding the browser autoplay-policy warning.
@@ -132,8 +140,12 @@ export default function Home() {
   const [isPlaying, setIsPlaying] = useState(false)
   const [playChords, setPlayChords] = useState(true)
   const [playBass, setPlayBass] = useState(true)
+  const [bassStyle, setBassStyle] = useState(DEFAULT_BASS_STYLE)
+  const [bassComplexity, setBassComplexity] = useState(0.5)
   const [playDrums, setPlayDrums] = useState(true)
   const [drumStyleIdx, setDrumStyleIdx] = useState(0)
+  const [drumKit, setDrumKit] = useState(DEFAULT_DRUM_KIT)
+  const [reverbAmount, setReverbAmount] = useState(0)
   const [playMelody, setPlayMelody] = useState(false)
   const [swingAmount, setSwingAmount] = useState(0.5)
   const [playheadIndex, setPlayheadIndex] = useState(null)
@@ -155,12 +167,16 @@ export default function Home() {
   const [compingStyle, setCompingStyle] = useState(DEFAULT_COMPING_STYLE)
   const [userLibrary, setUserLibrary] = useState([])
   const [lastGenChart, setLastGenChart] = useState(null)
+  const [showImportModal, setShowImportModal] = useState(false)
+  const [importText, setImportText] = useState("")
+  const [importStatus, setImportStatus] = useState(null)
   const [showFretboard, setShowFretboard] = useState(false)
   const [fretboardView, setFretboardView] = useState("chord")
   const [fretboardTuning, setFretboardTuning] = useState("Standard")
-  const [scaleFilter, setScaleFilter] = useState(null)  // null | "pentatonic" | "hexatonic"
+  const [scaleFilter, setScaleFilter] = useState(null)  // null | "pentatonic" | "hexatonic" | "martino" | "hexchord" | "barry"
   const [bebopOverlay, setBebopOverlay] = useState(false)   // adds chromatic passing tone on top
   const [targetsOverlay, setTargetsOverlay] = useState(false) // adds guide tones (3rd/7th) on top
+  const [anticipateOn, setAnticipateOn] = useState(false)   // second fretboard showing the next chord
   const [practiceMode, setPracticeMode] = useState(false)
   const [paletteIndex, setPaletteIndex] = useState(0)
   const [gridColumns, setGridColumns] = useState(4)
@@ -293,6 +309,59 @@ export default function Home() {
     if (!targetsOverlay) return []
     return targets[fretboardBarIndex]?.currentGuideTones ?? []
   }, [targetsOverlay, targets, fretboardBarIndex])
+
+  // Barry Harris 6th-dim passing tone — shown green when the Barry filter is on
+  const barryPassingNotes = useMemo(() => {
+    if (scaleFilter !== "barry") return []
+    const tonic = fretboardBar.userTonic ?? fretboardBar.root
+    const p = barryHarrisScale(tonic, fretboardBar.quality).passingNote
+    return p ? [p] : []
+  }, [scaleFilter, fretboardBar])
+
+  // Anticipate — the next sounding bar, wrapping inside the loop range when
+  // looping (ported from Bebop Blueprint's loop-aware next-chord lookup)
+  const anticipateBarIndex = useMemo(() => {
+    if (!bars.length) return null
+    const lo = loopEnabled ? Math.min(loopStart, loopEnd) : 0
+    const hi = loopEnabled ? Math.max(loopStart, loopEnd) : bars.length - 1
+    const span = hi - lo + 1
+    for (let step = 1; step <= span; step++) {
+      const idx = lo + ((fretboardBarIndex - lo + step) % span + span) % span
+      if (bars[idx] && bars[idx].quality !== "NC") return idx
+    }
+    return null
+  }, [bars, fretboardBarIndex, loopEnabled, loopStart, loopEnd])
+
+  const anticipateBar = anticipateBarIndex != null ? bars[anticipateBarIndex] : null
+  const anticipateInfo = useMemo(
+    () => (anticipateBar ? chordInfo(anticipateBar.symbol) : { notes: [] }),
+    [anticipateBar]
+  )
+
+  // Direction of each current guide tone toward the next chord's nearest guide
+  // tone — cyclic shortest path (ported from Bebop Blueprint's arrows, fixed:
+  // rendered per-dot in the SVG instead of a floating overlay).
+  const guideToneDirections = useMemo(() => {
+    if (!targetsOverlay || anticipateBarIndex == null) return null
+    const chroma = (n) => "C Db D Eb E F Gb G Ab A Bb B".split(" ").indexOf(n)
+    const cur = targets[fretboardBarIndex]?.currentGuideTones ?? []
+    const nxt = targets[anticipateBarIndex]?.currentGuideTones ?? []
+    if (!cur.length || !nxt.length) return null
+    const dirs = {}
+    for (const g of cur) {
+      const gc = chroma(g)
+      if (gc < 0) continue
+      let best = null
+      for (const t of nxt) {
+        const tc = chroma(t)
+        if (tc < 0) continue
+        const signed = ((tc - gc + 6 + 12) % 12) - 6   // shortest cyclic path, -6..+5
+        if (best === null || Math.abs(signed) < Math.abs(best)) best = signed
+      }
+      if (best !== null) dirs[g] = best > 0 ? "up" : best < 0 ? "down" : "same"
+    }
+    return dirs
+  }, [targetsOverlay, targets, fretboardBarIndex, anticipateBarIndex])
 
   const romanNumerals = useMemo(() => {
     return bars.map((bar) => chordToRoman(bar.root, bar.quality, keyRoot, keyMode))
@@ -655,6 +724,7 @@ export default function Home() {
           loop:          true,
           swing:         swingAmount,
           playChords, playBass, playDrums, playMelody, compingStyle,
+          bassStyle, bassComplexity, drumKit, reverbAmount,
           drumStyle:     drumStyleIdx,
           onBar:  (localIdx) => setPlayheadIndex(startIndex + localIdx),
           onStop: () => { playingRef.current = false; setIsPlaying(false); setPlayheadIndex(null) },
@@ -674,6 +744,7 @@ export default function Home() {
         loop:          false,
         swing:         swingAmount,
         playChords, playBass, playDrums, playMelody, compingStyle,
+        bassStyle, bassComplexity, drumKit, reverbAmount,
         drumStyle:     drumStyleIdx,
         onBar:  (localIdx) => setPlayheadIndex(startIndex + localIdx),
         onStop: () => {
@@ -985,6 +1056,46 @@ export default function Home() {
               ↓ MusicXML
             </button>
 
+            <button
+              onClick={() => downloadImprovGuide({ bars, title: selectedForm, keyRoot, keyMode, tempo: originalTempo })}
+              style={{ ...buttonStyle("var(--db-c-green)"), padding: "6px 12px", fontSize: "0.82rem" }}
+              title="Export a 5-level improv guide as markdown — scales, triad pairs, bebop cells, voice leading per chord"
+            >
+              ↓ Improv Guide
+            </button>
+
+            <button
+              onClick={async () => {
+                const token = prompt("Notion integration token (used once, never stored):")
+                if (!token?.trim()) return
+                try {
+                  const payload = buildImprovMapData({ bars, title: selectedForm, keyRoot, keyMode, tempo: originalTempo })
+                  const res = await fetch("/api/export-notion", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ token: token.trim(), ...payload }),
+                  })
+                  const data = await res.json()
+                  if (data.error) throw new Error(data.error)
+                  alert(`Exported to Notion${data.url ? `:\n${data.url}` : ""}`)
+                } catch (err) {
+                  alert(`Notion export failed: ${err.message}`)
+                }
+              }}
+              style={{ ...buttonStyle("var(--db-c-pink)"), padding: "6px 12px", fontSize: "0.82rem" }}
+              title="Create a Notion page with the improv map — summary table + per-bar collapsible roadmap"
+            >
+              → Notion
+            </button>
+
+            <button
+              onClick={() => { setShowImportModal(true); setImportText(""); setImportStatus(null) }}
+              style={{ ...buttonStyle("var(--db-c-blue)"), padding: "6px 12px", fontSize: "0.82rem" }}
+              title="Import songs you saved in Bebop Blueprint — paste localStorage['userBebopProgressions']"
+            >
+              ⇪ Import BB Songs
+            </button>
+
             <label style={inlineLabelStyle}>
               <span style={{ opacity: 0.7, marginRight: "4px" }}>Key</span>
               <select
@@ -1020,6 +1131,68 @@ export default function Home() {
               Roman Numerals
             </label>
           </div>
+
+          {/* Bebop Blueprint song importer */}
+          {showImportModal && (
+            <div style={{
+              marginTop: "12px", padding: "14px", borderRadius: "10px",
+              border: "1px solid var(--db-c-blue)",
+              background: "color-mix(in srgb, var(--db-c-blue) 5%, var(--db-bg))",
+            }}>
+              <div style={{ fontSize: "0.82rem", opacity: 0.75, marginBottom: "8px", lineHeight: 1.5 }}>
+                In Bebop Blueprint, open DevTools → Console and run{" "}
+                <code style={{ background: "var(--db-input-bg)", padding: "1px 5px", borderRadius: "4px" }}>
+                  copy(localStorage.getItem(&#39;userBebopProgressions&#39;))
+                </code>
+                {" "}— then paste here. Your saved songs become DukeBox library entries.
+              </div>
+              <textarea
+                value={importText}
+                onChange={(e) => setImportText(e.target.value)}
+                placeholder='{"My Custom Song": { "parts": [...], "splitStatus": [...], "defaultKey": "C", ... }}'
+                style={{
+                  width: "100%", minHeight: "90px", padding: "10px", borderRadius: "8px",
+                  border: "1px solid var(--db-panel-border)", background: "var(--db-input-bg)",
+                  color: "var(--db-text)", fontSize: "0.82rem", fontFamily: "monospace",
+                  boxSizing: "border-box", resize: "vertical",
+                }}
+              />
+              <div style={{ display: "flex", gap: "8px", marginTop: "8px", alignItems: "center", flexWrap: "wrap" }}>
+                <button
+                  onClick={() => {
+                    try {
+                      const { entries, warnings } = parseTonalUserSongs(importText)
+                      const merged = [
+                        ...userLibrary.filter(e => !entries.some(n => n.name === e.name)),
+                        ...entries,
+                      ]
+                      setUserLibrary(merged)
+                      try { localStorage.setItem("dukebox-library", JSON.stringify(merged)) } catch {}
+                      setImportStatus({ ok: true, msg: `Imported ${entries.length} song${entries.length === 1 ? "" : "s"}${warnings.length ? ` · ${warnings.join("; ")}` : ""}` })
+                      setImportText("")
+                    } catch (err) {
+                      setImportStatus({ ok: false, msg: err.message })
+                    }
+                  }}
+                  disabled={!importText.trim()}
+                  style={{ ...buttonStyle("var(--db-c-green)"), padding: "6px 14px", fontSize: "0.85rem", opacity: importText.trim() ? 1 : 0.5 }}
+                >
+                  Import
+                </button>
+                <button
+                  onClick={() => setShowImportModal(false)}
+                  style={{ ...buttonStyle("var(--db-muted)"), padding: "6px 14px", fontSize: "0.85rem" }}
+                >
+                  Close
+                </button>
+                {importStatus && (
+                  <span style={{ fontSize: "0.82rem", color: importStatus.ok ? "var(--db-c-green)" : "#ff8a8a" }}>
+                    {importStatus.msg}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         <div style={panelStyle}>
@@ -1109,6 +1282,34 @@ export default function Home() {
                 </label>
 
                 <label style={inlineLabelStyle}>
+                  <span style={{ opacity: 0.7 }}>Bassist</span>
+                  <select
+                    value={bassStyle}
+                    onChange={(e) => setBassStyle(e.target.value)}
+                    style={{ ...selectStyle, width: "auto", padding: "5px 8px", fontSize: "0.85rem" }}
+                  >
+                    {BASS_STYLE_NAMES.map((name) => (
+                      <option key={name} value={name}>{name}</option>
+                    ))}
+                  </select>
+                </label>
+
+                {bassStyle !== "Classic DukeBox" && (
+                  <label style={inlineLabelStyle} title="Line complexity — low = 2-feel, high = busy walking with passing tones">
+                    <span style={{ opacity: 0.7 }}>Complexity</span>
+                    <input
+                      type="range" min="0" max="100"
+                      value={Math.round(bassComplexity * 100)}
+                      onChange={(e) => setBassComplexity(Number(e.target.value) / 100)}
+                      style={{ width: "70px" }}
+                    />
+                    <span style={{ minWidth: "28px", fontSize: "0.85rem", opacity: 0.8 }}>
+                      {Math.round(bassComplexity * 100)}%
+                    </span>
+                  </label>
+                )}
+
+                <label style={inlineLabelStyle}>
                   <input type="checkbox" checked={playDrums} onChange={(e) => setPlayDrums(e.target.checked)} />
                   <button
                     onClick={() => setDrumStyleIdx(i => (i + 1) % DRUM_STYLES.length)}
@@ -1120,6 +1321,27 @@ export default function Home() {
                   >
                     🥁 {DRUM_STYLES[drumStyleIdx].name}
                   </button>
+                  <select
+                    value={drumKit}
+                    onChange={(e) => setDrumKit(e.target.value)}
+                    style={{ ...selectStyle, width: "auto", padding: "4px 6px", fontSize: "0.8rem" }}
+                    title="Drum kit — sample set for the drum voices"
+                  >
+                    {DRUM_KIT_NAMES.map(k => <option key={k} value={k}>{k}</option>)}
+                  </select>
+                </label>
+
+                <label style={inlineLabelStyle} title="Reverb send for piano and drums — takes effect on the next Play">
+                  Reverb
+                  <input
+                    type="range" min="0" max="100"
+                    value={Math.round(reverbAmount * 100)}
+                    onChange={(e) => setReverbAmount(Number(e.target.value) / 100)}
+                    style={{ width: "60px" }}
+                  />
+                  <span style={{ minWidth: "28px", fontSize: "0.85rem", opacity: 0.8 }}>
+                    {Math.round(reverbAmount * 100)}%
+                  </span>
                 </label>
 
                 <label style={inlineLabelStyle}>
@@ -1158,6 +1380,20 @@ export default function Home() {
                 </button>
               </div>
             )}
+          </div>
+
+          {/* ── Runway — color-coded chord strip with per-bar progress fill ── */}
+          <div style={{ marginBottom: "12px" }}>
+            <div style={{ ...eyebrowStyle, marginBottom: "4px" }}>RUNWAY</div>
+            <div style={{ fontSize: "0.78rem", opacity: 0.55, marginBottom: "6px" }}>
+              Chord timeline by function — green major · blue minor · red dominant · purple ø · gold ° · dark-red altered
+            </div>
+            <Runway
+              bars={bars}
+              playheadIndex={playheadIndex}
+              tempo={practiceMode ? 50 : tempo}
+              onSelectBar={setSelectedIndex}
+            />
           </div>
 
           <div style={eyebrowStyle}>MELODY LANE</div>
@@ -1201,7 +1437,13 @@ export default function Home() {
 
               {/* Base scale shape — mutually exclusive */}
               <div style={{ display: "flex", gap: "4px" }}>
-                {["pentatonic","hexatonic","martino"].map((f) => (
+                {[
+                  ["pentatonic", "Pentatonic"],
+                  ["hexatonic",  "Hexatonic"],
+                  ["martino",    "Martino"],
+                  ["hexchord",   "Hex·Chord"],
+                  ["barry",      "Barry 6th"],
+                ].map(([f, label]) => (
                   <button key={f} onClick={() => setScaleFilter(prev => prev === f ? null : f)} style={{
                     padding: "4px 10px", borderRadius: "6px", fontSize: "0.8rem", cursor: "pointer",
                     background: scaleFilter === f ? "color-mix(in srgb, var(--db-c-blue) 20%, var(--db-bg))" : "var(--db-panel-bg)",
@@ -1209,9 +1451,8 @@ export default function Home() {
                     color:      scaleFilter === f ? "var(--db-c-blue)" : "var(--db-text)",
                     fontWeight: scaleFilter === f ? 700 : 400,
                     opacity:    scaleFilter === f ? 1 : 0.7,
-                    textTransform: "capitalize",
                   }}>
-                    {f === "martino" ? "Martino" : f}
+                    {label}
                   </button>
                 ))}
               </div>
@@ -1238,6 +1479,16 @@ export default function Home() {
                 }}>
                   +Guide Tones
                 </button>
+                <button onClick={() => setAnticipateOn(p => !p)} style={{
+                  padding: "4px 10px", borderRadius: "6px", fontSize: "0.8rem", cursor: "pointer",
+                  background: anticipateOn ? "color-mix(in srgb, var(--db-c-purple) 20%, var(--db-bg))" : "var(--db-panel-bg)",
+                  border:     anticipateOn ? "1px solid var(--db-c-purple)" : "1px solid var(--db-panel-border)",
+                  color:      anticipateOn ? "var(--db-c-purple)" : "var(--db-text)",
+                  fontWeight: anticipateOn ? 700 : 400,
+                  opacity:    anticipateOn ? 1 : 0.7,
+                }} title="Show a second fretboard with the NEXT chord's tones and guide tones — see the change coming">
+                  Anticipate
+                </button>
               </div>
 
               <select
@@ -1245,7 +1496,7 @@ export default function Home() {
                 onChange={(e) => setFretboardTuning(e.target.value)}
                 style={{ ...selectStyle, width: "auto", padding: "4px 8px", fontSize: "0.82rem" }}
               >
-                {["Standard", "Drop D", "Open G", "DADGAD"].map((t) => (
+                {TUNING_NAMES.map((t) => (
                   <option key={t} value={t}>{t}</option>
                 ))}
               </select>
@@ -1257,6 +1508,10 @@ export default function Home() {
                 {fretboardView === "scale" ? ` · ${
                   martinoMap
                     ? `Martino → ${martinoMap.displayRoot}m${martinoMap.displayQuality === "min7b5" ? " (melodic)" : ""}`
+                    : scaleFilter === "hexchord"
+                    ? hexChoiceForChord(fretboardBar.userTonic ?? fretboardBar.root, fretboardBar.quality).label
+                    : scaleFilter === "barry"
+                    ? `Barry 6th-Dim (${barryHarrisScale(fretboardBar.userTonic ?? fretboardBar.root, fretboardBar.quality).family})`
                     : (scaleFilter ?? fretboardScaleData[0]?.name ?? "")
                 }` : ""}
               </div>
@@ -1268,18 +1523,47 @@ export default function Home() {
                 rootNote={martinoMap ? martinoMap.displayRoot : (fretboardBar.userTonic ?? fretboardBar.root)}
                 scaleNotes={displayedScaleNotes}
                 targetNotes={[]}
-                passingNotes={bebopPassingNotes}
+                passingNotes={[...bebopPassingNotes, ...barryPassingNotes]}
                 guideToneNotes={guideToneDisplayNotes}
+                guideToneDirections={guideToneDirections}
                 view={fretboardView}
                 tuningName={fretboardTuning}
               />
             </div>
+
+            {/* Anticipate — the NEXT chord on its own board (loop-aware) */}
+            {anticipateOn && anticipateBar && (
+              <div style={{ marginTop: "10px", paddingTop: "10px", borderTop: "1px dashed var(--db-panel-border)" }}>
+                <div style={{ display: "flex", alignItems: "baseline", gap: "10px", marginBottom: "4px" }}>
+                  <div style={{ fontSize: "0.72rem", fontWeight: 700, letterSpacing: "0.12em", color: "var(--db-c-purple)" }}>
+                    NEXT · BAR {barLabels[anticipateBarIndex] ?? anticipateBarIndex + 1}
+                  </div>
+                  <div style={{ fontSize: "1rem", fontWeight: 700 }}>{anticipateBar.symbol}</div>
+                  <div style={{ fontSize: "0.75rem", opacity: 0.55 }}>
+                    guide tones {(targets[anticipateBarIndex]?.currentGuideTones || []).join(" / ") || "—"}
+                  </div>
+                </div>
+                <div style={{ overflowX: "auto" }}>
+                  <Fretboard
+                    chordNotes={anticipateInfo.notes || []}
+                    rootNote={anticipateBar.userTonic ?? anticipateBar.root}
+                    scaleNotes={[]}
+                    targetNotes={[]}
+                    passingNotes={[]}
+                    guideToneNotes={targets[anticipateBarIndex]?.currentGuideTones || []}
+                    view="chord"
+                    tuningName={fretboardTuning}
+                  />
+                </div>
+              </div>
+            )}
 
             <div style={{ marginTop: "8px", display: "flex", gap: "14px", fontSize: "0.78rem", flexWrap: "wrap" }} >
               <span style={{ opacity: 0.55 }}><span style={{ color: "#BD2031" }}>●</span> Root</span>
               <span style={{ opacity: 0.55 }}><span style={{ color: "#3A9C5A" }}>●</span> Chord tone</span>
               <span style={{ opacity: 0.55 }}><span style={{ color: "#3A78C9" }}>●</span> Scale tone</span>
               {bebopOverlay   && <span style={{ opacity: 0.85 }}><span style={{ color: "#56C568" }}>●</span> Bebop passing</span>}
+              {scaleFilter === "barry" && <span style={{ opacity: 0.85 }}><span style={{ color: "#56C568" }}>●</span> Barry passing tone</span>}
               {targetsOverlay && <span style={{ opacity: 0.85 }}><span style={{ color: "#FFD54F" }}>●</span> Guide tones</span>}
               <span style={{ opacity: 0.55 }}><span style={{ color: "#E09B3D" }}>●</span> Target note</span>
             </div>
@@ -1758,6 +2042,14 @@ export default function Home() {
           )
         })()}
 
+        <MetronomePanel
+          onBeforeStart={stopPlayback}
+          panelStyle={panelStyle}
+          eyebrowStyle={eyebrowStyle}
+          selectStyle={selectStyle}
+          inlineLabelStyle={inlineLabelStyle}
+        />
+
         {dnMeta && <DesertNoirPanel meta={dnMeta} />}
       </section>
 
@@ -1963,9 +2255,16 @@ const FRET_FLOW_SCALES = [
   { value: "minor pentatonic",      label: "Minor Pentatonic" },
   { value: "major blues",           label: "Major Blues" },
   { value: "blues",                 label: "Blues (Minor Blues)" },
+  // ── Exotic (from the Bebop Blueprint scale dictionary; explicit semitones) ─
+  { value: "ints:0,1,4,5,6,8,11",   label: "Persian" },
+  { value: "ints:0,2,4,5,6,8,10",   label: "Arabic (Major Locrian)" },
+  { value: "ints:0,2,5,7,8",        label: "Japanese" },
+  { value: "ints:0,2,5,7,10",       label: "Egyptian (Sus Pentatonic)" },
+  { value: "ints:0,3,5,7,10,11",    label: "Minor Bebop (Hexatonic)" },
+  { value: "ints:0,3,5,6,7,10,11",  label: "Minor Bebop Blues" },
 ]
 
-const TUNING_NAMES = ["Standard", "Drop D", "Open G", "DADGAD"]
+const TUNING_NAMES = ["Standard", "Drop D", "Open G", "DADGAD", "Open D", "Open E"]
 
 const selectStyle = {
   width: "100%",

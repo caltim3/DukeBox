@@ -10,13 +10,15 @@ const TUNINGS = {
   "Drop D":  ["D","A","D","G","B","E"],
   "Open G":  ["D","G","D","G","B","D"],
   DADGAD:    ["D","A","D","G","A","D"],
+  "Open D":  ["D","A","D","Gb","A","D"],
+  "Open E":  ["E","B","E","Ab","B","E"],
 }
 
 const FRET_COUNT   = 12
 const MARKER_FRETS = [3, 5, 7, 9, 12]
 const NUM_FRET_LABELS = [1, 3, 5, 7, 9, 12]
 
-export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes = null, view = "chord", tuningName = "Standard", targetNotes = [], passingNotes = [], guideToneNotes = [] }) {
+export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes = null, view = "chord", tuningName = "Standard", targetNotes = [], passingNotes = [], guideToneNotes = [], guideToneDirections = null }) {
   const displayNotes = view === "scale" && scaleNotes?.length ? scaleNotes : chordNotes
   const noteSet    = new Set(displayNotes.map(n => norm(n)))
   const targetSet  = new Set((targetNotes  ?? []).map(n => norm(n)))
@@ -134,15 +136,25 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
       ))}
 
       {/* Note dots */}
-      {dots.map(d => (
-        <g key={d.key}>
-          <circle cx={d.cx} cy={d.cy} r={d.r} fill={d.color} />
-          <text x={d.cx} y={d.cy + 3.5}
-            textAnchor="middle" fill="white"
-            fontSize={d.isRoot ? 9 : 8} fontWeight="bold" fontFamily="Arial, sans-serif"
-          >{d.label}</text>
-        </g>
-      ))}
+      {dots.map(d => {
+        // Direction hint toward the next chord's guide tone (▲ up, ▼ down, ● hold)
+        const dir = d.isGuide && guideToneDirections ? guideToneDirections[d.label] : null
+        return (
+          <g key={d.key}>
+            <circle cx={d.cx} cy={d.cy} r={d.r} fill={d.color} />
+            <text x={d.cx} y={d.cy + 3.5}
+              textAnchor="middle" fill="white"
+              fontSize={d.isRoot ? 9 : 8} fontWeight="bold" fontFamily="Arial, sans-serif"
+            >{d.label}</text>
+            {dir && (
+              <text x={d.cx + 9} y={d.cy - 7}
+                textAnchor="middle" fontSize={8} fontWeight="bold" fontFamily="Arial, sans-serif"
+                fill={dir === "up" ? "#56C568" : dir === "down" ? "#E09B3D" : "#999"}
+              >{dir === "up" ? "▲" : dir === "down" ? "▼" : "●"}</text>
+            )}
+          </g>
+        )
+      })}
 
     </svg>
   )
