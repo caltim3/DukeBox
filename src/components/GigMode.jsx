@@ -58,7 +58,10 @@ function tempoNumber(t) {
   return Math.round(nums.reduce((a, b) => a + b, 0) / nums.length)
 }
 
-export default function GigMode({ library, setLibrary, onLoadSong, panelStyle, eyebrowStyle, selectStyle }) {
+export default function GigMode({
+  library, setLibrary, onLoadSong, panelStyle, eyebrowStyle, selectStyle,
+  activeSongId = null, playheadIndex = null, isPlaying = false, onStop,
+}) {
   const setlists = library?.setlists ?? []
   const librarySongs = library?.songs
 
@@ -146,8 +149,28 @@ export default function GigMode({ library, setLibrary, onLoadSong, panelStyle, e
     if (!bars.length) return
     const keyRoot = song._form?.keyRoot || song._user?.keyRoot || (song.key || "C").split(/\s+/)[0]
     const keyMode = song._form?.keyMode || song._user?.keyMode || (/m/i.test(song.key) && !/major/i.test(song.key) ? "minor" : "major")
-    onLoadSong?.({ bars, keyRoot, keyMode, tempo: tempoNumber(song.tempo), title: song.title, autoplay })
+    onLoadSong?.({
+      bars, keyRoot, keyMode, tempo: tempoNumber(song.tempo),
+      title: song.title, autoplay, songId: song.id,
+    })
   }
+
+  // gigSongToBars flattens sections in order, one chord per bar, so the engine's
+  // bar index maps 1:1 onto the chord cells rendered below. Precompute the flat
+  // index of each cell so the playhead can light the right one.
+  const flatIndexOf = useMemo(() => {
+    const map = []
+    let n = 0
+    for (const sec of (openSong?.sections ?? [])) {
+      const row = []
+      for (let i = 0; i < sec.chords.length; i++) row.push(n++)
+      map.push(row)
+    }
+    return map
+  }, [openSong])
+
+  // Only light the chart that's actually loaded into the engine
+  const liveHere = openSong && activeSongId === openSong.id && playheadIndex != null
 
   const listForPool = setlistSongs ?? filtered
 
@@ -270,7 +293,11 @@ export default function GigMode({ library, setLibrary, onLoadSong, panelStyle, e
                 {openSong.credit && <span style={{ color: theme.muted, fontStyle: "italic" }}>{openSong.credit}</span>}
                 <div style={{ marginLeft: "auto", display: "flex", gap: "8px" }} className="gig-no-print">
                   <button onClick={() => loadSong(openSong, false)} style={solidBtn(theme)} title="Load this tune into the editor">Load</button>
-                  <button onClick={() => loadSong(openSong, true)} style={solidBtn(theme)} title="Load and play with the full band">▶ Play</button>
+                  {liveHere && isPlaying ? (
+                    <button onClick={() => onStop?.()} style={solidBtn(theme)} title="Stop playback">⏹ Stop</button>
+                  ) : (
+                    <button onClick={() => loadSong(openSong, true)} style={solidBtn(theme)} title="Load and play with the full band — the chart stays open and follows along">▶ Play</button>
+                  )}
                 </div>
               </div>
               <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", fontSize: "0.82rem", color: theme.muted, marginBottom: "14px" }}>
@@ -292,15 +319,29 @@ export default function GigMode({ library, setLibrary, onLoadSong, panelStyle, e
                     {sec.name}
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "8px" }} className="gig-chord-grid">
-                    {sec.chords.map((chord, ci) => (
-                      <div key={ci} style={{
-                        background: theme.chordBg, border: `1px solid ${theme.chordBorder}`, borderRadius: "8px",
-                        padding: "10px 6px", textAlign: "center", fontWeight: 700, color: theme.ink,
-                        fontSize: `${chordSize}px`, lineHeight: 1.1,
-                      }}>
-                        {chord}
-                      </div>
-                    ))}
+                    {sec.chords.map((chord, ci) => {
+                      const isNow = liveHere && flatIndexOf[si]?.[ci] === playheadIndex
+                      return (
+                        <div
+                          key={ci}
+                          ref={isNow ? (el) => el?.scrollIntoView({ block: "nearest", behavior: "smooth" }) : null}
+                          style={{
+                            background: isNow
+                              ? `color-mix(in srgb, ${theme.accent} 78%, ${theme.panel})`
+                              : theme.chordBg,
+                            border: `2px solid ${isNow ? theme.accent : theme.chordBorder}`,
+                            borderRadius: "8px",
+                            padding: "10px 6px", textAlign: "center", fontWeight: 700,
+                            color: isNow ? theme.panel : theme.ink,
+                            fontSize: `${chordSize}px`, lineHeight: 1.1,
+                            boxShadow: isNow ? `0 0 18px ${theme.accent}` : "none",
+                            transition: "background 0.12s, color 0.12s, box-shadow 0.12s",
+                          }}
+                        >
+                          {chord}
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
               ))}

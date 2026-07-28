@@ -34,6 +34,7 @@ import { parseGigChord } from "@/lib/music/gigbook"
 import Fretboard from "@/components/Fretboard"
 import Runway from "@/components/Runway"
 import MetronomePanel from "@/components/MetronomePanel"
+import LineLab from "@/components/LineLab"
 import GigMode from "@/components/GigMode"
 import { useAuth, useCloudLibrary } from "@/lib/cloud"
 
@@ -175,6 +176,7 @@ export default function Home() {
   const [importText, setImportText] = useState("")
   const [importStatus, setImportStatus] = useState(null)
   const [showGig, setShowGig] = useState(false)
+  const [activeGigSongId, setActiveGigSongId] = useState(null)  // which gig tune is loaded
   const [showShortcuts, setShowShortcuts] = useState(false)
   const [clipboardBar, setClipboardBar] = useState(null)
   const [showBarDetails, setShowBarDetails] = useState(false)
@@ -377,7 +379,9 @@ export default function Home() {
         const signed = ((tc - gc + 6 + 12) % 12) - 6   // shortest cyclic path, -6..+5
         if (best === null || Math.abs(signed) < Math.abs(best)) best = signed
       }
-      if (best !== null) dirs[g] = best > 0 ? "up" : best < 0 ? "down" : "same"
+      // Carry the SIGNED SEMITONE distance, not just a direction — the
+      // fretboard renders one triangle per half step (▲ = half, ▲▲ = whole).
+      if (best !== null) dirs[g] = best
     }
     return dirs
   }, [targetsOverlay, targets, fretboardBarIndex, anticipateBarIndex])
@@ -647,7 +651,9 @@ export default function Home() {
   }
 
   // Load any Gig Mode / setlist tune into the editor and engine.
-  function loadGigSong({ bars, keyRoot, keyMode, tempo, autoplay }) {
+  // Gig Mode deliberately STAYS OPEN so you can read the stage chart while it
+  // plays — the open chart lights the current measure via activeGigSongId.
+  function loadGigSong({ bars, keyRoot, keyMode, tempo, autoplay, songId }) {
     if (playingRef.current) stopPlayback()
     practiceModeRef.current = false
     setPracticeMode(false)
@@ -657,7 +663,7 @@ export default function Home() {
     setLoopStart(0); setLoopEnd(bars.length - 1)
     const t = tempo || 110
     setTempo(t); setOriginalTempo(t)
-    setShowGig(false)
+    setActiveGigSongId(songId ?? null)
     if (autoplay) pendingStartRef.current = true
   }
 
@@ -1134,6 +1140,10 @@ export default function Home() {
               library={library}
               setLibrary={setLibrary}
               onLoadSong={loadGigSong}
+              activeSongId={activeGigSongId}
+              playheadIndex={playheadIndex}
+              isPlaying={isPlaying}
+              onStop={stopPlayback}
               panelStyle={panelStyle}
               eyebrowStyle={eyebrowStyle}
               selectStyle={selectStyle}
@@ -2457,6 +2467,15 @@ export default function Home() {
             </div>
           )
         })()}
+
+        <LineLab
+          chartBars={bars}
+          chartTitle={selectedForm}
+          onStopPlayback={stopPlayback}
+          panelStyle={panelStyle}
+          eyebrowStyle={eyebrowStyle}
+          selectStyle={selectStyle}
+        />
 
         <MetronomePanel
           onBeforeStart={stopPlayback}
