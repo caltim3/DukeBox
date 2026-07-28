@@ -35,6 +35,7 @@ import Fretboard from "@/components/Fretboard"
 import Runway from "@/components/Runway"
 import MetronomePanel from "@/components/MetronomePanel"
 import LineLab from "@/components/LineLab"
+import SongCrafter from "@/components/SongCrafter"
 import GigMode from "@/components/GigMode"
 import { useAuth, useCloudLibrary } from "@/lib/cloud"
 
@@ -2480,6 +2481,15 @@ export default function Home() {
           eyebrowStyle={eyebrowStyle}
           selectStyle={selectStyle}
           inlineLabelStyle={inlineLabelStyle}
+        />
+
+        <SongCrafter
+          onSendToChart={({ bars, keyRoot, keyMode, title }) =>
+            loadGigSong({ bars, keyRoot, keyMode, tempo: originalTempo, autoplay: true, songId: null, title })
+          }
+          panelStyle={panelStyle}
+          eyebrowStyle={eyebrowStyle}
+          selectStyle={selectStyle}
         />
 
         {dnMeta && <DesertNoirPanel meta={dnMeta} />}
