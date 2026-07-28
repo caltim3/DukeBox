@@ -330,6 +330,7 @@ export async function startPlayback({
   bassComplexity = 0.5,
   drumKit       = DEFAULT_DRUM_KIT,
   reverbAmount  = 0,
+  repeats       = 1,
   onBar         = null,
   onStop        = null,
 }) {
@@ -339,8 +340,20 @@ export async function startPlayback({
   await initSamplers()
   ensureReverbSend(reverbAmount)
 
-  const timing   = computeBarTiming(bars)
-  const totalBts = totalBarBeats(bars)
+  // Multiple passes are laid end-to-end on ONE timeline rather than restarting
+  // playback per pass. Restarting meant a full stopAll() + rebuild between
+  // choruses, which was audible as a gap at the top of each repeat. As a bonus
+  // the piano's voice leading now carries across the seam instead of resetting.
+  // (loop=true needs no help — the Transport loops seamlessly on its own.)
+  const passes    = loop ? 1 : Math.max(1, Math.floor(repeats))
+  const srcLen    = bars.length
+  const playBars  = passes > 1 ? Array.from({ length: passes }, () => bars).flat() : bars
+  const playLines = passes > 1 && approachLines?.length
+    ? Array.from({ length: passes }, () => approachLines).flat()
+    : approachLines
+
+  const timing   = computeBarTiming(playBars)
+  const totalBts = totalBarBeats(playBars)
   const endM     = Math.floor(totalBts / 4)
   const endB     = totalBts % 4
   const end      = endB === 0 ? `${endM}:0:0` : `${endM}:${endB}:0`
@@ -356,7 +369,7 @@ export async function startPlayback({
 
   // Bar-change UI callbacks
   timing.forEach((t, i) => {
-    const id = tr.schedule(time => draw.schedule(() => onBar?.(i), time), t.time)
+    const id = tr.schedule(time => draw.schedule(() => onBar?.(i % srcLen), time), t.time)
     scheduledIds.push(id)
   })
 
@@ -375,7 +388,7 @@ export async function startPlayback({
     const events = []
     let prevVoicing = null
 
-    bars.forEach((bar, i) => {
+    playBars.forEach((bar, i) => {
       const { measure, beat: barBeat, beats } = timing[i]
       // N.C. — silence for the bar (prevVoicing carries so the next chord voice-leads).
       if (bar.quality === "NC" || bar.symbol === "N.C.") return
@@ -417,8 +430,8 @@ export async function startPlayback({
   // Bebop Blueprint line generator with the complexity dial.
   if (playBass) {
     const { bass: bassPlayers } = getSamplers()
-    const bassEvents = styledWalkingBass(bars, timing, bassStyle, bassComplexity)
-    makePart(bassEvents.length ? bassEvents : walkingBass(bars, timing), (time, ev) => {
+    const bassEvents = styledWalkingBass(playBars, timing, bassStyle, bassComplexity)
+    makePart(bassEvents.length ? bassEvents : walkingBass(playBars, timing), (time, ev) => {
       if (!bassPlayers) return
       const key = buildBassKey(ev.note)
       if (!key) return
@@ -430,9 +443,9 @@ export async function startPlayback({
   }
 
   // Melody lead — use piano sampler when available so timbre matches the chords
-  if (playMelody && approachLines?.length) {
+  if (playMelody && playLines?.length) {
     const { piano: pianoSampler } = getSamplers() ?? {}
-    makePart(melodyEvents(approachLines, timing), (time, ev) => {
+    makePart(melodyEvents(playLines, timing), (time, ev) => {
       if (pianoSampler) {
         pianoSampler.triggerAttackRelease(ev.note, ev.dur, time, ev.vel)
       } else {
