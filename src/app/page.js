@@ -125,6 +125,17 @@ function formatInterval(ivl) {
   return map[ivl] ?? ivl
 }
 
+// ─── Workspaces ───────────────────────────────────────────────────────────────
+// The app had grown into four products stacked vertically — 11 panels and ~317
+// controls on one 5-screen page, all at equal weight. Modes show one workspace
+// at a time; nothing was removed, it's just no longer all at once.
+const MODES = [
+  { id: "practice",  label: "Practice",  icon: "🎧", blurb: "Play along, loop a section, drill it slow" },
+  { id: "write",     label: "Write",     icon: "✍️", blurb: "Generate, edit, and arrange a chart" },
+  { id: "gig",       label: "Gig",       icon: "🎤", blurb: "Stage charts and setlists" },
+  { id: "reference", label: "Reference", icon: "📖", blurb: "Circle of fifths, key chart, progressions" },
+]
+
 const STARTER_PRESETS = [
   { id: "jazz-blues-bb",  label: "Jazz Blues in Bb" },
   { id: "major-251",      label: "Major ii-V-I Cycle" },
@@ -176,8 +187,10 @@ export default function Home() {
   const [showImportModal, setShowImportModal] = useState(false)
   const [importText, setImportText] = useState("")
   const [importStatus, setImportStatus] = useState(null)
-  const [showGig, setShowGig] = useState(false)
+  const [mode, setMode] = useState("practice")
   const [activeGigSongId, setActiveGigSongId] = useState(null)  // which gig tune is loaded
+  // Panels declare which workspaces they belong to; several appear in more than one.
+  const inMode = (...ids) => ids.includes(mode)
   const [showShortcuts, setShowShortcuts] = useState(false)
   const [clipboardBar, setClipboardBar] = useState(null)
   const [showBarDetails, setShowBarDetails] = useState(false)
@@ -190,6 +203,22 @@ export default function Home() {
   const { library, setLibrary, status: syncStatus } = useCloudLibrary(auth.email)
   const userLibrary = library.songs
   const promptHistory = library.prefs?.promptHistory ?? []
+
+  // Remember the workspace across sessions (rides the Supabase sync with
+  // everything else, so it follows you between devices).
+  const savedMode = library.prefs?.mode
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      if (!cancelled && savedMode && MODES.some(m => m.id === savedMode)) setMode(savedMode)
+    })()
+    return () => { cancelled = true }
+  }, [savedMode])
+
+  function chooseMode(id) {
+    setMode(id)
+    setLibrary(lib => ({ ...lib, prefs: { ...lib.prefs, mode: id } }))
+  }
   const [showFretboard, setShowFretboard] = useState(false)
   const [fretboardView, setFretboardView] = useState("chord")
   const [fretboardTuning, setFretboardTuning] = useState("Standard")
@@ -654,7 +683,8 @@ export default function Home() {
   // Load any Gig Mode / setlist tune into the editor and engine.
   // Gig Mode deliberately STAYS OPEN so you can read the stage chart while it
   // plays — the open chart lights the current measure via activeGigSongId.
-  function loadGigSong({ bars, keyRoot, keyMode, tempo, autoplay, songId }) {
+  function loadGigSong({ bars, keyRoot, keyMode, tempo, autoplay, songId, toMode }) {
+    if (toMode) setMode(toMode)   // e.g. Song Crafter hands off into Practice
     if (playingRef.current) stopPlayback()
     practiceModeRef.current = false
     setPracticeMode(false)
@@ -1114,20 +1144,6 @@ export default function Home() {
           </button>
 
           <button
-            onClick={() => setShowGig(g => !g)}
-            style={{
-              padding: "6px 14px", borderRadius: "10px", cursor: "pointer", fontWeight: 700, fontSize: "0.9rem",
-              border: `1px solid ${showGig ? "var(--db-c-amber)" : "var(--db-panel-border)"}`,
-              background: showGig ? "color-mix(in srgb, var(--db-c-amber) 16%, var(--db-bg))" : "var(--db-panel-bg)",
-              color: showGig ? "var(--db-c-amber)" : "var(--db-accent)",
-              flexShrink: 0,
-            }}
-            title="Stage-ready charts, setlists, and gig playback"
-          >
-            🎤 Gig Mode
-          </button>
-
-          <button
             onClick={() => setShowShortcuts(true)}
             style={{
               padding: "6px 12px", borderRadius: "10px", cursor: "pointer", fontWeight: 700, fontSize: "0.85rem",
@@ -1142,11 +1158,48 @@ export default function Home() {
           <SyncControl auth={auth} syncStatus={syncStatus} style={{ marginLeft: "auto" }} />
         </div>
 
-        <p style={{ opacity: 0.75, marginBottom: "24px" }}>
-          Drag measures, edit chords, hear the phrase, regenerate ideas, and inspect harmonic context live.
+        {/* ── Workspace switcher ─────────────────────────────────── */}
+        <div
+          role="tablist"
+          aria-label="Workspace"
+          className="db-modebar"
+          style={{
+            display: "flex", gap: "6px", flexWrap: "wrap",
+            marginBottom: "10px", padding: "5px",
+            borderRadius: "14px",
+            background: "var(--db-panel-bg)",
+            border: "1px solid var(--db-panel-border)",
+          }}
+        >
+          {MODES.map(m => {
+            const on = mode === m.id
+            return (
+              <button
+                key={m.id}
+                role="tab"
+                aria-selected={on}
+                onClick={() => chooseMode(m.id)}
+                title={m.blurb}
+                style={{
+                  flex: "1 1 auto", minWidth: "112px",
+                  padding: "9px 14px", borderRadius: "10px", cursor: "pointer",
+                  fontWeight: 700, fontSize: "0.95rem",
+                  border: on ? "1px solid var(--db-accent)" : "1px solid transparent",
+                  background: on ? "color-mix(in srgb, var(--db-accent) 16%, var(--db-bg))" : "transparent",
+                  color: on ? "var(--db-accent)" : "var(--db-text)",
+                  opacity: on ? 1 : 0.72,
+                }}
+              >
+                <span aria-hidden="true" style={{ marginRight: "6px" }}>{m.icon}</span>{m.label}
+              </button>
+            )
+          })}
+        </div>
+        <p style={{ opacity: 0.7, marginBottom: "20px", fontSize: "0.9rem" }}>
+          {MODES.find(m => m.id === mode)?.blurb}
         </p>
 
-        {showGig && (
+        {inMode("gig") && (
           <div style={{ marginBottom: "20px" }}>
             <GigMode
               library={library}
@@ -1164,7 +1217,7 @@ export default function Home() {
         )}
 
         {/* ── Start Practicing Fast ─────────────────────────────── */}
-        <div style={{
+        {inMode("practice") && <div style={{
           ...panelStyle,
           marginBottom: "16px",
           border: "1px solid color-mix(in srgb, var(--db-c-green) 30%, transparent)",
@@ -1193,10 +1246,10 @@ export default function Home() {
               </button>
             ))}
           </div>
-        </div>
+        </div>}
 
         {/* ── AI Chart Generator ────────────────────────────────── */}
-        <div style={{
+        {inMode("write") && <div style={{
           ...panelStyle,
           marginBottom: "16px",
           border: "1px solid rgba(201,167,255,0.25)",
@@ -1347,10 +1400,10 @@ export default function Home() {
               </button>
             </div>
           )}
-        </div>
+        </div>}
 
         {/* ── Song Settings ─────────────────────────────────────── */}
-        <div style={{ ...panelStyle, marginBottom: "16px" }}>
+        {inMode("practice","write") && <div style={{ ...panelStyle, marginBottom: "16px" }}>
           <div style={eyebrowStyle}>SONGBOOK</div>
           <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
 
@@ -1541,9 +1594,9 @@ export default function Home() {
               </div>
             </div>
           )}
-        </div>
+        </div>}
 
-        <div style={panelStyle}>
+        {inMode("practice","write") && <div style={panelStyle}>
           {/* ── Section 1: Playback & Practice ─────────────────────── */}
           <div style={{ marginBottom: "12px" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
@@ -1765,9 +1818,9 @@ export default function Home() {
           <div style={{ marginTop: "8px", fontSize: "0.9rem", opacity: 0.7 }}>
             Loop range: bars {Math.min(loopStart, loopEnd) + 1} to {Math.max(loopStart, loopEnd) + 1}
           </div>
-        </div>
+        </div>}
 
-        {showFretboard && (
+        {showFretboard && inMode("practice","write") && (
           <div style={{ ...panelStyle, marginBottom: "16px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "10px", flexWrap: "wrap" }}>
               <div style={{ ...eyebrowStyle, marginBottom: 0 }}>FRETBOARD</div>
@@ -1934,7 +1987,7 @@ export default function Home() {
           </div>
         )}
 
-        <div style={panelStyle}>
+        {inMode("practice","write") && <div style={panelStyle}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
             <div style={{ ...eyebrowStyle, marginBottom: 0 }}>LEAD SHEET GRID</div>
             <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
@@ -2379,9 +2432,9 @@ export default function Home() {
           </div>
           </div>
           )}
-        </div>
+        </div>}
 
-        <div style={panelStyle}>
+        {inMode("practice","write") && <div style={panelStyle}>
           <div style={eyebrowStyle}>CONTINUOUS APPROACH LINE</div>
           <div style={{ fontSize: "0.78rem", opacity: 0.55, marginBottom: "8px", marginTop: "-4px" }}>
             7→3 guide-tone line across the full chart — the melodic skeleton bar by bar
@@ -2389,10 +2442,10 @@ export default function Home() {
           <div style={{ fontSize: "1rem", lineHeight: 1.9, color: "var(--db-c-purple)" }}>
             {phrase.length ? phrase.join("  →  ") : "No phrase generated"}
           </div>
-        </div>
+        </div>}
 
         {/* ── FRET FLOW ─────────────────────────────────────────────── */}
-        {(() => {
+        {inMode("practice","reference") && (() => {
           // FRET_FLOW_SCALES and TUNING_NAMES are module-level constants (defined below Home()).
           const updateFFBoard = (idx, patch) =>
             setFretFlowBoards(prev => prev.map((b, i) => i === idx ? { ...b, ...patch } : b))
@@ -2480,33 +2533,34 @@ export default function Home() {
           )
         })()}
 
-        <LineLab
+        {inMode("write") && <LineLab
           chartBars={bars}
           chartTitle={selectedForm}
           onStopPlayback={stopPlayback}
           panelStyle={panelStyle}
           eyebrowStyle={eyebrowStyle}
           selectStyle={selectStyle}
-        />
+        />}
 
-        <MetronomePanel
+        {inMode("practice") && <MetronomePanel
           onBeforeStart={stopPlayback}
           panelStyle={panelStyle}
           eyebrowStyle={eyebrowStyle}
           selectStyle={selectStyle}
           inlineLabelStyle={inlineLabelStyle}
-        />
+        />}
 
-        <SongCrafter
+        {inMode("reference") && <SongCrafter
           onSendToChart={({ bars, keyRoot, keyMode, title }) =>
-            loadGigSong({ bars, keyRoot, keyMode, tempo: originalTempo, autoplay: true, songId: null, title })
+            // Jump to Practice — otherwise it autoplays a chart you can't see.
+            loadGigSong({ bars, keyRoot, keyMode, tempo: originalTempo, autoplay: true, songId: null, title, toMode: "practice" })
           }
           panelStyle={panelStyle}
           eyebrowStyle={eyebrowStyle}
           selectStyle={selectStyle}
-        />
+        />}
 
-        {dnMeta && <DesertNoirPanel meta={dnMeta} />}
+        {dnMeta && inMode("practice","write") && <DesertNoirPanel meta={dnMeta} />}
       </section>
 
       {/* Keyboard shortcut cheatsheet — toggled with ? */}
