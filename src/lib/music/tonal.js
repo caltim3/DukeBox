@@ -67,8 +67,24 @@ export function buildChordSymbol(root, quality) {
   return `${root}${suffix}`
 }
 
+/**
+ * Strip a slash bass so @tonaljs can parse the chord.
+ * Tonal's Chord.get returns an EMPTY chord for "Am7/G", "C/G", "D7/Gb" etc.,
+ * which silently blanks analysis and drops voicings during playback. Every
+ * Chord.get call site goes through this first; the bass note is carried
+ * separately on `bar.bass` and used by the bass line.
+ */
+export function chordBase(symbol) {
+  return String(symbol ?? "").replace(/\/[A-G][b#]?\d*$/, "")
+}
+
+// Parse a chord symbol, tolerating slash bass.
+export function getChord(symbol) {
+  return Chord.get(chordBase(symbol))
+}
+
 export function chordNotes(symbol) {
-  return Chord.get(symbol).notes || []
+  return getChord(symbol).notes || []
 }
 
 export function scaleNotes(scaleName, root) {
@@ -80,7 +96,7 @@ export function transpose(note, interval) {
 }
 
 export function chordInfo(symbol) {
-  const chord = Chord.get(symbol)
+  const chord = getChord(symbol)
 
   return {
     symbol,
@@ -92,7 +108,7 @@ export function chordInfo(symbol) {
 }
 
 export function guideTones(symbol) {
-  const chord = Chord.get(symbol)
+  const chord = getChord(symbol)
   const intervals = chord.intervals || []
   const notes = chord.notes || []
   const guide = []
@@ -134,8 +150,8 @@ export function analyzeGuideToneMotion(chords) {
 
     const next = progression[index + 1]
 
-    const curChord = Chord.get(current.symbol)
-    const nxtChord = Chord.get(next.symbol)
+    const curChord = getChord(current.symbol)
+    const nxtChord = getChord(next.symbol)
     const curNotes = current.notes || curChord.notes || []     // all chord tones
     const nxtNotes = next.notes   || nxtChord.notes || []
     const curIvls  = curChord.intervals || []
@@ -268,8 +284,8 @@ function extractRoot(symbol) {
 // Returns true if the root movement from symbolA to symbolB is a Perfect 4th (5 st) or P5 (7 st).
 // P4 up = 5 semitones; P5 up = 7 semitones. In jazz ii-V-I, every step is P4 up (a "falling fifth").
 function isP4orP5Movement(symbolA, symbolB) {
-  const ta = Chord.get(symbolA).tonic || extractRoot(symbolA)
-  const tb = Chord.get(symbolB).tonic || extractRoot(symbolB)
+  const ta = getChord(symbolA).tonic || extractRoot(symbolA)
+  const tb = getChord(symbolB).tonic || extractRoot(symbolB)
   if (!ta || !tb) return false
   const a = Note.chroma(ta)
   const b = Note.chroma(tb)
@@ -374,7 +390,7 @@ export function generateApproachLines(chords) {
 
   return targets.map((current, index) => {
     // Pre-compute chord tones and 3rd — reused for arrival, contour reset, and correction
-    const chordData  = Chord.get(chords[index].symbol)
+    const chordData  = getChord(chords[index].symbol)
     const chordTones = chordData.notes || []
     const chordIvls  = chordData.intervals || []
     const chordThird = chordTones.find((_, i) => chordIvls[i] === "3M" || chordIvls[i] === "3m")

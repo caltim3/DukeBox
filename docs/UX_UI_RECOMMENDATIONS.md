@@ -28,20 +28,29 @@ A prioritized usability and interface improvement plan for DukeBox.
 | Labels | "Set Loop Start/End" → "Set Start/End at Selected Bar" |
 | Practice | Starter presets always boot in Practice Mode at 50 BPM |
 
-### Phase 2 — Information architecture
+> **Status:** All 9 phases are implemented (Phase 3 partially — welcome overlay
+> and empty-state nudge remain). Details noted per phase below.
+
+### Phase 2 — Information architecture ✅
 
 1. **Sidebar progressive disclosure** — collapse chord tones, intervals, and rhythm tag by default; expand on demand
 2. **Fretboard auto-switch to Scale view** when a scale filter (pentatonic, hexatonic, Martino) is selected
 3. **Playhead sync indicator** — make it clearer which bar is currently playing (bolder color treatment)
 4. **Loop range visualization** — highlight the loop region in the chord grid more prominently
 
-### Phase 3 — Onboarding / first-run experience
+Bar-card detail rows (harmonic function, cadence, intervals, spelling) now sit
+behind a **Details** toggle; guide tones and next target stay always-visible.
+
+### Phase 3 — Onboarding / first-run experience 🟡
 
 1. **Welcome tooltip or overlay** on first load explaining core sections
 2. **Keyboard shortcut cheatsheet** — popup overlay (e.g. `?` key) listing spacebar, arrow keys, etc.
 3. **Empty state guidance** — when chart is "Custom" with default bars, show a nudge toward the AI generator or starter presets
 
-### Phase 4 — Wording and label clarity
+Keyboard cheatsheet shipped (`?` or the header button). Welcome overlay and
+empty-state nudge are still open.
+
+### Phase 4 — Wording and label clarity ✅
 
 | Current label | Proposed label | Reason |
 |---|---|---|
@@ -50,28 +59,42 @@ A prioritized usability and interface improvement plan for DukeBox.
 | "Function:" | "Harmonic Function:" | Context for users unfamiliar with jazz theory |
 | "+Bebop" | "+Bebop Chromatic" | Clarifies it adds a passing tone, not a style change |
 
-### Phase 5 — Visual hierarchy and consistency
+### Phase 5 — Visual hierarchy and consistency ✅
 
 1. **Section separator lines** between major UI zones (AI generator, song settings, controls, grid)
 2. **Button size consistency** — mix of padding sizes creates visual noise in controls strip
 3. **Color legend always visible** — fretboard dot legend currently only shows when overlays are active; show it always when fretboard is open
 4. **Approach type pill in bar cards** — small color-coded pill showing the current approach type (7→3, chromatic, altered) per bar
 
-### Phase 6 — Mobile responsiveness
+### Phase 6 — Mobile responsiveness ✅
+
+Verified at 375px (iPhone SE): page scrollWidth 375 = viewport, no horizontal
+overflow. Chord grid scrolls sideways (812px of cards inside a 289px window)
+rather than collapsing. Sticky transport appears via IntersectionObserver once
+the main Play button leaves the viewport. No control renders under 34px tall.
+Item 4 (right-side aside → bottom sheet) is moot — the layout is single-column.
 
 1. **Chord grid horizontal scroll** on small viewports instead of collapsing to 1 column
 2. **Fretboard overflow** — `overflowX: auto` wrapping is good; add pinch-to-zoom hint on mobile
 3. **Sticky play/stop button** — keep it accessible when scrolled deep into the chord grid
 4. **Sidebar collapses to bottom sheet** on mobile — right-side aside doesn't work on narrow screens
 
-### Phase 7 — Accessibility
+### Phase 7 — Accessibility ✅
+
+Focus: 3px `:focus-visible` outline on every interactive element. ARIA: zero
+icon-only buttons remain without an accessible name (was 13). Reduced motion:
+all transitions/animations collapse under `prefers-reduced-motion` (verified
+1e-06s). Contrast: muted tokens were measured failing AA on every palette
+(2.7 / 3.4 / 3.8:1) and raised to 5.7 / 7.2 / 7.6:1, plus the dimmest
+persistent labels. Note: this fixes the shared tokens and main labels — it is
+not a certified full-surface AA audit.
 
 1. **Focus styles** — add visible `:focus-visible` outlines for keyboard navigation
 2. **ARIA labels** on icon-only buttons (×, ÷2, ×2 bar buttons)
 3. **Color contrast** — verify muted text (opacity: 0.4–0.55) meets WCAG AA on all palette themes
 4. **Reduced-motion** — wrap transitions and animations in `prefers-reduced-motion` media query
 
-### Phase 8 — Workflow accelerators
+### Phase 8 — Workflow accelerators ✅
 
 1. **Arrow key navigation** — left/right to move selected bar, up/down to change chord quality
 2. **Chord quick-entry** — type "Dm7" directly into a selected bar
@@ -79,7 +102,14 @@ A prioritized usability and interface improvement plan for DukeBox.
 4. **Chart export** — copy chord changes as plain text (e.g. "| Dm7 | G7 | Cmaj7 | Cmaj7 |")
 5. **Per-bar loop** — double-click a bar to loop just that chord for isolated practice
 
-### Phase 9 — AI generation UX
+### Phase 9 — AI generation UX ✅
+
+Generation now streams: `/api/generate-chart` accepts `stream: true` and returns
+SSE, so `generationNotes` (which the schema emits *before* the long `bars`
+array) renders live with a caret while the chart is still being written. The
+non-streaming path is kept for callers that don't want SSE. Prompt history is
+stored in `library.prefs.promptHistory`, so it syncs across devices like songs
+and setlists.
 
 1. **Prompt history** — small dropdown to re-run previous prompts
 2. **"Surprise me"** — random style/key button that generates a chart without a prompt

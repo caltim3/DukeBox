@@ -4,7 +4,8 @@
 // MusicXML: standard interchange for MuseScore / Sibelius / Finale.
 // Both exports understand 1-chord (4-beat) and 2-chord (2-beat each) measures.
 
-import { Note, Chord } from "@tonaljs/tonal"
+import { Note } from "@tonaljs/tonal"
+import { getChord } from "./tonal"
 
 // ─── Measure grouping ─────────────────────────────────────────────────────────
 // s("Bm7b5 E7") produces [{beats:2},{beats:2}].  Group consecutive sub-4-beat
@@ -70,7 +71,7 @@ function assignOctave(noteName, prevMidi) {
 // Get 3rd and 7th of a chord symbol as guide tones
 function guideTones(symbol) {
   if (!symbol) return [null, null]
-  const ch = Chord.get(symbol)
+  const ch = getChord(symbol)
   if (!ch.notes || ch.notes.length < 2) return [null, null]
   const third   = ch.notes[1] ?? null
   const seventh = ch.notes[ch.notes.length - 1] ?? null
@@ -80,7 +81,7 @@ function guideTones(symbol) {
 // ─── Chord voicing helpers (for MusicXML) ────────────────────────────────────
 function chordTones(symbol) {
   if (!symbol) return null
-  const ch = Chord.get(symbol)
+  const ch = getChord(symbol)
   if (!ch.notes || ch.notes.length < 2) return null
   const notes = ch.notes.slice(0, 4)
   if (notes.length === 3) notes.push(notes[0])

@@ -1,6 +1,7 @@
 import * as Tone from "tone"
-import { Chord, Note } from "@tonaljs/tonal"
-import { initSamplers, getSamplers, DEFAULT_DRUM_KIT } from "./samples"
+import { Note } from "@tonaljs/tonal"
+import { getChord } from "./tonal"
+import { initSamplers, getSamplers, isDrumSampleReady, DEFAULT_DRUM_KIT } from "./samples"
 import { COMPING_STYLES, DEFAULT_COMPING_STYLE, getVoiceLedVoicing } from "./comping"
 import { DRUM_STYLES } from "./audioConstants"
 import { styledWalkingBass, DEFAULT_BASS_STYLE } from "./bassStyles"
@@ -77,7 +78,10 @@ function ensureSynths() {
     octaves: 8,
     envelope: { attack: 0.001, decay: 0.25, sustain: 0, release: 0.2 },
   }).toDestination()
-  kick.volume.value = -12
+  // Fallback-kit levels sit close to the sampled kit. They used to be mixed so
+  // low (-26 ride / -30 hat) that whenever the sampler failed the drums read as
+  // "not playing at all" underneath piano (-14) and bass (-8).
+  kick.volume.value = -10
 
   ride = new Tone.MetalSynth({
     frequency: 400,
@@ -87,7 +91,7 @@ function ensureSynths() {
     resonance: 4000,
     octaves: 1.5,
   }).toDestination()
-  ride.volume.value = -26
+  ride.volume.value = -16
 
   hihat = new Tone.MetalSynth({
     frequency: 600,
@@ -97,7 +101,7 @@ function ensureSynths() {
     resonance: 7000,
     octaves: 1.2,
   }).toDestination()
-  hihat.volume.value = -30
+  hihat.volume.value = -20
 }
 
 // ─── Voicings ────────────────────────────────────────────────────────────────
@@ -117,7 +121,7 @@ function assignOctaves(noteNames, baseOctave = 4) {
 
 // Shell/guide-tone voicing. rootless = true when bass is playing the root.
 function chordVoicing(symbol, rootless = false) {
-  const chord = Chord.get(symbol)
+  const chord = getChord(symbol)
   if (!chord.notes?.length) return rootless ? ["E4", "Bb4"] : ["C3", "E4", "Bb4"]
 
   const { notes, intervals } = chord
@@ -159,7 +163,7 @@ function walkingBass(bars, timing) {
   bars.forEach((bar, b) => {
     const { measure, beat: startBeat, beats } = timing[b]
     if (bar.quality === "NC" || bar.symbol === "N.C.") return  // rest — no bass
-    const chord = Chord.get(bar.symbol)
+    const chord = getChord(bar.symbol)
     const notes = chord.notes || [bar.root]
     const ivls  = chord.intervals || []
 
@@ -424,18 +428,30 @@ export async function startPlayback({
   // Sampler load state is stable for the duration of playback, so check it once.
   if (playDrums) {
     const { drums: drumSampler } = getSamplers() ?? {}
-    const drumLoaded = drumSampler?.loaded
     const pattern = DRUM_STYLES[drumStyle] ?? DRUM_STYLES[0]
-    makePart(drumEvents(totalBts, pattern), (time, ev) => {
-      if (drumLoaded) {
-        try { drumSampler.player(`${drumKit}:${ev.inst}`).start(time) } catch {
-          try { drumSampler.player(`${DEFAULT_DRUM_KIT}:${ev.inst}`).start(time) } catch {
-            playDrumSynth(ev.inst, time, ev.vel)  // sampler failed mid-stream
-          }
-        }
-      } else {
-        playDrumSynth(ev.inst, time, ev.vel)
+
+    // Resolve each voice once, per kit, with a three-step fallback:
+    //   selected kit → Standard kit → synth.
+    // Checked per-sample (not via Players.loaded, which is all-or-nothing) so a
+    // single unreadable file can't silence the whole kit.
+    const voiceKey = {}
+    for (const inst of ["ride", "kick", "hihat"]) {
+      const own = `${drumKit}:${inst}`
+      const std = `${DEFAULT_DRUM_KIT}:${inst}`
+      voiceKey[inst] = isDrumSampleReady(drumSampler, own) ? own
+                     : isDrumSampleReady(drumSampler, std) ? std
+                     : null
+      if (!voiceKey[inst]) {
+        console.warn(`DukeBox: no drum sample for "${inst}" — using synth fallback.`)
       }
+    }
+
+    makePart(drumEvents(totalBts, pattern), (time, ev) => {
+      const key = voiceKey[ev.inst]
+      if (key) {
+        try { drumSampler.player(key).start(time); return } catch { /* fall through */ }
+      }
+      playDrumSynth(ev.inst, time, ev.vel)
     })
   }
 

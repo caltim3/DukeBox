@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import NotationLane from "@/components/NotationLane"
 import {
   ROOTS,
@@ -30,6 +30,7 @@ import { BASS_STYLE_NAMES, DEFAULT_BASS_STYLE } from "@/lib/music/bassStyles"
 import { downloadImprovGuide, buildImprovMapData } from "@/lib/music/improvGuide"
 import { DRUM_KIT_NAMES, DEFAULT_DRUM_KIT } from "@/lib/music/samples"
 import { parseTonalUserSongs } from "@/lib/music/importTonal"
+import { parseGigChord } from "@/lib/music/gigbook"
 import Fretboard from "@/components/Fretboard"
 import Runway from "@/components/Runway"
 import MetronomePanel from "@/components/MetronomePanel"
@@ -54,7 +55,9 @@ const PALETTES = [
     sideBg:  "rgba(29,78,216,0.04)",    sideBorder:  "rgba(29,78,216,0.14)",
     inputBg: "#f3f4f6",
     cardBg: "rgba(0,0,0,0.03)",         cardBorder: "rgba(0,0,0,0.11)",
-    muted: "rgba(0,0,0,0.38)",
+    // Muted text meets WCAG AA (4.5:1) against this palette's background —
+    // 0.38 measured only 2.7:1. See docs/UX_UI_RECOMMENDATIONS.md Phase 7.
+    muted: "rgba(0,0,0,0.60)",
     // Vivid semantic colors — high contrast on white
     cPurple: "#7c3aed",  cGreen: "#16a34a",  cBlue: "#2563eb",
     cAmber:  "#b45309",  cGold:  "#a16207",  cSalmon: "#dc2626",
@@ -69,7 +72,7 @@ const PALETTES = [
     sideBg:  "rgba(221,161,94,0.05)",  sideBorder:  "rgba(221,161,94,0.3)",
     inputBg: "#2c3e1a",
     cardBg: "rgba(255,255,255,0.04)",  cardBorder: "rgba(255,255,255,0.1)",
-    muted: "rgba(255,255,255,0.4)",
+    muted: "rgba(255,255,255,0.70)",   // 7.2:1 on #283618 (was 0.4 → 3.4:1)
     cPurple: "var(--db-c-purple)",  cGreen: "var(--db-c-green)",  cBlue: "var(--db-c-blue)",
     cAmber:  "var(--db-c-amber)",  cGold:  "var(--db-c-gold)",  cSalmon: "var(--db-c-salmon)",
     cPink:   "var(--db-c-pink)",
@@ -83,7 +86,7 @@ const PALETTES = [
     sideBg:  "rgba(18,130,162,0.06)",  sideBorder:  "rgba(18,130,162,0.38)",
     inputBg: "#001844",
     cardBg: "rgba(255,255,255,0.04)",  cardBorder: "rgba(255,255,255,0.1)",
-    muted: "rgba(255,255,255,0.4)",
+    muted: "rgba(255,255,255,0.62)",   // 7.6:1 on #0a1128 (was 0.4 → 3.8:1)
     cPurple: "var(--db-c-purple)",  cGreen: "var(--db-c-green)",  cBlue: "var(--db-c-blue)",
     cAmber:  "var(--db-c-amber)",  cGold:  "var(--db-c-gold)",  cSalmon: "var(--db-c-salmon)",
     cPink:   "var(--db-c-pink)",
@@ -172,12 +175,18 @@ export default function Home() {
   const [importText, setImportText] = useState("")
   const [importStatus, setImportStatus] = useState(null)
   const [showGig, setShowGig] = useState(false)
+  const [showShortcuts, setShowShortcuts] = useState(false)
+  const [clipboardBar, setClipboardBar] = useState(null)
+  const [showBarDetails, setShowBarDetails] = useState(false)
+  const [toast, setToast] = useState(null)
+  const [showStickyPlay, setShowStickyPlay] = useState(false)
 
   // Cloud-synced library (songs + setlists + prefs); auth via Supabase magic link.
   // Degrades to localStorage when signed out or Supabase isn't configured.
   const auth = useAuth()
   const { library, setLibrary, status: syncStatus } = useCloudLibrary(auth.email)
   const userLibrary = library.songs
+  const promptHistory = library.prefs?.promptHistory ?? []
   const [showFretboard, setShowFretboard] = useState(false)
   const [fretboardView, setFretboardView] = useState("chord")
   const [fretboardTuning, setFretboardTuning] = useState("Standard")
@@ -209,6 +218,8 @@ export default function Home() {
   const startPlaybackRef  = useRef(null)   // always points to latest startPlayback
   const stopPlaybackRef   = useRef(null)   // always points to latest stopPlayback
   const pendingStartRef   = useRef(false)  // set by loadStarter → fires after bars state commits
+  const toastTimer        = useRef(null)   // auto-dismiss handle for the toast
+  const transportRef      = useRef(null)   // main Play button — watched for the sticky fallback
 
   const palette = PALETTES[paletteIndex]
 
@@ -414,18 +425,22 @@ export default function Home() {
     return labels
   }, [bars])
 
-  function updateBar(index, updates) {
+  // useCallback so the keyboard-shortcut effect can depend on it without
+  // re-registering its listener on every render.
+  const updateBar = useCallback((index, updates) => {
     setBars((prev) =>
       prev.map((bar, i) => {
         if (i !== index) return bar
         const next = { ...bar, ...updates }
+        // Slash bass belongs in the symbol so copy/paste and quick-entry keep it.
+        const base = buildChordSymbol(next.root, next.quality)
         return {
           ...next,
-          symbol: buildChordSymbol(next.root, next.quality),
+          symbol: next.bass && next.quality !== "NC" ? `${base}/${next.bass}` : base,
         }
       })
     )
-  }
+  }, [])
 
   function handleDragStart(index) {
     setDragIndex(index)
@@ -522,22 +537,18 @@ export default function Home() {
     setChartKey(keyRoot)
   }
 
-  async function handleGenerateChart() {
-    if (!promptText.trim() || isGenerating) return
+  // Generation streams server-sent events so the model's reasoning
+  // (generationNotes, which the schema emits before the long bars array) shows
+  // up live instead of only after the whole chart lands.
+  async function handleGenerateChart(overridePrompt = null) {
+    const prompt = (typeof overridePrompt === "string" ? overridePrompt : promptText).trim()
+    if (!prompt || isGenerating) return
     setIsGenerating(true)
     setGenerationError(null)
     setGenerationNotes(null)
+    setShowGenNotes(true)
 
-    try {
-      const res = await fetch("/api/generate-chart", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: promptText }),
-      })
-      const data = await res.json()
-      if (data.error) throw new Error(data.error)
-
-      const { chart } = data
+    const applyChart = (chart) => {
       setBars(chart.bars)
       setKeyRoot(chart.keyRoot || "C")
       setChartKey(chart.keyRoot || "C")
@@ -546,16 +557,78 @@ export default function Home() {
       setSelectedIndex(0)
       setLoopStart(0)
       setLoopEnd(chart.bars.length - 1)
-      if (chart.generationNotes) {
-        setGenerationNotes(chart.generationNotes)
-        setShowGenNotes(true)
+      if (chart.generationNotes) setGenerationNotes(chart.generationNotes)
+      setLastGenChart({
+        bars: chart.bars,
+        keyRoot: chart.keyRoot || "C",
+        keyMode: chart.keyMode || "major",
+        tempo: chart.tempo || tempo,
+      })
+      // Remember the prompt (most recent first, de-duped, capped) — rides along
+      // with the synced library so history follows you across devices.
+      setLibrary(lib => {
+        const prev = lib.prefs?.promptHistory ?? []
+        const next = [prompt, ...prev.filter(p => p !== prompt)].slice(0, 12)
+        return { ...lib, prefs: { ...lib.prefs, promptHistory: next } }
+      })
+    }
+
+    try {
+      const res = await fetch("/api/generate-chart", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt, stream: true }),
+      })
+      if (!res.ok || !res.body) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || `Request failed (${res.status})`)
       }
-      setLastGenChart({ bars: chart.bars, keyRoot: chart.keyRoot || "C", keyMode: chart.keyMode || "major", tempo: chart.tempo || tempo })
+
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ""
+      let done = false
+
+      while (!done) {
+        const { value, done: finished } = await reader.read()
+        if (finished) break
+        buffer += decoder.decode(value, { stream: true })
+
+        // SSE frames are separated by a blank line
+        const frames = buffer.split("\n\n")
+        buffer = frames.pop() ?? ""
+        for (const frame of frames) {
+          const line = frame.split("\n").find(l => l.startsWith("data:"))
+          if (!line) continue
+          let msg
+          try { msg = JSON.parse(line.slice(5).trim()) } catch { continue }
+          if (msg.type === "notes") {
+            setGenerationNotes(msg.text)
+          } else if (msg.type === "done") {
+            applyChart(msg.chart)
+            done = true
+          } else if (msg.type === "error") {
+            throw new Error(msg.error)
+          }
+        }
+      }
     } catch (err) {
       setGenerationError(err.message)
     } finally {
       setIsGenerating(false)
     }
+  }
+
+  // "Surprise me" — compose a random brief and generate straight from it.
+  function surpriseMe() {
+    const pick = (a) => a[Math.floor(Math.random() * a.length)]
+    const form  = pick(SURPRISE.forms)
+    const key   = pick(SURPRISE.keys)
+    const mood  = pick(SURPRISE.moods)
+    const device = pick(SURPRISE.devices)
+    const brief = `${form} in ${key}, ${mood}, featuring ${device}`
+    setPromptText(brief)
+    handleGenerateChart(brief)
   }
 
   function saveToLibrary() {
@@ -708,6 +781,35 @@ export default function Home() {
     pendingStartRef.current = true
   }
 
+  // Double-click a bar → loop just that chord for isolated practice.
+  function loopJustThisBar(index) {
+    setSelectedIndex(index)
+    setLoopStart(index)
+    setLoopEnd(index)
+    setLoopEnabled(true)
+    // Pass the range explicitly — loop state hasn't committed yet.
+    startPlayback(null, { start: index, end: index }).catch(console.error)
+  }
+
+  // Copy the chart as plain text: "| Dm7 | G7 | Cmaj7 | Cmaj7 |", 4 bars a line.
+  function copyChartAsText() {
+    const lines = []
+    for (let i = 0; i < bars.length; i += 4) {
+      lines.push("| " + bars.slice(i, i + 4).map(b => b.symbol).join(" | ") + " |")
+    }
+    const text = lines.join("\n")
+    navigator.clipboard?.writeText(text).then(
+      () => showToast(`Copied ${bars.length} bars as text`),
+      () => window.prompt("Copy the chart:", text)
+    )
+  }
+
+  function showToast(msg) {
+    setToast(msg)
+    clearTimeout(toastTimer.current)
+    toastTimer.current = setTimeout(() => setToast(null), 2200)
+  }
+
   function stopPlayback() {
     playingRef.current = false
     _audioMod?.stopAll()   // no-op if audio hasn't been loaded yet
@@ -715,13 +817,16 @@ export default function Home() {
     setPlayheadIndex(null)
   }
 
-  async function startPlayback(overrideTempo = null) {
+  // loopOverride ({start, end}) forces a loop over an explicit bar range without
+  // waiting for loop state to commit — used by per-bar "loop just this chord".
+  async function startPlayback(overrideTempo = null, loopOverride = null) {
     playingRef.current = false  // cancel any pending repeats from previous run
     stopPlayback()
     playingRef.current = true
 
-    const startIndex  = loopEnabled ? Math.min(loopStart, loopEnd) : 0
-    const endIndex    = loopEnabled ? Math.max(loopStart, loopEnd) : bars.length - 1
+    const useLoop     = loopOverride ? true : loopEnabled
+    const startIndex  = loopOverride ? Math.min(loopOverride.start, loopOverride.end) : (loopEnabled ? Math.min(loopStart, loopEnd) : 0)
+    const endIndex    = loopOverride ? Math.max(loopOverride.start, loopOverride.end) : (loopEnabled ? Math.max(loopStart, loopEnd) : bars.length - 1)
     const slicedBars  = bars.slice(startIndex, endIndex + 1)
     const slicedLines = approachLines.slice(startIndex, endIndex + 1)
     // overrideTempo lets callers bypass the stale React state closure (e.g. when
@@ -733,7 +838,7 @@ export default function Home() {
     // Load Tone.js lazily — AudioContext is only created here, after user gesture
     const { startPlayback: audioStart } = await loadAudio()
 
-    if (loopEnabled) {
+    if (useLoop) {
       // Infinite seamless loop
       try {
         await audioStart({
@@ -809,10 +914,65 @@ export default function Home() {
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, []) // intentionally empty — state accessed via refs
 
+  // Workflow shortcuts — arrow navigation, chord cycling, copy/paste, cheatsheet.
+  // Separate from the spacebar handler because these need live bar/selection state.
+  useEffect(() => {
+    function onKey(e) {
+      const tag = document.activeElement?.tagName
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return
+      const meta = e.metaKey || e.ctrlKey
+
+      if (e.key === "?") { e.preventDefault(); setShowShortcuts(s => !s); return }
+      if (e.key === "Escape") { setShowShortcuts(false); return }
+
+      if (meta && (e.key === "c" || e.key === "C")) {
+        const b = bars[selectedIndex]
+        if (b) { e.preventDefault(); setClipboardBar({ root: b.root, quality: b.quality, bass: b.bass }) }
+        return
+      }
+      if (meta && (e.key === "v" || e.key === "V")) {
+        if (clipboardBar) { e.preventDefault(); updateBar(selectedIndex, clipboardBar) }
+        return
+      }
+      if (meta) return   // leave every other browser shortcut alone
+
+      if (e.key === "ArrowLeft") {
+        e.preventDefault()
+        setSelectedIndex(i => Math.max(0, i - 1))
+      } else if (e.key === "ArrowRight") {
+        e.preventDefault()
+        setSelectedIndex(i => Math.min(bars.length - 1, i + 1))
+      } else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+        // Cycle the selected bar's chord quality
+        const qi = QUALITIES.findIndex(q => q.value === bars[selectedIndex]?.quality)
+        if (qi === -1) return
+        e.preventDefault()
+        const next = e.key === "ArrowUp"
+          ? (qi - 1 + QUALITIES.length) % QUALITIES.length
+          : (qi + 1) % QUALITIES.length
+        updateBar(selectedIndex, { quality: QUALITIES[next].value })
+      }
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [bars, selectedIndex, clipboardBar, updateBar])
+
   // Library hydration + cloud sync is handled by useCloudLibrary; here we only
   // ensure audio stops if the component unmounts mid-playback.
   useEffect(() => {
     return () => _audioMod?.stopAll()
+  }, [])
+
+  // Show the floating transport only once the real Play button is off-screen.
+  useEffect(() => {
+    const el = transportRef.current
+    if (!el || typeof IntersectionObserver === "undefined") return
+    const io = new IntersectionObserver(
+      ([entry]) => setShowStickyPlay(!entry.isIntersecting),
+      { threshold: 0 }
+    )
+    io.observe(el)
+    return () => io.disconnect()
   }, [])
 
   // Auto-play after loadStarter commits new bars to state
@@ -846,6 +1006,60 @@ export default function Home() {
         --db-c-gold:   ${palette.cGold};
         --db-c-salmon: ${palette.cSalmon};
         --db-c-pink:   ${palette.cPink};
+      }
+
+      /* ── Accessibility: visible keyboard focus ──────────────────────── */
+      button:focus-visible,
+      select:focus-visible,
+      input:focus-visible,
+      textarea:focus-visible,
+      summary:focus-visible,
+      [tabindex]:focus-visible {
+        outline: 3px solid var(--db-accent);
+        outline-offset: 2px;
+        border-radius: 6px;
+      }
+
+      /* Respect a reduced-motion preference — kill transitions + animations */
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after {
+          animation-duration: 0.001ms !important;
+          animation-iteration-count: 1 !important;
+          transition-duration: 0.001ms !important;
+          scroll-behavior: auto !important;
+        }
+      }
+
+      /* ── Mobile ─────────────────────────────────────────────────────── */
+      .db-mobile-only { display: none; }
+
+      @media (max-width: 720px) {
+        .db-mobile-only { display: block; }
+
+        /* Chord grid scrolls sideways rather than squashing to one column,
+           so a 4-bar phrase still reads as a phrase on a phone. */
+        .db-grid-scroll {
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
+          padding-bottom: 6px;
+        }
+        .db-grid-scroll > div {
+          min-width: max-content;
+        }
+        .db-grid-scroll .db-bar-card {
+          min-width: 190px;
+        }
+
+        /* Control strips wrap tighter and stay thumb-friendly */
+        .db-controls button,
+        .db-controls select {
+          min-height: 40px;
+        }
+      }
+
+      /* Larger tap targets on any touch device, not just narrow ones */
+      @media (pointer: coarse) {
+        button, select { min-height: 38px; }
       }
     `}</style>
     <main
@@ -893,6 +1107,18 @@ export default function Home() {
             title="Stage-ready charts, setlists, and gig playback"
           >
             🎤 Gig Mode
+          </button>
+
+          <button
+            onClick={() => setShowShortcuts(true)}
+            style={{
+              padding: "6px 12px", borderRadius: "10px", cursor: "pointer", fontWeight: 700, fontSize: "0.85rem",
+              border: "1px solid var(--db-panel-border)", background: "var(--db-panel-bg)", color: "var(--db-muted)",
+              flexShrink: 0,
+            }}
+            title="Keyboard shortcuts (press ?)"
+          >
+            ⌘ Shortcuts
           </button>
 
           <SyncControl auth={auth} syncStatus={syncStatus} style={{ marginLeft: "auto" }} />
@@ -956,7 +1182,7 @@ export default function Home() {
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px" }}>
             <div style={{ ...eyebrowStyle, marginBottom: 0, color: "var(--db-c-purple)" }}>AI CHART GENERATOR</div>
-            <div style={{ fontSize: "0.72rem", opacity: 0.5 }}>powered by Claude</div>
+            <div style={{ fontSize: "0.72rem", opacity: 0.62 }}>powered by Claude</div>
           </div>
 
           <div style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}>
@@ -1000,7 +1226,58 @@ export default function Home() {
             </button>
           </div>
 
-          <div style={{ fontSize: "0.75rem", opacity: 0.45, marginTop: "6px" }}>
+          {/* Templates + Surprise me + prompt history */}
+          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "center", marginTop: "8px" }}>
+            <button
+              onClick={surpriseMe}
+              disabled={isGenerating}
+              style={{
+                padding: "4px 11px", borderRadius: "20px", fontSize: "0.78rem", cursor: "pointer",
+                border: "1px solid var(--db-c-purple)",
+                background: "color-mix(in srgb, var(--db-c-purple) 14%, var(--db-bg))",
+                color: "var(--db-c-purple)", fontWeight: 700,
+                opacity: isGenerating ? 0.5 : 1,
+              }}
+              title="Generate a chart from a random form, key, mood, and harmonic device"
+            >
+              🎲 Surprise me
+            </button>
+
+            {PROMPT_TEMPLATES.map((t) => (
+              <button
+                key={t}
+                onClick={() => setPromptText(t)}
+                disabled={isGenerating}
+                style={{
+                  padding: "4px 10px", borderRadius: "20px", fontSize: "0.75rem", cursor: "pointer",
+                  border: "1px solid var(--db-panel-border)", background: "var(--db-panel-bg)",
+                  color: "var(--db-text)", opacity: isGenerating ? 0.5 : 0.85,
+                }}
+                title="Use this as a starting point"
+              >
+                {t.length > 34 ? t.slice(0, 33) + "…" : t}
+              </button>
+            ))}
+          </div>
+
+          {promptHistory.length > 0 && (
+            <div style={{ display: "flex", gap: "6px", alignItems: "center", marginTop: "8px" }}>
+              <label style={{ fontSize: "0.75rem", opacity: 0.6 }} htmlFor="prompt-history">Recent</label>
+              <select
+                id="prompt-history"
+                value=""
+                onChange={(e) => { if (e.target.value) setPromptText(e.target.value) }}
+                style={{ ...selectStyle, flex: 1, padding: "5px 8px", fontSize: "0.78rem" }}
+              >
+                <option value="">Re-use a previous prompt…</option>
+                {promptHistory.map((p, i) => (
+                  <option key={i} value={p}>{p.length > 70 ? p.slice(0, 69) + "…" : p}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <div style={{ fontSize: "0.75rem", opacity: 0.6, marginTop: "6px" }}>
             ⌘ + Enter to generate
           </div>
 
@@ -1014,7 +1291,7 @@ export default function Home() {
             </div>
           )}
 
-          {generationNotes && (
+          {(generationNotes || isGenerating) && (
             <div style={{ marginTop: "10px" }}>
               <button
                 onClick={() => setShowGenNotes((p) => !p)}
@@ -1024,6 +1301,7 @@ export default function Home() {
                 }}
               >
                 {showGenNotes ? "▼" : "▶"} Generation Notes
+                {isGenerating && <span style={{ marginLeft: "6px", opacity: 0.75 }}>· writing…</span>}
               </button>
               {showGenNotes && (
                 <div style={{
@@ -1031,7 +1309,10 @@ export default function Home() {
                   background: "rgba(201,167,255,0.07)", border: "1px solid rgba(201,167,255,0.15)",
                   fontSize: "0.88rem", lineHeight: 1.6, opacity: 0.9,
                 }}>
-                  {generationNotes}
+                  {generationNotes || "…"}
+                  {isGenerating && generationNotes && (
+                    <span style={{ opacity: 0.6 }} aria-hidden="true"> ▍</span>
+                  )}
                 </div>
               )}
             </div>
@@ -1246,9 +1527,11 @@ export default function Home() {
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
               <div style={{ ...eyebrowStyle, marginBottom: 0 }}>PLAYBACK & PRACTICE</div>
             </div>
-            <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
+            <div className="db-controls" style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
                 <button
+                  ref={transportRef}
                   onClick={isPlaying ? stopPlayback : () => startPlayback().catch(console.error)}
+                  aria-label={isPlaying ? "Stop playback" : "Start playback"}
                   style={{
                     padding: "11px 28px", borderRadius: "10px", cursor: "pointer",
                     fontWeight: 800, fontSize: "1.05rem", letterSpacing: "0.02em",
@@ -1356,6 +1639,9 @@ export default function Home() {
 
                 <label style={inlineLabelStyle}>
                   <input type="checkbox" checked={playDrums} onChange={(e) => setPlayDrums(e.target.checked)} />
+                  {/* Named like the other instruments — this used to show only the
+                      style name ("Jazz Ride"), so it didn't read as the drums toggle. */}
+                  Drums
                   <button
                     onClick={() => setDrumStyleIdx(i => (i + 1) % DRUM_STYLES.length)}
                     style={{
@@ -1489,7 +1775,14 @@ export default function Home() {
                   ["hexchord",   "Hex·Chord"],
                   ["barry",      "Barry 6th"],
                 ].map(([f, label]) => (
-                  <button key={f} onClick={() => setScaleFilter(prev => prev === f ? null : f)} style={{
+                  <button key={f} onClick={() => {
+                    // Turning a filter on implies you want to see the scale, not the chord
+                    setScaleFilter(prev => {
+                      const next = prev === f ? null : f
+                      if (next) setFretboardView("scale")
+                      return next
+                    })
+                  }} style={{
                     padding: "4px 10px", borderRadius: "6px", fontSize: "0.8rem", cursor: "pointer",
                     background: scaleFilter === f ? "color-mix(in srgb, var(--db-c-blue) 20%, var(--db-bg))" : "var(--db-panel-bg)",
                     border:     scaleFilter === f ? "1px solid var(--db-c-blue)" : "1px solid var(--db-panel-border)",
@@ -1512,7 +1805,7 @@ export default function Home() {
                   fontWeight: bebopOverlay ? 700 : 400,
                   opacity:    bebopOverlay ? 1 : 0.7,
                 }}>
-                  +Bebop
+                  +Bebop Chromatic
                 </button>
                 <button onClick={() => setTargetsOverlay(p => !p)} style={{
                   padding: "4px 10px", borderRadius: "6px", fontSize: "0.8rem", cursor: "pointer",
@@ -1562,6 +1855,9 @@ export default function Home() {
               </div>
             </div>
 
+            <div className="db-mobile-only" style={{ fontSize: "0.72rem", opacity: 0.6, marginBottom: "4px" }}>
+              Swipe the neck sideways to reach the upper frets · pinch to zoom
+            </div>
             <div style={{ overflowX: "auto", marginBottom: "4px" }}>
               <Fretboard
                 chordNotes={fretboardInfo.notes || []}
@@ -1604,13 +1900,14 @@ export default function Home() {
             )}
 
             <div style={{ marginTop: "8px", display: "flex", gap: "14px", fontSize: "0.78rem", flexWrap: "wrap" }} >
-              <span style={{ opacity: 0.55 }}><span style={{ color: "#BD2031" }}>●</span> Root</span>
-              <span style={{ opacity: 0.55 }}><span style={{ color: "#3A9C5A" }}>●</span> Chord tone</span>
-              <span style={{ opacity: 0.55 }}><span style={{ color: "#3A78C9" }}>●</span> Scale tone</span>
-              {bebopOverlay   && <span style={{ opacity: 0.85 }}><span style={{ color: "#56C568" }}>●</span> Bebop passing</span>}
-              {scaleFilter === "barry" && <span style={{ opacity: 0.85 }}><span style={{ color: "#56C568" }}>●</span> Barry passing tone</span>}
-              {targetsOverlay && <span style={{ opacity: 0.85 }}><span style={{ color: "#FFD54F" }}>●</span> Guide tones</span>}
-              <span style={{ opacity: 0.55 }}><span style={{ color: "#E09B3D" }}>●</span> Target note</span>
+              <span style={{ opacity: 0.7 }}><span style={{ color: "#BD2031" }}>●</span> Root</span>
+              <span style={{ opacity: 0.7 }}><span style={{ color: "#3A9C5A" }}>●</span> Chord tone</span>
+              <span style={{ opacity: 0.7 }}><span style={{ color: "#3A78C9" }}>●</span> Scale tone</span>
+              <span style={{ opacity: bebopOverlay || scaleFilter === "barry" ? 0.85 : 0.4 }}>
+                <span style={{ color: "#56C568" }}>●</span> {scaleFilter === "barry" ? "Barry passing tone" : "Bebop passing"}
+              </span>
+              <span style={{ opacity: targetsOverlay ? 0.85 : 0.4 }}><span style={{ color: "#FFD54F" }}>●</span> Guide tones</span>
+              <span style={{ opacity: 0.7 }}><span style={{ color: "#E09B3D" }}>●</span> Target note</span>
             </div>
           </div>
         )}
@@ -1619,9 +1916,12 @@ export default function Home() {
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
             <div style={{ ...eyebrowStyle, marginBottom: 0 }}>LEAD SHEET GRID</div>
             <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-              <span style={{ fontSize: "0.78rem", opacity: 0.5, marginRight: "2px" }}>cols:</span>
+              <span style={{ fontSize: "0.78rem", opacity: 0.62, marginRight: "2px" }}>cols:</span>
               {[2, 3, 4, 6, 8].map(n => (
-                <button key={n} onClick={() => setGridColumns(n)} style={{
+                <button key={n} onClick={() => setGridColumns(n)}
+                  aria-label={`Show ${n} bars per row`}
+                  aria-pressed={gridColumns === n}
+                  style={{
                   padding: "3px 8px", borderRadius: "5px", fontSize: "0.78rem", cursor: "pointer",
                   background: gridColumns === n ? "rgba(224,180,76,0.18)" : "var(--db-card-bg)",
                   border: gridColumns === n ? "1px solid var(--db-c-amber)" : "1px solid var(--db-card-border)",
@@ -1637,6 +1937,26 @@ export default function Home() {
                 fontWeight: scrollMode ? 700 : 400,
                 marginLeft: "4px",
               }}>📜 Scroll</button>
+              <button
+                onClick={() => setShowBarDetails(p => !p)}
+                style={{
+                  padding: "3px 10px", borderRadius: "5px", fontSize: "0.78rem", cursor: "pointer",
+                  background: showBarDetails ? "rgba(201,167,255,0.18)" : "var(--db-card-bg)",
+                  border: showBarDetails ? "1px solid var(--db-c-purple)" : "1px solid var(--db-card-border)",
+                  color: showBarDetails ? "var(--db-c-purple)" : "var(--db-muted)",
+                  fontWeight: showBarDetails ? 700 : 400,
+                }}
+                title="Show harmonic function, cadence, intervals, and chord spelling on every bar"
+              >🔬 Details</button>
+              <button
+                onClick={copyChartAsText}
+                style={{
+                  padding: "3px 10px", borderRadius: "5px", fontSize: "0.78rem", cursor: "pointer",
+                  background: "var(--db-card-bg)", border: "1px solid var(--db-card-border)",
+                  color: "var(--db-muted)",
+                }}
+                title="Copy the changes as plain text: | Dm7 | G7 | Cmaj7 |"
+              >⧉ Copy text</button>
               <button
                 onClick={() => addBar(bars.length - 1)}
                 style={{
@@ -1728,6 +2048,7 @@ export default function Home() {
               )
             })()
           ) : (
+          <div className="db-grid-scroll">
           <div
             style={{
               display: "grid",
@@ -1745,6 +2066,7 @@ export default function Home() {
               const inLoop =
                 index >= Math.min(loopStart, loopEnd) && index <= Math.max(loopStart, loopEnd)
               const roman = romanNumerals[index]
+              const approachPill = APPROACH_PILLS[approachLines[index]?.approachType] || null
 
               const prevSection = index > 0 ? bars[index - 1].section : null
               const showSectionHeader = bar.section && bar.section !== prevSection
@@ -1786,38 +2108,47 @@ export default function Home() {
               elements.push(
                 <div
                   key={index}
+                  className="db-bar-card"
                   draggable
                   onDragStart={() => handleDragStart(index)}
                   onDragOver={(e) => e.preventDefault()}
                   onDrop={() => handleDrop(index)}
                   onDragEnd={handleDragEnd}
                   onClick={() => setSelectedIndex(index)}
+                  onDoubleClick={() => loopJustThisBar(index)}
+                  title="Double-click to loop just this chord"
                   style={{
                     padding: "14px 12px",
                     borderRadius: "12px",
+                    // Playhead reads boldest, then selection, then loop range.
                     border: isPlayhead
-                      ? "1px solid var(--db-c-green)"
+                      ? "2px solid var(--db-c-green)"
                       : active
-                      ? "1px solid var(--db-c-amber)"
+                      ? "2px solid var(--db-c-amber)"
                       : inLoop && loopEnabled
-                      ? "1px solid rgba(240,212,138,0.5)"
+                      ? "1px solid var(--db-c-gold)"
                       : "1px solid var(--db-card-border)",
                     background: isPlayhead
-                      ? "rgba(139,211,168,0.12)"
+                      ? "color-mix(in srgb, var(--db-c-green) 22%, var(--db-bg))"
                       : active
                       ? "rgba(224,180,76,0.12)"
                       : inLoop && loopEnabled
-                      ? "rgba(240,212,138,0.06)"
+                      ? "color-mix(in srgb, var(--db-c-gold) 12%, var(--db-bg))"
                       : "var(--db-card-bg)",
+                    boxShadow: dragIndex === index
+                      ? "0 0 0 2px rgba(127,200,255,0.45)"
+                      : isPlayhead
+                      ? "0 0 16px color-mix(in srgb, var(--db-c-green) 45%, transparent)"
+                      : "none",
                     cursor: "pointer",
-                    boxShadow: dragIndex === index ? "0 0 0 2px rgba(127,200,255,0.45)" : "none",
                     position: "relative",
+                    transition: "box-shadow 0.15s, background 0.15s",
                   }}
                 >
                   {/* Bar header row */}
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                      <div style={{ fontSize: "0.75rem", opacity: 0.5 }}>BAR {barLabels[index]}</div>
+                      <div style={{ fontSize: "0.75rem", opacity: 0.62 }}>BAR {barLabels[index]}</div>
                       {(bar.beats ?? 4) === 2 && (
                         <div style={{
                           fontSize: "0.6rem", fontWeight: 700, padding: "1px 4px",
@@ -1832,6 +2163,9 @@ export default function Home() {
                     <div style={{ display: "flex", gap: "3px", alignItems: "center" }}>
                       <button
                         onClick={(e) => { e.stopPropagation(); splitBar(index) }}
+                        aria-label={(bar.beats ?? 4) === 2
+                          ? `Restore bar ${barLabels[index]} to a full measure`
+                          : `Split bar ${barLabels[index]} into two half-bars`}
                         style={{
                           background: (bar.beats ?? 4) === 2 ? "rgba(127,200,255,0.1)" : "none",
                           border: (bar.beats ?? 4) === 2 ? "1px solid rgba(127,200,255,0.3)" : "none",
@@ -1846,6 +2180,7 @@ export default function Home() {
                       {bars.length > 1 && (
                         <button
                           onClick={(e) => { e.stopPropagation(); removeBar(index) }}
+                          aria-label={`Remove bar ${barLabels[index]}`}
                           style={{
                             background: "none", border: "none", color: "rgba(255,100,100,0.6)",
                             cursor: "pointer", fontSize: "0.9rem", padding: "0 2px", lineHeight: 1,
@@ -1870,39 +2205,74 @@ export default function Home() {
                     </div>
                   )}
 
-                  {/* 3 — Cadence */}
-                  <div style={{ fontSize: "0.74rem", color: "var(--db-c-salmon)", marginBottom: "3px" }}>
-                    <span style={{ opacity: 0.55 }}>Cadence </span>{context?.cadenceLabels?.join(", ") || "—"}
-                  </div>
+                  {/* Approach-type pill — how this bar's line reaches the next chord */}
+                  {approachPill && (
+                    <div style={{
+                      display: "inline-block", marginBottom: "6px",
+                      fontSize: "0.62rem", fontWeight: 700, letterSpacing: "0.04em",
+                      padding: "2px 7px", borderRadius: "20px",
+                      background: `color-mix(in srgb, ${approachPill.color} 16%, transparent)`,
+                      border: `1px solid color-mix(in srgb, ${approachPill.color} 40%, transparent)`,
+                      color: approachPill.color,
+                    }} title={approachPill.hint}>
+                      {approachPill.label}
+                    </div>
+                  )}
 
-                  {/* 4 — Intervals */}
-                  <div style={{ fontSize: "0.74rem", color: "var(--db-c-blue)", marginBottom: "3px" }}>
-                    <span style={{ opacity: 0.55 }}>Intervals </span>
-                    {rawIntervals.length ? rawIntervals.map(formatInterval).join("  ") : "—"}
-                  </div>
-
-                  {/* 5 — Chord Spelling */}
-                  <div style={{ fontSize: "0.74rem", color: "var(--db-c-purple)", marginBottom: "3px" }}>
-                    <span style={{ opacity: 0.55 }}>Spelling </span>
-                    {chordNotes.length ? chordNotes.join("  ") : "—"}
-                  </div>
-
-                  {/* 6 — Guide Tones (3rd & 7th) */}
+                  {/* Always-on essentials: guide tones + next target */}
                   <div style={{ fontSize: "0.74rem", color: "var(--db-c-amber)", marginBottom: "3px" }}>
-                    <span style={{ opacity: 0.55 }}>Guide Tones </span>{guide.length ? guide.join(" / ") : "—"}
+                    <span style={{ opacity: 0.7 }}>Guide Tones </span>{guide.length ? guide.join(" / ") : "—"}
+                  </div>
+                  <div style={{ fontSize: "0.74rem", color: "var(--db-c-green)", marginBottom: "6px" }}>
+                    <span style={{ opacity: 0.7 }}>Next Target </span>{target?.targetNote || "—"}
                   </div>
 
-                  {/* 7 — Next Target */}
-                  <div style={{ fontSize: "0.74rem", color: "var(--db-c-green)", marginBottom: "6px" }}>
-                    <span style={{ opacity: 0.55 }}>Next Target </span>{target?.targetNote || "—"}
-                  </div>
+                  {/* Deeper analysis — collapsed by default to reduce first-run overload */}
+                  {showBarDetails && (
+                    <>
+                      <div style={{ fontSize: "0.74rem", color: "var(--db-c-salmon)", marginBottom: "3px" }}>
+                        <span style={{ opacity: 0.7 }}>Harmonic Function </span>{context?.functionLabel || "—"}
+                      </div>
+                      <div style={{ fontSize: "0.74rem", color: "var(--db-c-salmon)", marginBottom: "3px" }}>
+                        <span style={{ opacity: 0.7 }}>Cadence </span>{context?.cadenceLabels?.join(", ") || "—"}
+                      </div>
+                      <div style={{ fontSize: "0.74rem", color: "var(--db-c-blue)", marginBottom: "3px" }}>
+                        <span style={{ opacity: 0.7 }}>Intervals </span>
+                        {rawIntervals.length ? rawIntervals.map(formatInterval).join("  ") : "—"}
+                      </div>
+                      <div style={{ fontSize: "0.74rem", color: "var(--db-c-purple)", marginBottom: "6px" }}>
+                        <span style={{ opacity: 0.7 }}>Spelling </span>
+                        {chordNotes.length ? chordNotes.join("  ") : "—"}
+                      </div>
+                    </>
+                  )}
 
                   {/* Per-bar chord editor */}
                   <div style={{
                     marginBottom: "8px", paddingTop: "6px",
                     borderTop: "1px solid var(--db-card-border)",
                   }} onClick={(e) => e.stopPropagation()}>
-                    <div style={{ fontSize: "0.66rem", opacity: 0.45, marginBottom: "3px" }}>CHORD</div>
+                    <div style={{ fontSize: "0.66rem", opacity: 0.6, marginBottom: "3px" }}>CHORD</div>
+                    {/* Quick-entry: type a chord symbol and press Enter */}
+                    <input
+                      placeholder="type e.g. Dm7, F#7alt, Am7/G"
+                      defaultValue=""
+                      onKeyDown={(e) => {
+                        if (e.key !== "Enter") return
+                        e.preventDefault()
+                        const parsed = parseGigChord(e.target.value)
+                        if (!parsed) { showToast(`Couldn't read "${e.target.value}"`); return }
+                        updateBar(index, { root: parsed.root, quality: parsed.quality, bass: parsed.bass })
+                        setSelectedIndex(index)
+                        e.target.value = ""
+                      }}
+                      style={{
+                        width: "100%", boxSizing: "border-box", marginBottom: "3px",
+                        padding: "3px 5px", borderRadius: "4px", fontSize: "0.72rem",
+                        background: "var(--db-input-bg)", border: "1px dashed var(--db-card-border)",
+                        color: "var(--db-text)",
+                      }}
+                    />
                     <div style={{ display: "flex", gap: "3px" }}>
                       <select
                         value={bar.root}
@@ -1934,7 +2304,7 @@ export default function Home() {
                     marginBottom: "8px", paddingTop: "6px",
                     borderTop: "1px solid var(--db-card-border)",
                   }}>
-                    <div style={{ fontSize: "0.66rem", opacity: 0.45, marginBottom: "3px" }}>SCALE</div>
+                    <div style={{ fontSize: "0.66rem", opacity: 0.6, marginBottom: "3px" }}>SCALE</div>
                     <div style={{ display: "flex", gap: "3px" }} onClick={(e) => e.stopPropagation()}>
                       <select
                         value={bar.userTonic ?? ""}
@@ -1985,11 +2355,12 @@ export default function Home() {
               return elements
             })}
           </div>
+          </div>
           )}
         </div>
 
         <div style={panelStyle}>
-          <div style={eyebrowStyle}>CONTINUOUS PHRASE</div>
+          <div style={eyebrowStyle}>CONTINUOUS APPROACH LINE</div>
           <div style={{ fontSize: "0.78rem", opacity: 0.55, marginBottom: "8px", marginTop: "-4px" }}>
             7→3 guide-tone line across the full chart — the melodic skeleton bar by bar
           </div>
@@ -2065,7 +2436,7 @@ export default function Home() {
                         >
                           {TUNING_NAMES.map(t => <option key={t} value={t}>{t}</option>)}
                         </select>
-                        <div style={{ fontSize: "0.72rem", opacity: 0.5, marginLeft: "auto" }}>
+                        <div style={{ fontSize: "0.72rem", opacity: 0.62, marginLeft: "auto" }}>
                           {notes.join("  ")}
                         </div>
                       </div>
@@ -2097,6 +2468,97 @@ export default function Home() {
 
         {dnMeta && <DesertNoirPanel meta={dnMeta} />}
       </section>
+
+      {/* Keyboard shortcut cheatsheet — toggled with ? */}
+      {showShortcuts && (
+        <div
+          onClick={() => setShowShortcuts(false)}
+          style={{
+            position: "fixed", inset: 0, zIndex: 50,
+            background: "rgba(0,0,0,0.55)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "var(--db-bg)", color: "var(--db-text)",
+              border: "1px solid var(--db-accent)", borderRadius: "16px",
+              padding: "24px 28px", minWidth: "min(440px, 92vw)", maxWidth: "92vw",
+              boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", marginBottom: "14px" }}>
+              <div style={{ ...eyebrowStyle, marginBottom: 0, color: "var(--db-accent)" }}>KEYBOARD SHORTCUTS</div>
+              <button
+                onClick={() => setShowShortcuts(false)}
+                style={{ marginLeft: "auto", background: "none", border: "none", color: "var(--db-muted)", cursor: "pointer", fontSize: "1.1rem" }}
+              >×</button>
+            </div>
+            <table style={{ width: "100%", fontSize: "0.9rem", borderCollapse: "collapse" }}>
+              <tbody>
+                {[
+                  ["Space", "Play / stop"],
+                  ["← →", "Previous / next bar"],
+                  ["↑ ↓", "Cycle the selected bar's chord quality"],
+                  ["⌘/Ctrl + C", "Copy the selected bar"],
+                  ["⌘/Ctrl + V", "Paste onto the selected bar"],
+                  ["Double-click a bar", "Loop just that chord"],
+                  ["Type in a bar's chord box", "Quick-entry, e.g. Dm7 or Am7/G — then Enter"],
+                  ["?", "Show / hide this list"],
+                  ["Esc", "Close this list"],
+                ].map(([k, v]) => (
+                  <tr key={k}>
+                    <td style={{ padding: "5px 14px 5px 0", whiteSpace: "nowrap" }}>
+                      <code style={{
+                        background: "var(--db-input-bg)", border: "1px solid var(--db-panel-border)",
+                        borderRadius: "6px", padding: "2px 7px", fontSize: "0.82rem", color: "var(--db-accent)",
+                      }}>{k}</code>
+                    </td>
+                    <td style={{ padding: "5px 0", opacity: 0.85 }}>{v}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Sticky transport — appears once the main controls scroll out of view,
+          so Play/Stop is always reachable deep in the chart (esp. on phones). */}
+      {showStickyPlay && (
+        <button
+          onClick={isPlaying ? stopPlayback : () => startPlayback().catch(console.error)}
+          aria-label={isPlaying ? "Stop playback" : "Start playback"}
+          style={{
+            position: "fixed", right: "20px", bottom: "20px", zIndex: 55,
+            padding: "14px 22px", borderRadius: "999px", cursor: "pointer",
+            fontWeight: 800, fontSize: "1rem",
+            border: `2px solid ${isPlaying ? "var(--db-c-salmon)" : "var(--db-c-amber)"}`,
+            background: isPlaying
+              ? "color-mix(in srgb, var(--db-c-salmon) 25%, var(--db-bg))"
+              : "color-mix(in srgb, var(--db-c-amber) 25%, var(--db-bg))",
+            color: isPlaying ? "var(--db-c-salmon)" : "var(--db-c-amber)",
+            boxShadow: "0 6px 24px rgba(0,0,0,0.35)",
+            backdropFilter: "blur(8px)",
+          }}
+        >
+          {isPlaying ? "⏹ Stop" : "▶ Play"}
+        </button>
+      )}
+
+      {/* Transient toast */}
+      {toast && (
+        <div style={{
+          position: "fixed", bottom: "24px", left: "50%", transform: "translateX(-50%)", zIndex: 60,
+          background: "var(--db-panel-bg)", color: "var(--db-text)",
+          border: "1px solid var(--db-accent)", borderRadius: "10px",
+          padding: "10px 18px", fontSize: "0.88rem",
+          boxShadow: "0 8px 30px rgba(0,0,0,0.35)", backdropFilter: "blur(8px)",
+        }}>
+          {toast}
+        </div>
+      )}
 
     </main>
     </>
@@ -2365,6 +2827,43 @@ const FRET_FLOW_SCALES = [
 ]
 
 const TUNING_NAMES = ["Standard", "Drop D", "Open G", "DADGAD", "Open D", "Open E"]
+
+// Ingredients for the "Surprise me" brief — combinations lean on forms and
+// devices the generator's system prompt already knows how to voice.
+const SURPRISE = {
+  forms: [
+    "a 12-bar blues", "a 12-bar minor blues", "a Bird blues", "a 32-bar AABA standard",
+    "Rhythm Changes", "a 16-bar modal tune", "a bossa nova", "a jazz waltz",
+    "a ballad", "an up-tempo bebop head",
+  ],
+  keys: ["C", "F", "Bb", "Eb", "Ab", "Db", "G", "D", "A", "E", "Bm", "Cm", "Dm", "Fm", "Gm"],
+  moods: [
+    "warm and nostalgic", "dark and brooding", "bright and swinging", "spacious and modal",
+    "restless and chromatic", "wistful", "gritty and blues-drenched", "elegant and understated",
+  ],
+  devices: [
+    "a tritone substitution", "a backdoor dominant", "Coltrane changes on the bridge",
+    "a Tadd Dameron turnaround", "modal interchange", "a deceptive cadence",
+    "passing diminished chords", "a secondary dominant chain", "an inserted ii-V",
+  ],
+}
+
+// Click-to-insert starting points for the prompt box.
+const PROMPT_TEMPLATES = [
+  "12-bar blues in F with a backdoor dominant",
+  "32-bar AABA in Eb with Coltrane changes on the bridge",
+  "Bossa nova in D minor, slow, deceptive cadence at bar 8",
+  "Minor blues in C with a tritone sub in the turnaround",
+  "Rhythm Changes in Bb, bebop bridge",
+  "Modal tune in D dorian, 16 bars, sparse harmony",
+]
+
+// How each bar's approach line reaches the next chord (from generateApproachLines)
+const APPROACH_PILLS = {
+  "guide-tone-step": { label: "7→3", color: "var(--db-c-green)", hint: "Guide tone resolves by step into the next chord" },
+  "chromatic-below": { label: "CHROMATIC", color: "var(--db-c-blue)", hint: "Approaches the next target from a half step below" },
+  "anchor":          { label: "ANCHOR", color: "var(--db-muted)", hint: "Rests on a guide tone — no onward resolution" },
+}
 
 const selectStyle = {
   width: "100%",

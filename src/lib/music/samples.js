@@ -30,10 +30,13 @@ export const DRUM_KITS = {
     ride:  "/samples/drums/Snare.mp3",   // snare carries the accent voice
     hihat: "/samples/drums/HiHat.mp3",
   },
+  // Second kit — sourced from the read-only tonal repo's original WAVs. The
+  // mp3s previously here were placeholders byte-identical to other samples
+  // (Kick2 == woodblock, Snare2 == HiHat), so the kit didn't actually differ.
   Makaya: {
-    kick:  "/samples/drums/Kick2.mp3",
-    ride:  "/samples/drums/Snare2.mp3",
-    hihat: "/samples/drums/HiHat2.mp3",
+    kick:  "/samples/drums/Kick2.wav",
+    ride:  "/samples/drums/Snare2.wav",
+    hihat: "/samples/drums/HiHat2.wav",
   },
   PhillyJoe: {
     kick:  "/samples/drums/jazzkick.mp3",
@@ -123,6 +126,22 @@ export async function initSamplers() {
  */
 export function getSamplers() {
   return { piano: _piano, drums: _drums, bass: _bass }
+}
+
+/**
+ * True when THIS specific drum sample is ready to play.
+ *
+ * Deliberately per-player: Tone.Players' own `.loaded` flag is all-or-nothing,
+ * so a single unreadable file (we shipped a 0-byte HiHat2.mp3 once) silently
+ * forced every drum hit in every kit onto the quiet synth fallback. Checking
+ * one buffer at a time means a bad sample can only ever cost that one voice.
+ */
+export function isDrumSampleReady(players, key) {
+  try {
+    return Boolean(players?.has?.(key) && players.player(key)?.loaded)
+  } catch {
+    return false
+  }
 }
 
 export function disposeSamplers() {
