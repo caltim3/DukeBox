@@ -865,27 +865,24 @@ export default function Home() {
         setIsPlaying(false)
       }
     } else {
-      // Play 5 times through the form, then stop
-      let playsLeft = 5
+      // Five choruses, scheduled as one continuous timeline. This used to
+      // re-invoke audioStart() from onStop for each pass, which tore the engine
+      // down and rebuilt it between choruses — audible as a gap at every repeat.
       const opts = {
         bars:          slicedBars,
         approachLines: slicedLines,
         tempo:         effectiveTempo,
         loop:          false,
+        repeats:       5,
         swing:         swingAmount,
         playChords, playBass, playDrums, playMelody, compingStyle,
         bassStyle, bassComplexity, drumKit, reverbAmount,
         drumStyle:     drumStyleIdx,
         onBar:  (localIdx) => setPlayheadIndex(startIndex + localIdx),
         onStop: () => {
-          playsLeft--
-          if (playingRef.current && playsLeft > 0) {
-            audioStart(opts).catch(console.error)
-          } else {
-            playingRef.current = false
-            setIsPlaying(false)
-            setPlayheadIndex(null)
-          }
+          playingRef.current = false
+          setIsPlaying(false)
+          setPlayheadIndex(null)
         },
       }
       try {
