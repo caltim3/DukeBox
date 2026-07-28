@@ -269,6 +269,23 @@ function ensureReverbSend(amount) {
 let activeParts   = []
 let scheduledIds  = []
 
+/**
+ * Fire a single note through the shared piano sampler.
+ * Used by Line Lab to step through a generated line without opening its own
+ * AudioContext (and so the preview matches the app's timbre).
+ */
+export async function playSingleNote(noteWithOctave, dur = "8n", vel = 0.8) {
+  await Tone.start()
+  ensureSynths()
+  await initSamplers()
+  const { piano: pianoSampler } = getSamplers() ?? {}
+  const now = Tone.now()
+  try {
+    if (pianoSampler) pianoSampler.triggerAttackRelease(noteWithOctave, dur, now, vel)
+    else piano.triggerAttackRelease(noteWithOctave, dur, now, vel)
+  } catch { /* out-of-range note — skip rather than throw */ }
+}
+
 export function stopAll() {
   const t = Tone.getTransport()
   t.stop()

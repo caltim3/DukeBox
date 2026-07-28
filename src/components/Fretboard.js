@@ -137,8 +137,20 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
 
       {/* Note dots */}
       {dots.map(d => {
-        // Direction hint toward the next chord's guide tone (▲ up, ▼ down, ● hold)
-        const dir = d.isGuide && guideToneDirections ? guideToneDirections[d.label] : null
+        // Motion toward the next chord's nearest guide tone, as signed semitones.
+        // One triangle per half step: ▲ = up a half, ▲▲ = up a whole,
+        // ▼ = down a half, ▼▼ = down a whole. ● = common tone (no motion).
+        // Anything wider than a whole step shows the interval size instead.
+        const semis = d.isGuide && guideToneDirections ? guideToneDirections[d.label] : null
+        let glyph = null, glyphFill = "#999"
+        if (semis != null) {
+          const up = semis > 0
+          const n = Math.abs(semis)
+          glyphFill = n === 0 ? "#999" : up ? "#56C568" : "#E09B3D"
+          glyph = n === 0 ? "●"
+                : n <= 2 ? (up ? "▲" : "▼").repeat(n)
+                : `${up ? "▲" : "▼"}${n}`
+        }
         return (
           <g key={d.key}>
             <circle cx={d.cx} cy={d.cy} r={d.r} fill={d.color} />
@@ -146,11 +158,11 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
               textAnchor="middle" fill="white"
               fontSize={d.isRoot ? 9 : 8} fontWeight="bold" fontFamily="Arial, sans-serif"
             >{d.label}</text>
-            {dir && (
-              <text x={d.cx + 9} y={d.cy - 7}
-                textAnchor="middle" fontSize={8} fontWeight="bold" fontFamily="Arial, sans-serif"
-                fill={dir === "up" ? "#56C568" : dir === "down" ? "#E09B3D" : "#999"}
-              >{dir === "up" ? "▲" : dir === "down" ? "▼" : "●"}</text>
+            {glyph && (
+              <text x={d.cx + 10} y={d.cy - 7}
+                textAnchor="middle" fontSize={7.5} fontWeight="bold" fontFamily="Arial, sans-serif"
+                fill={glyphFill}
+              >{glyph}</text>
             )}
           </g>
         )
