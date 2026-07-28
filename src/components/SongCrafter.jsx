@@ -19,6 +19,24 @@ import { parseGigChord } from "@/lib/music/gigbook"
 let _uid = 0
 const uid = () => `sc${++_uid}`
 
+// ─── Wall-chart styling ───────────────────────────────────────────────────────
+const CHART_CELL = {
+  border: "1.5px solid #111",
+  textAlign: "center",
+  padding: "9px 3px",
+}
+// I, IV, V — the primary (major) triads, shaded on the classic chart
+const PRIMARY_DEGREES = new Set([0, 3, 4])
+
+// Real accidental glyphs read far better at chart size than "b" and "#"
+const pretty = (s) => String(s).replace(/b/g, "♭").replace(/#/g, "♯")
+const prettyKey = (k) => pretty(k)
+// Only the root's accidental should become a glyph — leave m, °, maj7 alone
+const prettyChord = (sym) => {
+  const { root, suffix } = splitChord(sym)
+  return pretty(root) + suffix
+}
+
 // ─── Circle of fifths geometry ────────────────────────────────────────────────
 const CX = 150, CY = 150
 const R_OUT = 144, R_MID = 98, R_IN = 56
@@ -325,64 +343,115 @@ export default function SongCrafter({ onSendToChart, panelStyle, eyebrowStyle, s
         </div>
       </div>
 
-      {/* ── All keys chart ── */}
-      <div style={{ marginTop: "18px" }}>
-        <div style={{ fontSize: "0.72rem", fontWeight: 700, letterSpacing: "0.1em", color: "var(--db-accent)", marginBottom: "6px" }}>
-          CHORDS IN ALL MAJOR KEYS
+      {/* ── All keys chart ────────────────────────────────────────────────
+          Drawn as the printed wall chart rather than a themed table: fixed
+          colours in every app palette, because it reads as a reference card.
+          The cyan columns are the primary triads (I, IV, V) — the same coding
+          the classic chart uses. Still fully interactive. */}
+      <div style={{ marginTop: "20px" }} className="db-chartcard">
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", marginBottom: "7px" }}>
+          <div style={{ fontSize: "0.72rem", fontWeight: 700, letterSpacing: "0.1em", color: "var(--db-accent)" }}>
+            CHORDS IN ALL MAJOR KEYS
+          </div>
+          <div style={{ fontSize: "0.74rem", opacity: 0.62 }}>
+            Tap a chord to add it · tap a key to switch key
+          </div>
+          <button
+            onClick={() => {
+              document.body.classList.add("db-printing-chart")
+              const after = () => {
+                document.body.classList.remove("db-printing-chart")
+                window.removeEventListener("afterprint", after)
+              }
+              window.addEventListener("afterprint", after)
+              window.print()
+            }}
+            className="db-noprint"
+            style={{
+              marginLeft: "auto", padding: "4px 11px", borderRadius: "8px", cursor: "pointer",
+              fontSize: "0.78rem", border: "1px solid var(--db-panel-border)",
+              background: "var(--db-panel-bg)", color: "var(--db-text)",
+            }}
+            title="Print just this chart — makes a clean reference sheet"
+          >🖨 Print chart</button>
         </div>
-        <div style={{ fontSize: "0.74rem", opacity: 0.62, marginBottom: "7px" }}>
-          Tap any chord to add it · tap a key name to switch key (and transpose the sheet)
-        </div>
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ borderCollapse: "separate", borderSpacing: "3px", fontSize: "0.82rem", minWidth: "520px", width: "100%" }}>
+
+        <div style={{
+          overflowX: "auto", background: "#ffffff", borderRadius: "10px",
+          padding: "12px", border: "1px solid var(--db-panel-border)",
+        }}>
+          <h3 style={{
+            margin: "2px 0 10px", textAlign: "center", color: "#111",
+            fontSize: "1.15rem", fontWeight: 800, letterSpacing: "0.01em",
+          }}>Chords In All Major Keys</h3>
+
+          <table style={{
+            borderCollapse: "collapse", width: "100%", minWidth: "560px",
+            fontFamily: "Georgia, 'Times New Roman', serif",
+          }}>
             <thead>
               <tr>
-                <th style={{ fontSize: "0.7rem", opacity: 0.6, textAlign: "left", padding: "0 6px" }}>Key</th>
-                {DEGREE_LABELS.map(d => (
+                <th style={{ ...CHART_CELL, background: "#fff", color: "#111", fontSize: "0.72rem", lineHeight: 1.15, width: "68px" }}>
+                  Major<br />Keys
+                </th>
+                {DEGREE_LABELS.map((d, i) => (
                   <th key={d} style={{
-                    fontSize: "0.75rem", padding: "4px", borderRadius: "6px",
-                    background: "color-mix(in srgb, var(--db-c-green) 18%, var(--db-bg))",
-                    color: "var(--db-c-green)",
-                  }}>{d}</th>
+                    ...CHART_CELL, background: "#9BDB3B", color: "#111",
+                    fontSize: "1.05rem", fontWeight: 700,
+                  }}
+                    title={PRIMARY_DEGREES.has(i) ? `${d} — primary (major) triad` : `${d}`}
+                  >{d}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {KEY_NAMES.map(k => (
-                <tr key={k}>
-                  <th scope="row">
-                    <button
-                      onClick={() => transposeTo(k)}
-                      style={{
-                        width: "100%", padding: "5px 8px", borderRadius: "6px", cursor: "pointer",
-                        fontWeight: 700, fontSize: "0.82rem",
-                        background: k === keyName
-                          ? "var(--db-accent)"
-                          : "color-mix(in srgb, var(--db-c-gold) 16%, var(--db-bg))",
-                        color: k === keyName ? "var(--db-bg)" : "var(--db-c-gold)",
-                        border: `1px solid ${k === keyName ? "var(--db-accent)" : "var(--db-card-border)"}`,
-                      }}
-                      title={`Switch to ${k} (transposes the sheet)`}
-                    >{k}</button>
-                  </th>
-                  {KEY_TABLE[k].chords.map((sym, i) => (
-                    <td key={i} style={{ padding: 0 }}>
-                      {chordChip(
-                        { ...splitChord(sym), symbol: sym, degree: k === keyName ? DEGREE_LABELS[i] : null },
-                        `t${k}${i}`,
-                        {
-                          width: "100%",
-                          background: k === keyName
-                            ? "color-mix(in srgb, var(--db-accent) 14%, var(--db-bg))"
-                            : "var(--db-card-bg)",
-                        }
-                      )}
-                    </td>
-                  ))}
-                </tr>
-              ))}
+              {KEY_NAMES.map(k => {
+                const isKey = k === keyName
+                return (
+                  <tr key={k}>
+                    <th scope="row" style={{ ...CHART_CELL, padding: 0 }}>
+                      <button
+                        onClick={() => transposeTo(k)}
+                        style={{
+                          width: "100%", height: "100%", padding: "9px 4px", cursor: "pointer",
+                          border: "none", fontWeight: 800, fontSize: "1.02rem",
+                          fontFamily: "inherit",
+                          background: isKey ? "#F2A93B" : "#FFFF33",
+                          color: "#111",
+                          outline: isKey ? "3px solid #C77800" : "none",
+                          outlineOffset: "-3px",
+                        }}
+                        title={`Switch to ${k} — transposes the sheet`}
+                      >{prettyKey(k)}</button>
+                    </th>
+                    {KEY_TABLE[k].chords.map((sym, i) => (
+                      <td key={i} style={{ ...CHART_CELL, padding: 0 }}>
+                        <button
+                          draggable
+                          onDragStart={() => { dragRef.current = { kind: "new", chord: { ...splitChord(sym), symbol: sym, degree: isKey ? DEGREE_LABELS[i] : null } } }}
+                          onClick={() => addChord({ ...splitChord(sym), symbol: sym, degree: isKey ? DEGREE_LABELS[i] : null })}
+                          title={`Add ${sym} to ${activeSection?.kind ?? "the sheet"}`}
+                          style={{
+                            width: "100%", height: "100%", padding: "9px 3px", cursor: "pointer",
+                            border: "none", fontFamily: "inherit",
+                            fontWeight: 700, fontSize: "1rem", color: "#111",
+                            background: isKey
+                              ? "#FFE9A8"
+                              : PRIMARY_DEGREES.has(i) ? "#A8DCEB" : "#ffffff",
+                          }}
+                        >{prettyChord(sym)}</button>
+                      </td>
+                    ))}
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
+
+          <p style={{ margin: "10px 2px 2px", textAlign: "center", color: "#333", fontSize: "0.72rem", lineHeight: 1.5 }}>
+            All the common triads belonging to each key. Roman numerals give each chord&apos;s position in the scale;
+            the blue columns are the primary triads (I, IV, V).
+          </p>
         </div>
       </div>
 

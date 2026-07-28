@@ -1065,6 +1065,20 @@ export default function Home() {
       @media (pointer: coarse) {
         button, select { min-height: 38px; }
       }
+
+      /* "Print chart" prints the all-keys reference on its own, as a clean
+         sheet — everything else is hidden for that one print job. */
+      @media print {
+        body.db-printing-chart > * { display: none !important; }
+        body.db-printing-chart .db-chartcard {
+          display: block !important;
+          position: absolute; left: 0; top: 0; width: 100%;
+        }
+        body.db-printing-chart .db-chartcard .db-noprint { display: none !important; }
+        body.db-printing-chart main,
+        body.db-printing-chart main > section { display: block !important; }
+        body.db-printing-chart main > section > *:not(:has(.db-chartcard)) { display: none !important; }
+      }
     `}</style>
     <main
       style={{
