@@ -182,7 +182,7 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
   const currentNote = playIdx >= 0 && playIdx < flatNotes.length ? flatNotes[playIdx] : null
 
   const chip = (active) => ({
-    padding: "5px 12px", borderRadius: 999, fontSize: "0.8rem", cursor: "pointer",
+    padding: "5px 12px", borderRadius: 999, fontSize: "var(--db-fs-sm)", cursor: "pointer",
     border: `1px solid ${active ? "var(--db-accent)" : "var(--db-panel-border)"}`,
     background: active ? "color-mix(in srgb, var(--db-accent) 16%, transparent)" : "transparent",
     color: active ? "var(--db-accent)" : "var(--db-text)",
@@ -193,20 +193,20 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
     <div style={panelStyle}>
       <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "4px", flexWrap: "wrap" }}>
         <div style={{ ...eyebrowStyle, marginBottom: 0 }}>LINE LAB</div>
-        <div style={{ fontSize: "0.78rem", opacity: 0.62 }}>
+        <div style={{ fontSize: "var(--db-fs-sm)", opacity: 0.62 }}>
           Improvised single-note lines over your changes — as tab, with per-bar reasoning
         </div>
       </div>
 
       {/* Lead sheet */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: "10px" }}>
-        <label style={{ fontSize: "0.8rem", color: "var(--db-accent)" }} htmlFor="ll-sheet">Changes</label>
+        <label style={{ fontSize: "var(--db-fs-sm)", color: "var(--db-accent)" }} htmlFor="ll-sheet">Changes</label>
         <button
           onClick={() => setSheet(chartAsSheet)}
           disabled={!chartAsSheet}
           style={{
             background: "none", border: "none", color: "var(--db-muted)",
-            fontSize: "0.75rem", cursor: "pointer", textDecoration: "underline",
+            fontSize: "var(--db-fs-xs)", cursor: "pointer", textDecoration: "underline",
           }}
           title="Replace with the chart currently loaded in DukeBox"
         >
@@ -222,12 +222,12 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
         style={{
           width: "100%", boxSizing: "border-box", marginTop: "8px",
           background: "var(--db-input-bg)", color: "var(--db-text)",
-          border: "1px solid var(--db-panel-border)", borderRadius: "8px",
+          border: "1px solid var(--db-panel-border)", borderRadius: "var(--db-r-md)",
           padding: "9px 11px", fontFamily: "var(--font-mono, monospace)",
-          fontSize: "0.86rem", resize: "vertical",
+          fontSize: "var(--db-fs-md)", resize: "vertical",
         }}
       />
-      <div style={{ fontSize: "0.75rem", opacity: 0.62, margin: "10px 0 7px" }}>
+      <div style={{ fontSize: "var(--db-fs-xs)", opacity: 0.62, margin: "10px 0 7px" }}>
         Tap a bar, then another, to set the section. Max 8 bars per generation.
       </div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
@@ -239,7 +239,7 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
               onClick={() => clickBar(i)}
               aria-pressed={inSel}
               style={{
-                padding: "6px 10px", borderRadius: "8px", fontSize: "0.8rem", cursor: "pointer",
+                padding: "6px 10px", borderRadius: "var(--db-r-md)", fontSize: "var(--db-fs-sm)", cursor: "pointer",
                 fontFamily: "var(--font-mono, monospace)",
                 border: `1px solid ${inSel ? "var(--db-accent)" : "var(--db-card-border)"}`,
                 background: inSel ? "color-mix(in srgb, var(--db-accent) 15%, var(--db-bg))" : "var(--db-card-bg)",
@@ -254,7 +254,7 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
 
       {/* Devices + direction */}
       <div style={{ marginTop: "16px" }}>
-        <label style={{ fontSize: "0.8rem", color: "var(--db-accent)" }}>Devices</label>
+        <label style={{ fontSize: "var(--db-fs-sm)", color: "var(--db-accent)" }}>Devices</label>
         <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "8px" }}>
           {DEVICES.map(d => (
             <button key={d} onClick={() => toggleDevice(d)} aria-pressed={devices.has(d)} style={chip(devices.has(d))}>
@@ -266,7 +266,7 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
 
       <div style={{ display: "flex", gap: "12px", marginTop: "14px", flexWrap: "wrap" }}>
         <div style={{ flex: "1 1 240px" }}>
-          <label style={{ fontSize: "0.8rem", color: "var(--db-accent)" }} htmlFor="ll-extra">Direction (optional)</label>
+          <label style={{ fontSize: "var(--db-fs-sm)", color: "var(--db-accent)" }} htmlFor="ll-extra">Direction (optional)</label>
           <input
             id="ll-extra"
             value={extra}
@@ -275,18 +275,18 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
             style={{
               width: "100%", boxSizing: "border-box", marginTop: "6px",
               background: "var(--db-input-bg)", color: "var(--db-text)",
-              border: "1px solid var(--db-panel-border)", borderRadius: "8px",
-              padding: "8px 11px", fontSize: "0.86rem",
+              border: "1px solid var(--db-panel-border)", borderRadius: "var(--db-r-md)",
+              padding: "8px 11px", fontSize: "var(--db-fs-md)",
             }}
           />
         </div>
         <div style={{ flex: "0 0 170px" }}>
-          <label style={{ fontSize: "0.8rem", color: "var(--db-accent)" }} htmlFor="ll-pos">Position</label>
+          <label style={{ fontSize: "var(--db-fs-sm)", color: "var(--db-accent)" }} htmlFor="ll-pos">Position</label>
           <select
             id="ll-pos"
             value={position}
             onChange={(e) => setPosition(e.target.value)}
-            style={{ ...selectStyle, marginTop: "6px", padding: "8px 10px", fontSize: "0.86rem" }}
+            style={{ ...selectStyle, marginTop: "6px", padding: "8px 10px", fontSize: "var(--db-fs-md)" }}
           >
             {POSITIONS.map(p => <option key={p} value={p}>{p}</option>)}
           </select>
@@ -297,12 +297,12 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
         onClick={generate}
         disabled={loading || !bars.length}
         style={{
-          marginTop: "16px", width: "100%", padding: "12px 0", borderRadius: "10px",
+          marginTop: "16px", width: "100%", padding: "12px 0", borderRadius: "var(--db-r-md)",
           border: "1px solid var(--db-accent)",
           background: loading
             ? "color-mix(in srgb, var(--db-accent) 20%, var(--db-bg))"
             : "color-mix(in srgb, var(--db-accent) 35%, var(--db-bg))",
-          color: "var(--db-accent)", fontSize: "0.95rem", fontWeight: 700,
+          color: "var(--db-accent)", fontSize: "var(--db-fs-md)", fontWeight: 700,
           cursor: loading ? "default" : "pointer",
           opacity: bars.length ? 1 : 0.5,
         }}
@@ -310,7 +310,7 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
         {loading ? "Comping…" : "Generate line"}
       </button>
       {error && (
-        <div style={{ marginTop: "10px", color: "var(--db-c-salmon)", fontSize: "0.86rem" }}>{error}</div>
+        <div style={{ marginTop: "10px", color: "var(--db-c-salmon)", fontSize: "var(--db-fs-md)" }}>{error}</div>
       )}
 
       {result && (
@@ -321,9 +321,9 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
             borderTop: "1px solid var(--db-panel-border)",
           }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
-              <label style={{ fontSize: "0.8rem", color: "var(--db-accent)" }}>The line</label>
+              <label style={{ fontSize: "var(--db-fs-sm)", color: "var(--db-accent)" }}>The line</label>
               <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                <span style={{ fontSize: "0.75rem", opacity: 0.62 }}>{tempo} bpm</span>
+                <span style={{ fontSize: "var(--db-fs-xs)", opacity: 0.62 }}>{tempo} bpm</span>
                 <input
                   type="range" min={60} max={220} value={tempo}
                   onChange={(e) => setTempo(Number(e.target.value))}
@@ -333,10 +333,10 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
                 <button
                   onClick={playing ? stopLine : startLine}
                   style={{
-                    padding: "6px 16px", borderRadius: "8px", cursor: "pointer",
+                    padding: "6px 16px", borderRadius: "var(--db-r-md)", cursor: "pointer",
                     border: "1px solid var(--db-accent)",
                     background: playing ? "color-mix(in srgb, var(--db-accent) 20%, var(--db-bg))" : "transparent",
-                    color: "var(--db-accent)", fontSize: "0.82rem", fontWeight: 700,
+                    color: "var(--db-accent)", fontSize: "var(--db-fs-sm)", fontWeight: 700,
                   }}
                 >
                   {playing ? "⏹ Stop" : "▶ Play line"}
@@ -392,7 +392,7 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
             </div>
 
             {currentNote && (
-              <div style={{ fontSize: "0.82rem", color: "var(--db-accent)", marginTop: "4px", fontFamily: "var(--font-mono, monospace)" }}>
+              <div style={{ fontSize: "var(--db-fs-sm)", color: "var(--db-accent)", marginTop: "4px", fontFamily: "var(--font-mono, monospace)" }}>
                 {noteName(currentNote.s, currentNote.f)} — string {currentNote.s}, fret {currentNote.f} — bar{" "}
                 {currentNote.bi + 1}: {result.bars[currentNote.bi]?.c}
               </div>
@@ -401,9 +401,9 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
 
           {/* Tab */}
           <div style={{ marginTop: "14px", overflowX: "auto" }}>
-            <label style={{ fontSize: "0.8rem", color: "var(--db-accent)" }}>Tab</label>
+            <label style={{ fontSize: "var(--db-fs-sm)", color: "var(--db-accent)" }}>Tab</label>
             <pre style={{
-              fontFamily: "var(--font-mono, monospace)", fontSize: "0.8rem", lineHeight: 1.5,
+              fontFamily: "var(--font-mono, monospace)", fontSize: "var(--db-fs-sm)", lineHeight: 1.5,
               color: "var(--db-text)", marginTop: "8px", whiteSpace: "pre",
             }}>{buildTab(result.bars)}</pre>
           </div>
@@ -416,29 +416,29 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
                   ? "color-mix(in srgb, var(--db-accent) 12%, var(--db-card-bg))"
                   : "var(--db-card-bg)",
                 border: `1px solid ${currentNote && currentNote.bi === i ? "var(--db-accent)" : "var(--db-card-border)"}`,
-                borderRadius: "10px", padding: "11px 14px",
+                borderRadius: "var(--db-r-md)", padding: "11px 14px",
                 display: "flex", gap: "14px", alignItems: "baseline", flexWrap: "wrap",
               }}>
-                <span style={{ fontFamily: "var(--font-mono, monospace)", color: "var(--db-accent)", fontSize: "0.86rem", minWidth: "86px" }}>
+                <span style={{ fontFamily: "var(--font-mono, monospace)", color: "var(--db-accent)", fontSize: "var(--db-fs-md)", minWidth: "86px" }}>
                   {i + 1}. {bar.c}
                 </span>
                 <span style={{
-                  fontSize: "0.75rem", padding: "2px 9px", borderRadius: 999,
+                  fontSize: "var(--db-fs-xs)", padding: "2px 9px", borderRadius: 999,
                   background: "var(--db-panel-bg)", border: "1px solid var(--db-panel-border)",
                 }}>{bar.d}</span>
-                <span style={{ fontSize: "0.85rem", opacity: 0.8, flex: 1, minWidth: "200px" }}>{bar.x}</span>
+                <span style={{ fontSize: "var(--db-fs-sm)", opacity: 0.8, flex: 1, minWidth: "200px" }}>{bar.x}</span>
               </div>
             ))}
           </div>
 
           {result.s && (
             <p style={{
-              fontSize: "0.95rem", marginTop: "14px", paddingLeft: "12px",
+              fontSize: "var(--db-fs-md)", marginTop: "14px", paddingLeft: "12px",
               borderLeft: "3px solid var(--db-accent)", fontStyle: "italic", opacity: 0.9,
             }}>{result.s}</p>
           )}
           {result.clipped && (
-            <p style={{ fontSize: "0.8rem", opacity: 0.62, marginTop: "8px" }}>
+            <p style={{ fontSize: "var(--db-fs-sm)", opacity: 0.62, marginTop: "8px" }}>
               Section was longer than 8 bars, so only the first 8 were generated. Select the next
               stretch and run it again to continue the chorus.
             </p>

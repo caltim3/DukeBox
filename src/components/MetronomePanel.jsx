@@ -101,7 +101,7 @@ export default function MetronomePanel({ onBeforeStart, panelStyle, eyebrowStyle
     <div style={panelStyle}>
       <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "10px", flexWrap: "wrap" }}>
         <div style={{ ...eyebrowStyle, marginBottom: 0 }}>BEATFORGE METRONOME</div>
-        <div style={{ fontSize: "0.78rem", opacity: 0.55 }}>
+        <div style={{ fontSize: "var(--db-fs-sm)", opacity: 0.55 }}>
           Standalone time workout — click cells to cycle accent → normal → off
         </div>
       </div>
@@ -110,7 +110,7 @@ export default function MetronomePanel({ onBeforeStart, panelStyle, eyebrowStyle
         <button
           onClick={running ? stop : start}
           style={{
-            padding: "9px 22px", borderRadius: "10px", cursor: "pointer", fontWeight: 800, fontSize: "0.95rem",
+            padding: "9px 22px", borderRadius: "var(--db-r-md)", cursor: "pointer", fontWeight: 800, fontSize: "var(--db-fs-md)",
             border: `2px solid ${running ? "var(--db-c-salmon)" : "var(--db-c-green)"}`,
             background: running
               ? "color-mix(in srgb, var(--db-c-salmon) 18%, var(--db-bg))"
@@ -128,7 +128,7 @@ export default function MetronomePanel({ onBeforeStart, panelStyle, eyebrowStyle
         </label>
 
         <button onClick={tapTempo} style={{
-          padding: "7px 14px", borderRadius: "8px", cursor: "pointer", fontWeight: 700, fontSize: "0.85rem",
+          padding: "7px 14px", borderRadius: "var(--db-r-md)", cursor: "pointer", fontWeight: 700, fontSize: "var(--db-fs-sm)",
           border: "1px solid var(--db-c-blue)", background: "color-mix(in srgb, var(--db-c-blue) 10%, var(--db-bg))",
           color: "var(--db-c-blue)",
         }} title="Tap 2+ times — tempo is averaged over the last 4 taps">
@@ -192,8 +192,8 @@ export default function MetronomePanel({ onBeforeStart, panelStyle, eyebrowStyle
               aria-label={`${isDownbeat ? `Beat ${beatNum}` : `Off-beat after ${beatNum}`}: ${state === 2 ? "accent" : state === 1 ? "normal" : "off"} — click to change`}
               title={state === 2 ? "Accent" : state === 1 ? "Normal" : "Off"}
               style={{
-                width: "44px", height: "44px", borderRadius: "8px", cursor: "pointer",
-                fontWeight: 700, fontSize: "0.8rem",
+                width: "44px", height: "44px", borderRadius: "var(--db-r-md)", cursor: "pointer",
+                fontWeight: 700, fontSize: "var(--db-fs-sm)",
                 border: isActive
                   ? "2px solid var(--db-c-amber)"
                   : state === 2 ? "2px solid var(--db-c-salmon)"
