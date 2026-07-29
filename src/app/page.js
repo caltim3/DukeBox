@@ -1040,6 +1040,21 @@ export default function Home() {
         --db-c-gold:   ${palette.cGold};
         --db-c-salmon: ${palette.cSalmon};
         --db-c-pink:   ${palette.cPink};
+
+        /* ── Design tokens ────────────────────────────────────────────
+           Type collapsed from 23 ad-hoc sizes to six steps, radius from
+           ten values to three. Per-element sizing is what made the app
+           read as assembled rather than designed. */
+        --db-fs-xs:      0.72rem;   /* eyebrow labels, captions, legends */
+        --db-fs-sm:      0.82rem;   /* secondary controls, helper text   */
+        --db-fs-md:      0.92rem;   /* body and primary controls         */
+        --db-fs-lg:      1.05rem;   /* emphasis, section values          */
+        --db-fs-xl:      1.3rem;    /* chord symbols                     */
+        --db-fs-display: 1.7rem;    /* headline numerals                 */
+
+        --db-r-sm:   6px;    /* inputs, dense cells   */
+        --db-r-md:   10px;   /* buttons, cards, panels */
+        --db-r-pill: 999px;  /* chips and pills        */
       }
 
       /* ── Accessibility: visible keyboard focus ──────────────────────── */
@@ -1096,6 +1111,16 @@ export default function Home() {
         button, select { min-height: 38px; }
       }
 
+      /* Hidden where there's no keyboard to shortcut with */
+      @media (pointer: coarse), (max-width: 560px) {
+        .db-pointer-fine-only { display: none !important; }
+      }
+
+      /* Workspace tabs go two-up on a phone instead of squeezing to four */
+      @media (max-width: 560px) {
+        .db-modebar [role="tab"] { flex: 1 1 calc(50% - 6px); min-width: 0; }
+      }
+
       /* "Print chart" prints the all-keys reference on its own, as a clean
          sheet — everything else is hidden for that one print job. */
       @media print {
@@ -1125,14 +1150,22 @@ export default function Home() {
       }}
     >
       <section style={{ minWidth: 0, overflow: "hidden" }}>
-        <div style={{ marginBottom: "8px", display: "flex", alignItems: "center", gap: "14px" }}>
-          <h1 style={{ fontSize: "2.5rem", margin: 0, color: "var(--db-accent)" }}>
+        {/* Wraps and scales — at 390px this used to run the title onto two
+            lines and push Shortcuts and the sync control off-screen entirely. */}
+        <div style={{
+          marginBottom: "8px", display: "flex", alignItems: "center",
+          gap: "10px", rowGap: "8px", flexWrap: "wrap",
+        }}>
+          <h1 style={{
+            fontSize: "clamp(1.5rem, 7vw, 2.5rem)", margin: 0,
+            color: "var(--db-accent)", whiteSpace: "nowrap", lineHeight: 1.1,
+          }}>
             The DukeBox
           </h1>
           <button
             onClick={() => setPaletteIndex((i) => (i + 1) % PALETTES.length)}
             style={{
-              padding: "6px 14px", borderRadius: "10px", cursor: "pointer", fontWeight: 600, fontSize: "0.9rem",
+              padding: "6px 14px", borderRadius: "var(--db-r-md)", cursor: "pointer", fontWeight: 600, fontSize: "var(--db-fs-md)",
               border: "1px solid var(--db-panel-border)",
               background: "var(--db-panel-bg)",
               color: "var(--db-accent)",
@@ -1143,10 +1176,13 @@ export default function Home() {
             🎨 {palette.name}
           </button>
 
+          {/* Keyboard shortcuts are meaningless on a touch device — hidden there
+              rather than competing for the little horizontal room a phone has. */}
           <button
             onClick={() => setShowShortcuts(true)}
+            className="db-pointer-fine-only"
             style={{
-              padding: "6px 12px", borderRadius: "10px", cursor: "pointer", fontWeight: 700, fontSize: "0.85rem",
+              padding: "6px 12px", borderRadius: "var(--db-r-md)", cursor: "pointer", fontWeight: 700, fontSize: "var(--db-fs-sm)",
               border: "1px solid var(--db-panel-border)", background: "var(--db-panel-bg)", color: "var(--db-muted)",
               flexShrink: 0,
             }}
@@ -1166,7 +1202,7 @@ export default function Home() {
           style={{
             display: "flex", gap: "6px", flexWrap: "wrap",
             marginBottom: "10px", padding: "5px",
-            borderRadius: "14px",
+            borderRadius: "var(--db-r-md)",
             background: "var(--db-panel-bg)",
             border: "1px solid var(--db-panel-border)",
           }}
@@ -1182,8 +1218,8 @@ export default function Home() {
                 title={m.blurb}
                 style={{
                   flex: "1 1 auto", minWidth: "112px",
-                  padding: "9px 14px", borderRadius: "10px", cursor: "pointer",
-                  fontWeight: 700, fontSize: "0.95rem",
+                  padding: "9px 14px", borderRadius: "var(--db-r-md)", cursor: "pointer",
+                  fontWeight: 700, fontSize: "var(--db-fs-md)",
                   border: on ? "1px solid var(--db-accent)" : "1px solid transparent",
                   background: on ? "color-mix(in srgb, var(--db-accent) 16%, var(--db-bg))" : "transparent",
                   color: on ? "var(--db-accent)" : "var(--db-text)",
@@ -1195,7 +1231,7 @@ export default function Home() {
             )
           })}
         </div>
-        <p style={{ opacity: 0.7, marginBottom: "20px", fontSize: "0.9rem" }}>
+        <p style={{ opacity: 0.7, marginBottom: "20px", fontSize: "var(--db-fs-md)" }}>
           {MODES.find(m => m.id === mode)?.blurb}
         </p>
 
@@ -1226,7 +1262,7 @@ export default function Home() {
           <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
             <div style={{ ...eyebrowStyle, marginBottom: 0, color: "var(--db-c-green)" }}>START PRACTICING</div>
           </div>
-          <div style={{ fontSize: "0.78rem", opacity: 0.6, marginBottom: "12px" }}>
+          <div style={{ fontSize: "var(--db-fs-sm)", opacity: 0.6, marginBottom: "12px" }}>
             Load a starter chart and begin at slow tempo — ideal for building muscle memory
           </div>
           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
@@ -1235,7 +1271,7 @@ export default function Home() {
                 key={id}
                 onClick={() => loadStarter(id)}
                 style={{
-                  padding: "7px 12px", borderRadius: "8px", fontSize: "0.85rem", cursor: "pointer",
+                  padding: "7px 12px", borderRadius: "var(--db-r-md)", fontSize: "var(--db-fs-sm)", cursor: "pointer",
                   background: "var(--db-panel-bg)",
                   border: "1px solid var(--db-panel-border)",
                   color: "var(--db-text)",
@@ -1257,7 +1293,7 @@ export default function Home() {
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px" }}>
             <div style={{ ...eyebrowStyle, marginBottom: 0, color: "var(--db-c-purple)" }}>AI CHART GENERATOR</div>
-            <div style={{ fontSize: "0.72rem", opacity: 0.62 }}>powered by Claude</div>
+            <div style={{ fontSize: "var(--db-fs-xs)", opacity: 0.62 }}>powered by Claude</div>
           </div>
 
           <div style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}>
@@ -1274,11 +1310,11 @@ export default function Home() {
               style={{
                 flex: 1,
                 padding: "12px",
-                borderRadius: "10px",
+                borderRadius: "var(--db-r-md)",
                 border: "1px solid rgba(201,167,255,0.2)",
                 background: "var(--db-input-bg)",
                 color: "var(--db-text)",
-                fontSize: "0.95rem",
+                fontSize: "var(--db-fs-md)",
                 resize: "vertical",
                 minHeight: "58px",
                 fontFamily: "Arial, sans-serif",
@@ -1307,7 +1343,7 @@ export default function Home() {
               onClick={surpriseMe}
               disabled={isGenerating}
               style={{
-                padding: "4px 11px", borderRadius: "20px", fontSize: "0.78rem", cursor: "pointer",
+                padding: "4px 11px", borderRadius: "var(--db-r-pill)", fontSize: "var(--db-fs-sm)", cursor: "pointer",
                 border: "1px solid var(--db-c-purple)",
                 background: "color-mix(in srgb, var(--db-c-purple) 14%, var(--db-bg))",
                 color: "var(--db-c-purple)", fontWeight: 700,
@@ -1324,7 +1360,7 @@ export default function Home() {
                 onClick={() => setPromptText(t)}
                 disabled={isGenerating}
                 style={{
-                  padding: "4px 10px", borderRadius: "20px", fontSize: "0.75rem", cursor: "pointer",
+                  padding: "4px 10px", borderRadius: "var(--db-r-pill)", fontSize: "var(--db-fs-xs)", cursor: "pointer",
                   border: "1px solid var(--db-panel-border)", background: "var(--db-panel-bg)",
                   color: "var(--db-text)", opacity: isGenerating ? 0.5 : 0.85,
                 }}
@@ -1337,12 +1373,12 @@ export default function Home() {
 
           {promptHistory.length > 0 && (
             <div style={{ display: "flex", gap: "6px", alignItems: "center", marginTop: "8px" }}>
-              <label style={{ fontSize: "0.75rem", opacity: 0.6 }} htmlFor="prompt-history">Recent</label>
+              <label style={{ fontSize: "var(--db-fs-xs)", opacity: 0.6 }} htmlFor="prompt-history">Recent</label>
               <select
                 id="prompt-history"
                 value=""
                 onChange={(e) => { if (e.target.value) setPromptText(e.target.value) }}
-                style={{ ...selectStyle, flex: 1, padding: "5px 8px", fontSize: "0.78rem" }}
+                style={{ ...selectStyle, flex: 1, padding: "5px 8px", fontSize: "var(--db-fs-sm)" }}
               >
                 <option value="">Re-use a previous prompt…</option>
                 {promptHistory.map((p, i) => (
@@ -1352,15 +1388,15 @@ export default function Home() {
             </div>
           )}
 
-          <div style={{ fontSize: "0.75rem", opacity: 0.6, marginTop: "6px" }}>
+          <div style={{ fontSize: "var(--db-fs-xs)", opacity: 0.6, marginTop: "6px" }}>
             ⌘ + Enter to generate
           </div>
 
           {generationError && (
             <div style={{
-              marginTop: "10px", padding: "10px 12px", borderRadius: "8px",
+              marginTop: "10px", padding: "10px 12px", borderRadius: "var(--db-r-md)",
               background: "rgba(255,100,100,0.1)", border: "1px solid rgba(255,100,100,0.3)",
-              color: "#ff8a8a", fontSize: "0.88rem",
+              color: "#ff8a8a", fontSize: "var(--db-fs-md)",
             }}>
               {generationError}
             </div>
@@ -1372,7 +1408,7 @@ export default function Home() {
                 onClick={() => setShowGenNotes((p) => !p)}
                 style={{
                   background: "none", border: "none", color: "var(--db-c-purple)",
-                  cursor: "pointer", fontSize: "0.82rem", padding: "0", opacity: 0.8,
+                  cursor: "pointer", fontSize: "var(--db-fs-sm)", padding: "0", opacity: 0.8,
                 }}
               >
                 {showGenNotes ? "▼" : "▶"} Generation Notes
@@ -1380,9 +1416,9 @@ export default function Home() {
               </button>
               {showGenNotes && (
                 <div style={{
-                  marginTop: "6px", padding: "10px 12px", borderRadius: "8px",
+                  marginTop: "6px", padding: "10px 12px", borderRadius: "var(--db-r-md)",
                   background: "rgba(201,167,255,0.07)", border: "1px solid rgba(201,167,255,0.15)",
-                  fontSize: "0.88rem", lineHeight: 1.6, opacity: 0.9,
+                  fontSize: "var(--db-fs-md)", lineHeight: 1.6, opacity: 0.9,
                 }}>
                   {generationNotes || "…"}
                   {isGenerating && generationNotes && (
@@ -1435,7 +1471,7 @@ export default function Home() {
             {userLibrary.some((e) => e.name === selectedForm) && (
               <button
                 onClick={() => removeFromLibrary(selectedForm)}
-                style={{ ...buttonStyle("#ff8a8a", "#200a0a"), padding: "6px 10px", fontSize: "0.82rem" }}
+                style={{ ...buttonStyle("#ff8a8a", "#200a0a"), padding: "6px 10px", fontSize: "var(--db-fs-sm)" }}
                 title="Remove this chart from your library"
               >
                 × Remove
@@ -1444,7 +1480,7 @@ export default function Home() {
 
             <button
               onClick={() => exportLeadSheet({ bars, title: selectedForm, tempo: originalTempo }).catch(console.error)}
-              style={{ ...buttonStyle("var(--db-c-purple)"), padding: "6px 12px", fontSize: "0.82rem" }}
+              style={{ ...neutralButtonStyle, padding: "6px 12px", fontSize: "var(--db-fs-sm)" }}
               title="Export lead sheet as PDF (Real Book style)"
             >
               ↓ Lead Sheet PDF
@@ -1452,7 +1488,7 @@ export default function Home() {
 
             <button
               onClick={() => exportMusicXML({ bars, approachLines, title: selectedForm, tempo: originalTempo })}
-              style={{ ...buttonStyle("var(--db-c-blue)"), padding: "6px 12px", fontSize: "0.82rem" }}
+              style={{ ...neutralButtonStyle, padding: "6px 12px", fontSize: "var(--db-fs-sm)" }}
               title="Export as MusicXML — open in MuseScore, Sibelius, Finale, etc."
             >
               ↓ MusicXML
@@ -1460,7 +1496,7 @@ export default function Home() {
 
             <button
               onClick={() => downloadImprovGuide({ bars, title: selectedForm, keyRoot, keyMode, tempo: originalTempo })}
-              style={{ ...buttonStyle("var(--db-c-green)"), padding: "6px 12px", fontSize: "0.82rem" }}
+              style={{ ...neutralButtonStyle, padding: "6px 12px", fontSize: "var(--db-fs-sm)" }}
               title="Export a 5-level improv guide as markdown — scales, triad pairs, bebop cells, voice leading per chord"
             >
               ↓ Improv Guide
@@ -1484,7 +1520,7 @@ export default function Home() {
                   alert(`Notion export failed: ${err.message}`)
                 }
               }}
-              style={{ ...buttonStyle("var(--db-c-pink)"), padding: "6px 12px", fontSize: "0.82rem" }}
+              style={{ ...neutralButtonStyle, padding: "6px 12px", fontSize: "var(--db-fs-sm)" }}
               title="Create a Notion page with the improv map — summary table + per-bar collapsible roadmap"
             >
               → Notion
@@ -1492,7 +1528,7 @@ export default function Home() {
 
             <button
               onClick={() => { setShowImportModal(true); setImportText(""); setImportStatus(null) }}
-              style={{ ...buttonStyle("var(--db-c-blue)"), padding: "6px 12px", fontSize: "0.82rem" }}
+              style={{ ...neutralButtonStyle, padding: "6px 12px", fontSize: "var(--db-fs-sm)" }}
               title="Import songs you saved in Bebop Blueprint — paste localStorage['userBebopProgressions']"
             >
               ⇪ Import BB Songs
@@ -1537,13 +1573,13 @@ export default function Home() {
           {/* Bebop Blueprint song importer */}
           {showImportModal && (
             <div style={{
-              marginTop: "12px", padding: "14px", borderRadius: "10px",
+              marginTop: "12px", padding: "14px", borderRadius: "var(--db-r-md)",
               border: "1px solid var(--db-c-blue)",
               background: "color-mix(in srgb, var(--db-c-blue) 5%, var(--db-bg))",
             }}>
-              <div style={{ fontSize: "0.82rem", opacity: 0.75, marginBottom: "8px", lineHeight: 1.5 }}>
+              <div style={{ fontSize: "var(--db-fs-sm)", opacity: 0.75, marginBottom: "8px", lineHeight: 1.5 }}>
                 In Bebop Blueprint, open DevTools → Console and run{" "}
-                <code style={{ background: "var(--db-input-bg)", padding: "1px 5px", borderRadius: "4px" }}>
+                <code style={{ background: "var(--db-input-bg)", padding: "1px 5px", borderRadius: "var(--db-r-sm)" }}>
                   copy(localStorage.getItem(&#39;userBebopProgressions&#39;))
                 </code>
                 {" "}— then paste here. Your saved songs become DukeBox library entries.
@@ -1553,9 +1589,9 @@ export default function Home() {
                 onChange={(e) => setImportText(e.target.value)}
                 placeholder='{"My Custom Song": { "parts": [...], "splitStatus": [...], "defaultKey": "C", ... }}'
                 style={{
-                  width: "100%", minHeight: "90px", padding: "10px", borderRadius: "8px",
+                  width: "100%", minHeight: "90px", padding: "10px", borderRadius: "var(--db-r-md)",
                   border: "1px solid var(--db-panel-border)", background: "var(--db-input-bg)",
-                  color: "var(--db-text)", fontSize: "0.82rem", fontFamily: "monospace",
+                  color: "var(--db-text)", fontSize: "var(--db-fs-sm)", fontFamily: "monospace",
                   boxSizing: "border-box", resize: "vertical",
                 }}
               />
@@ -1576,18 +1612,18 @@ export default function Home() {
                     }
                   }}
                   disabled={!importText.trim()}
-                  style={{ ...buttonStyle("var(--db-c-green)"), padding: "6px 14px", fontSize: "0.85rem", opacity: importText.trim() ? 1 : 0.5 }}
+                  style={{ ...buttonStyle("var(--db-c-green)"), padding: "6px 14px", fontSize: "var(--db-fs-sm)", opacity: importText.trim() ? 1 : 0.5 }}
                 >
                   Import
                 </button>
                 <button
                   onClick={() => setShowImportModal(false)}
-                  style={{ ...buttonStyle("var(--db-muted)"), padding: "6px 14px", fontSize: "0.85rem" }}
+                  style={{ ...buttonStyle("var(--db-muted)"), padding: "6px 14px", fontSize: "var(--db-fs-sm)" }}
                 >
                   Close
                 </button>
                 {importStatus && (
-                  <span style={{ fontSize: "0.82rem", color: importStatus.ok ? "var(--db-c-green)" : "#ff8a8a" }}>
+                  <span style={{ fontSize: "var(--db-fs-sm)", color: importStatus.ok ? "var(--db-c-green)" : "#ff8a8a" }}>
                     {importStatus.msg}
                   </span>
                 )}
@@ -1608,8 +1644,8 @@ export default function Home() {
                   onClick={isPlaying ? stopPlayback : () => startPlayback().catch(console.error)}
                   aria-label={isPlaying ? "Stop playback" : "Start playback"}
                   style={{
-                    padding: "11px 28px", borderRadius: "10px", cursor: "pointer",
-                    fontWeight: 800, fontSize: "1.05rem", letterSpacing: "0.02em",
+                    padding: "11px 28px", borderRadius: "var(--db-r-md)", cursor: "pointer",
+                    fontWeight: 800, fontSize: "var(--db-fs-lg)", letterSpacing: "0.02em",
                     border: `2px solid ${isPlaying ? "var(--db-c-salmon)" : "var(--db-c-amber)"}`,
                     background: isPlaying
                       ? "color-mix(in srgb, var(--db-c-salmon) 18%, var(--db-bg))"
@@ -1626,7 +1662,7 @@ export default function Home() {
                 <button
                   onClick={() => setPracticeModeAndTempo(!practiceMode)}
                   style={{
-                    padding: "9px 16px", borderRadius: "10px", cursor: "pointer", fontWeight: 700, fontSize: "0.88rem",
+                    padding: "9px 16px", borderRadius: "var(--db-r-md)", cursor: "pointer", fontWeight: 700, fontSize: "var(--db-fs-md)",
                     border: practiceMode
                       ? "1px solid var(--db-c-green)"
                       : "1px solid var(--db-c-blue)",
@@ -1656,7 +1692,7 @@ export default function Home() {
                     onChange={(e) => setSwingAmount(Number(e.target.value) / 100)}
                     style={{ width: "70px" }}
                   />
-                  <span style={{ minWidth: "28px", fontSize: "0.85rem", opacity: 0.8 }}>
+                  <span style={{ minWidth: "28px", fontSize: "var(--db-fs-sm)", opacity: 0.8 }}>
                     {Math.round(swingAmount * 100)}%
                   </span>
                 </label>
@@ -1671,7 +1707,7 @@ export default function Home() {
                   <select
                     value={compingStyle}
                     onChange={(e) => setCompingStyle(e.target.value)}
-                    style={{ ...selectStyle, width: "auto", padding: "5px 8px", fontSize: "0.85rem" }}
+                    style={{ ...selectStyle, width: "auto", padding: "5px 8px", fontSize: "var(--db-fs-sm)" }}
                   >
                     {COMPING_STYLE_NAMES.map((name) => (
                       <option key={name} value={name}>{name}</option>
@@ -1689,7 +1725,7 @@ export default function Home() {
                   <select
                     value={bassStyle}
                     onChange={(e) => setBassStyle(e.target.value)}
-                    style={{ ...selectStyle, width: "auto", padding: "5px 8px", fontSize: "0.85rem" }}
+                    style={{ ...selectStyle, width: "auto", padding: "5px 8px", fontSize: "var(--db-fs-sm)" }}
                   >
                     {BASS_STYLE_NAMES.map((name) => (
                       <option key={name} value={name}>{name}</option>
@@ -1706,7 +1742,7 @@ export default function Home() {
                       onChange={(e) => setBassComplexity(Number(e.target.value) / 100)}
                       style={{ width: "70px" }}
                     />
-                    <span style={{ minWidth: "28px", fontSize: "0.85rem", opacity: 0.8 }}>
+                    <span style={{ minWidth: "28px", fontSize: "var(--db-fs-sm)", opacity: 0.8 }}>
                       {Math.round(bassComplexity * 100)}%
                     </span>
                   </label>
@@ -1721,7 +1757,7 @@ export default function Home() {
                     onClick={() => setDrumStyleIdx(i => (i + 1) % DRUM_STYLES.length)}
                     style={{
                       ...buttonStyle(playDrums ? "var(--db-c-amber)" : "var(--db-muted)"),
-                      padding: "3px 10px", fontSize: "0.82rem", fontWeight: 600,
+                      padding: "3px 10px", fontSize: "var(--db-fs-sm)", fontWeight: 600,
                     }}
                     title="Click to cycle through drum styles"
                   >
@@ -1730,7 +1766,7 @@ export default function Home() {
                   <select
                     value={drumKit}
                     onChange={(e) => setDrumKit(e.target.value)}
-                    style={{ ...selectStyle, width: "auto", padding: "4px 6px", fontSize: "0.8rem" }}
+                    style={{ ...selectStyle, width: "auto", padding: "4px 6px", fontSize: "var(--db-fs-sm)" }}
                     title="Drum kit — sample set for the drum voices"
                   >
                     {DRUM_KIT_NAMES.map(k => <option key={k} value={k}>{k}</option>)}
@@ -1745,7 +1781,7 @@ export default function Home() {
                     onChange={(e) => setReverbAmount(Number(e.target.value) / 100)}
                     style={{ width: "60px" }}
                   />
-                  <span style={{ minWidth: "28px", fontSize: "0.85rem", opacity: 0.8 }}>
+                  <span style={{ minWidth: "28px", fontSize: "var(--db-fs-sm)", opacity: 0.8 }}>
                     {Math.round(reverbAmount * 100)}%
                   </span>
                 </label>
@@ -1764,7 +1800,7 @@ export default function Home() {
               style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", marginBottom: "8px" }}
             >
               <div style={{ ...eyebrowStyle, marginBottom: 0 }}>CHART NAVIGATION & LOOP</div>
-              <span style={{ fontSize: "0.75rem", opacity: 0.5 }}>{openControlPanels.chart ? "▼" : "▶"}</span>
+              <span style={{ fontSize: "var(--db-fs-xs)", opacity: 0.5 }}>{openControlPanels.chart ? "▼" : "▶"}</span>
             </div>
             {openControlPanels.chart && (
               <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
@@ -1791,7 +1827,7 @@ export default function Home() {
           {/* ── Runway — color-coded chord strip with per-bar progress fill ── */}
           <div style={{ marginBottom: "12px" }}>
             <div style={{ ...eyebrowStyle, marginBottom: "4px" }}>RUNWAY</div>
-            <div style={{ fontSize: "0.78rem", opacity: 0.55, marginBottom: "6px" }}>
+            <div style={{ fontSize: "var(--db-fs-sm)", opacity: 0.55, marginBottom: "6px" }}>
               Chord timeline by function — green major · blue minor · red dominant · purple ø · gold ° · dark-red altered
             </div>
             <Runway
@@ -1803,7 +1839,7 @@ export default function Home() {
           </div>
 
           <div style={eyebrowStyle}>MELODY LANE</div>
-          <div style={{ fontSize: "0.78rem", opacity: 0.55, marginBottom: "8px", marginTop: "-4px" }}>
+          <div style={{ fontSize: "var(--db-fs-sm)", opacity: 0.55, marginBottom: "8px", marginTop: "-4px" }}>
             7→3 guide-tone voice leading — arrival note (red) and departure note (green) per bar
           </div>
 
@@ -1815,7 +1851,7 @@ export default function Home() {
             barLabels={barLabels}
           />
 
-          <div style={{ marginTop: "8px", fontSize: "0.9rem", opacity: 0.7 }}>
+          <div style={{ marginTop: "8px", fontSize: "var(--db-fs-md)", opacity: 0.7 }}>
             Loop range: bars {Math.min(loopStart, loopEnd) + 1} to {Math.max(loopStart, loopEnd) + 1}
           </div>
         </div>}
@@ -1829,7 +1865,7 @@ export default function Home() {
               <div style={{ display: "flex", gap: "4px" }}>
                 {["chord", "scale"].map((v) => (
                   <button key={v} onClick={() => setFretboardView(v)} style={{
-                    padding: "4px 10px", borderRadius: "6px", fontSize: "0.8rem", cursor: "pointer",
+                    padding: "4px 10px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-sm)", cursor: "pointer",
                     background: fretboardView === v ? "color-mix(in srgb, var(--db-c-amber) 20%, var(--db-bg))" : "var(--db-panel-bg)",
                     border:     fretboardView === v ? "1px solid var(--db-c-amber)" : "1px solid var(--db-panel-border)",
                     color:      fretboardView === v ? "var(--db-c-amber)" : "var(--db-text)",
@@ -1858,7 +1894,7 @@ export default function Home() {
                       return next
                     })
                   }} style={{
-                    padding: "4px 10px", borderRadius: "6px", fontSize: "0.8rem", cursor: "pointer",
+                    padding: "4px 10px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-sm)", cursor: "pointer",
                     background: scaleFilter === f ? "color-mix(in srgb, var(--db-c-blue) 20%, var(--db-bg))" : "var(--db-panel-bg)",
                     border:     scaleFilter === f ? "1px solid var(--db-c-blue)" : "1px solid var(--db-panel-border)",
                     color:      scaleFilter === f ? "var(--db-c-blue)" : "var(--db-text)",
@@ -1873,7 +1909,7 @@ export default function Home() {
               {/* Additive overlays */}
               <div style={{ display: "flex", gap: "4px" }}>
                 <button onClick={() => setBebopOverlay(p => !p)} style={{
-                  padding: "4px 10px", borderRadius: "6px", fontSize: "0.8rem", cursor: "pointer",
+                  padding: "4px 10px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-sm)", cursor: "pointer",
                   background: bebopOverlay ? "rgba(86,197,104,0.22)" : "var(--db-panel-bg)",
                   border:     bebopOverlay ? "1px solid #56C568" : "1px solid var(--db-panel-border)",
                   color:      bebopOverlay ? "#56C568" : "var(--db-text)",
@@ -1883,7 +1919,7 @@ export default function Home() {
                   +Bebop Chromatic
                 </button>
                 <button onClick={() => setTargetsOverlay(p => !p)} style={{
-                  padding: "4px 10px", borderRadius: "6px", fontSize: "0.8rem", cursor: "pointer",
+                  padding: "4px 10px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-sm)", cursor: "pointer",
                   background: targetsOverlay ? "rgba(255,213,79,0.22)" : "var(--db-panel-bg)",
                   border:     targetsOverlay ? "1px solid #FFD54F" : "1px solid var(--db-panel-border)",
                   color:      targetsOverlay ? "#c49800" : "var(--db-text)",
@@ -1893,7 +1929,7 @@ export default function Home() {
                   +Guide Tones
                 </button>
                 <button onClick={() => setAnticipateOn(p => !p)} style={{
-                  padding: "4px 10px", borderRadius: "6px", fontSize: "0.8rem", cursor: "pointer",
+                  padding: "4px 10px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-sm)", cursor: "pointer",
                   background: anticipateOn ? "color-mix(in srgb, var(--db-c-purple) 20%, var(--db-bg))" : "var(--db-panel-bg)",
                   border:     anticipateOn ? "1px solid var(--db-c-purple)" : "1px solid var(--db-panel-border)",
                   color:      anticipateOn ? "var(--db-c-purple)" : "var(--db-text)",
@@ -1907,14 +1943,14 @@ export default function Home() {
               <select
                 value={fretboardTuning}
                 onChange={(e) => setFretboardTuning(e.target.value)}
-                style={{ ...selectStyle, width: "auto", padding: "4px 8px", fontSize: "0.82rem" }}
+                style={{ ...selectStyle, width: "auto", padding: "4px 8px", fontSize: "var(--db-fs-sm)" }}
               >
                 {TUNING_NAMES.map((t) => (
                   <option key={t} value={t}>{t}</option>
                 ))}
               </select>
 
-              <div style={{ fontSize: "0.88rem", opacity: 0.6, marginLeft: "auto" }}>
+              <div style={{ fontSize: "var(--db-fs-md)", opacity: 0.6, marginLeft: "auto" }}>
                 {fretboardBar.symbol}
                 {fretboardBar.userTonic && fretboardBar.userTonic !== fretboardBar.root
                   ? ` (${fretboardBar.userTonic})` : ""}
@@ -1930,7 +1966,7 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="db-mobile-only" style={{ fontSize: "0.72rem", opacity: 0.6, marginBottom: "4px" }}>
+            <div className="db-mobile-only" style={{ fontSize: "var(--db-fs-xs)", opacity: 0.6, marginBottom: "4px" }}>
               Swipe the neck sideways to reach the upper frets · pinch to zoom
             </div>
             <div style={{ overflowX: "auto", marginBottom: "4px" }}>
@@ -1951,11 +1987,11 @@ export default function Home() {
             {anticipateOn && anticipateBar && (
               <div style={{ marginTop: "10px", paddingTop: "10px", borderTop: "1px dashed var(--db-panel-border)" }}>
                 <div style={{ display: "flex", alignItems: "baseline", gap: "10px", marginBottom: "4px" }}>
-                  <div style={{ fontSize: "0.72rem", fontWeight: 700, letterSpacing: "0.12em", color: "var(--db-c-purple)" }}>
+                  <div style={{ fontSize: "var(--db-fs-xs)", fontWeight: 700, letterSpacing: "0.12em", color: "var(--db-c-purple)" }}>
                     NEXT · BAR {barLabels[anticipateBarIndex] ?? anticipateBarIndex + 1}
                   </div>
-                  <div style={{ fontSize: "1rem", fontWeight: 700 }}>{anticipateBar.symbol}</div>
-                  <div style={{ fontSize: "0.75rem", opacity: 0.55 }}>
+                  <div style={{ fontSize: "var(--db-fs-lg)", fontWeight: 700 }}>{anticipateBar.symbol}</div>
+                  <div style={{ fontSize: "var(--db-fs-xs)", opacity: 0.55 }}>
                     guide tones {(targets[anticipateBarIndex]?.currentGuideTones || []).join(" / ") || "—"}
                   </div>
                 </div>
@@ -1974,7 +2010,7 @@ export default function Home() {
               </div>
             )}
 
-            <div style={{ marginTop: "8px", display: "flex", gap: "14px", fontSize: "0.78rem", flexWrap: "wrap" }} >
+            <div style={{ marginTop: "8px", display: "flex", gap: "14px", fontSize: "var(--db-fs-sm)", flexWrap: "wrap" }} >
               <span style={{ opacity: 0.7 }}><span style={{ color: "#BD2031" }}>●</span> Root</span>
               <span style={{ opacity: 0.7 }}><span style={{ color: "#3A9C5A" }}>●</span> Chord tone</span>
               <span style={{ opacity: 0.7 }}><span style={{ color: "#3A78C9" }}>●</span> Scale tone</span>
@@ -1991,13 +2027,13 @@ export default function Home() {
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
             <div style={{ ...eyebrowStyle, marginBottom: 0 }}>LEAD SHEET GRID</div>
             <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-              <span style={{ fontSize: "0.78rem", opacity: 0.62, marginRight: "2px" }}>cols:</span>
+              <span style={{ fontSize: "var(--db-fs-sm)", opacity: 0.62, marginRight: "2px" }}>cols:</span>
               {[2, 3, 4, 6, 8].map(n => (
                 <button key={n} onClick={() => setGridColumns(n)}
                   aria-label={`Show ${n} bars per row`}
                   aria-pressed={gridColumns === n}
                   style={{
-                  padding: "3px 8px", borderRadius: "5px", fontSize: "0.78rem", cursor: "pointer",
+                  padding: "3px 8px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-sm)", cursor: "pointer",
                   background: gridColumns === n ? "rgba(224,180,76,0.18)" : "var(--db-card-bg)",
                   border: gridColumns === n ? "1px solid var(--db-c-amber)" : "1px solid var(--db-card-border)",
                   color: gridColumns === n ? "var(--db-c-amber)" : "var(--db-muted)",
@@ -2005,7 +2041,7 @@ export default function Home() {
                 }}>{n}</button>
               ))}
               <button onClick={() => setScrollMode(p => !p)} style={{
-                padding: "3px 10px", borderRadius: "5px", fontSize: "0.78rem", cursor: "pointer",
+                padding: "3px 10px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-sm)", cursor: "pointer",
                 background: scrollMode ? "rgba(127,200,255,0.18)" : "var(--db-card-bg)",
                 border: scrollMode ? "1px solid var(--db-c-blue)" : "1px solid var(--db-card-border)",
                 color: scrollMode ? "var(--db-c-blue)" : "var(--db-muted)",
@@ -2015,7 +2051,7 @@ export default function Home() {
               <button
                 onClick={() => setShowBarDetails(p => !p)}
                 style={{
-                  padding: "3px 10px", borderRadius: "5px", fontSize: "0.78rem", cursor: "pointer",
+                  padding: "3px 10px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-sm)", cursor: "pointer",
                   background: showBarDetails ? "rgba(201,167,255,0.18)" : "var(--db-card-bg)",
                   border: showBarDetails ? "1px solid var(--db-c-purple)" : "1px solid var(--db-card-border)",
                   color: showBarDetails ? "var(--db-c-purple)" : "var(--db-muted)",
@@ -2026,7 +2062,7 @@ export default function Home() {
               <button
                 onClick={copyChartAsText}
                 style={{
-                  padding: "3px 10px", borderRadius: "5px", fontSize: "0.78rem", cursor: "pointer",
+                  padding: "3px 10px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-sm)", cursor: "pointer",
                   background: "var(--db-card-bg)", border: "1px solid var(--db-card-border)",
                   color: "var(--db-muted)",
                 }}
@@ -2035,7 +2071,7 @@ export default function Home() {
               <button
                 onClick={() => addBar(bars.length - 1)}
                 style={{
-                  padding: "3px 10px", borderRadius: "5px", fontSize: "0.78rem", cursor: "pointer",
+                  padding: "3px 10px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-sm)", cursor: "pointer",
                   background: "var(--db-card-bg)",
                   border: "1px solid var(--db-c-green)",
                   color: "var(--db-c-green)",
@@ -2057,13 +2093,13 @@ export default function Home() {
                 teleAllRows.push(bars.slice(r * gridColumns, (r + 1) * gridColumns))
               }
               return (
-                <div style={{ position: "relative", height: `${TELE_ROW_H}px`, overflow: "hidden", borderRadius: "10px" }}>
+                <div style={{ position: "relative", height: `${TELE_ROW_H}px`, overflow: "hidden", borderRadius: "var(--db-r-md)" }}>
                   <div style={{
                     position: "absolute", top: 0, zIndex: 2, pointerEvents: "none",
                     left: `calc(${(teleColIdx / gridColumns) * 100}% + 4px)`,
                     width: `calc(${(1 / gridColumns) * 100}% - 8px)`,
                     height: `${TELE_ROW_H}px`,
-                    borderRadius: "10px",
+                    borderRadius: "var(--db-r-md)",
                     border: "2px solid rgba(224,180,76,0.65)",
                     boxShadow: "0 0 28px rgba(224,180,76,0.22)",
                     transition: "left 0.3s ease-in-out",
@@ -2092,7 +2128,7 @@ export default function Home() {
                               onClick={() => setSelectedIndex(globalIdx)}
                               style={{
                                 padding: "10px",
-                                borderRadius: "10px",
+                                borderRadius: "var(--db-r-md)",
                                 background: isPlayhead ? "rgba(139,211,168,0.1)" : isActive ? "rgba(224,180,76,0.08)" : "var(--db-card-bg)",
                                 border: isPlayhead ? "1px solid rgba(139,211,168,0.25)" : isActive ? "1px solid rgba(224,180,76,0.25)" : "1px solid var(--db-card-border)",
                                 cursor: "pointer",
@@ -2101,15 +2137,15 @@ export default function Home() {
                                 gap: "4px",
                               }}
                             >
-                              <div style={{ fontSize: "1.7rem", fontWeight: 700, lineHeight: 1.1,
+                              <div style={{ fontSize: "var(--db-fs-display)", fontWeight: 700, lineHeight: 1.1,
                                 color: isPlayhead ? "var(--db-c-green)" : isActive ? "var(--db-accent)" : "var(--db-text)" }}>
                                 {bar.symbol}
                               </div>
-                              <div style={{ fontSize: "0.72rem", color: "var(--db-c-amber)", opacity: 0.85 }}>
+                              <div style={{ fontSize: "var(--db-fs-xs)", color: "var(--db-c-amber)", opacity: 0.85 }}>
                                 {guide.length ? guide.join(" / ") : "—"}
                               </div>
                               {target?.targetNote && (
-                                <div style={{ fontSize: "0.7rem", color: "var(--db-c-blue)", opacity: 0.75 }}>
+                                <div style={{ fontSize: "var(--db-fs-xs)", color: "var(--db-c-blue)", opacity: 0.75 }}>
                                   → {target.targetNote}
                                 </div>
                               )}
@@ -2154,7 +2190,7 @@ export default function Home() {
                     key={`section-${index}`}
                     style={{
                       gridColumn: "1 / -1",
-                      fontSize: "0.78rem",
+                      fontSize: "var(--db-fs-sm)",
                       fontWeight: 700,
                       letterSpacing: "0.12em",
                       color: "var(--db-accent)",
@@ -2167,7 +2203,7 @@ export default function Home() {
                   >
                     <span>{bar.section} SECTION</span>
                     {dnSectionMeta?.[bar.section]?.repeat > 1 && (
-                      <span style={{ marginLeft: "8px", padding: "1px 7px", borderRadius: "20px", border: "1px solid var(--db-accent)", fontSize: "0.68rem", letterSpacing: "0.05em" }}>
+                      <span style={{ marginLeft: "8px", padding: "1px 7px", borderRadius: "var(--db-r-pill)", border: "1px solid var(--db-accent)", fontSize: "var(--db-fs-xs)", letterSpacing: "0.05em" }}>
                         ×{dnSectionMeta[bar.section].repeat}
                       </span>
                     )}
@@ -2194,7 +2230,7 @@ export default function Home() {
                   title="Double-click to loop just this chord"
                   style={{
                     padding: "14px 12px",
-                    borderRadius: "12px",
+                    borderRadius: "var(--db-r-md)",
                     // Playhead reads boldest, then selection, then loop range.
                     border: isPlayhead
                       ? "2px solid var(--db-c-green)"
@@ -2223,11 +2259,11 @@ export default function Home() {
                   {/* Bar header row */}
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                      <div style={{ fontSize: "0.75rem", opacity: 0.62 }}>BAR {barLabels[index]}</div>
+                      <div style={{ fontSize: "var(--db-fs-xs)", opacity: 0.62 }}>BAR {barLabels[index]}</div>
                       {(bar.beats ?? 4) === 2 && (
                         <div style={{
-                          fontSize: "0.6rem", fontWeight: 700, padding: "1px 4px",
-                          borderRadius: "4px", background: "rgba(127,200,255,0.15)",
+                          fontSize: "var(--db-fs-xs)", fontWeight: 700, padding: "1px 4px",
+                          borderRadius: "var(--db-r-sm)", background: "rgba(127,200,255,0.15)",
                           border: "1px solid rgba(127,200,255,0.3)", color: "var(--db-c-blue)",
                           lineHeight: 1.4,
                         }}>
@@ -2245,8 +2281,8 @@ export default function Home() {
                           background: (bar.beats ?? 4) === 2 ? "rgba(127,200,255,0.1)" : "none",
                           border: (bar.beats ?? 4) === 2 ? "1px solid rgba(127,200,255,0.3)" : "none",
                           color: (bar.beats ?? 4) === 2 ? "var(--db-c-blue)" : "var(--db-muted)",
-                          cursor: "pointer", fontSize: "0.75rem", padding: "0 4px", lineHeight: 1.6,
-                          borderRadius: "4px",
+                          cursor: "pointer", fontSize: "var(--db-fs-xs)", padding: "0 4px", lineHeight: 1.6,
+                          borderRadius: "var(--db-r-sm)",
                         }}
                         title={(bar.beats ?? 4) === 2 ? "Restore to full bar (4 beats)" : "Split into 2-beat half-bar"}
                       >
@@ -2258,7 +2294,7 @@ export default function Home() {
                           aria-label={`Remove bar ${barLabels[index]}`}
                           style={{
                             background: "none", border: "none", color: "rgba(255,100,100,0.6)",
-                            cursor: "pointer", fontSize: "0.9rem", padding: "0 2px", lineHeight: 1,
+                            cursor: "pointer", fontSize: "var(--db-fs-md)", padding: "0 2px", lineHeight: 1,
                           }}
                           title="Remove bar"
                         >
@@ -2269,13 +2305,13 @@ export default function Home() {
                   </div>
 
                   {/* Chord symbol */}
-                  <div style={{ fontSize: "1.25rem", fontWeight: 700, marginBottom: showRomanNumerals ? "2px" : "8px" }}>
+                  <div style={{ fontSize: "var(--db-fs-xl)", fontWeight: 700, marginBottom: showRomanNumerals ? "2px" : "8px" }}>
                     {bar.symbol}
                   </div>
 
                   {/* Roman numeral */}
                   {showRomanNumerals && (
-                    <div style={{ fontSize: "0.9rem", color: "var(--db-c-gold)", marginBottom: "8px", opacity: 0.9 }}>
+                    <div style={{ fontSize: "var(--db-fs-md)", color: "var(--db-c-gold)", marginBottom: "8px", opacity: 0.9 }}>
                       {roman}
                     </div>
                   )}
@@ -2284,8 +2320,8 @@ export default function Home() {
                   {approachPill && (
                     <div style={{
                       display: "inline-block", marginBottom: "6px",
-                      fontSize: "0.62rem", fontWeight: 700, letterSpacing: "0.04em",
-                      padding: "2px 7px", borderRadius: "20px",
+                      fontSize: "var(--db-fs-xs)", fontWeight: 700, letterSpacing: "0.04em",
+                      padding: "2px 7px", borderRadius: "var(--db-r-pill)",
                       background: `color-mix(in srgb, ${approachPill.color} 16%, transparent)`,
                       border: `1px solid color-mix(in srgb, ${approachPill.color} 40%, transparent)`,
                       color: approachPill.color,
@@ -2295,27 +2331,27 @@ export default function Home() {
                   )}
 
                   {/* Always-on essentials: guide tones + next target */}
-                  <div style={{ fontSize: "0.74rem", color: "var(--db-c-amber)", marginBottom: "3px" }}>
+                  <div style={{ fontSize: "var(--db-fs-xs)", color: "var(--db-c-amber)", marginBottom: "3px" }}>
                     <span style={{ opacity: 0.7 }}>Guide Tones </span>{guide.length ? guide.join(" / ") : "—"}
                   </div>
-                  <div style={{ fontSize: "0.74rem", color: "var(--db-c-green)", marginBottom: "6px" }}>
+                  <div style={{ fontSize: "var(--db-fs-xs)", color: "var(--db-c-green)", marginBottom: "6px" }}>
                     <span style={{ opacity: 0.7 }}>Next Target </span>{target?.targetNote || "—"}
                   </div>
 
                   {/* Deeper analysis — collapsed by default to reduce first-run overload */}
                   {showBarDetails && (
                     <>
-                      <div style={{ fontSize: "0.74rem", color: "var(--db-c-salmon)", marginBottom: "3px" }}>
+                      <div style={{ fontSize: "var(--db-fs-xs)", color: "var(--db-c-salmon)", marginBottom: "3px" }}>
                         <span style={{ opacity: 0.7 }}>Harmonic Function </span>{context?.functionLabel || "—"}
                       </div>
-                      <div style={{ fontSize: "0.74rem", color: "var(--db-c-salmon)", marginBottom: "3px" }}>
+                      <div style={{ fontSize: "var(--db-fs-xs)", color: "var(--db-c-salmon)", marginBottom: "3px" }}>
                         <span style={{ opacity: 0.7 }}>Cadence </span>{context?.cadenceLabels?.join(", ") || "—"}
                       </div>
-                      <div style={{ fontSize: "0.74rem", color: "var(--db-c-blue)", marginBottom: "3px" }}>
+                      <div style={{ fontSize: "var(--db-fs-xs)", color: "var(--db-c-blue)", marginBottom: "3px" }}>
                         <span style={{ opacity: 0.7 }}>Intervals </span>
                         {rawIntervals.length ? rawIntervals.map(formatInterval).join("  ") : "—"}
                       </div>
-                      <div style={{ fontSize: "0.74rem", color: "var(--db-c-purple)", marginBottom: "6px" }}>
+                      <div style={{ fontSize: "var(--db-fs-xs)", color: "var(--db-c-purple)", marginBottom: "6px" }}>
                         <span style={{ opacity: 0.7 }}>Spelling </span>
                         {chordNotes.length ? chordNotes.join("  ") : "—"}
                       </div>
@@ -2327,7 +2363,7 @@ export default function Home() {
                     marginBottom: "8px", paddingTop: "6px",
                     borderTop: "1px solid var(--db-card-border)",
                   }} onClick={(e) => e.stopPropagation()}>
-                    <div style={{ fontSize: "0.66rem", opacity: 0.6, marginBottom: "3px" }}>CHORD</div>
+                    <div style={{ fontSize: "var(--db-fs-xs)", opacity: 0.6, marginBottom: "3px" }}>CHORD</div>
                     {/* Quick-entry: type a chord symbol and press Enter */}
                     <input
                       placeholder="type e.g. Dm7, F#7alt, Am7/G"
@@ -2343,7 +2379,7 @@ export default function Home() {
                       }}
                       style={{
                         width: "100%", boxSizing: "border-box", marginBottom: "3px",
-                        padding: "3px 5px", borderRadius: "4px", fontSize: "0.72rem",
+                        padding: "3px 5px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-xs)",
                         background: "var(--db-input-bg)", border: "1px dashed var(--db-card-border)",
                         color: "var(--db-text)",
                       }}
@@ -2353,7 +2389,7 @@ export default function Home() {
                         value={bar.root}
                         onChange={(e) => { updateBar(index, { root: e.target.value }); setSelectedIndex(index) }}
                         style={{
-                          flex: 1, padding: "2px 3px", borderRadius: "4px", fontSize: "0.72rem",
+                          flex: 1, padding: "2px 3px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-xs)",
                           background: "var(--db-input-bg)", border: "1px solid var(--db-card-border)",
                           color: "var(--db-accent)", fontWeight: 700,
                         }}
@@ -2364,7 +2400,7 @@ export default function Home() {
                         value={bar.quality}
                         onChange={(e) => { updateBar(index, { quality: e.target.value }); setSelectedIndex(index) }}
                         style={{
-                          flex: 2, padding: "2px 3px", borderRadius: "4px", fontSize: "0.72rem",
+                          flex: 2, padding: "2px 3px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-xs)",
                           background: "var(--db-input-bg)", border: "1px solid var(--db-card-border)",
                           color: "var(--db-text)",
                         }}
@@ -2379,13 +2415,13 @@ export default function Home() {
                     marginBottom: "8px", paddingTop: "6px",
                     borderTop: "1px solid var(--db-card-border)",
                   }}>
-                    <div style={{ fontSize: "0.66rem", opacity: 0.6, marginBottom: "3px" }}>SCALE</div>
+                    <div style={{ fontSize: "var(--db-fs-xs)", opacity: 0.6, marginBottom: "3px" }}>SCALE</div>
                     <div style={{ display: "flex", gap: "3px" }} onClick={(e) => e.stopPropagation()}>
                       <select
                         value={bar.userTonic ?? ""}
                         onChange={(e) => updateBar(index, { userTonic: e.target.value || undefined })}
                         style={{
-                          flex: 1, padding: "2px 3px", borderRadius: "4px", fontSize: "0.72rem",
+                          flex: 1, padding: "2px 3px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-xs)",
                           background: "var(--db-input-bg)", border: "1px solid var(--db-card-border)",
                           color: bar.userTonic ? "var(--db-accent)" : "var(--db-muted)",
                         }}
@@ -2397,7 +2433,7 @@ export default function Home() {
                         value={bar.userScale ?? ""}
                         onChange={(e) => updateBar(index, { userScale: e.target.value || undefined })}
                         style={{
-                          flex: 2, padding: "2px 3px", borderRadius: "4px", fontSize: "0.72rem",
+                          flex: 2, padding: "2px 3px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-xs)",
                           background: "var(--db-input-bg)", border: "1px solid var(--db-card-border)",
                           color: bar.userScale ? "var(--db-accent)" : "var(--db-muted)",
                         }}
@@ -2417,8 +2453,8 @@ export default function Home() {
                       width: "100%", padding: "4px 0",
                       background: "var(--db-card-bg)",
                       border: "1px dashed var(--db-card-border)",
-                      borderRadius: "6px", color: "var(--db-muted)",
-                      cursor: "pointer", fontSize: "0.78rem",
+                      borderRadius: "var(--db-r-sm)", color: "var(--db-muted)",
+                      cursor: "pointer", fontSize: "var(--db-fs-sm)",
                     }}
                     title="Insert bar after"
                   >
@@ -2436,10 +2472,10 @@ export default function Home() {
 
         {inMode("practice","write") && <div style={panelStyle}>
           <div style={eyebrowStyle}>CONTINUOUS APPROACH LINE</div>
-          <div style={{ fontSize: "0.78rem", opacity: 0.55, marginBottom: "8px", marginTop: "-4px" }}>
+          <div style={{ fontSize: "var(--db-fs-sm)", opacity: 0.55, marginBottom: "8px", marginTop: "-4px" }}>
             7→3 guide-tone line across the full chart — the melodic skeleton bar by bar
           </div>
-          <div style={{ fontSize: "1rem", lineHeight: 1.9, color: "var(--db-c-purple)" }}>
+          <div style={{ fontSize: "var(--db-fs-lg)", lineHeight: 1.9, color: "var(--db-c-purple)" }}>
             {phrase.length ? phrase.join("  →  ") : "No phrase generated"}
           </div>
         </div>}
@@ -2454,11 +2490,11 @@ export default function Home() {
             <div style={panelStyle}>
               <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "14px", flexWrap: "wrap" }}>
                 <div style={{ ...eyebrowStyle, marginBottom: 0 }}>FRET FLOW</div>
-                <div style={{ fontSize: "0.78rem", opacity: 0.55 }}>Static scale workout — choose up to 4 keys to practice</div>
+                <div style={{ fontSize: "var(--db-fs-sm)", opacity: 0.55 }}>Static scale workout — choose up to 4 keys to practice</div>
                 <div style={{ marginLeft: "auto", display: "flex", gap: "4px" }}>
                   {[1, 2, 3, 4].map(n => (
                     <button key={n} onClick={() => setFretFlowCount(n)} style={{
-                      padding: "3px 10px", borderRadius: "5px", fontSize: "0.8rem", cursor: "pointer",
+                      padding: "3px 10px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-sm)", cursor: "pointer",
                       background: fretFlowCount === n
                         ? "color-mix(in srgb, var(--db-c-purple) 20%, var(--db-bg))"
                         : "var(--db-panel-bg)",
@@ -2483,7 +2519,7 @@ export default function Home() {
                     <div key={idx} style={{
                       background: "var(--db-card-bg)",
                       border: "1px solid var(--db-card-border)",
-                      borderRadius: "10px",
+                      borderRadius: "var(--db-r-md)",
                       padding: "12px",
                     }}>
                       {/* Board header: root + scale + tuning selectors */}
@@ -2511,7 +2547,7 @@ export default function Home() {
                         >
                           {TUNING_NAMES.map(t => <option key={t} value={t}>{t}</option>)}
                         </select>
-                        <div style={{ fontSize: "0.72rem", opacity: 0.62, marginLeft: "auto" }}>
+                        <div style={{ fontSize: "var(--db-fs-xs)", opacity: 0.62, marginLeft: "auto" }}>
                           {notes.join("  ")}
                         </div>
                       </div>
@@ -2577,7 +2613,7 @@ export default function Home() {
             onClick={(e) => e.stopPropagation()}
             style={{
               background: "var(--db-bg)", color: "var(--db-text)",
-              border: "1px solid var(--db-accent)", borderRadius: "16px",
+              border: "1px solid var(--db-accent)", borderRadius: "var(--db-r-md)",
               padding: "24px 28px", minWidth: "min(440px, 92vw)", maxWidth: "92vw",
               boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
             }}
@@ -2586,10 +2622,10 @@ export default function Home() {
               <div style={{ ...eyebrowStyle, marginBottom: 0, color: "var(--db-accent)" }}>KEYBOARD SHORTCUTS</div>
               <button
                 onClick={() => setShowShortcuts(false)}
-                style={{ marginLeft: "auto", background: "none", border: "none", color: "var(--db-muted)", cursor: "pointer", fontSize: "1.1rem" }}
+                style={{ marginLeft: "auto", background: "none", border: "none", color: "var(--db-muted)", cursor: "pointer", fontSize: "var(--db-fs-lg)" }}
               >×</button>
             </div>
-            <table style={{ width: "100%", fontSize: "0.9rem", borderCollapse: "collapse" }}>
+            <table style={{ width: "100%", fontSize: "var(--db-fs-md)", borderCollapse: "collapse" }}>
               <tbody>
                 {[
                   ["Space", "Play / stop"],
@@ -2606,7 +2642,7 @@ export default function Home() {
                     <td style={{ padding: "5px 14px 5px 0", whiteSpace: "nowrap" }}>
                       <code style={{
                         background: "var(--db-input-bg)", border: "1px solid var(--db-panel-border)",
-                        borderRadius: "6px", padding: "2px 7px", fontSize: "0.82rem", color: "var(--db-accent)",
+                        borderRadius: "var(--db-r-sm)", padding: "2px 7px", fontSize: "var(--db-fs-sm)", color: "var(--db-accent)",
                       }}>{k}</code>
                     </td>
                     <td style={{ padding: "5px 0", opacity: 0.85 }}>{v}</td>
@@ -2626,8 +2662,8 @@ export default function Home() {
           aria-label={isPlaying ? "Stop playback" : "Start playback"}
           style={{
             position: "fixed", right: "20px", bottom: "20px", zIndex: 55,
-            padding: "14px 22px", borderRadius: "999px", cursor: "pointer",
-            fontWeight: 800, fontSize: "1rem",
+            padding: "14px 22px", borderRadius: "var(--db-r-pill)", cursor: "pointer",
+            fontWeight: 800, fontSize: "var(--db-fs-lg)",
             border: `2px solid ${isPlaying ? "var(--db-c-salmon)" : "var(--db-c-amber)"}`,
             background: isPlaying
               ? "color-mix(in srgb, var(--db-c-salmon) 25%, var(--db-bg))"
@@ -2646,8 +2682,8 @@ export default function Home() {
         <div style={{
           position: "fixed", bottom: "24px", left: "50%", transform: "translateX(-50%)", zIndex: 60,
           background: "var(--db-panel-bg)", color: "var(--db-text)",
-          border: "1px solid var(--db-accent)", borderRadius: "10px",
-          padding: "10px 18px", fontSize: "0.88rem",
+          border: "1px solid var(--db-accent)", borderRadius: "var(--db-r-md)",
+          padding: "10px 18px", fontSize: "var(--db-fs-md)",
           boxShadow: "0 8px 30px rgba(0,0,0,0.35)", backdropFilter: "blur(8px)",
         }}>
           {toast}
@@ -2683,7 +2719,7 @@ function SyncControl({ auth, syncStatus, style }) {
         onClick={signIn}
         style={{
           ...style,
-          padding: "6px 12px", borderRadius: "10px", cursor: "pointer", fontSize: "0.82rem", fontWeight: 600,
+          padding: "6px 12px", borderRadius: "var(--db-r-md)", cursor: "pointer", fontSize: "var(--db-fs-sm)", fontWeight: 600,
           border: "1px solid var(--db-panel-border)", background: "var(--db-panel-bg)", color: "var(--db-muted)",
         }}
         title="Sign in to sync songs and setlists across devices"
@@ -2697,13 +2733,13 @@ function SyncControl({ auth, syncStatus, style }) {
     : syncStatus === "syncing" ? "var(--db-c-amber)" : "var(--db-c-green)"
 
   return (
-    <div style={{ ...style, display: "flex", alignItems: "center", gap: "8px", fontSize: "0.78rem", color: "var(--db-muted)" }}>
+    <div style={{ ...style, display: "flex", alignItems: "center", gap: "8px", fontSize: "var(--db-fs-sm)", color: "var(--db-muted)" }}>
       <span style={{ color: dotColor }}>●</span>
       <span title={auth.email}>{label}</span>
       <button
         onClick={auth.signOut}
         style={{
-          padding: "4px 10px", borderRadius: "8px", cursor: "pointer", fontSize: "0.78rem",
+          padding: "4px 10px", borderRadius: "var(--db-r-md)", cursor: "pointer", fontSize: "var(--db-fs-sm)",
           border: "1px solid var(--db-panel-border)", background: "var(--db-panel-bg)", color: "var(--db-muted)",
         }}
         title={`Signed in as ${auth.email}`}
@@ -2718,7 +2754,7 @@ function InfoBlock({ title, value, color }) {
   return (
     <div style={{ marginBottom: "20px" }}>
       <div style={eyebrowSmallStyle}>{title}</div>
-      <div style={{ fontSize: "1.1rem", color: color || "var(--db-text)" }}>{value}</div>
+      <div style={{ fontSize: "var(--db-fs-lg)", color: color || "var(--db-text)" }}>{value}</div>
     </div>
   )
 }
@@ -2777,16 +2813,16 @@ function DesertNoirPanel({ meta }) {
   return (
     <div style={{ ...panelStyle, marginTop: "24px" }}>
       <div style={{ display: "flex", alignItems: "baseline", gap: "10px", flexWrap: "wrap", marginBottom: "6px" }}>
-        <div style={{ fontSize: "0.72rem", fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--db-accent)" }}>
+        <div style={{ fontSize: "var(--db-fs-xs)", fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--db-accent)" }}>
           {meta.collection} · {meta.number}
         </div>
         <div style={{ fontStyle: "italic", opacity: 0.8 }}>{meta.vibe} · {meta.modeLabel}</div>
-        <div style={{ marginLeft: "auto", fontSize: "0.8rem", opacity: 0.65 }}>{meta.meter}</div>
+        <div style={{ marginLeft: "auto", fontSize: "var(--db-fs-sm)", opacity: 0.65 }}>{meta.meter}</div>
       </div>
-      {meta.description && <p style={{ margin: "0 0 14px", lineHeight: 1.55, fontSize: "1.02rem" }}>{meta.description}</p>}
+      {meta.description && <p style={{ margin: "0 0 14px", lineHeight: 1.55, fontSize: "var(--db-fs-lg)" }}>{meta.description}</p>}
 
       {(meta.melodyLine || meta.bassLine) && (
-        <div style={{ display: "flex", gap: "22px", flexWrap: "wrap", marginBottom: "14px", fontFamily: "var(--font-mono, monospace)", fontSize: "0.82rem" }}>
+        <div style={{ display: "flex", gap: "22px", flexWrap: "wrap", marginBottom: "14px", fontFamily: "var(--font-mono, monospace)", fontSize: "var(--db-fs-sm)" }}>
           {meta.melodyLine && <div><span style={{ opacity: 0.6 }}>Melody </span>{meta.melodyLine}</div>}
           {meta.bassLine && <div><span style={{ opacity: 0.6 }}>Bass </span>{meta.bassLine}</div>}
         </div>
@@ -2794,26 +2830,26 @@ function DesertNoirPanel({ meta }) {
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "12px", marginBottom: "18px" }}>
         {cards.map(([title, value]) => (
-          <div key={title} style={{ border: "1px solid var(--db-panel-border)", borderRadius: "10px", padding: "12px 14px" }}>
-            <div style={{ fontSize: "0.66rem", fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--db-accent)", marginBottom: "6px" }}>{title}</div>
-            <div style={{ fontSize: "0.92rem", lineHeight: 1.5, opacity: 0.9 }}>{value}</div>
+          <div key={title} style={{ border: "1px solid var(--db-panel-border)", borderRadius: "var(--db-r-md)", padding: "12px 14px" }}>
+            <div style={{ fontSize: "var(--db-fs-xs)", fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--db-accent)", marginBottom: "6px" }}>{title}</div>
+            <div style={{ fontSize: "var(--db-fs-md)", lineHeight: 1.5, opacity: 0.9 }}>{value}</div>
           </div>
         ))}
       </div>
 
-      <div style={{ border: "1px dashed var(--db-accent)", borderRadius: "12px", padding: "14px 16px", background: "rgba(224,180,76,0.06)" }}>
+      <div style={{ border: "1px dashed var(--db-accent)", borderRadius: "var(--db-r-md)", padding: "14px 16px", background: "rgba(224,180,76,0.06)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
-          <div style={{ fontSize: "0.72rem", fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--db-accent)" }}>✦ Idea Dice</div>
-          <button onClick={() => setDice(roll())} style={{ marginLeft: "auto", padding: "4px 12px", borderRadius: "8px", border: "1px solid var(--db-accent)", background: "transparent", color: "var(--db-text)", cursor: "pointer", fontSize: "0.8rem" }}>
+          <div style={{ fontSize: "var(--db-fs-xs)", fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--db-accent)" }}>✦ Idea Dice</div>
+          <button onClick={() => setDice(roll())} style={{ marginLeft: "auto", padding: "4px 12px", borderRadius: "var(--db-r-md)", border: "1px solid var(--db-accent)", background: "transparent", color: "var(--db-text)", cursor: "pointer", fontSize: "var(--db-fs-sm)" }}>
             Roll
           </button>
         </div>
-        <div style={{ display: "grid", gap: "4px", fontSize: "0.95rem", lineHeight: 1.5 }}>
+        <div style={{ display: "grid", gap: "4px", fontSize: "var(--db-fs-md)", lineHeight: 1.5 }}>
           <div><b>Bridge:</b> {dice.Bridge}</div>
           <div><b>Melody:</b> {dice.Melody}</div>
           <div><b>Arrangement:</b> {dice.Arrangement}</div>
         </div>
-        <div style={{ fontSize: "0.75rem", opacity: 0.6, marginTop: "8px" }}>Use a result as a revision constraint, not another layer to add.</div>
+        <div style={{ fontSize: "var(--db-fs-xs)", opacity: 0.6, marginTop: "8px" }}>Use a result as a revision constraint, not another layer to add.</div>
       </div>
     </div>
   )
@@ -2822,29 +2858,42 @@ function DesertNoirPanel({ meta }) {
 const panelStyle = {
   marginBottom: "20px",
   padding: "18px",
-  borderRadius: "14px",
+  borderRadius: "var(--db-r-md)",
   border: "1px solid var(--db-panel-border)",
   background: "var(--db-panel-bg)",
 }
 
 const sidePanelStyle = {
   border: "1px solid var(--db-side-border)",
-  borderRadius: "16px",
+  borderRadius: "var(--db-r-md)",
   padding: "20px",
   background: "var(--db-side-bg)",
 }
 
 const scaleCardStyle = {
   padding: "12px",
-  borderRadius: "10px",
+  borderRadius: "var(--db-r-md)",
   border: "1px solid var(--db-panel-border)",
   background: "var(--db-panel-bg)",
+}
+
+// Actions that mean the same thing should look the same. The Songbook's five
+// export/import buttons used to be five different colours, which spent the
+// semantic palette on decoration — colour now signals state, not identity.
+const neutralButtonStyle = {
+  padding: "9px 12px",
+  borderRadius: "var(--db-r-md)",
+  border: "1px solid var(--db-panel-border)",
+  background: "var(--db-panel-bg)",
+  color: "var(--db-text)",
+  cursor: "pointer",
+  fontWeight: 600,
 }
 
 function buttonStyle(colorVar) {
   return {
     padding: "9px 12px",
-    borderRadius: "10px",
+    borderRadius: "var(--db-r-md)",
     border: `1px solid color-mix(in srgb, ${colorVar} 45%, transparent)`,
     background: `color-mix(in srgb, ${colorVar} 10%, var(--db-bg))`,
     color: colorVar,
@@ -2857,10 +2906,10 @@ function buttonStyle(colorVar) {
 function notePillStyle(colorVar) {
   return {
     padding: "4px 10px",
-    borderRadius: "8px",
+    borderRadius: "var(--db-r-md)",
     background: `color-mix(in srgb, ${colorVar} 12%, transparent)`,
     border: `1px solid color-mix(in srgb, ${colorVar} 30%, transparent)`,
-    fontSize: "1.1rem",
+    fontSize: "var(--db-fs-lg)",
     color: colorVar,
     fontWeight: 700,
   }
@@ -2962,7 +3011,7 @@ const APPROACH_PILLS = {
 const selectStyle = {
   width: "100%",
   padding: "10px",
-  borderRadius: "8px",
+  borderRadius: "var(--db-r-md)",
   background: "var(--db-input-bg)",
   color: "var(--db-text)",
   border: "1px solid var(--db-panel-border)",
@@ -2972,24 +3021,24 @@ const inlineLabelStyle = {
   display: "flex",
   alignItems: "center",
   gap: "6px",
-  fontSize: "0.9rem",
+  fontSize: "var(--db-fs-md)",
 }
 
 const eyebrowStyle = {
-  fontSize: "0.85rem",
+  fontSize: "var(--db-fs-sm)",
   opacity: 0.65,
   marginBottom: "10px",
   letterSpacing: "0.08em",
 }
 
 const eyebrowSmallStyle = {
-  fontSize: "0.85rem",
+  fontSize: "var(--db-fs-sm)",
   opacity: 0.65,
   marginBottom: "6px",
 }
 
 const miniLabelStyle = {
-  fontSize: "0.78rem",
+  fontSize: "var(--db-fs-sm)",
   opacity: 0.6,
   marginBottom: "4px",
 }
