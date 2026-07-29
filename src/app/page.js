@@ -389,9 +389,16 @@ export default function Home() {
     [anticipateBar]
   )
 
-  // Direction of each current guide tone toward the next chord's nearest guide
-  // tone — cyclic shortest path (ported from Bebop Blueprint's arrows, fixed:
-  // rendered per-dot in the SVG instead of a floating overlay).
+  // How each current guide tone resolves into the next chord.
+  //
+  // Only motion of a semitone or a whole tone counts as a target. The previous
+  // version took the cyclically nearest guide tone, which can be up to six
+  // semitones away — so it would confidently mark a fourth as a "resolution".
+  // A leap that size isn't voice leading, so it now yields no target at all.
+  //
+  // The value is the signed semitone distance (-2..+2); the fretboard draws one
+  // arrow per semitone, pointing right for higher and left for lower — which
+  // matches the direction you actually move on the neck.
   const guideToneDirections = useMemo(() => {
     if (!targetsOverlay || anticipateBarIndex == null) return null
     const chroma = (n) => "C Db D Eb E F Gb G Ab A Bb B".split(" ").indexOf(n)
@@ -407,10 +414,12 @@ export default function Home() {
         const tc = chroma(t)
         if (tc < 0) continue
         const signed = ((tc - gc + 6 + 12) % 12) - 6   // shortest cyclic path, -6..+5
-        if (best === null || Math.abs(signed) < Math.abs(best)) best = signed
+        if (Math.abs(signed) > 2) continue             // not a resolution — ignore
+        if (best === null || Math.abs(signed) < Math.abs(best)) {
+          best = signed
+          dirs[`${g}:to`] = t                          // the note it becomes
+        }
       }
-      // Carry the SIGNED SEMITONE distance, not just a direction — the
-      // fretboard renders one triangle per half step (▲ = half, ▲▲ = whole).
       if (best !== null) dirs[g] = best
     }
     return dirs
@@ -2018,6 +2027,11 @@ export default function Home() {
                 <span style={{ color: "#56C568" }}>●</span> {scaleFilter === "barry" ? "Barry passing tone" : "Bebop passing"}
               </span>
               <span style={{ opacity: targetsOverlay ? 0.85 : 0.4 }}><span style={{ color: "#FFD54F" }}>●</span> Guide tones</span>
+              {targetsOverlay && anticipateOn && (
+                <span style={{ opacity: 0.85, color: "#FFD54F" }}>
+                  → up a semitone · →→ up a whole tone · ← ←← down · = stays
+                </span>
+              )}
               <span style={{ opacity: 0.7 }}><span style={{ color: "#E09B3D" }}>●</span> Target note</span>
             </div>
           </div>
