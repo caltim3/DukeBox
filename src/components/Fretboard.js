@@ -137,31 +137,38 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
 
       {/* Note dots */}
       {dots.map(d => {
-        // Motion toward the next chord's nearest guide tone, as signed semitones.
-        // One triangle per half step: ▲ = up a half, ▲▲ = up a whole,
-        // ▼ = down a half, ▼▼ = down a whole. ● = common tone (no motion).
-        // Anything wider than a whole step shows the interval size instead.
+        // How this guide tone resolves into the next chord.
+        // One arrow per semitone, pointing the way the note moves in pitch —
+        // right for higher, left for lower, which is also the direction you
+        // move along the neck:
+        //     →   up a semitone        ←   down a semitone
+        //     →→  up a whole tone      ←←  down a whole tone
+        //     =   common tone (stays put)
+        // Nothing further than a whole tone is marked at all; a bigger leap
+        // isn't a resolution, so labelling it was worse than staying quiet.
         const semis = d.isGuide && guideToneDirections ? guideToneDirections[d.label] : null
-        let glyph = null, glyphFill = "#999"
+        const goesTo = d.isGuide && guideToneDirections ? guideToneDirections[`${d.label}:to`] : null
+        let glyph = null
         if (semis != null) {
-          const up = semis > 0
           const n = Math.abs(semis)
-          glyphFill = n === 0 ? "#999" : up ? "#56C568" : "#E09B3D"
-          glyph = n === 0 ? "●"
-                : n <= 2 ? (up ? "▲" : "▼").repeat(n)
-                : `${up ? "▲" : "▼"}${n}`
+          glyph = n === 0 ? "=" : (semis > 0 ? "→" : "←").repeat(n)
         }
+        const motionWord = semis == null ? ""
+          : semis === 0 ? "stays"
+          : `${Math.abs(semis) === 1 ? "a semitone" : "a whole tone"} ${semis > 0 ? "up" : "down"}`
         return (
           <g key={d.key}>
             <circle cx={d.cx} cy={d.cy} r={d.r} fill={d.color} />
+            {glyph && <title>{`${d.label} → ${goesTo ?? "?"} · ${motionWord}`}</title>}
             <text x={d.cx} y={d.cy + 3.5}
               textAnchor="middle" fill="white"
               fontSize={d.isRoot ? 9 : 8} fontWeight="bold" fontFamily="Arial, sans-serif"
             >{d.label}</text>
             {glyph && (
-              <text x={d.cx + 10} y={d.cy - 7}
-                textAnchor="middle" fontSize={7.5} fontWeight="bold" fontFamily="Arial, sans-serif"
-                fill={glyphFill}
+              <text x={d.cx} y={d.cy - d.r - 2.5}
+                textAnchor="middle" fontSize={12.5} fontWeight="bold"
+                fontFamily="Arial, sans-serif" letterSpacing="-1.5"
+                fill="#FFD54F" stroke="#000" strokeWidth="0.9" paintOrder="stroke"
               >{glyph}</text>
             )}
           </g>
