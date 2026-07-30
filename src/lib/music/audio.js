@@ -333,6 +333,8 @@ export async function startPlayback({
   repeats       = 1,
   onBar         = null,
   onStop        = null,
+  lineEvents    = null,   // Line Lab: generated single-note line, played on the lead synth
+  onLineNote    = null,   // Line Lab: fires (barIdx, noteIdx) per line note for UI sync
 }) {
   await Tone.start()
   stopAll()
@@ -451,6 +453,15 @@ export async function startPlayback({
       } else {
         lead.triggerAttackRelease(ev.note, ev.dur, time, ev.vel)
       }
+    })
+  }
+
+  // Line Lab — generated single-note line on the lead synth, in the pocket with
+  // the rhythm section. Additive: only runs when lineEvents are passed in.
+  if (lineEvents?.length) {
+    makePart(lineEvents, (time, ev) => {
+      lead.triggerAttackRelease(ev.note, ev.dur, time, ev.vel ?? 0.72)
+      if (onLineNote) draw.schedule(() => onLineNote(ev.barIdx, ev.noteIdx), time)
     })
   }
 
