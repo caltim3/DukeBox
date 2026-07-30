@@ -31,6 +31,14 @@ const noteWithOctave = (s, f) => {
   return `${NOTE_NAMES[m % 12]}${Math.floor(m / 12) - 1}`
 }
 
+const LEVELS = [
+  { n: 1, label: "Skeleton",  blurb: "Chord + guide tones" },
+  { n: 2, label: "Inside",    blurb: "Recommended scale + bebop" },
+  { n: 3, label: "Chromatic", blurb: "Enclosures + approaches" },
+  { n: 4, label: "Structures",blurb: "Triad pairs + cells" },
+  { n: 5, label: "Exotic",    blurb: "Altered + side-slip" },
+]
+
 function durLabel(b) {
   if (b >= 4) return "w"
   if (b >= 3) return "h."
@@ -71,7 +79,7 @@ function buildTab(resultBars) {
   return "  " + rhythm.join("") + "\n" + stringLines.map((c, i) => labels[i] + c.join("")).join("\n")
 }
 
-export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyle, selectStyle, onStopPlayback }) {
+export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyle, selectStyle, onStopPlayback, playLineSection }) {
   // Seed the sheet from whatever chart is loaded in DukeBox
   const chartAsSheet = useMemo(
     () => (chartBars ?? []).map(b => b.symbol).join(" | "),
@@ -92,12 +100,33 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
   const [playing, setPlaying] = useState(false)
   const timerRef = useRef(null)
 
+  // Complexity ladder — lines cached per level so levels can be compared
+  // over the same bars without regenerating.
+  const [level, setLevel] = useState(3)
+  const [levelLines, setLevelLines] = useState({})
+
+  // Practice transport: play the line in the pocket with the rhythm section
+  const [withBand, setWithBand] = useState(false)
+  const [muteLine, setMuteLine] = useState(false)
+  const [ramp, setRamp] = useState(false)
+  const [rampCap, setRampCap] = useState(120)
+  const [liveTempo, setLiveTempo] = useState(120)
+  const prevBarRef = useRef(-1)
+  const rampTempoRef = useRef(120)
+  const RAMP_STEP = 5
+
   const bars = useMemo(() => parseBars(sheet), [sheet])
 
   useEffect(() => {
     setSelStart(0)
     setSelEnd(Math.min(3, Math.max(0, bars.length - 1)))
   }, [sheet, bars.length])
+
+  // A new section invalidates every cached level
+  useEffect(() => {
+    setLevelLines({})
+    setResult(null)
+  }, [selStart, selEnd, sheet])
 
   const flatNotes = useMemo(() => {
     if (!result) return []
@@ -110,6 +139,12 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
     if (selStart === selEnd && i > selStart) setSelEnd(i)
     else { setSelStart(i); setSelEnd(i) }
   }
+
+  // Switching level swaps in that level's cached line (or clears if not generated)
+  useEffect(() => {
+    stopLine()
+    setResult(levelLines[level] ?? null)
+  }, [level])   // eslint-disable-line react-hooks/exhaustive-deps
 
   function toggleDevice(d) {
     setDevices(prev => {
@@ -131,18 +166,60 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
   function stopLine() {
     setPlaying(false)
     setPlayIdx(-1)
+    prevBarRef.current = -1
     clearTimeout(timerRef.current)
+    if (withBand) onStopPlayback?.()
+  }
+
+  // Drive the tempo ramp: each time the loop wraps back to an earlier bar,
+  // step the transport bpm up until the cap.
+  function onBandBar(localBarIdx) {
+    if (prevBarRef.current > localBarIdx && ramp) {
+      const next = Math.min(rampCap, rampTempoRef.current + RAMP_STEP)
+      rampTempoRef.current = next
+      setLiveTempo(next)
+      import("tone").then((Tone) => {
+        try { Tone.getTransport().bpm.value = next } catch {}
+      }).catch(() => {})
+    }
+    prevBarRef.current = localBarIdx
+  }
+
+  function onBandNote(barIdx, noteIdx) {
+    let running = 0
+    for (let b = 0; b < barIdx; b++) running += (result?.bars?.[b]?.n || []).length
+    setPlayIdx(running + noteIdx)
   }
 
   function startLine() {
     if (!flatNotes.length) return
     onStopPlayback?.()      // Line Lab and the band share one Transport
+
+    if (withBand && playLineSection) {
+      prevBarRef.current = -1
+      rampTempoRef.current = tempo
+      setLiveTempo(tempo)
+      setPlaying(true)
+      playLineSection({
+        line: result,
+        startIndex: selStart,
+        endIndex: Math.min(selEnd, selStart + 7),
+        practiceTempo: tempo,
+        muteLine,
+        onBar: onBandBar,
+        onLineNote: onBandNote,
+        onDone: () => { setPlaying(false); setPlayIdx(-1) },
+      })
+      return
+    }
+
     setPlaying(true)
     setPlayIdx(0)
   }
 
   useEffect(() => {
     if (!playing || playIdx < 0) return
+    if (withBand && playLineSection) return   // band mode is driven by the transport
     if (playIdx >= flatNotes.length) { stopLine(); return }
     const note = flatNotes[playIdx]
     playNote(note.s, note.f)
@@ -158,15 +235,24 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
     setLoading(true); setError(null); setResult(null)
     const section = bars.slice(selStart, Math.min(selEnd + 1, selStart + 8))
     const clipped = selEnd - selStart + 1 > 8
+    // Richer bar data (root/quality/beats) lets the route feed the model
+    // DukeBox's own scale recommendations and guide tones.
+    const chartSlice = (chartBars ?? []).slice(selStart, Math.min(selEnd + 1, selStart + 8))
+      .map((b) => ({ symbol: b.symbol, root: b.root, quality: b.quality, beats: b.beats }))
     try {
       const res = await fetch("/api/generate-line", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ section, devices: Array.from(devices), position, extra }),
+        body: JSON.stringify({
+          section, devices: Array.from(devices), position, extra,
+          level, chartBars: chartSlice,
+        }),
       })
       const data = await res.json()
       if (data.error) throw new Error(data.error)
-      setResult({ ...data.line, clipped })
+      const line = { ...data.line, clipped }
+      setLevelLines((prev) => ({ ...prev, [level]: line }))
+      setResult(line)
     } catch (e) {
       setError(e.message || "Couldn't get a clean line back. Try again, or select fewer bars.")
     }
@@ -293,6 +379,43 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
         </div>
       </div>
 
+      {/* Complexity ladder — same bars, five readings from skeleton to exotic */}
+      <div style={{ fontSize: "var(--db-fs-xs)", opacity: 0.62, margin: "14px 0 7px" }}>
+        Complexity — generate the same bars at any level, then compare
+      </div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+        {LEVELS.map((L) => {
+          const active = level === L.n
+          const cached = !!levelLines[L.n]
+          return (
+            <button
+              key={L.n}
+              onClick={() => setLevel(L.n)}
+              aria-pressed={active}
+              title={L.blurb}
+              style={{
+                flex: "1 1 116px", minWidth: "108px", textAlign: "left",
+                padding: "7px 10px", borderRadius: "var(--db-r-md)", cursor: "pointer",
+                border: `1px solid ${active ? "var(--db-accent)" : "var(--db-panel-border)"}`,
+                background: active
+                  ? "color-mix(in srgb, var(--db-accent) 14%, transparent)"
+                  : "var(--db-input-bg)",
+                color: "var(--db-text)",
+              }}
+            >
+              <div style={{ fontSize: "var(--db-fs-xs)", opacity: 0.6 }}>
+                L{L.n}{cached ? " \u25CF" : ""}
+              </div>
+              <div style={{
+                fontSize: "var(--db-fs-sm)", fontWeight: 700,
+                color: active ? "var(--db-accent)" : "var(--db-text)",
+              }}>{L.label}</div>
+              <div style={{ fontSize: "var(--db-fs-xs)", opacity: 0.6 }}>{L.blurb}</div>
+            </button>
+          )
+        })}
+      </div>
+
       <button
         onClick={generate}
         disabled={loading || !bars.length}
@@ -307,7 +430,7 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
           opacity: bars.length ? 1 : 0.5,
         }}
       >
-        {loading ? "Comping…" : "Generate line"}
+        {loading ? "Comping…" : result ? `Regenerate L${level}` : `Generate L${level}`}
       </button>
       {error && (
         <div style={{ marginTop: "10px", color: "var(--db-c-salmon)", fontSize: "var(--db-fs-md)" }}>{error}</div>
@@ -315,6 +438,52 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
 
       {result && (
         <>
+          {/* Practice transport — loop the section with the rhythm section */}
+          <div style={{
+            marginTop: "16px", paddingTop: "14px",
+            borderTop: "1px solid var(--db-panel-border)",
+            display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center",
+          }}>
+            <button
+              onClick={() => setWithBand((v) => !v)}
+              aria-pressed={withBand}
+              disabled={!playLineSection}
+              title={playLineSection
+                ? "Loop these bars with bass, drums, and comping"
+                : "Rhythm section unavailable in this view"}
+              style={{ ...chip(withBand), opacity: playLineSection ? (withBand ? 1 : 0.75) : 0.4 }}
+            >
+              Rhythm section
+            </button>
+            {withBand && (
+              <button onClick={() => setMuteLine((v) => !v)} aria-pressed={muteLine} style={chip(muteLine)}>
+                {muteLine ? "Line muted" : "Line on"}
+              </button>
+            )}
+            <button onClick={() => setRamp((v) => !v)} aria-pressed={ramp} style={chip(ramp)}>
+              Ramp +{RAMP_STEP}
+            </button>
+            {ramp && (
+              <label style={{ fontSize: "var(--db-fs-xs)", opacity: 0.7, display: "flex", alignItems: "center", gap: "4px" }}>
+                to
+                <input
+                  type="number" min={60} max={320} value={rampCap}
+                  onChange={(e) => setRampCap(Number(e.target.value))}
+                  style={{
+                    width: "62px", padding: "3px 6px", borderRadius: "var(--db-r-sm, 6px)",
+                    background: "var(--db-input-bg)", color: "var(--db-text)",
+                    border: "1px solid var(--db-panel-border)", fontSize: "var(--db-fs-xs)",
+                  }}
+                />
+              </label>
+            )}
+            <span style={{ fontSize: "var(--db-fs-xs)", opacity: 0.55, flex: "1 1 220px" }}>
+              {withBand
+                ? "Loops your selected bars with the band. Mute the line and play it yourself."
+                : "Solo preview. Turn on the rhythm section to practice in the pocket."}
+            </span>
+          </div>
+
           {/* Fretboard walkthrough */}
           <div style={{
             marginTop: "18px", paddingTop: "14px",
@@ -323,7 +492,9 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
               <label style={{ fontSize: "var(--db-fs-sm)", color: "var(--db-accent)" }}>The line</label>
               <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                <span style={{ fontSize: "var(--db-fs-xs)", opacity: 0.62 }}>{tempo} bpm</span>
+                <span style={{ fontSize: "var(--db-fs-xs)", opacity: 0.62 }}>
+                  {ramp && playing ? `${liveTempo}\u2191` : tempo} bpm
+                </span>
                 <input
                   type="range" min={60} max={220} value={tempo}
                   onChange={(e) => setTempo(Number(e.target.value))}
