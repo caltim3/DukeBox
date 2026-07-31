@@ -16,7 +16,15 @@ import { useEffect, useMemo, useRef, useState } from "react"
 const DEVICES = [
   "Chromatics", "Bebop scale", "Enclosures", "Altered",
   "Melodic cells", "Triads", "Triad pairs", "Scale choice",
+  "Rest-stroke triplets",
 ]
+
+// Devices whose meaning isn't obvious from the chip alone.
+const DEVICE_HINTS = {
+  "Rest-stroke triplets":
+    "Pat Martino's rest-stroke (apoyando) flow — continuous eighth-note triplets, " +
+    "picked so each stroke comes to rest on the next string. Accent the first of every three.",
+}
 
 const POSITIONS = ["Anywhere", "Open to 4th", "5th position", "7th to 9th", "10th and up"]
 
@@ -39,7 +47,18 @@ const LEVELS = [
   { n: 5, label: "Exotic",    blurb: "Altered + side-slip" },
 ]
 
+// Triplet durations come back as thirds of a beat, so they can't be read off
+// the binary grid — check them first and mark them with a 3.
+const TRIPLETS = [
+  { beats: 4 / 3, label: "h3" },   // half-note triplet
+  { beats: 2 / 3, label: "q3" },   // quarter-note triplet
+  { beats: 1 / 3, label: "e3" },   // eighth-note triplet
+  { beats: 1 / 6, label: "s3" },   // sixteenth-note triplet
+]
+
 function durLabel(b) {
+  const trip = TRIPLETS.find(t => Math.abs(b - t.beats) < 0.02)
+  if (trip) return trip.label
   if (b >= 4) return "w"
   if (b >= 3) return "h."
   if (b >= 2) return "h"
@@ -351,7 +370,13 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
         <label style={{ fontSize: "var(--db-fs-sm)", color: "var(--db-accent)" }}>Devices</label>
         <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "8px" }}>
           {DEVICES.map(d => (
-            <button key={d} onClick={() => toggleDevice(d)} aria-pressed={devices.has(d)} style={chip(devices.has(d))}>
+            <button
+              key={d}
+              onClick={() => toggleDevice(d)}
+              aria-pressed={devices.has(d)}
+              title={DEVICE_HINTS[d]}
+              style={chip(devices.has(d))}
+            >
               {d}
             </button>
           ))}

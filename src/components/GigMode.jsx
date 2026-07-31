@@ -6,7 +6,7 @@
 // playback. Setlists live in the synced library (cross-device).
 
 import { useMemo, useRef, useState } from "react"
-import { GIGBOOK_SONGS, gigSongToBars } from "@/lib/music/gigbook"
+import { GIGBOOK_SONGS, gigSongToBars, parseGigKey, gigTempoNumber } from "@/lib/music/gigbook"
 import { FORMS, FORM_NAMES } from "@/lib/music/forms"
 
 // ─── Theme presets (scoped to the gig panel) ─────────────────────────────────
@@ -48,14 +48,6 @@ function buildPool() {
     })
   }
   return pool
-}
-
-// Parse a tempo string like "72-96" or "140" → a number for playback
-function tempoNumber(t) {
-  const m = String(t || "").match(/\d+/g)
-  if (!m) return 110
-  const nums = m.map(Number)
-  return Math.round(nums.reduce((a, b) => a + b, 0) / nums.length)
 }
 
 export default function GigMode({
@@ -147,10 +139,14 @@ export default function GigMode({
   function loadSong(song, autoplay) {
     const bars = songToBars(song)
     if (!bars.length) return
-    const keyRoot = song._form?.keyRoot || song._user?.keyRoot || (song.key || "C").split(/\s+/)[0]
-    const keyMode = song._form?.keyMode || song._user?.keyMode || (/m/i.test(song.key) && !/major/i.test(song.key) ? "minor" : "major")
+    // Gig Book keys are written "Am" / "Gm / Bb", so they go through
+    // parseGigKey rather than being split on whitespace — otherwise the Key
+    // select is handed "Am", which is not a root it knows.
+    const parsed = parseGigKey(song.key)
+    const keyRoot = song._form?.keyRoot || song._user?.keyRoot || parsed.keyRoot
+    const keyMode = song._form?.keyMode || song._user?.keyMode || parsed.keyMode
     onLoadSong?.({
-      bars, keyRoot, keyMode, tempo: tempoNumber(song.tempo),
+      bars, keyRoot, keyMode, tempo: gigTempoNumber(song.tempo),
       title: song.title, autoplay, songId: song.id,
     })
   }

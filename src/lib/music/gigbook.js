@@ -1329,3 +1329,29 @@ export function gigSongToBars(song) {
 }
 
 export const GIGBOOK_SONG_NAMES = GIGBOOK_SONGS.map(s => s.title)
+
+/**
+ * Read a Gig Book key field into DukeBox's key state.
+ * The book writes them as musicians do — "C major", "Am", "Cm", "Gm / Bb" —
+ * so the root has to be split off its quality before it can go in the Key
+ * select, and sharps spelled the flat way the app uses everywhere else.
+ */
+export function parseGigKey(key) {
+  const first = String(key || "C").split("/")[0].trim()
+  const m = first.match(/^([A-G][b#]?)/)
+  const keyRoot = m ? (EH[m[1]] || m[1]) : "C"
+  const rest = m ? first.slice(m[1].length).trim().toLowerCase() : ""
+  const keyMode = rest === "m" || rest.startsWith("min") ? "minor" : "major"
+  return { keyRoot, keyMode }
+}
+
+/**
+ * Gig Book tempos are ranges a band can read ("72-96", "Free-76"); playback
+ * needs one number, so take the midpoint of whatever numbers are written.
+ */
+export function gigTempoNumber(tempo, fallback = 110) {
+  const nums = String(tempo || "").match(/\d+/g)
+  if (!nums) return fallback
+  const vals = nums.map(Number)
+  return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length)
+}

@@ -18,11 +18,19 @@ export function lineNoteName(string, fret) {
   return NAMES_SHARP[lineNoteMidi(string, fret) % 12]
 }
 
-// beats → BarsBeatsSixteenths duration, e.g. 0.5 → "0:0:2", 1.5 → "0:1:2"
+// beats → BarsBeatsSixteenths duration, e.g. 0.5 → "0:0:2", 1.5 → "0:1:2".
+// Sixteenths are kept fractional (Tone parses each BBS field with parseFloat)
+// so triplets — 1/3 of a beat → "0:0:1.3333" — land where they belong instead
+// of being rounded onto the sixteenth grid.
+function trimNum(n) {
+  const r = Math.round(n * 10000) / 10000
+  return Number.isInteger(r) ? String(r) : r.toFixed(4).replace(/0+$/, "")
+}
+
 export function beatsToBBS(beats) {
   const whole = Math.floor(beats)
-  const sixteenths = Math.round((beats - whole) * 4)
-  return `0:${whole}:${sixteenths}`
+  const sixteenths = (beats - whole) * 4
+  return `0:${whole}:${trimNum(sixteenths)}`
 }
 
 // Convert a line into Tone.Transport events aligned to a section's bar timing,
@@ -42,9 +50,9 @@ export function lineToTransportEvents(lineBars, sectionBars = []) {
       const abs = barStart + pos
       const measure = Math.floor(abs / 4)
       const beatInM = Math.floor(abs % 4)
-      const sub = Math.round((abs - Math.floor(abs)) * 4)
+      const sub = (abs - Math.floor(abs)) * 4   // fractional — triplets stay in place
       events.push({
-        time: `${measure}:${beatInM}:${sub}`,
+        time: `${measure}:${beatInM}:${trimNum(sub)}`,
         note: midiToToneNote(lineNoteMidi(s, f)),
         dur: beatsToBBS(Math.min(b, barBeats - pos)),
         vel: 0.72,

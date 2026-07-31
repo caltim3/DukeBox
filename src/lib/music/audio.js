@@ -221,26 +221,31 @@ function melodyEvents(approachLines, timing) {
 
 // ─── Drum styles — defined in audioConstants.js, imported at top of file ──────
 
-function drumEvents(totalBeats, pattern) {
-  const { ride: RIDE_V, kick: KICK_V, hihat: HIHAT_V } = pattern
+// Every eighth-note slot of the chart gets one event; which voices actually
+// sound is decided at trigger time from the live drum style. Scheduling the
+// grid rather than the hits is what lets the style change mid-chorus without
+// rebuilding the transport.
+function drumSlotEvents(totalBeats) {
   const events = []
   const numMeasures = Math.ceil(totalBeats / 4)
-  // Patterns may span multiple measures (e.g. Son Clave 3:2 = 16 slots / 2 bars);
-  // cycle through the pattern's measures as the chart advances.
-  const patternMeasures = Math.max(1, Math.floor(RIDE_V.length / 8))
-  for (let b = 0; b < numMeasures; b++) {
-    const offset = (b % patternMeasures) * 8
+  for (let m = 0; m < numMeasures; m++) {
     for (let s = 0; s < 8; s++) {
       const beat = Math.floor(s / 2)
       const sub  = (s % 2) * 2   // sixteenth position: 0 or 2
-      const t    = `${b}:${beat}:${sub}`
-      const p    = offset + s
-      if (RIDE_V[p])  events.push({ time: t, inst: "ride",  vel: RIDE_V[p] })
-      if (KICK_V[p])  events.push({ time: t, inst: "kick",  vel: KICK_V[p] })
-      if (HIHAT_V[p]) events.push({ time: t, inst: "hihat", vel: HIHAT_V[p] })
+      events.push({ time: `${m}:${beat}:${sub}`, m, slot: s })
     }
   }
   return events
+}
+
+// Velocity for one voice at one slot, under a given pattern. Patterns may span
+// multiple measures (e.g. Son Clave 3:2 = 16 slots / 2 bars); they cycle as the
+// chart advances.
+function drumVelocity(pattern, inst, measure, slot) {
+  const lane = pattern?.[inst]
+  if (!lane?.length) return 0
+  const patternMeasures = Math.max(1, Math.floor(lane.length / 8))
+  return lane[(measure % patternMeasures) * 8 + slot] || 0
 }
 
 // ─── Reverb send (ported from Bebop Blueprint's reverb dial) ─────────────────
@@ -269,6 +274,15 @@ function ensureReverbSend(amount) {
 let activeParts   = []
 let scheduledIds  = []
 
+// ─── Live mix ────────────────────────────────────────────────────────────────
+// Settings the UI can change WHILE the transport runs. Everything the parts
+// need at trigger time is read from here rather than captured in a closure, so
+// mutes, styles, kits, tempo, and swing take effect on the next beat instead of
+// on the next Play. Style changes that alter which notes exist (comping hits,
+// bass lines) re-scheduled through `rebuilders`.
+let live = null
+let rebuilders = {}
+
 /**
  * Fire a single note through the shared piano sampler.
  * Used by Line Lab to step through a generated line without opening its own
@@ -294,8 +308,47 @@ export function stopAll() {
   scheduledIds = []
   activeParts.forEach(p => { try { p.stop(0); p.dispose() } catch {} })
   activeParts = []
+  live = null
+  rebuilders = {}
   if (piano) piano.releaseAll()
   if (lead)  try { lead.triggerRelease() } catch {}
+}
+
+/**
+ * Change playback settings without stopping the band.
+ *
+ * Accepts any subset of the startPlayback options that describe the mix:
+ * tempo, swing, playChords/playBass/playDrums/playMelody, compingStyle,
+ * bassStyle, bassComplexity, drumStyle, drumKit, reverbAmount. Anything that
+ * only gates or re-reads state applies instantly; comping and bass style
+ * changes re-schedule their part, so they land from the current bar onward.
+ *
+ * No-op when nothing is playing — the next Play picks the values up anyway.
+ */
+export function updatePlayback(patch = {}) {
+  if (!live) return
+  const prev = live
+  live = { ...live, ...patch }
+  const tr = Tone.getTransport()
+
+  if (patch.tempo != null && patch.tempo !== prev.tempo) {
+    // Short ramp instead of a jump — a slider drag shouldn't click.
+    try { tr.bpm.rampTo(patch.tempo, 0.08) } catch { tr.bpm.value = patch.tempo }
+  }
+  if (patch.swing != null && patch.swing !== prev.swing) tr.swing = live.swing
+  if (patch.reverbAmount != null && patch.reverbAmount !== prev.reverbAmount) {
+    ensureReverbSend(live.reverbAmount)
+  }
+  // Voicings are rootless while the bass covers the root, so muting the bass
+  // has to re-voice the piano as well as unmute it.
+  if ((patch.compingStyle && patch.compingStyle !== prev.compingStyle) ||
+      (patch.playBass != null && patch.playBass !== prev.playBass)) {
+    rebuilders.chords?.()
+  }
+  if ((patch.bassStyle && patch.bassStyle !== prev.bassStyle) ||
+      (patch.bassComplexity != null && patch.bassComplexity !== prev.bassComplexity)) {
+    rebuilders.bass?.()
+  }
 }
 
 // Synth fallback for a single drum hit — used when the sampler isn't loaded or fails mid-stream.
@@ -306,12 +359,24 @@ function playDrumSynth(inst, time, vel) {
 }
 
 function makePart(events, callback) {
-  if (!events.length) return
+  if (!events.length) return null
   const part = new Tone.Part(callback, events)
   part.start(0)
   // Do NOT loop the Part itself — the Transport loop handles seamless repeats.
   // Double-looping (Part + Transport) creates a tiny gap at the seam.
   activeParts.push(part)
+  return part
+}
+
+// Swap a running part for one built from new events. Starting at 0 while the
+// transport is mid-chorus is deliberate: events already behind the playhead sit
+// out this pass and come back around on the next repeat.
+function replacePart(oldPart, events, callback) {
+  if (oldPart) {
+    try { oldPart.stop(0); oldPart.dispose() } catch {}
+    activeParts = activeParts.filter(p => p !== oldPart)
+  }
+  return makePart(events, callback)
 }
 
 export async function startPlayback({
@@ -362,6 +427,13 @@ export async function startPlayback({
   const tr       = Tone.getTransport()
   const draw = Tone.getDraw()
 
+  // Snapshot every mix setting so updatePlayback() has something to patch.
+  live = {
+    tempo, swing, playChords, playBass, playDrums, playMelody,
+    drumStyle, compingStyle, bassStyle, bassComplexity, drumKit, reverbAmount,
+  }
+  rebuilders = {}
+
   tr.bpm.value        = tempo
   tr.swing            = swing
   tr.swingSubdivision = "8n"
@@ -384,56 +456,71 @@ export async function startPlayback({
     scheduledIds.push(id)
   }
 
-  // Piano chords — voice-led, pianist comping style (rootless when bass is playing)
-  if (playChords) {
-    const hitPlan = COMPING_STYLES[compingStyle] ?? COMPING_STYLES[DEFAULT_COMPING_STYLE]
-    const events = []
-    let prevVoicing = null
+  // Piano chords — voice-led, pianist comping style (rootless when bass is playing).
+  // Always scheduled; the Piano switch mutes at trigger time so it can be
+  // flipped mid-tune. Changing the comping style re-scheduled via rebuilders.
+  {
+    const buildChordEvents = (styleName) => {
+      const hitPlan = COMPING_STYLES[styleName] ?? COMPING_STYLES[DEFAULT_COMPING_STYLE]
+      const events = []
+      let prevVoicing = null
 
-    playBars.forEach((bar, i) => {
-      const { measure, beat: barBeat, beats } = timing[i]
-      // N.C. — silence for the bar (prevVoicing carries so the next chord voice-leads).
-      if (bar.quality === "NC" || bar.symbol === "N.C.") return
-      // Alt chords voice as plain dom7 — "alt" is a scale/tension suggestion, not a chord type
-      const isAlt = bar.quality?.toLowerCase().includes("alt") || bar.symbol?.toLowerCase().includes("alt")
-      const voicingSymbol = isAlt ? `${bar.root}7` : bar.symbol
-      const voicing = getVoiceLedVoicing(voicingSymbol, prevVoicing, playBass)
-      prevVoicing = voicing
-      if (beats === 2) {
-        // Half-bar: single hit covering the whole 2-beat span
-        events.push({ time: `${measure}:${barBeat}:0`, notes: voicing, vel: 0.65, dur: "2n" })
-      } else {
-        hitPlan.forEach(hit => {
-          const beatFrac = hit.t * 4
-          const beat = Math.floor(beatFrac)
-          const sub  = Math.round((beatFrac - beat) * 4)
-          const absbeat = barBeat + beat
-          const m  = measure + Math.floor(absbeat / 4)
-          const bt = absbeat % 4
-          events.push({ time: `${m}:${bt}:${sub}`, notes: voicing, vel: hit.vel, dur: `${hit.len}m` })
-        })
-      }
-    })
+      playBars.forEach((bar, i) => {
+        const { measure, beat: barBeat, beats } = timing[i]
+        // N.C. — silence for the bar (prevVoicing carries so the next chord voice-leads).
+        if (bar.quality === "NC" || bar.symbol === "N.C.") return
+        // Alt chords voice as plain dom7 — "alt" is a scale/tension suggestion, not a chord type
+        const isAlt = bar.quality?.toLowerCase().includes("alt") || bar.symbol?.toLowerCase().includes("alt")
+        const voicingSymbol = isAlt ? `${bar.root}7` : bar.symbol
+        const voicing = getVoiceLedVoicing(voicingSymbol, prevVoicing, live.playBass)
+        prevVoicing = voicing
+        if (beats === 2) {
+          // Half-bar: single hit covering the whole 2-beat span
+          events.push({ time: `${measure}:${barBeat}:0`, notes: voicing, vel: 0.65, dur: "2n" })
+        } else {
+          hitPlan.forEach(hit => {
+            const beatFrac = hit.t * 4
+            const beat = Math.floor(beatFrac)
+            const sub  = Math.round((beatFrac - beat) * 4)
+            const absbeat = barBeat + beat
+            const m  = measure + Math.floor(absbeat / 4)
+            const bt = absbeat % 4
+            events.push({ time: `${m}:${bt}:${sub}`, notes: voicing, vel: hit.vel, dur: `${hit.len}m` })
+          })
+        }
+      })
+      return events
+    }
 
     // Cache sampler references once — they're singletons that don't change during playback.
     const samplers = getSamplers()
-    makePart(events, (time, ev) => {
+    const playChord = (time, ev) => {
+      if (!live?.playChords) return
       if (samplers?.piano) {
         samplers.piano.triggerAttackRelease(ev.notes, ev.dur, time, ev.vel)
       } else {
         piano.triggerAttackRelease(ev.notes, ev.dur, time, ev.vel)
       }
-    })
+    }
+
+    let chordPart = makePart(buildChordEvents(compingStyle), playChord)
+    rebuilders.chords = () => {
+      chordPart = replacePart(chordPart, buildChordEvents(live.compingStyle), playChord)
+    }
   }
 
   // Walking bass — upright bass sampler with velocity, jitter, and round-robin humanization.
   // "Classic DukeBox" uses the original root–5th–3rd–approach generator; the
   // bassist personalities (Chambers, Brown, Carter, Mingus, Pettiford) use the
   // Bebop Blueprint line generator with the complexity dial.
-  if (playBass) {
+  {
     const { bass: bassPlayers } = getSamplers()
-    const bassEvents = styledWalkingBass(playBars, timing, bassStyle, bassComplexity)
-    makePart(bassEvents.length ? bassEvents : walkingBass(playBars, timing), (time, ev) => {
+    const buildBassEvents = (styleName, complexity) => {
+      const styled = styledWalkingBass(playBars, timing, styleName, complexity)
+      return styled.length ? styled : walkingBass(playBars, timing)
+    }
+    const playBassNote = (time, ev) => {
+      if (!live?.playBass) return
       if (!bassPlayers) return
       const key = buildBassKey(ev.note)
       if (!key) return
@@ -441,13 +528,19 @@ export async function startPlayback({
       if (!player) return
       player.volume.value = (Math.random() - 0.5) * 4   // ±2 dB gain variation
       player.start(time + (Math.random() - 0.5) * 0.02) // ±10 ms timing jitter
-    })
+    }
+
+    let bassPart = makePart(buildBassEvents(bassStyle, bassComplexity), playBassNote)
+    rebuilders.bass = () => {
+      bassPart = replacePart(bassPart, buildBassEvents(live.bassStyle, live.bassComplexity), playBassNote)
+    }
   }
 
   // Melody lead — use piano sampler when available so timbre matches the chords
-  if (playMelody && playLines?.length) {
+  if (playLines?.length) {
     const { piano: pianoSampler } = getSamplers() ?? {}
     makePart(melodyEvents(playLines, timing), (time, ev) => {
+      if (!live?.playMelody) return
       if (pianoSampler) {
         pianoSampler.triggerAttackRelease(ev.note, ev.dur, time, ev.vel)
       } else {
@@ -466,33 +559,41 @@ export async function startPlayback({
   }
 
   // Drums — use sampler if loaded, fall back to synth synthesis.
-  // Sampler load state is stable for the duration of playback, so check it once.
-  if (playDrums) {
+  // The eighth-note grid is scheduled once; style and kit are read live, so
+  // both can be changed mid-chorus.
+  {
     const { drums: drumSampler } = getSamplers() ?? {}
-    const pattern = DRUM_STYLES[drumStyle] ?? DRUM_STYLES[0]
 
-    // Resolve each voice once, per kit, with a three-step fallback:
+    // Resolve each voice per kit, with a three-step fallback:
     //   selected kit → Standard kit → synth.
     // Checked per-sample (not via Players.loaded, which is all-or-nothing) so a
-    // single unreadable file can't silence the whole kit.
-    const voiceKey = {}
-    for (const inst of ["ride", "kick", "hihat"]) {
-      const own = `${drumKit}:${inst}`
+    // single unreadable file can't silence the whole kit. Cached per playback,
+    // since the samplers may still have been loading when we started.
+    const voiceCache = {}
+    const resolveVoice = (kitName, inst) => {
+      const cacheKey = `${kitName}:${inst}`
+      if (cacheKey in voiceCache) return voiceCache[cacheKey]
       const std = `${DEFAULT_DRUM_KIT}:${inst}`
-      voiceKey[inst] = isDrumSampleReady(drumSampler, own) ? own
-                     : isDrumSampleReady(drumSampler, std) ? std
-                     : null
-      if (!voiceKey[inst]) {
-        console.warn(`DukeBox: no drum sample for "${inst}" — using synth fallback.`)
-      }
+      const key = isDrumSampleReady(drumSampler, cacheKey) ? cacheKey
+                : isDrumSampleReady(drumSampler, std) ? std
+                : null
+      if (!key) console.warn(`DukeBox: no drum sample for "${inst}" — using synth fallback.`)
+      voiceCache[cacheKey] = key
+      return key
     }
 
-    makePart(drumEvents(totalBts, pattern), (time, ev) => {
-      const key = voiceKey[ev.inst]
-      if (key) {
-        try { drumSampler.player(key).start(time); return } catch { /* fall through */ }
+    makePart(drumSlotEvents(totalBts), (time, ev) => {
+      if (!live?.playDrums) return
+      const pattern = DRUM_STYLES[live.drumStyle] ?? DRUM_STYLES[0]
+      for (const inst of ["ride", "kick", "hihat"]) {
+        const vel = drumVelocity(pattern, inst, ev.m, ev.slot)
+        if (!vel) continue
+        const key = resolveVoice(live.drumKit, inst)
+        if (key) {
+          try { drumSampler.player(key).start(time); continue } catch { /* fall through */ }
+        }
+        playDrumSynth(inst, time, vel)
       }
-      playDrumSynth(ev.inst, time, ev.vel)
     })
   }
 

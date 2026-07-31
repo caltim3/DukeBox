@@ -17,6 +17,9 @@ const SYSTEM_PROMPT =
   '{"bars":[{"c":"chord(s)","d":"device used","x":"why it works, max 16 words",' +
   '"n":[[string,fret,beats],...]}],"s":"one sentence on the overall shape"}. ' +
   "string is 1 (high e) to 6 (low E). beats is 0.5 for eighths, 1 quarter, 2 half, etc. " +
+  "For triplets use thirds of a beat: 0.333 for an eighth-note triplet, 0.667 for a " +
+  "quarter-note triplet, 0.167 for a sixteenth-note triplet — always in complete " +
+  "groups of three that fill a whole beat. " +
   "Each bar sums to 4 beats or slightly less if it breathes. Keep every note playable " +
   "in the requested position with at most a one-fret stretch or slide."
 
@@ -30,7 +33,27 @@ const LEVELS = {
   5: { name: "Exotic / Altered", rule: "Use altered and exotic scale choices: the altered scale (melodic minor a half step up) and half-whole diminished over dominants, lydian dominant over non-resolving 7ths, side-slipping (play a half step off, then resolve), and upper-structure tensions (b9, #9, #11, b13). Maximum tension with deliberate resolution. Name the scale or device in each bar." },
 }
 
+// Extra instruction for devices whose chip name doesn't fully specify them.
+const DEVICE_RULES = {
+  "Rest-stroke triplets":
+    "REST-STROKE TRIPLETS: build the line out of continuous eighth-note triplets " +
+    "(beats 0.333), in complete groups of three per beat, in the Pat Martino " +
+    "rest-stroke (apoyando) manner. Accent the first note of each triplet, keep the " +
+    "line moving mostly stepwise or in close arpeggio fragments so the picking hand " +
+    "can fall onto the adjacent lower string, and change strings on the first note of " +
+    "a triplet rather than mid-group. Use a quarter or half note at phrase ends to " +
+    "breathe, and mention the triplet grouping in the per-bar reasoning.",
+}
+
 const MAX_BARS = 8
+
+// Snap near-triplet durations onto exact thirds so the transport places them
+// where the model meant, not a hair off the beat.
+const TRIPLET_BEATS = [4 / 3, 2 / 3, 1 / 3, 1 / 6]
+function snapDuration(b) {
+  const trip = TRIPLET_BEATS.find(t => Math.abs(b - t) < 0.02)
+  return trip ?? b
+}
 
 function extractJSON(text) {
   const cleaned = String(text || "").replace(/```json|```/g, "").trim()
@@ -57,7 +80,7 @@ function validateLine(raw) {
         if (!Number.isFinite(s) || s < 1 || s > 6) return null
         if (!Number.isFinite(f) || f < 0 || f > 24) return null
         if (!Number.isFinite(b) || b <= 0 || b > 8) return null
-        return [Math.round(s), Math.round(f), b]
+        return [Math.round(s), Math.round(f), snapDuration(b)]
       })
       .filter(Boolean),
   }))
@@ -106,8 +129,11 @@ export async function POST(request) {
     return parts.length ? ` (${parts.join("; ")})` : ""
   }
 
+  const deviceRules = devices.map(d => DEVICE_RULES[d]).filter(Boolean)
+
   const userPrompt =
     (level ? `COMPLEXITY LEVEL ${level} (${LEVELS[level].name}): ${LEVELS[level].rule}\n\n` : "") +
+    (deviceRules.length ? `${deviceRules.join("\n\n")}\n\n` : "") +
     "Write a connected improvised line over these bars, in order: " +
     section.map((b, i) => `bar ${i + 1}: ${b}${barContext(i)}`).join("; ") +
     ". Devices to draw from: " + (devices.join(", ") || "your best judgment") +

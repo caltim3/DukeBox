@@ -19,6 +19,8 @@ import {
   applyScaleFilter,
   barryHarrisScale,
   hexChoiceForChord,
+  SCALE_CATALOG,
+  rankScalesForChord,
 } from "@/lib/music/tonal"
 import { analyzeProgressionContext } from "@/lib/music/harmony"
 import { FORMS, FORM_CATEGORIES, DESERT_NOIR_META } from "@/lib/music/forms"
@@ -30,10 +32,11 @@ import { BASS_STYLE_NAMES, DEFAULT_BASS_STYLE } from "@/lib/music/bassStyles"
 import { downloadImprovGuide, buildImprovMapData } from "@/lib/music/improvGuide"
 import { DRUM_KIT_NAMES, DEFAULT_DRUM_KIT } from "@/lib/music/samples"
 import { parseTonalUserSongs } from "@/lib/music/importTonal"
-import { parseGigChord } from "@/lib/music/gigbook"
+import { parseGigChord, GIGBOOK_SONGS, gigSongToBars, parseGigKey, gigTempoNumber } from "@/lib/music/gigbook"
 import Fretboard from "@/components/Fretboard"
 import Runway from "@/components/Runway"
 import MetronomePanel from "@/components/MetronomePanel"
+import PracticeTimer from "@/components/PracticeTimer"
 import LineLab from "@/components/LineLab"
 import SongSearch from "@/components/SongSearch"
 import { lineToTransportEvents } from "@/lib/music/lines"
@@ -576,6 +579,25 @@ export default function Home() {
     }
   }
 
+  // A search hit can be a Songbook form, a library chart, or a Gig Book tune.
+  // The first two are names loadForm already resolves; the third has to be
+  // converted from its stage chart into playable bars.
+  function loadSearchPick(name, row) {
+    if (row?.gig) {
+      const bars = gigSongToBars(row.gig)
+      if (!bars.length) { showToast(`No changes stored for "${row.name}"`); return }
+      const { keyRoot: k, keyMode: m } = parseGigKey(row.gig.key)
+      loadGigSong({
+        bars, keyRoot: k, keyMode: m,
+        tempo: gigTempoNumber(row.gig.tempo),
+        songId: `gig:${row.gig.id}`,
+      })
+      showToast(`Loaded ${row.name} — ${bars.length} bars`)
+      return
+    }
+    loadForm(name, { exitPractice: true })
+  }
+
   function handleTransposeChart() {
     if (keyRoot === chartKey) return
     setBars((prev) => transposeChart(prev, chartKey, keyRoot))
@@ -718,12 +740,9 @@ export default function Home() {
     practiceModeRef.current = enabled
     setPracticeMode(enabled)
     setTempo(newTempo)
-    if (isPlaying) {
-      stopPlayback()
-      // Pass newTempo directly — setTempo() is async and the closure would
-      // still read the old value if we let startPlayback() capture it
-      startPlayback(newTempo).catch(console.error)
-    }
+    // No stop/restart: the live-settings effect below pushes the new tempo into
+    // the running transport, so switching modes mid-tune no longer drops the band.
+    if (isPlaying) _audioMod?.updatePlayback({ tempo: newTempo })
   }
 
   function loadStarter(starterId) {
@@ -1054,6 +1073,25 @@ export default function Home() {
     io.observe(el)
     return () => io.disconnect()
   }, [])
+
+  // Push mix changes into the running transport. Tempo, swing, mutes, comping
+  // and bass styles, drum style/kit, and reverb all used to wait for the next
+  // Play; now you can rebalance the band while the tune is going.
+  useEffect(() => {
+    if (!isPlaying) return
+    _audioMod?.updatePlayback({
+      tempo: practiceMode ? 50 : tempo,
+      swing: swingAmount,
+      playChords, playBass, playDrums, playMelody,
+      compingStyle, bassStyle, bassComplexity,
+      drumStyle: drumStyleIdx, drumKit, reverbAmount,
+    })
+  }, [
+    isPlaying, tempo, practiceMode, swingAmount,
+    playChords, playBass, playDrums, playMelody,
+    compingStyle, bassStyle, bassComplexity,
+    drumStyleIdx, drumKit, reverbAmount,
+  ])
 
   // Auto-play after loadStarter commits new bars to state
   // (startPlaybackRef always points to latest startPlayback, which captures current bars)
@@ -1517,8 +1555,9 @@ export default function Home() {
             <SongSearch
               formCategories={FORM_CATEGORIES}
               userLibrary={userLibrary}
+              gigSongs={GIGBOOK_SONGS}
               selectedForm={selectedForm}
-              onPick={(name) => loadForm(name, { exitPractice: true })}
+              onPick={loadSearchPick}
             />
 
             {userLibrary.some((e) => e.name === selectedForm) && (
@@ -1688,9 +1727,33 @@ export default function Home() {
         {inMode("practice","write") && <div style={panelStyle}>
           {/* ── Section 1: Playback & Practice ─────────────────────── */}
           <div style={{ marginBottom: "12px" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
-              <div style={{ ...eyebrowStyle, marginBottom: 0 }}>PLAYBACK & PRACTICE</div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", marginBottom: "8px", flexWrap: "wrap" }}>
+              <div style={{ ...eyebrowStyle, marginBottom: 0 }}>PLAYBACK &amp; PRACTICE</div>
+              {/* Find a tune without leaving the bench — same index as Gig Mode's
+                  search, so the Gig Book is reachable from here too. */}
+              <div style={{ display: "flex", flex: "1 1 240px", maxWidth: "420px", marginLeft: "auto" }}>
+                <SongSearch
+                  formCategories={FORM_CATEGORIES}
+                  userLibrary={userLibrary}
+                  gigSongs={GIGBOOK_SONGS}
+                  selectedForm={selectedForm}
+                  onPick={loadSearchPick}
+                  placeholder="Search songs, Gig Book, your library…"
+                />
+              </div>
             </div>
+
+            <div style={{ marginBottom: "10px" }}>
+              <PracticeTimer
+                inlineLabelStyle={inlineLabelStyle}
+                selectStyle={selectStyle}
+                onFinish={({ stopBand }) => {
+                  if (stopBand && playingRef.current) stopPlayback()
+                  showToast("Practice timer finished")
+                }}
+              />
+            </div>
+
             <div className="db-controls" style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
                 <button
                   ref={transportRef}
@@ -1843,6 +1906,11 @@ export default function Home() {
                   <input type="checkbox" checked={playMelody} onChange={(e) => setPlayMelody(e.target.checked)} />
                   Melody
                 </label>
+              </div>
+
+              <div style={{ fontSize: "var(--db-fs-xs)", opacity: 0.55, marginTop: "6px" }}>
+                Every control here is live — tempo, swing, mutes, styles, kit, and reverb all
+                take effect while the band keeps playing.
               </div>
           </div>
 
@@ -2003,11 +2071,11 @@ export default function Home() {
                 ))}
               </select>
 
-              <div style={{ fontSize: "var(--db-fs-md)", opacity: 0.6, marginLeft: "auto" }}>
-                {fretboardBar.symbol}
-                {fretboardBar.userTonic && fretboardBar.userTonic !== fretboardBar.root
-                  ? ` (${fretboardBar.userTonic})` : ""}
-                {fretboardView === "scale" ? ` · ${
+              {/* Now-playing readout. This used to be muted 0.92rem text tucked
+                  in the corner — the one thing you actually need to read from a
+                  music stand, in the smallest type on the panel. */}
+              {(() => {
+                const scaleLabel =
                   martinoMap
                     ? `Martino → ${martinoMap.displayRoot}m${martinoMap.displayQuality === "min7b5" ? " (melodic)" : ""}`
                     : scaleFilter === "hexchord"
@@ -2015,8 +2083,48 @@ export default function Home() {
                     : scaleFilter === "barry"
                     ? `Barry 6th-Dim (${barryHarrisScale(fretboardBar.userTonic ?? fretboardBar.root, fretboardBar.quality).family})`
                     : (scaleFilter ?? fretboardScaleData[0]?.name ?? "")
-                }` : ""}
-              </div>
+                const scaleTonic = fretboardBar.userTonic ?? fretboardBar.root
+                const isLive = isPlaying && playheadIndex !== null
+                return (
+                  <div
+                    aria-live="polite"
+                    style={{
+                      marginLeft: "auto", textAlign: "right", lineHeight: 1.1,
+                      padding: "8px 16px", borderRadius: "var(--db-r-md)",
+                      border: `2px solid ${isLive ? "var(--db-c-green)" : "var(--db-c-amber)"}`,
+                      background: isLive
+                        ? "color-mix(in srgb, var(--db-c-green) 14%, var(--db-bg))"
+                        : "color-mix(in srgb, var(--db-c-amber) 10%, var(--db-bg))",
+                      boxShadow: isLive
+                        ? "0 0 16px color-mix(in srgb, var(--db-c-green) 30%, transparent)"
+                        : "none",
+                      minWidth: "180px",
+                    }}
+                  >
+                    <div style={{ fontSize: "var(--db-fs-xs)", letterSpacing: "0.12em", opacity: 0.7, marginBottom: "3px" }}>
+                      {isLive ? "NOW PLAYING" : "SELECTED"} · BAR {barLabels[fretboardBarIndex] ?? fretboardBarIndex + 1}
+                    </div>
+                    <div style={{
+                      fontSize: "2.4rem", fontWeight: 800, letterSpacing: "-0.01em",
+                      color: isLive ? "var(--db-c-green)" : "var(--db-c-amber)",
+                    }}>
+                      {fretboardBar.symbol}
+                    </div>
+                    <div style={{ fontSize: "var(--db-fs-lg)", fontWeight: 700, marginTop: "3px", color: "var(--db-c-blue)" }}>
+                      {scaleLabel
+                        ? (martinoMap || scaleFilter === "hexchord" || scaleFilter === "barry"
+                            ? scaleLabel
+                            : `${scaleTonic} ${scaleLabel}`)
+                        : "—"}
+                    </div>
+                    {displayedScaleNotes.length > 0 && (
+                      <div style={{ fontSize: "var(--db-fs-sm)", opacity: 0.75, marginTop: "3px", letterSpacing: "0.04em" }}>
+                        {displayedScaleNotes.join(" · ")}
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
             </div>
 
             <div className="db-mobile-only" style={{ fontSize: "var(--db-fs-xs)", opacity: 0.6, marginBottom: "4px" }}>
@@ -2468,41 +2576,65 @@ export default function Home() {
                     </div>
                   </div>
 
-                  {/* Per-bar tonic / scale override */}
-                  <div style={{
-                    marginBottom: "8px", paddingTop: "6px",
-                    borderTop: "1px solid var(--db-card-border)",
-                  }}>
-                    <div style={{ fontSize: "var(--db-fs-xs)", opacity: 0.6, marginBottom: "3px" }}>SCALE</div>
-                    <div style={{ display: "flex", gap: "3px" }} onClick={(e) => e.stopPropagation()}>
-                      <select
-                        value={bar.userTonic ?? ""}
-                        onChange={(e) => updateBar(index, { userTonic: e.target.value || undefined })}
-                        style={{
-                          flex: 1, padding: "2px 3px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-xs)",
-                          background: "var(--db-input-bg)", border: "1px solid var(--db-card-border)",
-                          color: bar.userTonic ? "var(--db-accent)" : "var(--db-muted)",
-                        }}
-                      >
-                        <option value="">root</option>
-                        {ROOTS.map(r => <option key={r} value={r}>{r}</option>)}
-                      </select>
-                      <select
-                        value={bar.userScale ?? ""}
-                        onChange={(e) => updateBar(index, { userScale: e.target.value || undefined })}
-                        style={{
-                          flex: 2, padding: "2px 3px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-xs)",
-                          background: "var(--db-input-bg)", border: "1px solid var(--db-card-border)",
-                          color: bar.userScale ? "var(--db-accent)" : "var(--db-muted)",
-                        }}
-                      >
-                        <option value="">auto</option>
-                        {getRecommendedScalesFromQuality(bar.quality).map(s => (
-                          <option key={s} value={s}>{s}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
+                  {/* Per-bar tonic / scale override.
+                      Every key and every scale is listed: the picker used to
+                      offer only the two or three scales recommended for the
+                      chord quality, which meant a legitimate choice like A
+                      harmonic minor over the Bm7b5 of a minor ii-V-i simply
+                      wasn't on the menu. The best fits still lead — ranked by
+                      how much of the chord each scale actually contains. */}
+                  {(() => {
+                    const scaleTonic = bar.userTonic ?? bar.root
+                    const ranked = rankScalesForChord(bar.symbol, bar.quality, scaleTonic)
+                    const best = ranked.slice(0, 3)
+                    return (
+                      <div style={{
+                        marginBottom: "8px", paddingTop: "6px",
+                        borderTop: "1px solid var(--db-card-border)",
+                      }}>
+                        <div style={{ fontSize: "var(--db-fs-xs)", opacity: 0.6, marginBottom: "3px" }}>KEY &amp; SCALE</div>
+                        <div style={{ display: "flex", gap: "3px" }} onClick={(e) => e.stopPropagation()}>
+                          <select
+                            value={bar.userTonic ?? ""}
+                            onChange={(e) => updateBar(index, { userTonic: e.target.value || undefined })}
+                            title="Play the scale from this key instead of the chord root"
+                            style={{
+                              flex: 1, padding: "2px 3px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-xs)",
+                              background: "var(--db-input-bg)", border: "1px solid var(--db-card-border)",
+                              color: bar.userTonic ? "var(--db-accent)" : "var(--db-muted)",
+                            }}
+                          >
+                            <option value="">root ({bar.root})</option>
+                            {ROOTS.map(r => <option key={r} value={r}>{r}</option>)}
+                          </select>
+                          <select
+                            value={bar.userScale ?? ""}
+                            onChange={(e) => updateBar(index, { userScale: e.target.value || undefined })}
+                            title={`Scales ranked by fit over ${bar.symbol} from ${scaleTonic}`}
+                            style={{
+                              flex: 2, padding: "2px 3px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-xs)",
+                              background: "var(--db-input-bg)", border: "1px solid var(--db-card-border)",
+                              color: bar.userScale ? "var(--db-accent)" : "var(--db-muted)",
+                            }}
+                          >
+                            <option value="">auto</option>
+                            <optgroup label={`Best over ${bar.symbol} from ${scaleTonic}`}>
+                              {best.map(r => (
+                                <option key={`best-${r.name}`} value={r.name}>
+                                  {r.name} · {Math.round(r.fit * 100)}%
+                                </option>
+                              ))}
+                            </optgroup>
+                            {SCALE_CATALOG.map(g => (
+                              <optgroup key={g.group} label={g.group}>
+                                {g.scales.map(s => <option key={`${g.group}-${s}`} value={s}>{s}</option>)}
+                              </optgroup>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    )
+                  })()}
 
                   {/* Add bar button */}
                   <button

@@ -1,31 +1,45 @@
 "use client"
 
 // SongSearch — a search bar for the songbook that filters across all built-in
-// forms and the user's cloud library, then loads the pick via the existing
-// loadForm handler. Additive: sits next to the Form select, removes nothing.
+// forms, the Gig Book, and the user's cloud library, then loads the pick
+// through the caller's handler. Additive: sits next to the Form select,
+// removes nothing.
 
 import { useMemo, useRef, useState, useEffect } from "react"
 
-export default function SongSearch({ formCategories = {}, userLibrary = [], selectedForm, onPick }) {
+export default function SongSearch({
+  formCategories = {},
+  userLibrary = [],
+  gigSongs = [],
+  selectedForm,
+  onPick,
+  placeholder = "Search songs…",
+}) {
   const [query, setQuery] = useState("")
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(0)
   const wrapRef = useRef(null)
 
-  // Flatten every song into { name, group } once
+  // Flatten every song into { name, group, artist, gig } once
   const index = useMemo(() => {
     const rows = []
+    for (const e of userLibrary) rows.push({ name: e.name, group: "My Library" })
     for (const [cat, names] of Object.entries(formCategories)) {
       for (const name of names) rows.push({ name, group: cat })
     }
-    for (const e of userLibrary) rows.push({ name: e.name, group: "My Library" })
+    // Gig Book tunes carry a reference artist, so they can be found the way you
+    // remember them ("that Wes tune") rather than only by title.
+    for (const s of gigSongs) {
+      rows.push({ name: s.title, group: "Gig Book", artist: s.refArtist || s.credit || "", gig: s })
+    }
     return rows
-  }, [formCategories, userLibrary])
+  }, [formCategories, userLibrary, gigSongs])
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase()
     if (!q) return index.slice(0, 40)
-    // Rank: startsWith beats includes; word-boundary beats mid-word
+    // Rank: startsWith beats includes; word-boundary beats mid-word;
+    // an artist match sits below every title match.
     const scored = index
       .map((r) => {
         const n = r.name.toLowerCase()
@@ -33,6 +47,8 @@ export default function SongSearch({ formCategories = {}, userLibrary = [], sele
         if (n.startsWith(q)) score = 0
         else if (n.split(/[\s(/-]+/).some((w) => w.startsWith(q))) score = 1
         else if (n.includes(q)) score = 2
+        else if ((r.artist || "").toLowerCase().includes(q)) score = 3
+        else if ((r.group || "").toLowerCase().includes(q)) score = 4
         return { ...r, score }
       })
       .filter((r) => r.score >= 0)
@@ -48,8 +64,8 @@ export default function SongSearch({ formCategories = {}, userLibrary = [], sele
     return () => document.removeEventListener("mousedown", onDocClick)
   }, [])
 
-  function pick(name) {
-    onPick(name)
+  function pick(row) {
+    onPick(row.name, row)
     setQuery("")
     setOpen(false)
   }
@@ -58,7 +74,7 @@ export default function SongSearch({ formCategories = {}, userLibrary = [], sele
     if (!open && (e.key === "ArrowDown" || e.key === "Enter")) { setOpen(true); return }
     if (e.key === "ArrowDown") { e.preventDefault(); setActive((i) => Math.min(i + 1, results.length - 1)) }
     else if (e.key === "ArrowUp") { e.preventDefault(); setActive((i) => Math.max(i - 1, 0)) }
-    else if (e.key === "Enter") { e.preventDefault(); if (results[active]) pick(results[active].name) }
+    else if (e.key === "Enter") { e.preventDefault(); if (results[active]) pick(results[active]) }
     else if (e.key === "Escape") { setOpen(false) }
   }
 
@@ -75,7 +91,7 @@ export default function SongSearch({ formCategories = {}, userLibrary = [], sele
           onChange={(e) => { setQuery(e.target.value); setOpen(true); setActive(0) }}
           onFocus={() => setOpen(true)}
           onKeyDown={onKeyDown}
-          placeholder="Search songs…"
+          placeholder={placeholder}
           aria-label="Search the songbook"
           style={{
             width: "100%",
@@ -118,7 +134,7 @@ export default function SongSearch({ formCategories = {}, userLibrary = [], sele
                 role="option"
                 aria-selected={isActive}
                 onMouseEnter={() => setActive(i)}
-                onMouseDown={(e) => { e.preventDefault(); pick(r.name) }}
+                onMouseDown={(e) => { e.preventDefault(); pick(r) }}
                 style={{
                   display: "flex",
                   justifyContent: "space-between",
@@ -139,6 +155,9 @@ export default function SongSearch({ formCategories = {}, userLibrary = [], sele
                       {n.slice(hit + q.length)}
                     </>
                   ) : n}
+                  {r.artist && (
+                    <span style={{ fontSize: "var(--db-fs-xs)", opacity: 0.5, marginLeft: "6px" }}>{r.artist}</span>
+                  )}
                 </span>
                 <span style={{ fontSize: "var(--db-fs-xs)", opacity: 0.5, whiteSpace: "nowrap" }}>{r.group}</span>
               </div>

@@ -335,6 +335,96 @@ export function getRecommendedScalesFromQuality(quality) {
   }
 }
 
+// ─── Full scale catalogue ────────────────────────────────────────────────────
+// Every scale the per-bar SCALE picker can offer, grouped for the dropdown.
+// The old picker only listed the two or three scales recommended for the chord
+// quality, which ruled out perfectly good choices — you couldn't play A
+// harmonic minor over the Bm7b5 of a minor ii-V-i, for instance. Names are
+// Tonal.js scale names (or its aliases) so scaleNotes() resolves all of them.
+export const SCALE_CATALOG = [
+  { group: "Major modes", scales: [
+    "major", "dorian", "phrygian", "lydian", "mixolydian", "aeolian", "locrian",
+  ] },
+  { group: "Melodic minor modes", scales: [
+    "melodic minor", "dorian b2", "lydian augmented", "lydian dominant",
+    "mixolydian b6", "locrian #2", "altered",
+  ] },
+  { group: "Harmonic minor & major", scales: [
+    "harmonic minor", "locrian 6", "phrygian dominant", "lydian #9",
+    "ultralocrian", "harmonic major", "dorian #4", "double harmonic major",
+  ] },
+  { group: "Symmetric", scales: [
+    "whole tone", "diminished", "half-whole diminished", "augmented",
+  ] },
+  { group: "Bebop", scales: [
+    "bebop", "bebop major", "bebop minor", "bebop locrian", "minor six diminished",
+  ] },
+  { group: "Pentatonic & blues", scales: [
+    "major pentatonic", "minor pentatonic", "major blues", "minor blues",
+    "minor six pentatonic", "lydian pentatonic", "mixolydian pentatonic",
+    "lydian dominant pentatonic", "in-sen", "egyptian",
+  ] },
+  { group: "Hexatonic", scales: [
+    "minor hexatonic", "prometheus", "six tone symmetric", "whole tone pentatonic",
+  ] },
+  { group: "Exotic", scales: [
+    "hungarian minor", "hungarian major", "persian", "flamenco", "oriental",
+    "neapolitan major", "enigmatic", "hirajoshi", "iwato", "balinese",
+    "spanish heptatonic", "leading whole tone",
+  ] },
+]
+
+// Flat list, catalogue order — the "regular order" half of the picker.
+export const ALL_SCALE_NAMES = SCALE_CATALOG.flatMap(g => g.scales)
+
+/**
+ * Rank every catalogued scale by how well it fits a chord, played from `tonic`.
+ *
+ * Fit is chord-tone coverage: what fraction of the chord's notes the scale
+ * actually contains, which is what decides whether a scale sounds like the
+ * chord or against it. Curated recommendations for the quality get a bump so
+ * the familiar answer still leads, and denser scales are nudged down so an
+ * eight-note scale doesn't beat the seven-note one it contains.
+ *
+ * @returns {{name: string, group: string, fit: number, score: number, recommended: boolean}[]}
+ */
+const _rankCache = new Map()
+
+export function rankScalesForChord(symbol, quality, tonic) {
+  const cacheKey = `${symbol}|${quality}|${tonic}`
+  // The lead sheet grid asks for this on every bar of every render, and the
+  // answer only depends on these three strings.
+  const cached = _rankCache.get(cacheKey)
+  if (cached) return cached
+
+  const chordChromas = [...new Set(
+    chordNotes(symbol).map(n => Note.chroma(n)).filter(c => c != null)
+  )]
+  const curated = getRecommendedScalesFromQuality(quality) || []
+  const groupOf = {}
+  SCALE_CATALOG.forEach(g => g.scales.forEach(s => { groupOf[s] = g.group }))
+
+  const ranked = ALL_SCALE_NAMES.map((name, i) => {
+    const notes = scaleNotes(name, tonic)
+    const chromas = new Set(notes.map(n => Note.chroma(n)).filter(c => c != null))
+    const covered = chordChromas.filter(c => chromas.has(c)).length
+    const fit = chordChromas.length ? covered / chordChromas.length : 0
+    const curatedIdx = curated.indexOf(name)
+    const score =
+      fit * 100 +
+      (curatedIdx >= 0 ? 14 - curatedIdx * 3 : 0) -
+      Math.abs((notes.length || 7) - 7) * 0.75 -
+      // Catalogue order runs from workhorse to exotic. Worth a fraction of a
+      // point so ties break towards the everyday scale rather than alphabetically
+      // — never enough to outrank a genuinely better fit.
+      i * 0.06
+    return { name, group: groupOf[name] ?? "", fit, score, recommended: curatedIdx >= 0 }
+  }).sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
+
+  _rankCache.set(cacheKey, ranked)
+  return ranked
+}
+
 export function suggestSubstitution(bar) {
   const { root, quality } = bar
 
