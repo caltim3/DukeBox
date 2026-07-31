@@ -109,11 +109,13 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
   const [withBand, setWithBand] = useState(false)
   const [muteLine, setMuteLine] = useState(false)
   const [ramp, setRamp] = useState(false)
-  const [rampCap, setRampCap] = useState(120)
+  const [rampCap, setRampCap] = useState(160)
   const [liveTempo, setLiveTempo] = useState(120)
   const prevBarRef = useRef(-1)
   const rampTempoRef = useRef(120)
+  const rampCapRef = useRef(160)
   const RAMP_STEP = 5
+  const RAMP_HEADROOM = 40   // default room above the current tempo to ramp into
 
   const bars = useMemo(() => parseBars(sheet), [sheet])
 
@@ -175,7 +177,7 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
   // step the transport bpm up until the cap.
   function onBandBar(localBarIdx) {
     if (prevBarRef.current > localBarIdx && ramp) {
-      const next = Math.min(rampCap, rampTempoRef.current + RAMP_STEP)
+      const next = Math.min(rampCapRef.current, rampTempoRef.current + RAMP_STEP)
       rampTempoRef.current = next
       setLiveTempo(next)
       import("tone").then((Tone) => {
@@ -199,6 +201,12 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
       prevBarRef.current = -1
       rampTempoRef.current = tempo
       setLiveTempo(tempo)
+      // The tempo slider may have been pushed past the cap since the ramp was
+      // switched on. Seed the effective cap in a ref: the onBar callback below
+      // is handed to the audio engine now and would close over a stale value.
+      const cap = rampCap > tempo ? rampCap : tempo + RAMP_HEADROOM
+      rampCapRef.current = cap
+      if (cap !== rampCap) setRampCap(cap)
       setPlaying(true)
       playLineSection({
         line: result,
@@ -460,15 +468,31 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
                 {muteLine ? "Line muted" : "Line on"}
               </button>
             )}
-            <button onClick={() => setRamp((v) => !v)} aria-pressed={ramp} style={chip(ramp)}>
-              Ramp +{RAMP_STEP}
-            </button>
-            {ramp && (
+            {/* Ramp only means something with the band: the solo preview plays
+                through once and stops, so it never wraps to step the tempo. */}
+            {withBand && (
+              <button
+                onClick={() => {
+                  const next = !ramp
+                  // A cap at or below the current tempo would pin the ramp in
+                  // place, so lift it clear when switching on.
+                  if (next && rampCap <= tempo) setRampCap(tempo + RAMP_HEADROOM)
+                  setRamp(next)
+                }}
+                aria-pressed={ramp}
+                title={`Step the tempo up ${RAMP_STEP} bpm each time the loop comes around`}
+                style={chip(ramp)}
+              >
+                Ramp +{RAMP_STEP}
+              </button>
+            )}
+            {withBand && ramp && (
               <label style={{ fontSize: "var(--db-fs-xs)", opacity: 0.7, display: "flex", alignItems: "center", gap: "4px" }}>
                 to
                 <input
-                  type="number" min={60} max={320} value={rampCap}
+                  type="number" min={tempo + RAMP_STEP} max={320} value={rampCap}
                   onChange={(e) => setRampCap(Number(e.target.value))}
+                  title="Stop speeding up once you reach this tempo"
                   style={{
                     width: "62px", padding: "3px 6px", borderRadius: "var(--db-r-sm, 6px)",
                     background: "var(--db-input-bg)", color: "var(--db-text)",
@@ -493,7 +517,7 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
               <label style={{ fontSize: "var(--db-fs-sm)", color: "var(--db-accent)" }}>The line</label>
               <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                 <span style={{ fontSize: "var(--db-fs-xs)", opacity: 0.62 }}>
-                  {ramp && playing ? `${liveTempo}\u2191` : tempo} bpm
+                  {ramp && withBand && playing ? `${liveTempo}\u2191` : tempo} bpm
                 </span>
                 <input
                   type="range" min={60} max={220} value={tempo}
