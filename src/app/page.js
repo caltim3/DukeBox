@@ -35,6 +35,8 @@ import Fretboard from "@/components/Fretboard"
 import Runway from "@/components/Runway"
 import MetronomePanel from "@/components/MetronomePanel"
 import LineLab from "@/components/LineLab"
+import SongSearch from "@/components/SongSearch"
+import { lineToTransportEvents } from "@/lib/music/lines"
 import SongCrafter from "@/components/SongCrafter"
 import GigMode from "@/components/GigMode"
 import { useAuth, useCloudLibrary } from "@/lib/cloud"
@@ -856,6 +858,41 @@ export default function Home() {
     toastTimer.current = setTimeout(() => setToast(null), 2200)
   }
 
+  // Line Lab practice playback: loop a chosen stretch of the chart with the
+  // rhythm section and (optionally) the generated line, at a practice tempo.
+  async function playLineSection({ line, startIndex, endIndex, practiceTempo, muteLine, onBar, onLineNote, onDone }) {
+    playingRef.current = false
+    stopPlayback()
+    playingRef.current = true
+    const lo = Math.max(0, Math.min(startIndex ?? 0, bars.length - 1))
+    const hi = Math.max(lo, Math.min(endIndex ?? lo, bars.length - 1))
+    const slicedBars = bars.slice(lo, hi + 1)
+    const lineEvents = (line && !muteLine) ? lineToTransportEvents(line.bars, slicedBars) : null
+    setIsPlaying(true)
+    const { startPlayback: audioStart } = await loadAudio()
+    try {
+      await audioStart({
+        bars:       slicedBars,
+        tempo:      practiceTempo || tempo,
+        loop:       true,
+        swing:      swingAmount,
+        playChords, playBass, playDrums,
+        playMelody: false,
+        compingStyle, bassStyle, bassComplexity, drumKit, reverbAmount,
+        drumStyle:  drumStyleIdx,
+        lineEvents,
+        onLineNote,
+        onBar:  (localIdx) => { setPlayheadIndex(lo + localIdx); onBar?.(localIdx) },
+        onStop: () => { playingRef.current = false; setIsPlaying(false); setPlayheadIndex(null); onDone?.() },
+      })
+    } catch (err) {
+      console.error("Line practice audio error:", err)
+      playingRef.current = false
+      setIsPlaying(false)
+      onDone?.()
+    }
+  }
+
   function stopPlayback() {
     playingRef.current = false
     _audioMod?.stopAll()   // no-op if audio hasn't been loaded yet
@@ -1476,6 +1513,13 @@ export default function Home() {
                 )}
               </select>
             </label>
+
+            <SongSearch
+              formCategories={FORM_CATEGORIES}
+              userLibrary={userLibrary}
+              selectedForm={selectedForm}
+              onPick={(name) => loadForm(name, { exitPractice: true })}
+            />
 
             {userLibrary.some((e) => e.name === selectedForm) && (
               <button
@@ -2587,6 +2631,7 @@ export default function Home() {
           chartBars={bars}
           chartTitle={selectedForm}
           onStopPlayback={stopPlayback}
+          playLineSection={playLineSection}
           panelStyle={panelStyle}
           eyebrowStyle={eyebrowStyle}
           selectStyle={selectStyle}
