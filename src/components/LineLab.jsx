@@ -79,23 +79,92 @@ function parseBars(text) {
   return bars
 }
 
+// Where a note falls in the bar, counted the way you'd count it out loud:
+// "1 & 2 &" for eighths, "1 e & a" for sixteenths, "1 trp let" for triplets.
+// The row above the tab used to read "e e e e" — the duration of each note,
+// not its place in the bar, which is the thing you actually need to read.
+function countLabel(posInBar) {
+  const beat = Math.floor(posInBar + 1e-6)
+  const frac = posInBar - beat
+  const near = (x) => Math.abs(frac - x) < 0.02
+  if (near(0))     return String(beat + 1)
+  if (near(1 / 3)) return "trp"
+  if (near(2 / 3)) return "let"
+  if (near(0.5))   return "&"
+  if (near(0.25))  return "e"
+  if (near(0.75))  return "a"
+  return "·"
+}
+
 function buildTab(resultBars) {
   const stringLines = [[], [], [], [], [], []]
-  const rhythm = []
+  const chordRow = []
+  const countRow = []
+  const durRow = []
+
   resultBars.forEach((bar) => {
-    (bar.n || []).forEach(([s, f, b]) => {
-      const fretStr = String(f)
-      const w = Math.max(fretStr.length + 2, 3)
-      for (let i = 0; i < 6; i++) {
-        stringLines[i].push(i === s - 1 ? fretStr.padEnd(w, "-") : "-".repeat(w))
-      }
-      rhythm.push(durLabel(b).padEnd(w, " "))
+    const notes = bar.n || []
+    const syms = String(bar.c || "").trim().split(/\s+/).filter(Boolean)
+    const barBeats = notes.reduce((n, ev) => n + (Number(ev[2]) || 0), 0) || 4
+
+    // Size each column first: wide enough for the fret, the count syllable,
+    // and a space, so nothing in the header rows runs together. Each cell also
+    // records which of the bar's chords is sounding over it.
+    let pos = 0
+    const cells = notes.map(([s, f, b]) => {
+      const fret = String(f)
+      const count = countLabel(pos)
+      const ci = syms.length > 1
+        ? Math.min(syms.length - 1, Math.floor((pos / barBeats) * syms.length))
+        : 0
+      pos += b
+      return { s, fret, count, ci, dur: durLabel(b), w: Math.max(fret.length + 2, count.length + 1, 3) }
     })
+
+    if (!cells.length) {
+      const width = Math.max(String(bar.c || "").length + 1, 4)
+      for (let i = 0; i < 6; i++) stringLines[i].push("-".repeat(width))
+      chordRow.push(String(bar.c || "").padEnd(width, " "))
+      countRow.push(" ".repeat(width))
+      durRow.push(" ".repeat(width))
+    } else {
+      // A chord name sits over the beat where it comes in, so the columns it
+      // spans have to be wide enough to hold it.
+      const groups = []
+      for (const c of cells) {
+        const last = groups[groups.length - 1]
+        if (last && last.ci === c.ci) last.cells.push(c)
+        else groups.push({ ci: c.ci, cells: [c] })
+      }
+      for (const g of groups) {
+        const name = syms[g.ci] ?? ""
+        const width = g.cells.reduce((n, c) => n + c.w, 0)
+        if (name.length + 1 > width) g.cells[g.cells.length - 1].w += name.length + 1 - width
+        chordRow.push(name.padEnd(g.cells.reduce((n, c) => n + c.w, 0), " "))
+      }
+
+      for (const c of cells) {
+        for (let i = 0; i < 6; i++) {
+          stringLines[i].push(i === c.s - 1 ? c.fret.padEnd(c.w, "-") : "-".repeat(c.w))
+        }
+        countRow.push(c.count.padEnd(c.w, " "))
+        durRow.push(c.dur.padEnd(c.w, " "))
+      }
+    }
+
     for (let i = 0; i < 6; i++) stringLines[i].push("|")
-    rhythm.push(" ")
+    chordRow.push(" ")
+    countRow.push(" ")
+    durRow.push(" ")
   })
+
   const labels = ["e|", "B|", "G|", "D|", "A|", "E|"]
-  return "  " + rhythm.join("") + "\n" + stringLines.map((c, i) => labels[i] + c.join("")).join("\n")
+  return [
+    "  " + chordRow.join("").trimEnd(),
+    "  " + countRow.join("").trimEnd(),
+    "  " + durRow.join("").trimEnd(),
+    ...stringLines.map((c, i) => labels[i] + c.join("")),
+  ].join("\n")
 }
 
 export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyle, selectStyle, onStopPlayback, playLineSection }) {
@@ -126,11 +195,13 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
 
   // Practice transport: play the line in the pocket with the rhythm section
   const [withBand, setWithBand] = useState(false)
+  const [withChords, setWithChords] = useState(true)
   const [muteLine, setMuteLine] = useState(false)
   const [ramp, setRamp] = useState(false)
   const [rampCap, setRampCap] = useState(160)
   const [liveTempo, setLiveTempo] = useState(120)
   const prevBarRef = useRef(-1)
+  const lastChordRef = useRef(null)   // which chord the solo preview last struck
   const rampTempoRef = useRef(120)
   const rampCapRef = useRef(160)
   const RAMP_STEP = 5
@@ -149,10 +220,29 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
     setResult(null)
   }, [selStart, selEnd, sheet])
 
+  // Each note carries the chord that should be sounding under it, so the solo
+  // preview can comp along. A bar's `c` may name more than one chord
+  // ("Bm7b5 E7b9"); those split the bar evenly, in written order.
   const flatNotes = useMemo(() => {
     if (!result) return []
     const out = []
-    result.bars.forEach((bar, bi) => (bar.n || []).forEach(([s, f, b]) => out.push({ s, f, b, bi })))
+    result.bars.forEach((bar, bi) => {
+      const notes = bar.n || []
+      const syms = String(bar.c || "").trim().split(/\s+/).filter(Boolean)
+      const barBeats = notes.reduce((n, ev) => n + (Number(ev[2]) || 0), 0) || 4
+      let pos = 0
+      notes.forEach(([s, f, b]) => {
+        const ci = syms.length > 1
+          ? Math.min(syms.length - 1, Math.floor((pos / barBeats) * syms.length))
+          : 0
+        out.push({ s, f, b, bi, chord: syms[ci] || "", chordKey: `${bi}:${ci}` })
+        pos += b
+      })
+    })
+    // How long each chord rings: until the next chord change.
+    const spans = {}
+    for (const n of out) spans[n.chordKey] = (spans[n.chordKey] || 0) + n.b
+    for (const n of out) n.chordBeats = spans[n.chordKey]
     return out
   }, [result])
 
@@ -184,10 +274,18 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
     } catch { /* preview is non-essential — stay silent rather than throw */ }
   }
 
+  async function playChord(symbol, beats) {
+    try {
+      const audio = await import("@/lib/music/audio")
+      await audio.playChordStab(symbol, Math.max(0.4, beats * (60 / tempo)))
+    } catch { /* preview is non-essential — stay silent rather than throw */ }
+  }
+
   function stopLine() {
     setPlaying(false)
     setPlayIdx(-1)
     prevBarRef.current = -1
+    lastChordRef.current = null
     clearTimeout(timerRef.current)
     if (withBand) onStopPlayback?.()
   }
@@ -249,6 +347,11 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
     if (withBand && playLineSection) return   // band mode is driven by the transport
     if (playIdx >= flatNotes.length) { stopLine(); return }
     const note = flatNotes[playIdx]
+    // Comp the harmony under the line: strike each chord as the line reaches it.
+    if (withChords && note.chord && note.chordKey !== lastChordRef.current) {
+      lastChordRef.current = note.chordKey
+      playChord(note.chord, note.chordBeats)
+    }
     playNote(note.s, note.f)
     const ms = note.b * (60 / tempo) * 1000
     timerRef.current = setTimeout(() => setPlayIdx(i => i + 1), ms)
@@ -493,6 +596,17 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
                 {muteLine ? "Line muted" : "Line on"}
               </button>
             )}
+            {/* Solo preview only — with the band on, the piano is already comping. */}
+            {!withBand && (
+              <button
+                onClick={() => setWithChords((v) => !v)}
+                aria-pressed={withChords}
+                title="Sound each chord on the piano as the line reaches it"
+                style={chip(withChords)}
+              >
+                {withChords ? "Chords on" : "Chords off"}
+              </button>
+            )}
             {/* Ramp only means something with the band: the solo preview plays
                 through once and stops, so it never wraps to step the tempo. */}
             {withBand && (
@@ -529,7 +643,9 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
             <span style={{ fontSize: "var(--db-fs-xs)", opacity: 0.55, flex: "1 1 220px" }}>
               {withBand
                 ? "Loops your selected bars with the band. Mute the line and play it yourself."
-                : "Solo preview. Turn on the rhythm section to practice in the pocket."}
+                : withChords
+                ? "Solo preview with piano chords under the line. Turn on the rhythm section to practice in the pocket."
+                : "Solo preview, line only. Turn on the rhythm section to practice in the pocket."}
             </span>
           </div>
 

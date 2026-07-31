@@ -300,6 +300,32 @@ export async function playSingleNote(noteWithOctave, dur = "8n", vel = 0.8) {
   } catch { /* out-of-range note — skip rather than throw */ }
 }
 
+/**
+ * Sound one chord through the shared piano sampler.
+ * Line Lab's solo preview steps notes on a wall-clock timer with no transport
+ * of its own, so it needs a way to put the harmony under the line — otherwise
+ * you're hearing an improvised line with nothing to hear it against.
+ *
+ * @param {string} symbol - chord symbol, e.g. "Am7", "Bm7b5", "F#7alt"
+ * @param {number|string} dur - how long it rings (seconds, or a Tone duration)
+ */
+export async function playChordStab(symbol, dur = 2, vel = 0.45) {
+  // "alt" is a scale suggestion, not a chord type — voice it as a plain dom7,
+  // the same reading the transport's comping uses.
+  const cleaned = String(symbol || "").replace(/alt.*$/i, "").trim()
+  if (!cleaned || !getChord(cleaned).notes?.length) return
+  await Tone.start()
+  ensureSynths()
+  await initSamplers()
+  const { piano: pianoSampler } = getSamplers() ?? {}
+  const notes = chordVoicing(cleaned, false)
+  const now = Tone.now()
+  try {
+    if (pianoSampler) pianoSampler.triggerAttackRelease(notes, dur, now, vel)
+    else piano.triggerAttackRelease(notes, dur, now, vel)
+  } catch { /* unvoiceable chord — stay silent rather than throw */ }
+}
+
 export function stopAll() {
   const t = Tone.getTransport()
   t.stop()
