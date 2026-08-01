@@ -139,7 +139,13 @@ const MODES = [
   { id: "write",     label: "Write",     icon: "✍️", blurb: "Generate, edit, and arrange a chart" },
   { id: "gig",       label: "Gig",       icon: "🎤", blurb: "Stage charts and setlists" },
   { id: "reference", label: "Reference", icon: "📖", blurb: "Circle of fifths, key chart, progressions" },
+  { id: "tonal",     label: "Tonal",     icon: "🎹", blurb: "The published Tonal app, embedded as-is" },
 ]
+
+// Tonal is embedded rather than ported: the live site is loaded in a frame
+// exactly as published, so it stays whatever it already is and nothing here
+// has to be kept in sync with it.
+const TONAL_URL = "https://caltim3.github.io/tonal/"
 
 const STARTER_PRESETS = [
   { id: "jazz-blues-bb",  label: "Jazz Blues in Bb" },
@@ -1336,6 +1342,54 @@ export default function Home() {
               eyebrowStyle={eyebrowStyle}
               selectStyle={selectStyle}
             />
+          </div>
+        )}
+
+        {/* ── Tonal ─────────────────────────────────────────────────
+            Embedded untouched from its own deployment. Everything inside
+            the frame is Tonal's — DukeBox neither styles nor drives it. */}
+        {inMode("tonal") && (
+          <div style={{ ...panelStyle, marginBottom: "16px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "10px", flexWrap: "wrap" }}>
+              <div style={{ ...eyebrowStyle, marginBottom: 0 }}>TONAL</div>
+              <div style={{ fontSize: "var(--db-fs-sm)", opacity: 0.6 }}>
+                The live app, exactly as published — nothing here modifies it
+              </div>
+              <a
+                href={TONAL_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  marginLeft: "auto",
+                  padding: "6px 12px", borderRadius: "var(--db-r-md)",
+                  border: "1px solid var(--db-panel-border)", background: "var(--db-panel-bg)",
+                  color: "var(--db-accent)", fontSize: "var(--db-fs-sm)", fontWeight: 600,
+                  textDecoration: "none",
+                }}
+                title="Open Tonal in its own browser tab"
+              >
+                Open in a new tab ↗
+              </a>
+            </div>
+
+            <iframe
+              src={TONAL_URL}
+              title="Tonal"
+              // No sandbox attribute: Tonal needs its own storage and audio,
+              // and sandboxing would break the app we're deliberately not touching.
+              allow="autoplay; fullscreen; microphone"
+              style={{
+                width: "100%", height: "min(82vh, 900px)", minHeight: "520px",
+                border: "1px solid var(--db-panel-border)",
+                borderRadius: "var(--db-r-md)",
+                background: "#fff",
+                display: "block",
+              }}
+            />
+
+            <div style={{ fontSize: "var(--db-fs-xs)", opacity: 0.6, marginTop: "6px" }}>
+              Not loading? Some browsers and extensions block embedded pages — use “Open in a new tab”.
+            </div>
           </div>
         )}
 
