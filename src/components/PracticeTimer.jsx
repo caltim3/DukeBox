@@ -39,7 +39,7 @@ async function chime() {
   } catch { /* the visual state is the real signal — never throw over a bell */ }
 }
 
-export default function PracticeTimer({ onFinish, inlineLabelStyle, selectStyle }) {
+export default function PracticeTimer({ onFinish, onState, inlineLabelStyle, selectStyle }) {
   const [duration, setDuration] = useState(DEFAULT_SECONDS)
   const [remaining, setRemaining] = useState(DEFAULT_SECONDS)
   const [running, setRunning] = useState(false)
@@ -53,6 +53,21 @@ export default function PracticeTimer({ onFinish, inlineLabelStyle, selectStyle 
   const stopBandRef = useRef(stopBand)
   useEffect(() => { onFinishRef.current = onFinish }, [onFinish])
   useEffect(() => { stopBandRef.current = stopBand }, [stopBand])
+
+  // Publish a coarse snapshot so the fretboard can mirror the clock. The
+  // countdown itself ticks four times a second; this only fires when the
+  // displayed second (or the run state) actually changes, so mirroring it
+  // doesn't re-render the rest of the page three times for nothing.
+  const onStateRef = useRef(onState)
+  const lastPushRef = useRef(null)
+  useEffect(() => { onStateRef.current = onState }, [onState])
+  useEffect(() => {
+    const seconds = Math.max(0, Math.ceil(remaining))
+    const key = `${seconds}|${running}|${done}|${duration}`
+    if (key === lastPushRef.current) return
+    lastPushRef.current = key
+    onStateRef.current?.({ seconds, running, done, duration })
+  }, [remaining, running, done, duration])
 
   const finish = useCallback(() => {
     setRunning(false)

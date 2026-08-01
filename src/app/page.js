@@ -201,6 +201,9 @@ export default function Home() {
   const [showBarDetails, setShowBarDetails] = useState(false)
   const [toast, setToast] = useState(null)
   const [showStickyPlay, setShowStickyPlay] = useState(false)
+  // Mirrored from PracticeTimer so the fretboard can show the clock too —
+  // { seconds, running, done, duration }, pushed once per displayed second.
+  const [timerState, setTimerState] = useState(null)
 
   // Cloud-synced library (songs + setlists + prefs); auth via Supabase magic link.
   // Degrades to localStorage when signed out or Supabase isn't configured.
@@ -1747,6 +1750,7 @@ export default function Home() {
               <PracticeTimer
                 inlineLabelStyle={inlineLabelStyle}
                 selectStyle={selectStyle}
+                onState={setTimerState}
                 onFinish={({ stopBand }) => {
                   if (stopBand && playingRef.current) stopPlayback()
                   showToast("Practice timer finished")
@@ -2086,10 +2090,46 @@ export default function Home() {
                 const scaleTonic = fretboardBar.userTonic ?? fretboardBar.root
                 const isLive = isPlaying && playheadIndex !== null
                 return (
+                  <div style={{ marginLeft: "auto", display: "flex", alignItems: "stretch", gap: "10px" }}>
+                  {/* Clock mirrored from the practice timer — read-only, so you
+                      can watch the time without looking away from the neck.
+                      Controls stay in the Playback & Practice panel. */}
+                  {timerState && (() => {
+                    const { seconds, running, done, duration } = timerState
+                    const urgent = done || (running && seconds <= 10)
+                    // "Paused" only means something once it has actually run.
+                    const label = done ? "TIME" : running ? "TIMER" : seconds < duration ? "PAUSED" : "TIMER"
+                    const tColor = urgent ? "var(--db-c-salmon)" : running ? "var(--db-c-green)" : "var(--db-muted)"
+                    return (
+                      <div
+                        title="Practice timer — set it in Playback & Practice"
+                        style={{
+                          display: "flex", flexDirection: "column", justifyContent: "center",
+                          textAlign: "right", lineHeight: 1.1,
+                          padding: "8px 14px", borderRadius: "var(--db-r-md)",
+                          border: `2px solid color-mix(in srgb, ${tColor} ${running || done ? "100%" : "40%"}, transparent)`,
+                          background: running || done
+                            ? `color-mix(in srgb, ${tColor} 12%, var(--db-bg))`
+                            : "var(--db-panel-bg)",
+                          opacity: running || done ? 1 : 0.7,
+                        }}
+                      >
+                        <div style={{ fontSize: "var(--db-fs-xs)", letterSpacing: "0.12em", opacity: 0.7, marginBottom: "3px" }}>
+                          {label}
+                        </div>
+                        <div style={{
+                          fontSize: "1.8rem", fontWeight: 800, fontVariantNumeric: "tabular-nums",
+                          color: tColor,
+                        }}>
+                          {Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, "0")}
+                        </div>
+                      </div>
+                    )
+                  })()}
                   <div
                     aria-live="polite"
                     style={{
-                      marginLeft: "auto", textAlign: "right", lineHeight: 1.1,
+                      textAlign: "right", lineHeight: 1.1,
                       padding: "8px 16px", borderRadius: "var(--db-r-md)",
                       border: `2px solid ${isLive ? "var(--db-c-green)" : "var(--db-c-amber)"}`,
                       background: isLive
@@ -2122,6 +2162,7 @@ export default function Home() {
                         {displayedScaleNotes.join(" · ")}
                       </div>
                     )}
+                  </div>
                   </div>
                 )
               })()}
