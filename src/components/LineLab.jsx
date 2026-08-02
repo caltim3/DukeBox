@@ -12,6 +12,7 @@
 //      second AudioContext with a raw oscillator.
 
 import { useEffect, useMemo, useRef, useState } from "react"
+import { buildTab } from "@/lib/music/lines"
 
 const DEVICES = [
   "Chromatics", "Bebop scale", "Enclosures", "Altered",
@@ -49,25 +50,6 @@ const LEVELS = [
 
 // Triplet durations come back as thirds of a beat, so they can't be read off
 // the binary grid — check them first and mark them with a 3.
-const TRIPLETS = [
-  { beats: 4 / 3, label: "h3" },   // half-note triplet
-  { beats: 2 / 3, label: "q3" },   // quarter-note triplet
-  { beats: 1 / 3, label: "e3" },   // eighth-note triplet
-  { beats: 1 / 6, label: "s3" },   // sixteenth-note triplet
-]
-
-function durLabel(b) {
-  const trip = TRIPLETS.find(t => Math.abs(b - t.beats) < 0.02)
-  if (trip) return trip.label
-  if (b >= 4) return "w"
-  if (b >= 3) return "h."
-  if (b >= 2) return "h"
-  if (b >= 1.5) return "q."
-  if (b >= 1) return "q"
-  if (b >= 0.75) return "e."
-  if (b >= 0.5) return "e"
-  return "s"
-}
 
 function parseBars(text) {
   const raw = text.split(/\n|\|/).map(b => b.trim()).filter(Boolean)
@@ -83,90 +65,6 @@ function parseBars(text) {
 // "1 & 2 &" for eighths, "1 e & a" for sixteenths, "1 trp let" for triplets.
 // The row above the tab used to read "e e e e" — the duration of each note,
 // not its place in the bar, which is the thing you actually need to read.
-function countLabel(posInBar) {
-  const beat = Math.floor(posInBar + 1e-6)
-  const frac = posInBar - beat
-  const near = (x) => Math.abs(frac - x) < 0.02
-  if (near(0))     return String(beat + 1)
-  if (near(1 / 3)) return "trp"
-  if (near(2 / 3)) return "let"
-  if (near(0.5))   return "&"
-  if (near(0.25))  return "e"
-  if (near(0.75))  return "a"
-  return "·"
-}
-
-function buildTab(resultBars) {
-  const stringLines = [[], [], [], [], [], []]
-  const chordRow = []
-  const countRow = []
-  const durRow = []
-
-  resultBars.forEach((bar) => {
-    const notes = bar.n || []
-    const syms = String(bar.c || "").trim().split(/\s+/).filter(Boolean)
-    const barBeats = notes.reduce((n, ev) => n + (Number(ev[2]) || 0), 0) || 4
-
-    // Size each column first: wide enough for the fret, the count syllable,
-    // and a space, so nothing in the header rows runs together. Each cell also
-    // records which of the bar's chords is sounding over it.
-    let pos = 0
-    const cells = notes.map(([s, f, b]) => {
-      const fret = String(f)
-      const count = countLabel(pos)
-      const ci = syms.length > 1
-        ? Math.min(syms.length - 1, Math.floor((pos / barBeats) * syms.length))
-        : 0
-      pos += b
-      return { s, fret, count, ci, dur: durLabel(b), w: Math.max(fret.length + 2, count.length + 1, 3) }
-    })
-
-    if (!cells.length) {
-      const width = Math.max(String(bar.c || "").length + 1, 4)
-      for (let i = 0; i < 6; i++) stringLines[i].push("-".repeat(width))
-      chordRow.push(String(bar.c || "").padEnd(width, " "))
-      countRow.push(" ".repeat(width))
-      durRow.push(" ".repeat(width))
-    } else {
-      // A chord name sits over the beat where it comes in, so the columns it
-      // spans have to be wide enough to hold it.
-      const groups = []
-      for (const c of cells) {
-        const last = groups[groups.length - 1]
-        if (last && last.ci === c.ci) last.cells.push(c)
-        else groups.push({ ci: c.ci, cells: [c] })
-      }
-      for (const g of groups) {
-        const name = syms[g.ci] ?? ""
-        const width = g.cells.reduce((n, c) => n + c.w, 0)
-        if (name.length + 1 > width) g.cells[g.cells.length - 1].w += name.length + 1 - width
-        chordRow.push(name.padEnd(g.cells.reduce((n, c) => n + c.w, 0), " "))
-      }
-
-      for (const c of cells) {
-        for (let i = 0; i < 6; i++) {
-          stringLines[i].push(i === c.s - 1 ? c.fret.padEnd(c.w, "-") : "-".repeat(c.w))
-        }
-        countRow.push(c.count.padEnd(c.w, " "))
-        durRow.push(c.dur.padEnd(c.w, " "))
-      }
-    }
-
-    for (let i = 0; i < 6; i++) stringLines[i].push("|")
-    chordRow.push(" ")
-    countRow.push(" ")
-    durRow.push(" ")
-  })
-
-  const labels = ["e|", "B|", "G|", "D|", "A|", "E|"]
-  return [
-    "  " + chordRow.join("").trimEnd(),
-    "  " + countRow.join("").trimEnd(),
-    "  " + durRow.join("").trimEnd(),
-    ...stringLines.map((c, i) => labels[i] + c.join("")),
-  ].join("\n")
-}
-
 export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyle, selectStyle, onStopPlayback, playLineSection }) {
   // Seed the sheet from whatever chart is loaded in DukeBox
   const chartAsSheet = useMemo(

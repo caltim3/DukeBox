@@ -65,3 +65,106 @@ export function lineToTransportEvents(lineBars, sectionBars = []) {
   })
   return events
 }
+
+// ─── Shared tab rendering ─────────────────────────────────────────────────────
+// Extracted from LineLab so every Line Lab surface (Chart lab, Triad Network lab)
+// renders identical ASCII tab. line bars are { c, d, x, n:[[string,fret,beats]] }.
+
+const TAB_TRIPLETS = [
+  { beats: 4 / 3, label: "h3" },
+  { beats: 2 / 3, label: "q3" },
+  { beats: 1 / 3, label: "e3" },
+  { beats: 1 / 6, label: "s3" },
+]
+
+export function durLabel(b) {
+  const trip = TAB_TRIPLETS.find(t => Math.abs(b - t.beats) < 0.02)
+  if (trip) return trip.label
+  if (b >= 4) return "w"
+  if (b >= 3) return "h."
+  if (b >= 2) return "h"
+  if (b >= 1.5) return "q."
+  if (b >= 1) return "q"
+  if (b >= 0.75) return "e."
+  if (b >= 0.5) return "e"
+  return "s"
+}
+
+export function countLabel(posInBar) {
+  const beat = Math.floor(posInBar + 1e-6)
+  const frac = posInBar - beat
+  const near = (x) => Math.abs(frac - x) < 0.02
+  if (near(0))     return String(beat + 1)
+  if (near(1 / 3)) return "trp"
+  if (near(2 / 3)) return "let"
+  if (near(0.5))   return "&"
+  if (near(0.25))  return "e"
+  if (near(0.75))  return "a"
+  return "·"
+}
+
+export function buildTab(resultBars) {
+  const stringLines = [[], [], [], [], [], []]
+  const chordRow = []
+  const countRow = []
+  const durRow = []
+
+  resultBars.forEach((bar) => {
+    const notes = bar.n || []
+    const syms = String(bar.c || "").trim().split(/\s+/).filter(Boolean)
+    const barBeats = notes.reduce((n, ev) => n + (Number(ev[2]) || 0), 0) || 4
+
+    let pos = 0
+    const cells = notes.map(([s, f, b]) => {
+      const fret = String(f)
+      const count = countLabel(pos)
+      const ci = syms.length > 1
+        ? Math.min(syms.length - 1, Math.floor((pos / barBeats) * syms.length))
+        : 0
+      pos += b
+      return { s, fret, count, ci, dur: durLabel(b), w: Math.max(fret.length + 2, count.length + 1, 3) }
+    })
+
+    if (!cells.length) {
+      const width = Math.max(String(bar.c || "").length + 1, 4)
+      for (let i = 0; i < 6; i++) stringLines[i].push("-".repeat(width))
+      chordRow.push(String(bar.c || "").padEnd(width, " "))
+      countRow.push(" ".repeat(width))
+      durRow.push(" ".repeat(width))
+    } else {
+      const groups = []
+      for (const c of cells) {
+        const last = groups[groups.length - 1]
+        if (last && last.ci === c.ci) last.cells.push(c)
+        else groups.push({ ci: c.ci, cells: [c] })
+      }
+      for (const g of groups) {
+        const name = syms[g.ci] ?? ""
+        const width = g.cells.reduce((n, c) => n + c.w, 0)
+        if (name.length + 1 > width) g.cells[g.cells.length - 1].w += name.length + 1 - width
+        chordRow.push(name.padEnd(g.cells.reduce((n, c) => n + c.w, 0), " "))
+      }
+
+      for (const c of cells) {
+        for (let i = 0; i < 6; i++) {
+          stringLines[i].push(i === c.s - 1 ? c.fret.padEnd(c.w, "-") : "-".repeat(c.w))
+        }
+        countRow.push(c.count.padEnd(c.w, " "))
+        durRow.push(c.dur.padEnd(c.w, " "))
+      }
+    }
+
+    for (let i = 0; i < 6; i++) stringLines[i].push("|")
+    chordRow.push(" ")
+    countRow.push(" ")
+    durRow.push(" ")
+  })
+
+  const labels = ["e|", "B|", "G|", "D|", "A|", "E|"]
+  return [
+    "  " + chordRow.join("").trimEnd(),
+    "  " + countRow.join("").trimEnd(),
+    "  " + durRow.join("").trimEnd(),
+    ...stringLines.map((c, i) => labels[i] + c.join("")),
+  ].join("\n")
+}

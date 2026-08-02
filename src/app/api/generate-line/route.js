@@ -33,6 +33,21 @@ const LEVELS = {
   5: { name: "Exotic / Altered", rule: "Use altered and exotic scale choices: the altered scale (melodic minor a half step up) and half-whole diminished over dominants, lydian dominant over non-resolving 7ths, side-slipping (play a half step off, then resolve), and upper-structure tensions (b9, #9, #11, b13). Maximum tension with deliberate resolution. Name the scale or device in each bar." },
 }
 
+// Martino Mode — minor-conversion approach to a major II-V-I. Only injected when
+// the request sets mode:"martino"; leaves the default Line Lab prompt untouched.
+const MARTINO_BLOCK =
+  "MARTINO MODE (minor conversion), for a major II-V-I: play the ii minor " +
+  "(dorian) over BOTH the ii and the V. Over the V that ii-minor material is a " +
+  "rootless 9 sound; let the full scale through for mixolydian with the 3rd. " +
+  "Over the I, raise the 4th to #4 for lydian (a one-note flip: D dorian becomes " +
+  "C lydian), or superimpose the minor a major seventh above the tonic (Bm7 over " +
+  "Cmaj7 = 7-9-#11-13). For an altered V, superimpose the melodic minor a half " +
+  "step above the tonic (Ab melodic minor over G7 in C), using Db+Eb major triads " +
+  "or Bbm/Abm, keeping the shared 3rd-7th tritone (B-F) as anchors, and resolve by " +
+  "sliding the whole shape down a half step into the I. The dominant's 3rd and 7th " +
+  "never move; only the color around them changes. Name the conversion per bar " +
+  "(e.g. 'Dm over G7 = G9', 'F to F# flip = lydian', 'Db triad, altered, slides down')."
+
 // Extra instruction for devices whose chip name doesn't fully specify them.
 const DEVICE_RULES = {
   "Rest-stroke triplets":
@@ -96,7 +111,7 @@ export async function POST(request) {
     )
   }
 
-  let section, devices, position, extra, level, chartBars
+  let section, devices, position, extra, level, chartBars, mode
   try {
     const body = await request.json()
     section = Array.isArray(body.section) ? body.section.filter(Boolean).slice(0, MAX_BARS) : []
@@ -104,6 +119,7 @@ export async function POST(request) {
     position = String(body.position || "Anywhere")
     extra = String(body.extra || "").slice(0, 400)
     level = LEVELS[body.level] ? Number(body.level) : null
+    mode = body.mode === "martino" ? "martino" : null
     // Optional richer bar data (root/quality/beats) so we can feed the model
     // DukeBox's own scale recommendations and guide tones.
     chartBars = Array.isArray(body.chartBars) ? body.chartBars.slice(0, MAX_BARS) : []
@@ -132,6 +148,7 @@ export async function POST(request) {
   const deviceRules = devices.map(d => DEVICE_RULES[d]).filter(Boolean)
 
   const userPrompt =
+    (mode === "martino" ? `${MARTINO_BLOCK}\n\n` : "") +
     (level ? `COMPLEXITY LEVEL ${level} (${LEVELS[level].name}): ${LEVELS[level].rule}\n\n` : "") +
     (deviceRules.length ? `${deviceRules.join("\n\n")}\n\n` : "") +
     "Write a connected improvised line over these bars, in order: " +
