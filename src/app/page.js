@@ -200,7 +200,6 @@ export default function Home() {
   const [importText, setImportText] = useState("")
   const [importStatus, setImportStatus] = useState(null)
   const [mode, setMode] = useState("practice")
-  const [writeView, setWriteView] = useState("chart")  // Write sub-tab: chart lab vs triad network
   const [activeGigSongId, setActiveGigSongId] = useState(null)  // which gig tune is loaded
   // Panels declare which workspaces they belong to; several appear in more than one.
   const inMode = (...ids) => ids.includes(mode)
@@ -2856,54 +2855,15 @@ export default function Home() {
           )
         })()}
 
-        {inMode("write") && (
-          <div style={{ marginBottom: "16px" }}>
-            {/* Write sub-tabs: the Chart lab (full Line Lab) and the Triad Network practice system */}
-            <div role="tablist" aria-label="Write tools" style={{ display: "flex", gap: "8px", marginBottom: "12px" }}>
-              {[
-                { id: "chart", label: "Line Lab" },
-                { id: "triadnet", label: "Triad Network" },
-              ].map((v) => {
-                const on = writeView === v.id
-                return (
-                  <button
-                    key={v.id}
-                    role="tab"
-                    aria-selected={on}
-                    onClick={() => { stopPlayback(); setWriteView(v.id) }}
-                    style={{
-                      padding: "8px 16px", borderRadius: "999px", cursor: "pointer",
-                      fontSize: "var(--db-fs-sm)", fontWeight: 600,
-                      border: `1px solid ${on ? "var(--db-c-purple)" : "rgba(255,255,255,0.14)"}`,
-                      background: on ? "rgba(201,167,255,0.16)" : "transparent",
-                      color: on ? "var(--db-text)" : "rgba(255,255,255,0.66)",
-                    }}
-                  >{v.label}</button>
-                )
-              })}
-            </div>
-
-            {writeView === "chart" && <LineLab
-              chartBars={bars}
-              chartTitle={selectedForm}
-              onStopPlayback={stopPlayback}
-              playLineSection={playLineSection}
-              panelStyle={panelStyle}
-              eyebrowStyle={eyebrowStyle}
-              selectStyle={selectStyle}
-            />}
-
-            {writeView === "triadnet" && <TriadNetwork
-              chartBars={bars}
-              chartTitle={selectedForm}
-              onStopPlayback={stopPlayback}
-              playLineSection={playLineSection}
-              panelStyle={panelStyle}
-              eyebrowStyle={eyebrowStyle}
-              selectStyle={selectStyle}
-            />}
-          </div>
-        )}
+        {inMode("write") && <LineLab
+          chartBars={bars}
+          chartTitle={selectedForm}
+          onStopPlayback={stopPlayback}
+          playLineSection={playLineSection}
+          panelStyle={panelStyle}
+          eyebrowStyle={eyebrowStyle}
+          selectStyle={selectStyle}
+        />}
 
         {inMode("practice") && <MetronomePanel
           onBeforeStart={stopPlayback}
@@ -2911,6 +2871,19 @@ export default function Home() {
           eyebrowStyle={eyebrowStyle}
           selectStyle={selectStyle}
           inlineLabelStyle={inlineLabelStyle}
+        />}
+
+        {/* Triad Network — the practice-system companion to Line Lab, at the
+            foot of the Practice bench. It drives the same rhythm section, so
+            it shares the transport with everything above it. */}
+        {inMode("practice") && <TriadNetwork
+          chartBars={bars}
+          chartTitle={selectedForm}
+          onStopPlayback={stopPlayback}
+          playLineSection={playLineSection}
+          panelStyle={panelStyle}
+          eyebrowStyle={eyebrowStyle}
+          selectStyle={selectStyle}
         />}
 
         {inMode("reference") && <SongCrafter

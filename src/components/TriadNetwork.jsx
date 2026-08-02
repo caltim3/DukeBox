@@ -195,13 +195,13 @@ export default function TriadNetwork({
   // ─── styles derived from the passed-in panel tokens ─────────────────────────
   const chip = (on, color) => ({
     padding: "6px 12px", borderRadius: "999px", fontSize: "var(--db-fs-sm)",
-    cursor: "pointer", userSelect: "none", border: `1px solid ${on ? (color || "var(--db-c-purple)") : "rgba(255,255,255,0.14)"}`,
-    background: on ? (color ? color + "22" : "rgba(201,167,255,0.16)") : "transparent",
-    color: on ? "var(--db-text)" : "rgba(255,255,255,0.66)",
+    cursor: "pointer", userSelect: "none", border: `1px solid ${on ? (color || "var(--db-c-purple)") : "var(--db-panel-border)"}`,
+    background: on ? (color ? `color-mix(in srgb, ${color} 16%, var(--db-bg))` : "color-mix(in srgb, var(--db-c-purple) 14%, var(--db-bg))") : "var(--db-panel-bg)",
+    color: on ? "var(--db-text)" : "var(--db-muted)",
   })
 
   return (
-    <div style={{ ...panelStyle, border: "1px solid rgba(201,167,255,0.25)", background: "rgba(201,167,255,0.04)" }}>
+    <div style={{ ...panelStyle, border: "1px solid color-mix(in srgb, var(--db-c-purple) 30%, transparent)", background: "color-mix(in srgb, var(--db-c-purple) 5%, var(--db-bg))" }}>
       <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px" }}>
         <div style={{ ...eyebrowStyle, marginBottom: 0, color: "var(--db-c-purple)" }}>TRIAD NETWORK · PRACTICE SYSTEM</div>
         <div style={{ fontSize: "var(--db-fs-xs)", opacity: 0.62 }}>pairs · cells · pivots · enclosures · rest-stroke triplets · Martino Mode</div>
@@ -214,8 +214,8 @@ export default function TriadNetwork({
           return (
             <div key={sec.id} style={{
               borderRadius: "var(--db-r-md)", marginBottom: "6px",
-              border: `1px solid ${sec.highlight ? "rgba(244,114,182,0.35)" : "rgba(255,255,255,0.08)"}`,
-              background: sec.highlight ? "rgba(244,114,182,0.06)" : "rgba(255,255,255,0.02)",
+              border: `1px solid ${sec.highlight ? "color-mix(in srgb, var(--db-c-pink) 40%, transparent)" : "var(--db-card-border)"}`,
+              background: sec.highlight ? "color-mix(in srgb, var(--db-c-pink) 8%, var(--db-bg))" : "var(--db-card-bg)",
             }}>
               <button
                 onClick={() => setOpenDoc(open ? null : sec.id)}
@@ -268,8 +268,8 @@ export default function TriadNetwork({
         {sectionChords.map((c, i) => (
           <span key={i} style={{
             fontFamily: "var(--db-font-mono, monospace)", padding: "3px 8px", borderRadius: "6px",
-            background: playIdx === i ? "rgba(244,114,182,0.3)" : "rgba(255,255,255,0.06)",
-            border: "1px solid rgba(255,255,255,0.1)",
+            background: playIdx === i ? "color-mix(in srgb, var(--db-c-green) 25%, var(--db-bg))" : "var(--db-card-bg)",
+            border: `1px solid ${playIdx === i ? "var(--db-c-green)" : "var(--db-card-border)"}`,
           }}>{c}</span>
         ))}
         {isMartino && <span style={{ marginLeft: "6px", fontSize: "var(--db-fs-xs)", color: "var(--db-c-purple)" }}>· minor conversion, F→F# on the I, altered lift on the V</span>}
@@ -293,9 +293,9 @@ export default function TriadNetwork({
             <button key={l.id} onClick={() => setLevel(l.id)} style={{
               padding: "6px 12px", borderRadius: "8px", cursor: "pointer", fontWeight: 700,
               fontFamily: "var(--db-font-mono, monospace)", fontSize: "var(--db-fs-sm)",
-              border: `1px solid ${on ? l.color : "rgba(255,255,255,0.14)"}`,
-              background: on ? l.color : "transparent",
-              color: on ? "#0f0f0f" : "rgba(255,255,255,0.7)",
+              border: `1px solid ${on ? l.color : "var(--db-panel-border)"}`,
+              background: on ? `color-mix(in srgb, ${l.color} 22%, var(--db-bg))` : "var(--db-panel-bg)",
+              color: on ? l.color : "var(--db-muted)",
             }}>{l.label}<span style={{ display: "block", fontSize: "0.7em", fontWeight: 400, fontFamily: "Arial" }}>{l.name}</span></button>
           )
         })}
@@ -308,7 +308,7 @@ export default function TriadNetwork({
         placeholder="Optional direction — e.g. 'phrase across the barline', 'start on the 5th string'"
         style={{
           width: "100%", padding: "10px 12px", borderRadius: "var(--db-r-md)",
-          border: "1px solid rgba(201,167,255,0.2)", background: "var(--db-input-bg)",
+          border: "1px solid color-mix(in srgb, var(--db-c-purple) 25%, transparent)", background: "var(--db-input-bg)",
           color: "var(--db-text)", fontSize: "var(--db-fs-sm)", marginBottom: "12px",
           fontFamily: "Arial, sans-serif",
         }}
@@ -317,21 +317,21 @@ export default function TriadNetwork({
       {/* Actions */}
       <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "14px" }}>
         <button onClick={generate} disabled={loading} style={{
-          padding: "10px 24px", borderRadius: "var(--db-r-md)", border: "none", cursor: loading ? "wait" : "pointer",
-          background: "var(--db-c-purple)", color: "#0f0f0f", fontWeight: 700, fontSize: "var(--db-fs-md)", opacity: loading ? 0.6 : 1,
+          padding: "10px 24px", borderRadius: "var(--db-r-md)", border: "1px solid var(--db-c-purple)", cursor: loading ? "wait" : "pointer",
+          background: "color-mix(in srgb, var(--db-c-purple) 16%, var(--db-bg))", color: "var(--db-c-purple)", fontWeight: 700, fontSize: "var(--db-fs-md)", opacity: loading ? 0.6 : 1,
         }}>{loading ? "Generating…" : "Generate Line"}</button>
         {result && (
           <>
             <button onClick={playing ? stop : play} disabled={!playLineSection} style={{
               padding: "10px 20px", borderRadius: "var(--db-r-md)", cursor: "pointer",
-              border: "1px solid rgba(255,255,255,0.2)", background: "transparent", color: "var(--db-text)", fontSize: "var(--db-fs-sm)",
+              border: "1px solid var(--db-panel-border)", background: "var(--db-panel-bg)", color: "var(--db-text)", fontSize: "var(--db-fs-sm)",
             }}>{playing ? "■ Stop" : "▶ Play with band"}</button>
           </>
         )}
       </div>
 
       {error && (
-        <div style={{ padding: "10px 12px", borderRadius: "var(--db-r-md)", background: "rgba(220,60,60,0.12)", border: "1px solid rgba(220,60,60,0.35)", color: "#ff9a9a", fontSize: "var(--db-fs-sm)", marginBottom: "12px" }}>
+        <div style={{ padding: "10px 12px", borderRadius: "var(--db-r-md)", background: "color-mix(in srgb, var(--db-c-salmon) 12%, var(--db-bg))", border: "1px solid color-mix(in srgb, var(--db-c-salmon) 40%, transparent)", color: "var(--db-c-salmon)", fontSize: "var(--db-fs-sm)", marginBottom: "12px" }}>
           {error}
         </div>
       )}
@@ -341,7 +341,7 @@ export default function TriadNetwork({
         <div>
           <pre style={{
             overflowX: "auto", padding: "12px", borderRadius: "var(--db-r-md)",
-            background: "var(--db-input-bg)", border: "1px solid rgba(255,255,255,0.08)",
+            background: "var(--db-input-bg)", border: "1px solid var(--db-card-border)",
             fontFamily: "var(--db-font-mono, monospace)", fontSize: "13px", lineHeight: 1.5, margin: 0,
           }}>{buildTab(result.bars)}</pre>
           {result.s && <div style={{ fontSize: "var(--db-fs-sm)", opacity: 0.75, marginTop: "8px", lineHeight: 1.5 }}>{result.s}</div>}
@@ -350,7 +350,7 @@ export default function TriadNetwork({
               <div key={i} style={{
                 display: "flex", gap: "10px", alignItems: "baseline", fontSize: "var(--db-fs-sm)",
                 padding: "6px 8px", borderRadius: "6px",
-                background: playIdx === i ? "rgba(244,114,182,0.12)" : "transparent",
+                background: playIdx === i ? "color-mix(in srgb, var(--db-c-green) 14%, var(--db-bg))" : "transparent",
               }}>
                 <span style={{ fontFamily: "var(--db-font-mono, monospace)", fontWeight: 700, minWidth: "72px" }}>{b.c}</span>
                 <span style={{ opacity: 0.85 }}><strong>{b.d}</strong>{b.x ? ` — ${b.x}` : ""}</span>

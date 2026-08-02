@@ -48,9 +48,6 @@ const LEVELS = [
   { n: 5, label: "Exotic",    blurb: "Altered + side-slip" },
 ]
 
-// Triplet durations come back as thirds of a beat, so they can't be read off
-// the binary grid — check them first and mark them with a 3.
-
 function parseBars(text) {
   const raw = text.split(/\n|\|/).map(b => b.trim()).filter(Boolean)
   const bars = []
@@ -61,10 +58,6 @@ function parseBars(text) {
   return bars
 }
 
-// Where a note falls in the bar, counted the way you'd count it out loud:
-// "1 & 2 &" for eighths, "1 e & a" for sixteenths, "1 trp let" for triplets.
-// The row above the tab used to read "e e e e" — the duration of each note,
-// not its place in the bar, which is the thing you actually need to read.
 export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyle, selectStyle, onStopPlayback, playLineSection }) {
   // Seed the sheet from whatever chart is loaded in DukeBox
   const chartAsSheet = useMemo(
