@@ -6,14 +6,15 @@
 // Gig Mode's full stage chart only exists on the Gig tab, so the moment you
 // switched to Practice to reach for the tempo or the fretboard you lost the
 // playhead. This strip follows the transport everywhere: the tune and section
-// names above, every measure in that section below, measure numbers inside
-// them, and the accent colour on the bar sounding now.
+// names above, up to 16 measures from that section below, measure numbers
+// inside them, and the accent colour on the bar sounding now.
 //
 // It renders as a fixed bar plus an in-flow spacer of the same height, so it
 // pins to the top of every screen without ever covering the controls beneath
 // it. The spacer and fixed strip share the same calculated height.
 
-const GRID_COLUMNS = 4
+const GRID_COLUMNS = 8
+const MAX_VISIBLE_BARS = 16
 
 export default function GigBarStrip({ bars, title, playheadIndex, isPlaying, onStop }) {
   if (!isPlaying || playheadIndex == null || !bars?.length) return null
@@ -27,8 +28,16 @@ export default function GigBarStrip({ bars, title, playheadIndex, isPlaying, onS
   while (start > 0 && (bars[start - 1]?.section ?? null) === activeSection) start--
   while (end < bars.length - 1 && (bars[end + 1]?.section ?? null) === activeSection) end++
 
-  const sectionBars = bars.slice(start, end + 1)
-  const sectionLabel = activeSection || `Bars ${start + 1}\u2013${end + 1}`
+  const sectionLength = end - start + 1
+  const playheadOffset = playheadIndex - start
+  const windowOffset = Math.floor(playheadOffset / MAX_VISIBLE_BARS) * MAX_VISIBLE_BARS
+  const visibleStart = start + windowOffset
+  const visibleEnd = Math.min(visibleStart + MAX_VISIBLE_BARS, end + 1)
+  const sectionBars = bars.slice(visibleStart, visibleEnd)
+  const sectionName = activeSection || `Bars ${start + 1}\u2013${end + 1}`
+  const sectionLabel = sectionLength > MAX_VISIBLE_BARS
+    ? `${sectionName} · Bars ${visibleStart + 1}\u2013${visibleEnd}`
+    : sectionName
   const rowCount = Math.ceil(sectionBars.length / GRID_COLUMNS)
   const stripHeight = 35 + rowCount * 58
 
@@ -93,7 +102,7 @@ export default function GigBarStrip({ bars, title, playheadIndex, isPlaying, onS
           gap: "8px", width: "100%", maxWidth: "1460px",
         }}>
           {sectionBars.map((bar, i) => {
-            const index = start + i
+            const index = visibleStart + i
             const isNow = index === playheadIndex
             return (
               <div
