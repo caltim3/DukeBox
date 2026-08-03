@@ -1,7 +1,6 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import NotationLane from "@/components/NotationLane"
 import {
   ROOTS,
   QUALITIES,
@@ -34,7 +33,6 @@ import { DRUM_KIT_NAMES, DEFAULT_DRUM_KIT } from "@/lib/music/samples"
 import { parseTonalUserSongs } from "@/lib/music/importTonal"
 import { parseGigChord, GIGBOOK_SONGS, gigSongToBars, parseGigKey, gigTempoNumber } from "@/lib/music/gigbook"
 import Fretboard from "@/components/Fretboard"
-import Runway from "@/components/Runway"
 import MetronomePanel from "@/components/MetronomePanel"
 import PracticeTimer from "@/components/PracticeTimer"
 import LineLab from "@/components/LineLab"
@@ -138,7 +136,6 @@ function formatInterval(ivl) {
 // at a time; nothing was removed, it's just no longer all at once.
 const MODES = [
   { id: "practice",  label: "Practice",  icon: "🎧", blurb: "Play along, loop a section, drill it slow" },
-  { id: "write",     label: "Write",     icon: "✍️", blurb: "Generate, edit, and arrange a chart" },
   { id: "gig",       label: "Gig",       icon: "🎤", blurb: "Stage charts and setlists" },
   { id: "reference", label: "Reference", icon: "📖", blurb: "Circle of fifths, key chart, progressions" },
   { id: "tonal",     label: "Tonal",     icon: "🎹", blurb: "The published Tonal app, embedded as-is" },
@@ -227,7 +224,9 @@ export default function Home() {
   useEffect(() => {
     let cancelled = false
     ;(async () => {
-      if (!cancelled && savedMode && MODES.some(m => m.id === savedMode)) setMode(savedMode)
+      if (!cancelled && savedMode) {
+        setMode(savedMode === "write" ? "practice" : (MODES.some(m => m.id === savedMode) ? savedMode : "practice"))
+      }
     })()
     return () => { cancelled = true }
   }, [savedMode])
@@ -236,12 +235,11 @@ export default function Home() {
     setMode(id)
     setLibrary(lib => ({ ...lib, prefs: { ...lib.prefs, mode: id } }))
   }
-  const [showFretboard, setShowFretboard] = useState(false)
-  const [fretboardView, setFretboardView] = useState("chord")
+  const [fretboardView, setFretboardView] = useState("scale")
   const [fretboardTuning, setFretboardTuning] = useState("Standard")
   const [scaleFilter, setScaleFilter] = useState(null)  // null | "pentatonic" | "hexatonic" | "martino" | "hexchord" | "barry"
   const [bebopOverlay, setBebopOverlay] = useState(false)   // adds chromatic passing tone on top
-  const [targetsOverlay, setTargetsOverlay] = useState(false) // adds guide tones (3rd/7th) on top
+  const [targetsOverlay, setTargetsOverlay] = useState(true) // guide tones are the default practice view
   const [anticipateOn, setAnticipateOn] = useState(false)   // second fretboard showing the next chord
   const [practiceMode, setPracticeMode] = useState(false)
   const [paletteIndex, setPaletteIndex] = useState(0)
@@ -289,14 +287,6 @@ export default function Home() {
   const approachLines = useMemo(() => {
     return generateApproachLines(bars)
   }, [bars])
-
-  const notationBars = useMemo(() => {
-    return approachLines.map((line, i) => ({
-      chord: bars[i].symbol,
-      arrivalNote: line.arrivalNote,
-      departureNote: line.departureNote,
-    }))
-  }, [approachLines, bars])
 
   const recommendedScales = getRecommendedScalesFromQuality(selectedBar.quality)
 
@@ -1464,162 +1454,9 @@ export default function Home() {
           </div>
         </div>}
 
-        {/* ── AI Chart Generator ────────────────────────────────── */}
-        {inMode("write") && <div style={{
-          ...panelStyle,
-          marginBottom: "16px",
-          border: "1px solid rgba(201,167,255,0.25)",
-          background: "rgba(201,167,255,0.04)",
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px" }}>
-            <div style={{ ...eyebrowStyle, marginBottom: 0, color: "var(--db-c-purple)" }}>AI CHART GENERATOR</div>
-            <div style={{ fontSize: "var(--db-fs-xs)", opacity: 0.62 }}>powered by Claude</div>
-          </div>
-
-          <div style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}>
-            <textarea
-              value={promptText}
-              onChange={(e) => setPromptText(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) handleGenerateChart() }}
-              placeholder={
-                "Describe the chart you want — e.g.:\n" +
-                "\"12-bar minor blues in F with a backdoor dominant\"\n" +
-                "\"32-bar AABA in Eb with Coltrane changes on the bridge\"\n" +
-                "\"Bossa nova tune in D minor, slow, deceptive cadence at bar 8\""
-              }
-              style={{
-                flex: 1,
-                padding: "12px",
-                borderRadius: "var(--db-r-md)",
-                border: "1px solid rgba(201,167,255,0.2)",
-                background: "var(--db-input-bg)",
-                color: "var(--db-text)",
-                fontSize: "var(--db-fs-md)",
-                resize: "vertical",
-                minHeight: "58px",
-                fontFamily: "Arial, sans-serif",
-                lineHeight: 1.5,
-              }}
-              disabled={isGenerating}
-            />
-            <button
-              onClick={handleGenerateChart}
-              disabled={isGenerating || !promptText.trim()}
-              style={{
-                ...buttonStyle("var(--db-c-purple)"),
-                minWidth: "110px",
-                padding: "12px 16px",
-                opacity: isGenerating || !promptText.trim() ? 0.5 : 1,
-                flexShrink: 0,
-              }}
-            >
-              {isGenerating ? "Generating…" : "Generate"}
-            </button>
-          </div>
-
-          {/* Templates + Surprise me + prompt history */}
-          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "center", marginTop: "8px" }}>
-            <button
-              onClick={surpriseMe}
-              disabled={isGenerating}
-              style={{
-                padding: "4px 11px", borderRadius: "var(--db-r-pill)", fontSize: "var(--db-fs-sm)", cursor: "pointer",
-                border: "1px solid var(--db-c-purple)",
-                background: "color-mix(in srgb, var(--db-c-purple) 14%, var(--db-bg))",
-                color: "var(--db-c-purple)", fontWeight: 700,
-                opacity: isGenerating ? 0.5 : 1,
-              }}
-              title="Generate a chart from a random form, key, mood, and harmonic device"
-            >
-              🎲 Surprise me
-            </button>
-
-            {PROMPT_TEMPLATES.map((t) => (
-              <button
-                key={t}
-                onClick={() => setPromptText(t)}
-                disabled={isGenerating}
-                style={{
-                  padding: "4px 10px", borderRadius: "var(--db-r-pill)", fontSize: "var(--db-fs-xs)", cursor: "pointer",
-                  border: "1px solid var(--db-panel-border)", background: "var(--db-panel-bg)",
-                  color: "var(--db-text)", opacity: isGenerating ? 0.5 : 0.85,
-                }}
-                title="Use this as a starting point"
-              >
-                {t.length > 34 ? t.slice(0, 33) + "…" : t}
-              </button>
-            ))}
-          </div>
-
-          {promptHistory.length > 0 && (
-            <div style={{ display: "flex", gap: "6px", alignItems: "center", marginTop: "8px" }}>
-              <label style={{ fontSize: "var(--db-fs-xs)", opacity: 0.6 }} htmlFor="prompt-history">Recent</label>
-              <select
-                id="prompt-history"
-                value=""
-                onChange={(e) => { if (e.target.value) setPromptText(e.target.value) }}
-                style={{ ...selectStyle, flex: 1, padding: "5px 8px", fontSize: "var(--db-fs-sm)" }}
-              >
-                <option value="">Re-use a previous prompt…</option>
-                {promptHistory.map((p, i) => (
-                  <option key={i} value={p}>{p.length > 70 ? p.slice(0, 69) + "…" : p}</option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          <div style={{ fontSize: "var(--db-fs-xs)", opacity: 0.6, marginTop: "6px" }}>
-            ⌘ + Enter to generate
-          </div>
-
-          {generationError && (
-            <div style={{
-              marginTop: "10px", padding: "10px 12px", borderRadius: "var(--db-r-md)",
-              background: "rgba(255,100,100,0.1)", border: "1px solid rgba(255,100,100,0.3)",
-              color: "#ff8a8a", fontSize: "var(--db-fs-md)",
-            }}>
-              {generationError}
-            </div>
-          )}
-
-          {(generationNotes || isGenerating) && (
-            <div style={{ marginTop: "10px" }}>
-              <button
-                onClick={() => setShowGenNotes((p) => !p)}
-                style={{
-                  background: "none", border: "none", color: "var(--db-c-purple)",
-                  cursor: "pointer", fontSize: "var(--db-fs-sm)", padding: "0", opacity: 0.8,
-                }}
-              >
-                {showGenNotes ? "▼" : "▶"} Generation Notes
-                {isGenerating && <span style={{ marginLeft: "6px", opacity: 0.75 }}>· writing…</span>}
-              </button>
-              {showGenNotes && (
-                <div style={{
-                  marginTop: "6px", padding: "10px 12px", borderRadius: "var(--db-r-md)",
-                  background: "rgba(201,167,255,0.07)", border: "1px solid rgba(201,167,255,0.15)",
-                  fontSize: "var(--db-fs-md)", lineHeight: 1.6, opacity: 0.9,
-                }}>
-                  {generationNotes || "…"}
-                  {isGenerating && generationNotes && (
-                    <span style={{ opacity: 0.6 }} aria-hidden="true"> ▍</span>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-          {lastGenChart && (
-            <div style={{ marginTop: "10px" }}>
-              <button onClick={saveToLibrary} style={buttonStyle("var(--db-c-green)")}>
-                + Add to My Library
-              </button>
-            </div>
-          )}
-        </div>}
 
         {/* ── Song Settings ─────────────────────────────────────── */}
-        {inMode("practice","write") && <div style={{ ...panelStyle, marginBottom: "16px" }}>
+        {inMode("practice") && <div style={{ ...panelStyle, marginBottom: "16px" }}>
           <div style={eyebrowStyle}>SONGBOOK</div>
           <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
 
@@ -1758,6 +1595,37 @@ export default function Home() {
             </label>
           </div>
 
+          <div ref={transportRef} style={{ marginTop: "14px", display: "flex", gap: "10px", alignItems: "stretch", flexWrap: "wrap" }}>
+            <div style={{ flex: "1 1 620px" }}>
+              <PracticeTimer
+                inlineLabelStyle={inlineLabelStyle}
+                selectStyle={selectStyle}
+                transportRunning={isPlaying}
+                onState={setTimerState}
+                onFinish={({ stopBand }) => {
+                  if (stopBand && playingRef.current) stopPlayback()
+                  showToast("Practice timer finished")
+                }}
+              />
+            </div>
+            <button
+              onClick={isPlaying ? stopPlayback : () => startPlayback().catch(console.error)}
+              aria-label={isPlaying ? "Stop playback and pause timer" : "Start playback and practice timer"}
+              style={{
+                padding: "11px 28px", borderRadius: "var(--db-r-md)", cursor: "pointer",
+                fontWeight: 800, fontSize: "var(--db-fs-lg)", letterSpacing: "0.02em",
+                border: `2px solid ${isPlaying ? "var(--db-c-salmon)" : "var(--db-c-amber)"}`,
+                background: isPlaying
+                  ? "color-mix(in srgb, var(--db-c-salmon) 18%, var(--db-bg))"
+                  : "color-mix(in srgb, var(--db-c-amber) 18%, var(--db-bg))",
+                color: isPlaying ? "var(--db-c-salmon)" : "var(--db-c-amber)",
+                minWidth: "132px",
+              }}
+            >
+              {isPlaying ? "⏹ Stop" : "▶ Play"}
+            </button>
+          </div>
+
           {/* Bebop Blueprint song importer */}
           {showImportModal && (
             <div style={{
@@ -1820,58 +1688,12 @@ export default function Home() {
           )}
         </div>}
 
-        {inMode("practice","write") && <div style={panelStyle}>
+        {inMode("practice") && <div style={panelStyle}>
           {/* ── Section 1: Playback & Practice ─────────────────────── */}
           <div style={{ marginBottom: "12px" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", marginBottom: "8px", flexWrap: "wrap" }}>
-              <div style={{ ...eyebrowStyle, marginBottom: 0 }}>PLAYBACK &amp; PRACTICE</div>
-              {/* Find a tune without leaving the bench — same index as Gig Mode's
-                  search, so the Gig Book is reachable from here too. */}
-              <div style={{ display: "flex", flex: "1 1 240px", maxWidth: "420px", marginLeft: "auto" }}>
-                <SongSearch
-                  formCategories={FORM_CATEGORIES}
-                  userLibrary={userLibrary}
-                  gigSongs={GIGBOOK_SONGS}
-                  selectedForm={selectedForm}
-                  onPick={loadSearchPick}
-                  placeholder="Search songs, Gig Book, your library…"
-                />
-              </div>
-            </div>
-
-            <div style={{ marginBottom: "10px" }}>
-              <PracticeTimer
-                inlineLabelStyle={inlineLabelStyle}
-                selectStyle={selectStyle}
-                onState={setTimerState}
-                onFinish={({ stopBand }) => {
-                  if (stopBand && playingRef.current) stopPlayback()
-                  showToast("Practice timer finished")
-                }}
-              />
-            </div>
+            <div style={{ ...eyebrowStyle, marginBottom: "8px" }}>PRACTICE MIX &amp; LOOP</div>
 
             <div className="db-controls" style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
-                <button
-                  ref={transportRef}
-                  onClick={isPlaying ? stopPlayback : () => startPlayback().catch(console.error)}
-                  aria-label={isPlaying ? "Stop playback" : "Start playback"}
-                  style={{
-                    padding: "11px 28px", borderRadius: "var(--db-r-md)", cursor: "pointer",
-                    fontWeight: 800, fontSize: "var(--db-fs-lg)", letterSpacing: "0.02em",
-                    border: `2px solid ${isPlaying ? "var(--db-c-salmon)" : "var(--db-c-amber)"}`,
-                    background: isPlaying
-                      ? "color-mix(in srgb, var(--db-c-salmon) 18%, var(--db-bg))"
-                      : "color-mix(in srgb, var(--db-c-amber) 18%, var(--db-bg))",
-                    color: isPlaying ? "var(--db-c-salmon)" : "var(--db-c-amber)",
-                    boxShadow: isPlaying
-                      ? "0 0 12px color-mix(in srgb, var(--db-c-salmon) 30%, transparent)"
-                      : "0 0 12px color-mix(in srgb, var(--db-c-amber) 30%, transparent)",
-                  }}
-                >
-                  {isPlaying ? "⏹ Stop" : "▶ Play"}
-                </button>
-
                 <button
                   onClick={() => setPracticeModeAndTempo(!practiceMode)}
                   style={{
@@ -2032,49 +1854,16 @@ export default function Home() {
                 <button onClick={() => setLoopEnd(selectedIndex)} style={buttonStyle("var(--db-c-gold)")}>
                   Set End at Selected Bar
                 </button>
-                <button
-                  onClick={() => setShowFretboard((p) => !p)}
-                  style={buttonStyle(showFretboard ? "var(--db-c-amber)" : "var(--db-c-blue)")}
-                >
-                  {showFretboard ? "Hide Fretboard" : "🎸 Fretboard"}
-                </button>
               </div>
             )}
           </div>
-
-          {/* ── Runway — color-coded chord strip with per-bar progress fill ── */}
-          <div style={{ marginBottom: "12px" }}>
-            <div style={{ ...eyebrowStyle, marginBottom: "4px" }}>RUNWAY</div>
-            <div style={{ fontSize: "var(--db-fs-sm)", opacity: 0.55, marginBottom: "6px" }}>
-              Chord timeline by function — green major · blue minor · red dominant · purple ø · gold ° · dark-red altered
-            </div>
-            <Runway
-              bars={bars}
-              playheadIndex={playheadIndex}
-              tempo={practiceMode ? 50 : tempo}
-              onSelectBar={setSelectedIndex}
-            />
-          </div>
-
-          <div style={eyebrowStyle}>MELODY LANE</div>
-          <div style={{ fontSize: "var(--db-fs-sm)", opacity: 0.55, marginBottom: "8px", marginTop: "-4px" }}>
-            7→3 guide-tone voice leading — arrival note (red) and departure note (green) per bar
-          </div>
-
-          <NotationLane
-            bars={notationBars}
-            activeIndex={selectedIndex}
-            onSelectBar={setSelectedIndex}
-            playheadIndex={playheadIndex}
-            barLabels={barLabels}
-          />
 
           <div style={{ marginTop: "8px", fontSize: "var(--db-fs-md)", opacity: 0.7 }}>
             Loop range: bars {Math.min(loopStart, loopEnd) + 1} to {Math.max(loopStart, loopEnd) + 1}
           </div>
         </div>}
 
-        {showFretboard && inMode("practice","write") && (
+        {inMode("practice") && (
           <div style={{ ...panelStyle, marginBottom: "16px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "10px", flexWrap: "wrap" }}>
               <div style={{ ...eyebrowStyle, marginBottom: 0 }}>FRETBOARD</div>
@@ -2323,9 +2112,32 @@ export default function Home() {
           </div>
         )}
 
-        {inMode("practice","write") && <div style={panelStyle}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
-            <div style={{ ...eyebrowStyle, marginBottom: 0 }}>LEAD SHEET GRID</div>
+        {inMode("practice") && <div style={panelStyle}>
+          <div style={{ ...eyebrowStyle, marginBottom: "4px" }}>MELODY PATHS</div>
+          <div style={{ fontSize: "var(--db-fs-sm)", opacity: 0.55, marginBottom: "14px" }}>
+            Guide-tone skeletons and one-note-per-measure melody mapping for the live chart
+          </div>
+          <MelodyPaths
+            key={`${activeSongTitle || selectedForm}:${keyRoot}:${keyMode}:${bars.map(bar => `${bar.symbol}:${bar.beats || 4}`).join("|")}`}
+            bars={bars}
+            tonic={keyRoot}
+            keyMode={keyMode}
+            title={activeSongTitle || (selectedForm !== "Custom" ? selectedForm : "Custom chart")}
+            formCategories={FORM_CATEGORIES}
+            userLibrary={userLibrary}
+            gigSongs={GIGBOOK_SONGS}
+            onPickSong={loadSearchPick}
+            playheadIndex={playheadIndex}
+          />
+        </div>}
+
+        {inMode("practice") && <details style={panelStyle}>
+          <summary style={{ cursor: "pointer", listStyle: "none", display: "flex", alignItems: "center", gap: "10px", fontWeight: 800 }}>
+            <span aria-hidden="true" style={{ fontSize: "1.35rem", color: "var(--db-accent)" }}>＋</span>
+            <span style={{ ...eyebrowStyle, marginBottom: 0 }}>LEAD SHEET GRID</span>
+            <span style={{ fontSize: "var(--db-fs-sm)", opacity: 0.55, fontWeight: 400 }}>Edit, arrange, transpose, and inspect every bar</span>
+          </summary>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", margin: "14px 0 10px" }}>
             <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
               <span style={{ fontSize: "var(--db-fs-sm)", opacity: 0.62, marginRight: "2px" }}>cols:</span>
               {[2, 3, 4, 6, 8].map(n => (
@@ -2792,28 +2604,66 @@ export default function Home() {
           </div>
           </div>
           )}
-        </div>}
+        </details>}
 
-        {inMode("practice","write") && <div style={panelStyle}>
-          <div style={{ ...eyebrowStyle, marginBottom: "4px" }}>MELODY PATHS</div>
-          <div style={{ fontSize: "var(--db-fs-sm)", opacity: 0.55, marginBottom: "14px" }}>
-            Guide-tone skeletons and one-note-per-measure melody mapping for the live chart
+        {inMode("practice") && <details style={panelStyle}>
+          <summary style={{ cursor: "pointer", listStyle: "none", display: "flex", alignItems: "center", gap: "10px", fontWeight: 800 }}>
+            <span aria-hidden="true" style={{ fontSize: "1.35rem", color: "var(--db-c-purple)" }}>＋</span>
+            <span style={{ ...eyebrowStyle, marginBottom: 0, color: "var(--db-c-purple)" }}>AI CHART GENERATOR</span>
+            <span style={{ fontSize: "var(--db-fs-sm)", opacity: 0.55, fontWeight: 400 }}>Build a new chart from a description</span>
+          </summary>
+          <div style={{ marginTop: "14px" }}>
+            <div style={{ display: "flex", gap: "10px", alignItems: "flex-start", flexWrap: "wrap" }}>
+              <textarea
+                value={promptText}
+                onChange={(e) => setPromptText(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) handleGenerateChart() }}
+                placeholder={'Describe the chart you want, for example: "12-bar minor blues in F with a backdoor dominant"'}
+                disabled={isGenerating}
+                style={{
+                  flex: "1 1 560px", minHeight: "76px", padding: "12px", resize: "vertical",
+                  borderRadius: "var(--db-r-md)", border: "1px solid rgba(201,167,255,0.25)",
+                  background: "var(--db-input-bg)", color: "var(--db-text)", fontSize: "var(--db-fs-md)",
+                  fontFamily: "Arial, sans-serif", lineHeight: 1.5,
+                }}
+              />
+              <button
+                onClick={handleGenerateChart}
+                disabled={isGenerating || !promptText.trim()}
+                style={{ ...buttonStyle("var(--db-c-purple)"), padding: "12px 18px", opacity: isGenerating || !promptText.trim() ? 0.5 : 1 }}
+              >
+                {isGenerating ? "Generating…" : "Generate"}
+              </button>
+            </div>
+            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "center", marginTop: "8px" }}>
+              <button onClick={surpriseMe} disabled={isGenerating} style={{ ...buttonStyle("var(--db-c-purple)"), padding: "4px 11px", fontSize: "var(--db-fs-sm)" }}>🎲 Surprise me</button>
+              {PROMPT_TEMPLATES.map((template) => (
+                <button key={template} onClick={() => setPromptText(template)} disabled={isGenerating} style={{ ...neutralButtonStyle, padding: "4px 10px", fontSize: "var(--db-fs-xs)" }}>
+                  {template.length > 38 ? `${template.slice(0, 37)}…` : template}
+                </button>
+              ))}
+            </div>
+            {promptHistory.length > 0 && (
+              <select value="" onChange={(e) => { if (e.target.value) setPromptText(e.target.value) }} style={{ ...selectStyle, marginTop: "8px", width: "100%" }} aria-label="Recent chart prompts">
+                <option value="">Re-use a recent prompt…</option>
+                {promptHistory.map((prompt, index) => <option key={index} value={prompt}>{prompt}</option>)}
+              </select>
+            )}
+            {generationError && <div style={{ marginTop: "10px", color: "var(--db-c-salmon)", fontSize: "var(--db-fs-sm)" }}>{generationError}</div>}
+            {(generationNotes || isGenerating) && (
+              <div style={{ marginTop: "10px" }}>
+                <button onClick={() => setShowGenNotes((open) => !open)} style={{ background: "none", border: 0, color: "var(--db-c-purple)", cursor: "pointer", padding: 0 }}>
+                  {showGenNotes ? "▼" : "▶"} Generation notes
+                </button>
+                {showGenNotes && <div style={{ marginTop: "6px", padding: "10px 12px", background: "rgba(201,167,255,0.07)", borderRadius: "var(--db-r-md)" }}>{generationNotes || "Writing…"}</div>}
+              </div>
+            )}
+            {lastGenChart && <button onClick={saveToLibrary} style={{ ...buttonStyle("var(--db-c-green)"), marginTop: "10px" }}>+ Add to My Library</button>}
           </div>
-          <MelodyPaths
-            key={`${activeSongTitle || selectedForm}:${keyRoot}:${keyMode}:${bars.map(bar => `${bar.symbol}:${bar.beats || 4}`).join("|")}`}
-            bars={bars}
-            tonic={keyRoot}
-            keyMode={keyMode}
-            title={activeSongTitle || (selectedForm !== "Custom" ? selectedForm : "Custom chart")}
-            formCategories={FORM_CATEGORIES}
-            userLibrary={userLibrary}
-            gigSongs={GIGBOOK_SONGS}
-            onPickSong={loadSearchPick}
-          />
-        </div>}
+        </details>}
 
         {/* ── FRET FLOW ─────────────────────────────────────────────── */}
-        {inMode("practice","reference") && (() => {
+        {inMode("reference") && (() => {
           // FRET_FLOW_SCALES and TUNING_NAMES are module-level constants (defined below Home()).
           const updateFFBoard = (idx, patch) =>
             setFretFlowBoards(prev => prev.map((b, i) => i === idx ? { ...b, ...patch } : b))
@@ -2901,29 +2751,33 @@ export default function Home() {
           )
         })()}
 
-        {inMode("practice") && <MetronomePanel
-          onBeforeStart={stopPlayback}
-          panelStyle={panelStyle}
-          eyebrowStyle={eyebrowStyle}
-          selectStyle={selectStyle}
-          inlineLabelStyle={inlineLabelStyle}
-        />}
+        {inMode("practice") && <PracticeExpander title="BEATFORGE METRONOME" subtitle="Standalone time workout with programmable accents" color="var(--db-c-blue)" panelStyle={panelStyle}>
+          <MetronomePanel
+            onBeforeStart={stopPlayback}
+            panelStyle={{ ...panelStyle, margin: "14px 0 0" }}
+            eyebrowStyle={eyebrowStyle}
+            selectStyle={selectStyle}
+            inlineLabelStyle={inlineLabelStyle}
+          />
+        </PracticeExpander>}
 
         {/* Line Lab — the merged lab (chart changes or triad-network presets),
             at the foot of the Practice bench under BeatForge. It drives the
             same rhythm section, so it shares the transport with everything
             above it. */}
-        {inMode("practice") && <LineLab
-          chartBars={bars}
-          chartTitle={selectedForm}
-          onStopPlayback={stopPlayback}
-          playLineSection={playLineSection}
-          panelStyle={panelStyle}
-          eyebrowStyle={eyebrowStyle}
-          selectStyle={selectStyle}
-        />}
+        {inMode("practice") && <PracticeExpander title="LINE LAB" subtitle="Improvised single-note lines over your chart or the triad network" color="var(--db-c-green)" panelStyle={panelStyle}>
+          <LineLab
+            chartBars={bars}
+            chartTitle={selectedForm}
+            onStopPlayback={stopPlayback}
+            playLineSection={playLineSection}
+            panelStyle={{ ...panelStyle, margin: "14px 0 0" }}
+            eyebrowStyle={eyebrowStyle}
+            selectStyle={selectStyle}
+          />
+        </PracticeExpander>}
 
-        {dnMeta && inMode("practice","write") && <DesertNoirPanel meta={dnMeta} />}
+        {dnMeta && inMode("practice") && <DesertNoirPanel meta={dnMeta} />}
       </section>
 
       {/* Keyboard shortcut cheatsheet — toggled with ? */}
@@ -3019,6 +2873,19 @@ export default function Home() {
 
     </main>
     </>
+  )
+}
+
+function PracticeExpander({ title, subtitle, color, panelStyle, children }) {
+  return (
+    <details style={panelStyle}>
+      <summary style={{ cursor: "pointer", listStyle: "none", display: "flex", alignItems: "center", gap: "10px", fontWeight: 800 }}>
+        <span aria-hidden="true" style={{ fontSize: "1.35rem", color }}>＋</span>
+        <span style={{ fontSize: "var(--db-fs-lg)", letterSpacing: "0.06em", color }}>{title}</span>
+        <span style={{ fontSize: "var(--db-fs-sm)", opacity: 0.55, fontWeight: 400 }}>{subtitle}</span>
+      </summary>
+      {children}
+    </details>
   )
 }
 

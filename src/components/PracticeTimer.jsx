@@ -39,7 +39,7 @@ async function chime() {
   } catch { /* the visual state is the real signal — never throw over a bell */ }
 }
 
-export default function PracticeTimer({ onFinish, onState, inlineLabelStyle, selectStyle }) {
+export default function PracticeTimer({ onFinish, onState, inlineLabelStyle, selectStyle, transportRunning = false }) {
   const [duration, setDuration] = useState(DEFAULT_SECONDS)
   const [remaining, setRemaining] = useState(DEFAULT_SECONDS)
   const [running, setRunning] = useState(false)
@@ -88,23 +88,10 @@ export default function PracticeTimer({ onFinish, onState, inlineLabelStyle, sel
     return () => clearInterval(id)
   }, [running, finish])
 
-  function start() {
-    const from = remaining > 0 ? remaining : duration
-    deadlineRef.current = Date.now() + from * 1000
-    setRemaining(from)
-    setDone(false)
-    setRunning(true)
-  }
-
-  function pause() {
-    setRemaining(Math.max(0, (deadlineRef.current - Date.now()) / 1000))
-    setRunning(false)
-  }
-
   function reset(seconds = duration) {
-    setRunning(false)
+    setRunning(transportRunning)
     setDone(false)
-    deadlineRef.current = null
+    deadlineRef.current = transportRunning ? Date.now() + seconds * 1000 : null
     setRemaining(seconds)
   }
 
@@ -119,6 +106,28 @@ export default function PracticeTimer({ onFinish, onState, inlineLabelStyle, sel
     setDuration(seconds)
     reset(seconds)
   }
+
+  // The DukeBox transport is the one master practice control. Starting the
+  // band starts the countdown; stopping the band pauses it at the current time.
+  useEffect(() => {
+    if (transportRunning) {
+      const from = remaining > 0 ? remaining : duration
+      deadlineRef.current = Date.now() + from * 1000
+      setRemaining(from)
+      setDone(false)
+      setRunning(true)
+    } else {
+      setRunning((wasRunning) => {
+        if (wasRunning && deadlineRef.current) {
+          setRemaining(Math.max(0, (deadlineRef.current - Date.now()) / 1000))
+        }
+        return false
+      })
+    }
+  // A transport edge is the intended trigger. Timer state is deliberately read
+  // from that moment so countdown ticks do not restart the effect.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [transportRunning])
 
   const pct = duration > 0 ? Math.max(0, Math.min(1, remaining / duration)) : 0
   const urgent = running && remaining <= 10
@@ -147,21 +156,6 @@ export default function PracticeTimer({ onFinish, onState, inlineLabelStyle, sel
       >
         {clock(remaining)}
       </span>
-
-      <button
-        onClick={running ? pause : start}
-        aria-label={running ? "Pause the practice timer" : "Start the practice timer"}
-        disabled={!running && remaining <= 0 && duration <= 0}
-        style={{
-          padding: "7px 16px", borderRadius: "var(--db-r-md)", cursor: "pointer",
-          fontWeight: 700, fontSize: "var(--db-fs-sm)",
-          border: `1px solid ${color}`,
-          background: `color-mix(in srgb, ${color} 14%, var(--db-bg))`,
-          color,
-        }}
-      >
-        {running ? "⏸ Pause" : done ? "↻ Again" : remaining < duration ? "▶ Resume" : "▶ Start"}
-      </button>
 
       <button
         onClick={() => reset()}

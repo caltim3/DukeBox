@@ -45,7 +45,7 @@ HARMONIC DEVICES (apply when requested or implied):
 
 INFER FROM PROMPT: key, form length, tempo feel (ballad=60-80, medium swing=120-140, uptempo=200+), style, and harmonic devices. If a standard is referenced, use its harmonic DNA as a model. Apply all requested devices with correct jazz voice leading.
 
-MELODY LANE: Design the chord progression so that a Melody Lane Array can be derived from it, where arrival and departure notes satisfy a maximum of 2 semitones of movement between bars. Prioritise ii-V-I root motion (Perfect 4th/5th) to exploit natural 7th→3rd half-step resolutions. Avoid chains of tritone-distant root movements that make smooth melodic voice-leading impossible.`
+MELODY PATHS: Design the chord progression so that connected guide-tone paths can be derived from it, where successive target notes satisfy a maximum of 2 semitones of movement between bars. Prioritise ii-V-I root motion (Perfect 4th/5th) to exploit natural 7th→3rd half-step resolutions. Avoid chains of tritone-distant root movements that make smooth melodic voice-leading impossible.`
 
 function extractJSON(text) {
   // Try direct parse first

@@ -153,6 +153,7 @@ export default function MelodyPaths({
   userLibrary,
   gigSongs,
   onPickSong,
+  playheadIndex,
 }) {
   const [guideMode, setGuideMode] = useState("73")
   const [melodyByMeasure, setMelodyByMeasure] = useState({})
@@ -238,6 +239,8 @@ export default function MelodyPaths({
         .mp-pitch { font-size:20px; font-weight:900; color:var(--db-text); }
         .mp-chart { position:relative; display:grid; align-items:stretch; min-height:508px; }
         .mp-column { position:relative; min-width:112px; padding:46px 10px 56px; border-right:1px dashed var(--db-card-border); }
+        .mp-column.playing { background:color-mix(in srgb, var(--db-c-green) 16%, var(--db-bg)); box-shadow:inset 0 3px 0 var(--db-c-green), inset 0 -3px 0 var(--db-c-green); }
+        .mp-column.playing .mp-chord { color:var(--db-c-green); }
         .mp-chord { position:absolute; top:12px; left:50%; transform:translateX(-50%); color:var(--db-text); font-size:var(--db-fs-md); font-weight:800; white-space:nowrap; }
         .mp-degree { position:relative; z-index:2; display:grid; place-items:center; width:44px; height:44px; border:2px solid var(--db-text); border-radius:50%; background:var(--db-bg); color:var(--db-text); font-size:var(--db-fs-sm); font-weight:900; cursor:pointer; transition:transform .12s ease; }
         .mp-degree:hover { transform:scale(1.08); }
@@ -307,7 +310,7 @@ export default function MelodyPaths({
           <div ref={chartRef} className="mp-chart" style={{ gridTemplateColumns: `repeat(${Math.max(columns.length, 1)}, 112px)` }}>
             {columns.length === 0 && <div style={{ padding: "80px 30px", color: "var(--db-muted)" }}>Load a song with chord changes to build its melody path.</div>}
             {columns.map((column, columnIndex) => (
-              <div className="mp-column" key={`${column.barIndex}:${column.chord?.symbol || "NC"}`}>
+              <div className={`mp-column ${playheadIndex === column.barIndex ? "playing" : ""}`} key={`${column.barIndex}:${column.chord?.symbol || "NC"}`}>
                 <div className="mp-chord">{column.chord?.symbol || "N.C."}</div>
                 <div className="mp-degree-stack">
                   {[7, 6, 5, 4, 3, 2, 1].map((degree) => {
