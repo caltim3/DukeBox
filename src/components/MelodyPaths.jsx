@@ -1,6 +1,6 @@
 "use client"
 
-import { useLayoutEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { chordInfo } from "@/lib/music/tonal"
 import SongSearch from "@/components/SongSearch"
 
@@ -154,8 +154,10 @@ export default function MelodyPaths({
   gigSongs,
   onPickSong,
   playheadIndex,
+  guideMode,
+  onGuideModeChange,
+  onPathChange,
 }) {
-  const [guideMode, setGuideMode] = useState("73")
   const [melodyByMeasure, setMelodyByMeasure] = useState({})
   const [colors, setColors] = useState(DEFAULT_COLORS)
   const [linePoints, setLinePoints] = useState({ guide: "", melody: "" })
@@ -167,7 +169,31 @@ export default function MelodyPaths({
   const columns = useMemo(() => measures.flatMap((measure, measureIndex) =>
     measure.map(({ bar, barIndex }) => ({ measureIndex, barIndex, chord: analyzeChord(bar) }))
   ), [measures])
-  const guide = useMemo(() => computeGuide(columns, guideMode, scalePcs), [columns, guideMode, scalePcs])
+  const guide = useMemo(
+    () => guideMode === "melody" ? new Array(columns.length).fill(null) : computeGuide(columns, guideMode, scalePcs),
+    [columns, guideMode, scalePcs]
+  )
+
+  const activePath = useMemo(() => {
+    const notesByBar = {}
+    if (guideMode === "melody") {
+      Object.values(melodyByMeasure).forEach((selection) => {
+        const column = columns[selection.columnIndex]
+        const pc = scalePcs[selection.degree - 1]
+        if (column && pc != null) notesByBar[column.barIndex] = displayNote(pc, tonic)
+      })
+    } else {
+      guide.forEach((item, columnIndex) => {
+        const column = columns[columnIndex]
+        if (item && column) notesByBar[column.barIndex] = displayNote(item.pc, tonic)
+      })
+    }
+    return { mode: guideMode, notesByBar }
+  }, [columns, guide, guideMode, melodyByMeasure, scalePcs, tonic])
+
+  useEffect(() => {
+    onPathChange?.(activePath)
+  }, [activePath, onPathChange])
 
   useLayoutEffect(() => {
     const chart = chartRef.current
@@ -200,6 +226,7 @@ export default function MelodyPaths({
   }, [columns, guide, melodyByMeasure])
 
   function chooseMelody(measureIndex, columnIndex, degree) {
+    onGuideModeChange?.("melody")
     setMelodyByMeasure((previous) => {
       const selected = previous[measureIndex]
       if (selected?.columnIndex === columnIndex && selected?.degree === degree) {
@@ -225,7 +252,7 @@ export default function MelodyPaths({
         .mp-root * { box-sizing: border-box; }
         .mp-top { display:grid; grid-template-columns:minmax(240px, 1.5fr) minmax(190px, 1fr) auto; gap:12px; align-items:end; }
         .mp-label { display:block; margin-bottom:5px; color:var(--db-muted); font-size:var(--db-fs-xs); font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
-        .mp-mode { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+        .mp-mode { display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; }
         .mp-button { padding:7px 12px; border:1px solid var(--db-card-border); border-radius:var(--db-r-md); background:var(--db-card-bg); color:var(--db-text); font-weight:700; cursor:pointer; }
         .mp-button.active { border-color:var(--db-accent); background:color-mix(in srgb, var(--db-accent) 16%, var(--db-bg)); color:var(--db-accent); }
         .mp-legend { display:flex; flex-wrap:wrap; gap:6px 12px; margin-top:14px; padding-top:12px; border-top:1px solid var(--db-card-border); }
@@ -275,8 +302,9 @@ export default function MelodyPaths({
         <div>
           <span className="mp-label">Guide-tone path</span>
           <div className="mp-mode">
-            <button className={`mp-button ${guideMode === "73" ? "active" : ""}`} onClick={() => setGuideMode("73")}>7 → 3</button>
-            <button className={`mp-button ${guideMode === "smooth" ? "active" : ""}`} onClick={() => setGuideMode("smooth")}>Smooth</button>
+            <button className={`mp-button ${guideMode === "73" ? "active" : ""}`} onClick={() => onGuideModeChange?.("73")}>7 → 3</button>
+            <button className={`mp-button ${guideMode === "smooth" ? "active" : ""}`} onClick={() => onGuideModeChange?.("smooth")}>Smooth</button>
+            <button className={`mp-button ${guideMode === "melody" ? "active" : ""}`} onClick={() => onGuideModeChange?.("melody")}>Melody</button>
           </div>
           <div style={{ marginTop: "6px", color: "var(--db-muted)", fontSize: "var(--db-fs-xs)" }}>
             Key center: {tonic} {keyMode === "minor" ? "minor" : "major"}
@@ -297,7 +325,7 @@ export default function MelodyPaths({
       </div>
 
       <div style={{ marginTop: "10px", color: "var(--db-muted)", fontSize: "var(--db-fs-sm)" }}>
-        The solid line is the generated guide-tone path. Click one circle per measure to draw your melody skeleton.
+        The fretboard follows the selected path. Click one circle per measure to draw and select your Melody path.
       </div>
 
       <div className="mp-scroll">

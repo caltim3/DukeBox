@@ -36,6 +36,7 @@ const GROUPS = [
   {
     title: "Views",
     items: [
+      [";", "Cycle color palette"],
       ["F", "Jump to fretboard"],
       ["I", "Toggle Roman numerals"],
       ["T", "Toggle guide-tone targets"],

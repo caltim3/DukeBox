@@ -54,51 +54,69 @@ async function loadAudio() {
 
 const PALETTES = [
   {
-    // Lady Day — crisp white daylight, vivid blues & greens (DEFAULT)
-    name: "Lady Day",
-    bg: "#ffffff",          text: "#111827",
-    accent: "#1d4ed8",
-    panelBg: "rgba(0,0,0,0.025)",       panelBorder: "rgba(0,0,0,0.10)",
-    sideBg:  "rgba(29,78,216,0.04)",    sideBorder:  "rgba(29,78,216,0.14)",
-    inputBg: "#f3f4f6",
-    cardBg: "rgba(0,0,0,0.03)",         cardBorder: "rgba(0,0,0,0.11)",
-    // Muted text meets WCAG AA (4.5:1) against this palette's background —
-    // 0.38 measured only 2.7:1. See docs/UX_UI_RECOMMENDATIONS.md Phase 7.
-    muted: "rgba(0,0,0,0.60)",
-    // Vivid semantic colors — high contrast on white
-    cPurple: "#7c3aed",  cGreen: "#16a34a",  cBlue: "#2563eb",
-    cAmber:  "#b45309",  cGold:  "#a16207",  cSalmon: "#dc2626",
-    cPink:   "#be185d",
+    id: "jupiter", name: "Forest", emoji: "🌿", mode: "light",
+    bg: "#f5f6f8", text: "#18201c", accent: "#2d8a5e",
+    panelBg: "#ffffff", panelBorder: "#d9dedb",
+    sideBg: "#202923", sideBorder: "#344039",
+    inputBg: "#edf1ee", cardBg: "#ffffff", cardBorder: "#d9dedb",
+    muted: "#5f6d65",
+    cPurple: "#7c3aed", cGreen: "#16865a", cBlue: "#2563eb",
+    cAmber: "#b45309", cGold: "#946200", cSalmon: "#dc2626", cPink: "#be185d",
   },
   {
-    // Grant Green — deep forest green + gold
-    name: "Grant Green",
-    bg: "#283618",          text: "#fefae0",
-    accent: "#dda15e",
-    panelBg: "rgba(221,161,94,0.07)",  panelBorder: "rgba(221,161,94,0.22)",
-    sideBg:  "rgba(221,161,94,0.05)",  sideBorder:  "rgba(221,161,94,0.3)",
-    inputBg: "#2c3e1a",
-    cardBg: "rgba(255,255,255,0.04)",  cardBorder: "rgba(255,255,255,0.1)",
-    muted: "rgba(255,255,255,0.70)",   // 7.2:1 on #283618 (was 0.4 → 3.4:1)
-    cPurple: "var(--db-c-purple)",  cGreen: "var(--db-c-green)",  cBlue: "var(--db-c-blue)",
-    cAmber:  "var(--db-c-amber)",  cGold:  "var(--db-c-gold)",  cSalmon: "var(--db-c-salmon)",
-    cPink:   "var(--db-c-pink)",
+    id: "jupiter-dark", name: "Forest Dark", emoji: "🌲", mode: "dark", cssClass: "dark",
+    bg: "#0f1117", text: "#edf4ef", accent: "#3db87a",
+    panelBg: "#141820", panelBorder: "#2b333d",
+    sideBg: "#101a15", sideBorder: "#294235",
+    inputBg: "#1b222b", cardBg: "#141820", cardBorder: "#2b333d",
+    muted: "#a4b0a9",
+    cPurple: "#a78bfa", cGreen: "#4ade80", cBlue: "#60a5fa",
+    cAmber: "#fbbf24", cGold: "#facc15", cSalmon: "#fb7185", cPink: "#f472b6",
   },
   {
-    // Bird's Blues — deep navy + cyan
-    name: "Bird's Blues",
-    bg: "#0a1128",          text: "#fefcfb",
-    accent: "#61dafb",
-    panelBg: "rgba(18,130,162,0.08)",  panelBorder: "rgba(18,130,162,0.28)",
-    sideBg:  "rgba(18,130,162,0.06)",  sideBorder:  "rgba(18,130,162,0.38)",
-    inputBg: "#001844",
-    cardBg: "rgba(255,255,255,0.04)",  cardBorder: "rgba(255,255,255,0.1)",
-    muted: "rgba(255,255,255,0.62)",   // 7.6:1 on #0a1128 (was 0.4 → 3.8:1)
-    cPurple: "var(--db-c-purple)",  cGreen: "var(--db-c-green)",  cBlue: "var(--db-c-blue)",
-    cAmber:  "var(--db-c-amber)",  cGold:  "var(--db-c-gold)",  cSalmon: "var(--db-c-salmon)",
-    cPink:   "var(--db-c-pink)",
+    id: "ember", name: "Ember", emoji: "🔥", mode: "dark", cssClass: "dark theme-ember",
+    bg: "#110e0a", text: "#fff5e6", accent: "#f59e0b",
+    panelBg: "#161310", panelBorder: "#3d3021",
+    sideBg: "#1b1209", sideBorder: "#50361b",
+    inputBg: "#211a13", cardBg: "#161310", cardBorder: "#3d3021",
+    muted: "#c2ad91",
+    cPurple: "#c084fc", cGreen: "#4ade80", cBlue: "#60a5fa",
+    cAmber: "#f59e0b", cGold: "#facc15", cSalmon: "#fb7185", cPink: "#f472b6",
+  },
+  {
+    id: "slate", name: "Slate", emoji: "🪨", mode: "dark", cssClass: "dark theme-slate",
+    bg: "#0d1117", text: "#e8f0f2", accent: "#2dd4bf",
+    panelBg: "#141a22", panelBorder: "#2a3542",
+    sideBg: "#101820", sideBorder: "#28434a",
+    inputBg: "#1b2430", cardBg: "#141a22", cardBorder: "#2a3542",
+    muted: "#9dabb8",
+    cPurple: "#a78bfa", cGreen: "#4ade80", cBlue: "#60a5fa",
+    cAmber: "#fbbf24", cGold: "#facc15", cSalmon: "#fb7185", cPink: "#f472b6",
+  },
+  {
+    id: "ocean", name: "Ocean", emoji: "🌊", mode: "light", cssClass: "theme-ocean",
+    bg: "#99ccff", text: "#10233f", accent: "#1a3a6e",
+    panelBg: "#ccffff", panelBorder: "#76a9d5",
+    sideBg: "#18375f", sideBorder: "#31547e",
+    inputBg: "#e1f7ff", cardBg: "#ccffff", cardBorder: "#76a9d5",
+    muted: "#425d78",
+    cPurple: "#6d28d9", cGreen: "#087f5b", cBlue: "#1d4ed8",
+    cAmber: "#9a4d00", cGold: "#7c5c00", cSalmon: "#c81e3a", cPink: "#a41465",
+  },
+  {
+    id: "daylight", name: "Daylight", emoji: "☀️", mode: "light", cssClass: "theme-daylight",
+    bg: "#f8f9fb", text: "#1c1b22", accent: "#7c3aed",
+    panelBg: "#ffffff", panelBorder: "#dddce5",
+    sideBg: "#25222d", sideBorder: "#403b49",
+    inputBg: "#f0eff5", cardBg: "#ffffff", cardBorder: "#dddce5",
+    muted: "#66616f",
+    cPurple: "#7c3aed", cGreen: "#16865a", cBlue: "#2563eb",
+    cAmber: "#b45309", cGold: "#946200", cSalmon: "#dc2626", cPink: "#be185d",
   },
 ]
+
+const PALETTE_STORAGE_KEY = "dukebox-theme"
+const PALETTE_CLASSES = ["dark", "theme-ember", "theme-slate", "theme-ocean", "theme-daylight", "theme-midnight", "theme-rose"]
 
 const INITIAL_BARS = [
   { root: "Bb", quality: "7", symbol: "Bb7",  section: "A" },
@@ -240,6 +258,8 @@ export default function Home() {
   const [scaleFilter, setScaleFilter] = useState(null)  // null | "pentatonic" | "hexatonic" | "martino" | "hexchord" | "barry"
   const [bebopOverlay, setBebopOverlay] = useState(false)   // adds chromatic passing tone on top
   const [targetsOverlay, setTargetsOverlay] = useState(true) // guide tones are the default practice view
+  const [melodyPathMode, setMelodyPathMode] = useState("73")
+  const [melodyPathState, setMelodyPathState] = useState({ mode: "73", notesByBar: {} })
   const [anticipateOn, setAnticipateOn] = useState(false)   // second fretboard showing the next chord
   const [practiceMode, setPracticeMode] = useState(false)
   const [paletteIndex, setPaletteIndex] = useState(0)
@@ -269,6 +289,25 @@ export default function Home() {
   const transportRef      = useRef(null)   // main Play button — watched for the sticky fallback
 
   const palette = PALETTES[paletteIndex]
+
+  const cyclePalette = useCallback(() => {
+    setPaletteIndex((index) => (index + 1) % PALETTES.length)
+  }, [])
+
+  // Restore and apply the selected Jupiter palette across the whole document.
+  useEffect(() => {
+    const savedId = window.localStorage.getItem(PALETTE_STORAGE_KEY)
+    const savedIndex = PALETTES.findIndex(({ id }) => id === savedId)
+    if (savedIndex >= 0) setPaletteIndex(savedIndex)
+  }, [])
+
+  useEffect(() => {
+    const root = document.documentElement
+    root.classList.remove(...PALETTE_CLASSES)
+    if (palette.cssClass) root.classList.add(...palette.cssClass.split(" "))
+    root.style.colorScheme = palette.mode
+    window.localStorage.setItem(PALETTE_STORAGE_KEY, palette.id)
+  }, [palette])
 
   const selectedBar = bars[selectedIndex]
 
@@ -358,11 +397,22 @@ export default function Home() {
     return withBebop.filter(n => !baseSet.has(n))
   }, [bebopOverlay, fretboardScaleData, fretboardBar, scaleFilter, martinoMap])
 
-  // Guide tones (3rd / 7th) overlay when targets button is active
+  const melodyPathModeLabel = melodyPathMode === "73"
+    ? "7→3"
+    : melodyPathMode === "smooth"
+      ? "Smooth"
+      : melodyPathMode === "melody"
+        ? "Melody"
+        : melodyPathMode
+
+  // The fretboard consumes Melody Paths' selected line directly. This keeps
+  // every present and future path mode in sync without reimplementing its
+  // note-selection rules here.
   const guideToneDisplayNotes = useMemo(() => {
     if (!targetsOverlay) return []
-    return targets[fretboardBarIndex]?.currentGuideTones ?? []
-  }, [targetsOverlay, targets, fretboardBarIndex])
+    const note = melodyPathState.notesByBar[fretboardBarIndex]
+    return note ? [note] : []
+  }, [targetsOverlay, melodyPathState, fretboardBarIndex])
 
   // Barry Harris 6th-dim passing tone — shown green when the Barry filter is on
   const barryPassingNotes = useMemo(() => {
@@ -404,18 +454,20 @@ export default function Home() {
   // matches the direction you actually move on the neck.
   const guideToneDirections = useMemo(() => {
     if (!targetsOverlay || anticipateBarIndex == null) return null
-    const chroma = (n) => "C Db D Eb E F Gb G Ab A Bb B".split(" ").indexOf(n)
-    const cur = targets[fretboardBarIndex]?.currentGuideTones ?? []
-    const nxt = targets[anticipateBarIndex]?.currentGuideTones ?? []
+    const chroma = (n) => ({ C: 0, "C#": 1, Db: 1, D: 2, "D#": 3, Eb: 3, E: 4, F: 5, "F#": 6, Gb: 6, G: 7, "G#": 8, Ab: 8, A: 9, "A#": 10, Bb: 10, B: 11 })[n]
+    const currentPathNote = melodyPathState.notesByBar[fretboardBarIndex]
+    const nextPathNote = melodyPathState.notesByBar[anticipateBarIndex]
+    const cur = currentPathNote ? [currentPathNote] : []
+    const nxt = nextPathNote ? [nextPathNote] : []
     if (!cur.length || !nxt.length) return null
     const dirs = {}
     for (const g of cur) {
       const gc = chroma(g)
-      if (gc < 0) continue
+      if (gc == null) continue
       let best = null
       for (const t of nxt) {
         const tc = chroma(t)
-        if (tc < 0) continue
+        if (tc == null) continue
         const signed = ((tc - gc + 6 + 12) % 12) - 6   // shortest cyclic path, -6..+5
         if (Math.abs(signed) > 2) continue             // not a resolution — ignore
         if (best === null || Math.abs(signed) < Math.abs(best)) {
@@ -426,7 +478,7 @@ export default function Home() {
       if (best !== null) dirs[g] = best
     }
     return dirs
-  }, [targetsOverlay, targets, fretboardBarIndex, anticipateBarIndex])
+  }, [targetsOverlay, melodyPathState, fretboardBarIndex, anticipateBarIndex])
 
   const romanNumerals = useMemo(() => {
     return bars.map((bar) => chordToRoman(bar.root, bar.quality, keyRoot, keyMode))
@@ -1028,12 +1080,20 @@ export default function Home() {
   // Separate from the spacebar handler because these need live bar/selection state.
   useEffect(() => {
     function onKey(e) {
-      const tag = document.activeElement?.tagName
+      const activeElement = document.activeElement
+      const tag = activeElement?.tagName
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return
+      if (activeElement?.isContentEditable || activeElement?.closest?.("[contenteditable='true']")) return
       const meta = e.metaKey || e.ctrlKey
 
       if (e.key === "?") { e.preventDefault(); setShowShortcuts(s => !s); return }
       if (e.key === "Escape") { setShowShortcuts(false); return }
+
+      if (!meta && !e.altKey && e.key === ";") {
+        e.preventDefault()
+        cyclePalette()
+        return
+      }
 
       if (meta && (e.key === "c" || e.key === "C")) {
         const b = bars[selectedIndex]
@@ -1065,7 +1125,7 @@ export default function Home() {
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [bars, selectedIndex, clipboardBar, updateBar])
+  }, [bars, selectedIndex, clipboardBar, updateBar, cyclePalette])
 
   // Library hydration + cloud sync is handled by useCloudLibrary; here we only
   // ensure audio stops if the component unmounts mid-playback.
@@ -1135,6 +1195,38 @@ export default function Home() {
         --db-c-gold:   ${palette.cGold};
         --db-c-salmon: ${palette.cSalmon};
         --db-c-pink:   ${palette.cPink};
+
+        /* Jupiter-compatible semantic aliases keep every app surface on the
+           active palette while existing DukeBox components use --db-* tokens. */
+        --background: var(--db-bg);
+        --foreground: var(--db-text);
+        --border: var(--db-panel-border);
+        --card: var(--db-card-bg);
+        --card-foreground: var(--db-text);
+        --card-border: var(--db-card-border);
+        --popover: var(--db-panel-bg);
+        --popover-foreground: var(--db-text);
+        --popover-border: var(--db-panel-border);
+        --primary: var(--db-accent);
+        --primary-foreground: ${palette.mode === "dark" ? "#101411" : "#ffffff"};
+        --secondary: var(--db-side-bg);
+        --secondary-foreground: ${palette.mode === "dark" ? "#edf4ef" : "#ffffff"};
+        --muted: var(--db-input-bg);
+        --muted-foreground: var(--db-muted);
+        --accent: var(--db-accent);
+        --accent-foreground: var(--primary-foreground);
+        --destructive: var(--db-c-salmon);
+        --destructive-foreground: #ffffff;
+        --input: var(--db-input-bg);
+        --ring: var(--db-accent);
+        --sidebar: var(--db-side-bg);
+        --sidebar-foreground: var(--secondary-foreground);
+        --sidebar-border: var(--db-side-border);
+        --sidebar-primary: var(--db-accent);
+        --sidebar-primary-foreground: var(--primary-foreground);
+        --sidebar-accent: var(--db-card-bg);
+        --sidebar-accent-foreground: var(--db-text);
+        --sidebar-ring: var(--db-accent);
 
         /* ── Design tokens ────────────────────────────────────────────
            Type collapsed from 23 ad-hoc sizes to six steps, radius from
@@ -1245,7 +1337,7 @@ export default function Home() {
       }}
     >
       <section style={{ minWidth: 0, overflow: "hidden" }}>
-        {/* The four bars sounding right now, pinned above every workspace. */}
+        {/* Up to 16 bars from the active section, pinned above every workspace. */}
         <GigBarStrip
           bars={bars}
           title={activeSongTitle || (selectedForm !== "Custom" ? selectedForm : null)}
@@ -1266,7 +1358,7 @@ export default function Home() {
             The DukeBox
           </h1>
           <button
-            onClick={() => setPaletteIndex((i) => (i + 1) % PALETTES.length)}
+            onClick={cyclePalette}
             style={{
               padding: "6px 14px", borderRadius: "var(--db-r-md)", cursor: "pointer", fontWeight: 600, fontSize: "var(--db-fs-md)",
               border: "1px solid var(--db-panel-border)",
@@ -1274,9 +1366,9 @@ export default function Home() {
               color: "var(--db-accent)",
               flexShrink: 0,
             }}
-            title="Cycle color palette"
+            title="Cycle color palette (;)"
           >
-            🎨 {palette.name}
+            {palette.emoji} {palette.name}
           </button>
 
           {/* Keyboard shortcuts are meaningless on a touch device — hidden there
@@ -1933,7 +2025,7 @@ export default function Home() {
                   fontWeight: targetsOverlay ? 700 : 400,
                   opacity:    targetsOverlay ? 1 : 0.7,
                 }}>
-                  +Guide Tones
+                  +{melodyPathModeLabel} Path
                 </button>
                 <button onClick={() => setAnticipateOn(p => !p)} style={{
                   padding: "4px 10px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-sm)", cursor: "pointer",
@@ -2076,7 +2168,7 @@ export default function Home() {
                   </div>
                   <div style={{ fontSize: "var(--db-fs-lg)", fontWeight: 700 }}>{anticipateBar.symbol}</div>
                   <div style={{ fontSize: "var(--db-fs-xs)", opacity: 0.55 }}>
-                    guide tones {(targets[anticipateBarIndex]?.currentGuideTones || []).join(" / ") || "—"}
+                    {melodyPathModeLabel} path {melodyPathState.notesByBar[anticipateBarIndex] || "—"}
                   </div>
                 </div>
                 <div style={{ overflowX: "auto" }}>
@@ -2086,7 +2178,7 @@ export default function Home() {
                     scaleNotes={[]}
                     targetNotes={[]}
                     passingNotes={[]}
-                    guideToneNotes={targets[anticipateBarIndex]?.currentGuideTones || []}
+                    guideToneNotes={melodyPathState.notesByBar[anticipateBarIndex] ? [melodyPathState.notesByBar[anticipateBarIndex]] : []}
                     view="chord"
                     tuningName={fretboardTuning}
                   />
@@ -2101,7 +2193,7 @@ export default function Home() {
               <span style={{ opacity: bebopOverlay || scaleFilter === "barry" ? 0.85 : 0.4 }}>
                 <span style={{ color: "#56C568" }}>●</span> {scaleFilter === "barry" ? "Barry passing tone" : "Bebop passing"}
               </span>
-              <span style={{ opacity: targetsOverlay ? 0.85 : 0.4 }}><span style={{ color: "#FFD54F" }}>●</span> Guide tones</span>
+              <span style={{ opacity: targetsOverlay ? 0.85 : 0.4 }}><span style={{ color: "#FFD54F" }}>●</span> {melodyPathModeLabel} path</span>
               {targetsOverlay && anticipateOn && (
                 <span style={{ opacity: 0.85, color: "#FFD54F" }}>
                   → up a semitone · →→ up a whole tone · ← ←← down · = stays
@@ -2128,6 +2220,9 @@ export default function Home() {
             gigSongs={GIGBOOK_SONGS}
             onPickSong={loadSearchPick}
             playheadIndex={playheadIndex}
+            guideMode={melodyPathMode}
+            onGuideModeChange={setMelodyPathMode}
+            onPathChange={setMelodyPathState}
           />
         </div>}
 
