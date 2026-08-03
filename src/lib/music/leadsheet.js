@@ -588,3 +588,129 @@ export function exportMusicXML({ bars, title, tempo }) {
   a.click()
   URL.revokeObjectURL(url)
 }
+
+// ─── Line Lab: a generated line as MusicXML ──────────────────────────────────
+// Lines come back from /api/generate-line in the compact tab schema
+// { bars: [{ c, n: [[string, fret, beats], …] }] }, which notation software
+// can't read. This writes the same line as a single-voice melody part with the
+// chord symbols above it and the original string/fret preserved as MusicXML
+// technical marks, so a tab staff renders the fingering the lab showed you.
+
+const LINE_DIVISIONS = 12   // per quarter — divides cleanly by 2, 3, and 4
+
+// beats → { type, dots, triplet }. Triplets carry a 3:2 time-modification.
+const LINE_DURATIONS = [
+  { beats: 4,     type: "whole",   dots: 0, triplet: false },
+  { beats: 3,     type: "half",    dots: 1, triplet: false },
+  { beats: 8 / 3, type: "whole",   dots: 0, triplet: true  },
+  { beats: 2,     type: "half",    dots: 0, triplet: false },
+  { beats: 1.5,   type: "quarter", dots: 1, triplet: false },
+  { beats: 4 / 3, type: "half",    dots: 0, triplet: true  },
+  { beats: 1,     type: "quarter", dots: 0, triplet: false },
+  { beats: 0.75,  type: "eighth",  dots: 1, triplet: false },
+  { beats: 2 / 3, type: "quarter", dots: 0, triplet: true  },
+  { beats: 0.5,   type: "eighth",  dots: 0, triplet: false },
+  { beats: 1 / 3, type: "eighth",  dots: 0, triplet: true  },
+  { beats: 0.25,  type: "16th",    dots: 0, triplet: false },
+  { beats: 1 / 6, type: "16th",    dots: 0, triplet: true  },
+  { beats: 0.125, type: "32nd",    dots: 0, triplet: false },
+]
+
+function lineDurationOf(beats) {
+  let best = LINE_DURATIONS[LINE_DURATIONS.length - 1]
+  let bestErr = Infinity
+  for (const d of LINE_DURATIONS) {
+    const err = Math.abs(d.beats - beats)
+    if (err < bestErr) { best = d; bestErr = err }
+  }
+  return best
+}
+
+const LINE_OPEN_MIDI = { 1: 64, 2: 59, 3: 55, 4: 50, 5: 45, 6: 40 }
+
+export function exportLineMusicXML({ line, title, tempo, level }) {
+  const lineBars = line?.bars ?? []
+  if (!lineBars.length) return false
+
+  const bpm = Math.round(tempo || 120)
+  const label = [title || "Line Lab", level ? `L${level}` : null].filter(Boolean).join(" — ")
+
+  const x = []
+  x.push('<?xml version="1.0" encoding="UTF-8"?>')
+  x.push('<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 4.0 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd">')
+  x.push('<score-partwise version="4.0">')
+  x.push(`  <work><work-title>${esc(label)}</work-title></work>`)
+  x.push('  <identification><encoding><software>DukeBox Line Lab</software></encoding></identification>')
+  x.push('  <part-list><score-part id="P1"><part-name>Line</part-name></score-part></part-list>')
+  x.push('  <part id="P1">')
+
+  lineBars.forEach((bar, mi) => {
+    x.push(`    <measure number="${mi + 1}">`)
+
+    if (mi === 0) {
+      x.push('      <attributes>')
+      x.push(`        <divisions>${LINE_DIVISIONS}</divisions>`)
+      x.push('        <key><fifths>0</fifths></key>')
+      x.push('        <time><beats>4</beats><beat-type>4</beat-type></time>')
+      x.push('        <clef><sign>G</sign><line>2</line></clef>')
+      x.push('      </attributes>')
+      x.push('      <direction placement="above">')
+      x.push(`        <direction-type><metronome parentheses="no"><beat-unit>quarter</beat-unit><per-minute>${bpm}</per-minute></metronome></direction-type>`)
+      x.push(`        <sound tempo="${bpm}"/>`)
+      x.push('      </direction>')
+    }
+
+    // A bar's `c` may name more than one chord ("Bm7b5 E7b9"); those split the
+    // bar evenly, in written order — the same reading the lab plays back.
+    const syms = String(bar.c || "").trim().split(/\s+/).filter(Boolean)
+    syms.forEach((sym, si) => {
+      const ch = parseChordForMXL(sym)
+      if (!ch) return
+      x.push('      <harmony>')
+      if (si > 0) x.push(`        <offset>${Math.round((si / syms.length) * 4 * LINE_DIVISIONS)}</offset>`)
+      x.push(`        <root><root-step>${ch.step}</root-step>${ch.alter !== 0 ? `<root-alter>${ch.alter}</root-alter>` : ""}</root>`)
+      x.push(`        <kind text="${esc(ch.kindText)}">${ch.kind}</kind>`)
+      x.push('      </harmony>')
+    })
+
+    let filled = 0   // in divisions, so a short bar can be padded with a rest
+    ;(bar.n || []).forEach(([s, f, b]) => {
+      const d = lineDurationOf(b)
+      const dur = Math.max(1, Math.round(b * LINE_DIVISIONS))
+      const pitch = midiToMXLPitch((LINE_OPEN_MIDI[s] ?? 64) + (Number(f) || 0))
+      if (!pitch) return
+      filled += dur
+      x.push('      <note>')
+      x.push(`        <pitch><step>${pitch.step}</step>${pitch.alter !== 0 ? `<alter>${pitch.alter}</alter>` : ""}<octave>${pitch.octave}</octave></pitch>`)
+      x.push(`        <duration>${dur}</duration>`)
+      x.push(`        <type>${d.type}</type>`)
+      for (let i = 0; i < d.dots; i++) x.push('        <dot/>')
+      if (pitch.accidental) x.push(`        <accidental>${pitch.accidental}</accidental>`)
+      if (d.triplet) x.push('        <time-modification><actual-notes>3</actual-notes><normal-notes>2</normal-notes></time-modification>')
+      x.push('        <notations><technical>')
+      x.push(`          <string>${s}</string><fret>${Number(f) || 0}</fret>`)
+      x.push('        </technical></notations>')
+      x.push('      </note>')
+    })
+
+    const barDivs = 4 * LINE_DIVISIONS
+    if (filled < barDivs) {
+      x.push(`      <note><rest/><duration>${barDivs - filled}</duration></note>`)
+    }
+
+    x.push('    </measure>')
+  })
+
+  x.push('  </part>')
+  x.push('</score-partwise>')
+
+  const blob = new Blob([x.join("\n")], { type: "application/vnd.recordare.musicxml+xml" })
+  const url  = URL.createObjectURL(blob)
+  const a    = document.createElement("a")
+  a.href = url
+  const safe = String(label).replace(/[^A-Za-z0-9 ]/g, "").trim().replace(/ +/g, "_") || "line"
+  a.download = `${safe}.xml`
+  a.click()
+  URL.revokeObjectURL(url)
+  return true
+}

@@ -38,8 +38,8 @@ import Runway from "@/components/Runway"
 import MetronomePanel from "@/components/MetronomePanel"
 import PracticeTimer from "@/components/PracticeTimer"
 import LineLab from "@/components/LineLab"
-import TriadNetwork from "@/components/TriadNetwork"
 import SongSearch from "@/components/SongSearch"
+import GigBarStrip from "@/components/GigBarStrip"
 import { lineToTransportEvents } from "@/lib/music/lines"
 import SongCrafter from "@/components/SongCrafter"
 import GigMode from "@/components/GigMode"
@@ -201,6 +201,7 @@ export default function Home() {
   const [importStatus, setImportStatus] = useState(null)
   const [mode, setMode] = useState("practice")
   const [activeGigSongId, setActiveGigSongId] = useState(null)  // which gig tune is loaded
+  const [activeSongTitle, setActiveSongTitle] = useState(null)  // named on the floating bar strip
   // Panels declare which workspaces they belong to; several appear in more than one.
   const inMode = (...ids) => ids.includes(mode)
   const [showShortcuts, setShowShortcuts] = useState(false)
@@ -726,7 +727,7 @@ export default function Home() {
   // Load any Gig Mode / setlist tune into the editor and engine.
   // Gig Mode deliberately STAYS OPEN so you can read the stage chart while it
   // plays — the open chart lights the current measure via activeGigSongId.
-  function loadGigSong({ bars, keyRoot, keyMode, tempo, autoplay, songId, toMode }) {
+  function loadGigSong({ bars, keyRoot, keyMode, tempo, autoplay, songId, title, toMode }) {
     if (toMode) setMode(toMode)   // e.g. Song Crafter hands off into Practice
     if (playingRef.current) stopPlayback()
     practiceModeRef.current = false
@@ -738,6 +739,7 @@ export default function Home() {
     const t = tempo || 110
     setTempo(t); setOriginalTempo(t)
     setActiveGigSongId(songId ?? null)
+    setActiveSongTitle(title ?? null)
     if (autoplay) pendingStartRef.current = true
   }
 
@@ -889,13 +891,17 @@ export default function Home() {
 
   // Line Lab practice playback: loop a chosen stretch of the chart with the
   // rhythm section and (optionally) the generated line, at a practice tempo.
-  async function playLineSection({ line, startIndex, endIndex, practiceTempo, muteLine, onBar, onLineNote, onDone }) {
+  // barsOverride lets a lab play changes that aren't in the loaded chart at all
+  // (Line Lab's triad-network presets), in which case the chart's own playhead
+  // stays dark rather than lighting bars that aren't sounding.
+  async function playLineSection({ line, startIndex, endIndex, barsOverride, practiceTempo, muteLine, onBar, onLineNote, onDone }) {
     playingRef.current = false
     stopPlayback()
     playingRef.current = true
-    const lo = Math.max(0, Math.min(startIndex ?? 0, bars.length - 1))
-    const hi = Math.max(lo, Math.min(endIndex ?? lo, bars.length - 1))
-    const slicedBars = bars.slice(lo, hi + 1)
+    const source = barsOverride?.length ? barsOverride : bars
+    const lo = Math.max(0, Math.min(startIndex ?? 0, source.length - 1))
+    const hi = Math.max(lo, Math.min(endIndex ?? lo, source.length - 1))
+    const slicedBars = source.slice(lo, hi + 1)
     const lineEvents = (line && !muteLine) ? lineToTransportEvents(line.bars, slicedBars) : null
     setIsPlaying(true)
     const { startPlayback: audioStart } = await loadAudio()
@@ -911,7 +917,10 @@ export default function Home() {
         drumStyle:  drumStyleIdx,
         lineEvents,
         onLineNote,
-        onBar:  (localIdx) => { setPlayheadIndex(lo + localIdx); onBar?.(localIdx) },
+        onBar:  (localIdx) => {
+          if (!barsOverride?.length) setPlayheadIndex(lo + localIdx)
+          onBar?.(localIdx)
+        },
         onStop: () => { playingRef.current = false; setIsPlaying(false); setPlayheadIndex(null); onDone?.() },
       })
     } catch (err) {
@@ -1244,6 +1253,14 @@ export default function Home() {
       }}
     >
       <section style={{ minWidth: 0, overflow: "hidden" }}>
+        {/* The four bars sounding right now, pinned above every workspace. */}
+        <GigBarStrip
+          bars={bars}
+          title={activeSongTitle || (selectedForm !== "Custom" ? selectedForm : null)}
+          playheadIndex={playheadIndex}
+          isPlaying={isPlaying}
+          onStop={stopPlayback}
+        />
         {/* Wraps and scales — at 390px this used to run the title onto two
             lines and push Shortcuts and the sync control off-screen entirely. */}
         <div style={{
@@ -1345,6 +1362,23 @@ export default function Home() {
               eyebrowStyle={eyebrowStyle}
               selectStyle={selectStyle}
             />
+
+            {/* Song Crafter sits with the Gig Book: the book is the tunes you
+                already have, the crafter is where the next one comes from.
+                It still hands finished charts to Practice, where they can be
+                edited — the floating bar strip keeps the playhead visible on
+                the way over. */}
+            <div style={{ marginTop: "16px" }}>
+              <SongCrafter
+                onSendToChart={({ bars, keyRoot, keyMode, title }) =>
+                  // Jump to Practice — otherwise it autoplays a chart you can't see.
+                  loadGigSong({ bars, keyRoot, keyMode, tempo: originalTempo, autoplay: true, songId: null, title, toMode: "practice" })
+                }
+                panelStyle={panelStyle}
+                eyebrowStyle={eyebrowStyle}
+                selectStyle={selectStyle}
+              />
+            </div>
           </div>
         )}
 
@@ -2857,16 +2891,6 @@ export default function Home() {
           )
         })()}
 
-        {inMode("write") && <LineLab
-          chartBars={bars}
-          chartTitle={selectedForm}
-          onStopPlayback={stopPlayback}
-          playLineSection={playLineSection}
-          panelStyle={panelStyle}
-          eyebrowStyle={eyebrowStyle}
-          selectStyle={selectStyle}
-        />}
-
         {inMode("practice") && <MetronomePanel
           onBeforeStart={stopPlayback}
           panelStyle={panelStyle}
@@ -2875,24 +2899,15 @@ export default function Home() {
           inlineLabelStyle={inlineLabelStyle}
         />}
 
-        {/* Triad Network — the practice-system companion to Line Lab, at the
-            foot of the Practice bench. It drives the same rhythm section, so
-            it shares the transport with everything above it. */}
-        {inMode("practice") && <TriadNetwork
+        {/* Line Lab — the merged lab (chart changes or triad-network presets),
+            at the foot of the Practice bench under BeatForge. It drives the
+            same rhythm section, so it shares the transport with everything
+            above it. */}
+        {inMode("practice") && <LineLab
           chartBars={bars}
           chartTitle={selectedForm}
           onStopPlayback={stopPlayback}
           playLineSection={playLineSection}
-          panelStyle={panelStyle}
-          eyebrowStyle={eyebrowStyle}
-          selectStyle={selectStyle}
-        />}
-
-        {inMode("reference") && <SongCrafter
-          onSendToChart={({ bars, keyRoot, keyMode, title }) =>
-            // Jump to Practice — otherwise it autoplays a chart you can't see.
-            loadGigSong({ bars, keyRoot, keyMode, tempo: originalTempo, autoplay: true, songId: null, title, toMode: "practice" })
-          }
           panelStyle={panelStyle}
           eyebrowStyle={eyebrowStyle}
           selectStyle={selectStyle}

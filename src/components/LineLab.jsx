@@ -1,23 +1,36 @@
 "use client"
 
-// Line Lab — generate a single-note improvised line over a stretch of changes,
-// returned as tab with per-bar reasoning, and step it across the fretboard.
+// Line Lab — generate a single-note improvised line, return it as tab with
+// per-bar reasoning, step it across the fretboard, and practice it with the
+// rhythm section.
 //
-// Integrated from the standalone Line Lab prototype with three changes:
-//   1. Generation goes through /api/generate-line (server-side) — the prototype
-//      called api.anthropic.com straight from the browser, which CORS blocks and
-//      which would expose a key.
-//   2. Seeds from the chart already loaded in DukeBox instead of a hardcoded preset.
-//   3. Plays through the shared Tone.js piano sampler rather than opening a
-//      second AudioContext with a raw oscillator.
+// This is the merged lab. It used to be two panels: the Chart lab in Write
+// (seeded from the chart loaded in DukeBox) and the Triad Network lab at the
+// foot of Practice (seeded from a vocabulary preset, with the tutorial). They
+// were the same generator behind two UIs, so they're now one panel with a
+// Source switch — everything both of them could do, in one place:
+//
+//   Chart   — type or pull in changes, pick any stretch up to 8 bars
+//   Network — triad-network presets (pairs, cells, pivots, enclosures,
+//             rest-stroke triplets, Martino Mode) over a generated II-V-I,
+//             blues, modal or rhythm-bridge section
+//
+// Generation always goes through /api/generate-line, so the key, tab rendering,
+// and band/fretboard playback are identical whichever source you use.
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import { buildTab } from "@/lib/music/lines"
+import { exportLineMusicXML } from "@/lib/music/leadsheet"
+import { parseGigChord } from "@/lib/music/gigbook"
+import {
+  TN_TONICS, TN_CHORD_TYPES, TN_PROGRESSIONS, TN_POSITIONS,
+  TN_LEVEL_RULES, TN_TUTORIAL, guessQuality,
+} from "@/lib/music/triadNetwork"
 
 const DEVICES = [
   "Chromatics", "Bebop scale", "Enclosures", "Altered",
   "Melodic cells", "Triads", "Triad pairs", "Scale choice",
-  "Rest-stroke triplets",
+  "Pivot arpeggios", "Rest-stroke triplets", "Minor conversion (Martino)",
 ]
 
 // Devices whose meaning isn't obvious from the chip alone.
@@ -25,6 +38,23 @@ const DEVICE_HINTS = {
   "Rest-stroke triplets":
     "Pat Martino's rest-stroke (apoyando) flow — continuous eighth-note triplets, " +
     "picked so each stroke comes to rest on the next string. Accent the first of every three.",
+  "Pivot arpeggios":
+    "Edges as objects — arpeggiate off a chord tone into the next chord's arpeggio " +
+    "rather than restarting from its root.",
+  "Minor conversion (Martino)":
+    "Play the ii minor over both the ii and the V, then flip one note on the I.",
+}
+
+// The route has a dedicated rule for rest-strokes and for minor conversion;
+// everything else is passed through as emphasis.
+function routeDevices(selected, martino) {
+  const out = []
+  for (const d of selected) {
+    if (d === "Minor conversion (Martino)") out.push("minor conversion")
+    else out.push(d)
+  }
+  if (martino && !out.includes("minor conversion")) out.push("minor conversion")
+  return out
 }
 
 const POSITIONS = ["Anywhere", "Open to 4th", "5th position", "7th to 9th", "10th and up"]
@@ -40,6 +70,8 @@ const noteWithOctave = (s, f) => {
   return `${NOTE_NAMES[m % 12]}${Math.floor(m / 12) - 1}`
 }
 
+// One ladder, read two ways: the Chart lab's names on top, the practice
+// system's rule underneath.
 const LEVELS = [
   { n: 1, label: "Skeleton",  blurb: "Chord + guide tones" },
   { n: 2, label: "Inside",    blurb: "Recommended scale + bebop" },
@@ -65,6 +97,10 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
     [chartBars]
   )
 
+  // ── Source: your chart, or a triad-network preset ──
+  const [source, setSource] = useState("chart")
+  const isNetwork = source === "network"
+
   const [sheet, setSheet] = useState(chartAsSheet)
   const [selStart, setSelStart] = useState(0)
   const [selEnd, setSelEnd] = useState(3)
@@ -78,6 +114,13 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
   const [playIdx, setPlayIdx] = useState(-1)
   const [playing, setPlaying] = useState(false)
   const timerRef = useRef(null)
+
+  // ── Network preset controls ──
+  const [tonic, setTonic] = useState("C")
+  const [chordType, setChordType] = useState("maj7")
+  const [progression, setProgression] = useState("major_251_martino")
+  const [netPosition, setNetPosition] = useState("5th position (frets 3-8)")
+  const [openDoc, setOpenDoc] = useState(null)
 
   // Complexity ladder — lines cached per level so levels can be compared
   // over the same bars without regenerating.
@@ -98,18 +141,41 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
   const RAMP_STEP = 5
   const RAMP_HEADROOM = 40   // default room above the current tempo to ramp into
 
-  const bars = useMemo(() => parseBars(sheet), [sheet])
+  // ── Faders: the band under the line, and the line itself ──
+  const [bandLevel, setBandLevel] = useState(1)
+  const [lineLevel, setLineLevel] = useState(1)
+  useEffect(() => {
+    let cancelled = false
+    import("@/lib/music/audio")
+      .then((audio) => { if (!cancelled) audio.setMixLevels({ band: bandLevel, line: lineLevel }) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [bandLevel, lineLevel])
+
+  const [exported, setExported] = useState(false)
+
+  const prog = TN_PROGRESSIONS[progression]
+  const isMartino = !!prog?.martino
+  const netChords = useMemo(
+    () => prog.build(tonic, chordType),
+    [prog, tonic, chordType]
+  )
+
+  const chartChords = useMemo(() => parseBars(sheet), [sheet])
+  const bars = isNetwork ? netChords : chartChords
 
   useEffect(() => {
+    if (isNetwork) return
     setSelStart(0)
-    setSelEnd(Math.min(3, Math.max(0, bars.length - 1)))
-  }, [sheet, bars.length])
+    setSelEnd(Math.min(3, Math.max(0, chartChords.length - 1)))
+  }, [sheet, chartChords.length, isNetwork])
 
-  // A new section invalidates every cached level
+  // A new section — or a new source — invalidates every cached level
   useEffect(() => {
     setLevelLines({})
     setResult(null)
-  }, [selStart, selEnd, sheet])
+    setExported(false)
+  }, [selStart, selEnd, sheet, source, progression, tonic, chordType])
 
   // Each note carries the chord that should be sounding under it, so the solo
   // preview can comp along. A bar's `c` may name more than one chord
@@ -138,6 +204,7 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
   }, [result])
 
   function clickBar(i) {
+    if (isNetwork) return
     if (selStart === selEnd && i > selStart) setSelEnd(i)
     else { setSelStart(i); setSelEnd(i) }
   }
@@ -146,6 +213,7 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
   useEffect(() => {
     stopLine()
     setResult(levelLines[level] ?? null)
+    setExported(false)
   }, [level])   // eslint-disable-line react-hooks/exhaustive-deps
 
   function toggleDevice(d) {
@@ -156,12 +224,13 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
     })
   }
 
-  // Reuse DukeBox's Tone.js piano sampler so Line Lab doesn't spin up its own
-  // AudioContext (and so the line matches the app's timbre).
+  // Reuse DukeBox's Tone.js piano samples so Line Lab doesn't spin up its own
+  // AudioContext. The line plays on its own sampler voice — same timbre as the
+  // band, separate fader.
   async function playNote(s, f) {
     try {
       const audio = await import("@/lib/music/audio")
-      await audio.playSingleNote(noteWithOctave(s, f))
+      await audio.playLineNote(noteWithOctave(s, f))
     } catch { /* preview is non-essential — stay silent rather than throw */ }
   }
 
@@ -201,6 +270,13 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
     setPlayIdx(running + noteIdx)
   }
 
+  // Network presets aren't in the loaded chart, so the band has to be handed
+  // the preset's own bars rather than a slice of the chart.
+  const netBars = useMemo(
+    () => netChords.map((sym) => parseGigChord(sym, "A") ?? { root: "C", quality: "maj7", symbol: sym, section: "A", beats: 4 }),
+    [netChords]
+  )
+
   function startLine() {
     if (!flatNotes.length) return
     onStopPlayback?.()      // Line Lab and the band share one Transport
@@ -218,8 +294,9 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
       setPlaying(true)
       playLineSection({
         line: result,
-        startIndex: selStart,
-        endIndex: Math.min(selEnd, selStart + 7),
+        barsOverride: isNetwork ? netBars : null,
+        startIndex: isNetwork ? 0 : selStart,
+        endIndex: isNetwork ? netBars.length - 1 : Math.min(selEnd, selStart + 7),
         practiceTempo: tempo,
         muteLine,
         onBar: onBandBar,
@@ -253,20 +330,32 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
 
   async function generate() {
     stopLine()
-    setLoading(true); setError(null); setResult(null)
-    const section = bars.slice(selStart, Math.min(selEnd + 1, selStart + 8))
-    const clipped = selEnd - selStart + 1 > 8
+    setLoading(true); setError(null); setResult(null); setExported(false)
+
+    const section = isNetwork
+      ? netChords
+      : chartChords.slice(selStart, Math.min(selEnd + 1, selStart + 8))
+    const clipped = !isNetwork && selEnd - selStart + 1 > 8
+
     // Richer bar data (root/quality/beats) lets the route feed the model
     // DukeBox's own scale recommendations and guide tones.
-    const chartSlice = (chartBars ?? []).slice(selStart, Math.min(selEnd + 1, selStart + 8))
-      .map((b) => ({ symbol: b.symbol, root: b.root, quality: b.quality, beats: b.beats }))
+    const chartSlice = isNetwork
+      ? netChords.map((sym) => ({ symbol: sym, quality: guessQuality(sym), beats: 4 }))
+      : (chartBars ?? []).slice(selStart, Math.min(selEnd + 1, selStart + 8))
+          .map((b) => ({ symbol: b.symbol, root: b.root, quality: b.quality, beats: b.beats }))
+
     try {
       const res = await fetch("/api/generate-line", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          section, devices: Array.from(devices), position, extra,
-          level, chartBars: chartSlice,
+          section,
+          devices: routeDevices(devices, isNetwork && isMartino),
+          position: isNetwork ? netPosition : position,
+          extra: (isNetwork && isMartino ? "Use the Martino minor-conversion approach throughout. " : "") + extra,
+          mode: isNetwork && isMartino ? "martino" : undefined,
+          level,
+          chartBars: chartSlice,
         }),
       })
       const data = await res.json()
@@ -278,6 +367,14 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
       setError(e.message || "Couldn't get a clean line back. Try again, or select fewer bars.")
     }
     setLoading(false)
+  }
+
+  function exportXML() {
+    const title = isNetwork
+      ? `${TN_PROGRESSIONS[progression].label} in ${tonic}`
+      : (chartTitle && chartTitle !== "Custom" ? chartTitle : "Line Lab")
+    const ok = exportLineMusicXML({ line: result, title, tempo, level })
+    setExported(ok)
   }
 
   // ─── Fretboard geometry ───────────────────────────────────────────────────
@@ -296,60 +393,151 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
     opacity: active ? 1 : 0.75,
   })
 
+  const ct = TN_CHORD_TYPES[chordType]
+
   return (
     <div style={panelStyle}>
       <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "4px", flexWrap: "wrap" }}>
         <div style={{ ...eyebrowStyle, marginBottom: 0 }}>LINE LAB</div>
         <div style={{ fontSize: "var(--db-fs-sm)", opacity: 0.62 }}>
-          Improvised single-note lines over your changes — as tab, with per-bar reasoning
+          Improvised single-note lines — as tab, with per-bar reasoning, over your chart or the triad network
         </div>
       </div>
 
-      {/* Lead sheet */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: "10px" }}>
-        <label style={{ fontSize: "var(--db-fs-sm)", color: "var(--db-accent)" }} htmlFor="ll-sheet">Changes</label>
-        <button
-          onClick={() => setSheet(chartAsSheet)}
-          disabled={!chartAsSheet}
-          style={{
-            background: "none", border: "none", color: "var(--db-muted)",
-            fontSize: "var(--db-fs-xs)", cursor: "pointer", textDecoration: "underline",
-          }}
-          title="Replace with the chart currently loaded in DukeBox"
-        >
-          Use current chart{chartTitle && chartTitle !== "Custom" ? ` (${chartTitle})` : ""}
+      {/* Source switch */}
+      <div style={{ display: "flex", gap: "6px", marginTop: "12px", flexWrap: "wrap" }}>
+        <button onClick={() => setSource("chart")} aria-pressed={!isNetwork} style={chip(!isNetwork)}>
+          Chart changes
+        </button>
+        <button onClick={() => setSource("network")} aria-pressed={isNetwork} style={chip(isNetwork)}>
+          Triad network preset
         </button>
       </div>
-      <textarea
-        id="ll-sheet"
-        value={sheet}
-        onChange={(e) => setSheet(e.target.value)}
-        rows={2}
-        placeholder="Am7 | Bm7b5 E7b9 | Am7 | % …"
-        style={{
-          width: "100%", boxSizing: "border-box", marginTop: "8px",
-          background: "var(--db-input-bg)", color: "var(--db-text)",
-          border: "1px solid var(--db-panel-border)", borderRadius: "var(--db-r-md)",
-          padding: "9px 11px", fontFamily: "var(--font-mono, monospace)",
-          fontSize: "var(--db-fs-md)", resize: "vertical",
-        }}
-      />
-      <div style={{ fontSize: "var(--db-fs-xs)", opacity: 0.62, margin: "10px 0 7px" }}>
-        Tap a bar, then another, to set the section. Max 8 bars per generation.
-      </div>
+
+      {/* Triad-network tutorial — the practice system behind the presets */}
+      <details style={{ marginTop: "12px" }}>
+        <summary style={{ cursor: "pointer", fontSize: "var(--db-fs-sm)", color: "var(--db-c-purple, var(--db-accent))" }}>
+          The practice system — pairs · cells · pivots · enclosures · rest-stroke triplets · Martino Mode
+        </summary>
+        <div style={{ marginTop: "8px" }}>
+          {TN_TUTORIAL.map((sec) => {
+            const open = openDoc === sec.id
+            return (
+              <div key={sec.id} style={{
+                borderRadius: "var(--db-r-md)", marginBottom: "6px",
+                border: `1px solid ${sec.highlight ? "color-mix(in srgb, var(--db-c-pink) 40%, transparent)" : "var(--db-card-border)"}`,
+                background: sec.highlight ? "color-mix(in srgb, var(--db-c-pink) 8%, var(--db-bg))" : "var(--db-card-bg)",
+              }}>
+                <button
+                  onClick={() => setOpenDoc(open ? null : sec.id)}
+                  style={{
+                    width: "100%", textAlign: "left", padding: "10px 12px", cursor: "pointer",
+                    background: "transparent", border: "none", color: "var(--db-text)",
+                    fontSize: "var(--db-fs-md)", fontWeight: 600,
+                    display: "flex", justifyContent: "space-between", alignItems: "center",
+                  }}
+                >
+                  <span>{sec.highlight ? "★ " : ""}{sec.title}</span>
+                  <span style={{ opacity: 0.5, fontSize: "0.8em" }}>{open ? "−" : "+"}</span>
+                </button>
+                {open && (
+                  <div style={{ padding: "0 12px 12px", fontSize: "var(--db-fs-sm)", lineHeight: 1.6, opacity: 0.86 }}>
+                    {sec.body}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </details>
+
+      {/* ── Chart source: lead sheet + bar picker ── */}
+      {!isNetwork && (
+        <>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: "14px" }}>
+            <label style={{ fontSize: "var(--db-fs-sm)", color: "var(--db-accent)" }} htmlFor="ll-sheet">Changes</label>
+            <button
+              onClick={() => setSheet(chartAsSheet)}
+              disabled={!chartAsSheet}
+              style={{
+                background: "none", border: "none", color: "var(--db-muted)",
+                fontSize: "var(--db-fs-xs)", cursor: "pointer", textDecoration: "underline",
+              }}
+              title="Replace with the chart currently loaded in DukeBox"
+            >
+              Use current chart{chartTitle && chartTitle !== "Custom" ? ` (${chartTitle})` : ""}
+            </button>
+          </div>
+          <textarea
+            id="ll-sheet"
+            value={sheet}
+            onChange={(e) => setSheet(e.target.value)}
+            rows={2}
+            placeholder="Am7 | Bm7b5 E7b9 | Am7 | % …"
+            style={{
+              width: "100%", boxSizing: "border-box", marginTop: "8px",
+              background: "var(--db-input-bg)", color: "var(--db-text)",
+              border: "1px solid var(--db-panel-border)", borderRadius: "var(--db-r-md)",
+              padding: "9px 11px", fontFamily: "var(--font-mono, monospace)",
+              fontSize: "var(--db-fs-md)", resize: "vertical",
+            }}
+          />
+          <div style={{ fontSize: "var(--db-fs-xs)", opacity: 0.62, margin: "10px 0 7px" }}>
+            Tap a bar, then another, to set the section. Max 8 bars per generation.
+          </div>
+        </>
+      )}
+
+      {/* ── Network source: preset controls ── */}
+      {isNetwork && (
+        <>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "10px", marginTop: "14px" }}>
+            <label style={{ fontSize: "var(--db-fs-xs)", opacity: 0.7 }}>Tonic
+              <select value={tonic} onChange={(e) => setTonic(e.target.value)} style={{ ...selectStyle, width: "100%", marginTop: "4px" }}>
+                {TN_TONICS.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </label>
+            <label style={{ fontSize: "var(--db-fs-xs)", opacity: 0.7 }}>Chord type
+              <select value={chordType} onChange={(e) => setChordType(e.target.value)} style={{ ...selectStyle, width: "100%", marginTop: "4px" }}>
+                {Object.entries(TN_CHORD_TYPES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+              </select>
+            </label>
+            <label style={{ fontSize: "var(--db-fs-xs)", opacity: 0.7 }}>Progression
+              <select value={progression} onChange={(e) => setProgression(e.target.value)} style={{ ...selectStyle, width: "100%", marginTop: "4px" }}>
+                {Object.entries(TN_PROGRESSIONS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+              </select>
+            </label>
+            <label style={{ fontSize: "var(--db-fs-xs)", opacity: 0.7 }}>Position
+              <select value={netPosition} onChange={(e) => setNetPosition(e.target.value)} style={{ ...selectStyle, width: "100%", marginTop: "4px" }}>
+                {TN_POSITIONS.map((p) => <option key={p} value={p}>{p}</option>)}
+              </select>
+            </label>
+          </div>
+          <div style={{ fontSize: "var(--db-fs-xs)", opacity: 0.6, margin: "10px 0 7px" }}>
+            {ct.scale} · pairs {ct.pairs.join(", ")} · cells {ct.cells.join(", ")} · color {ct.color}
+            {isMartino && <span style={{ color: "var(--db-c-purple, var(--db-accent))" }}> · minor conversion, F→F# on the I, altered lift on the V</span>}
+          </div>
+        </>
+      )}
+
+      {/* Bars — clickable in Chart mode, the preset section in Network mode */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
         {bars.map((b, i) => {
-          const inSel = i >= selStart && i <= selEnd
+          const inSel = isNetwork ? true : (i >= selStart && i <= selEnd)
+          const isNow = currentNote?.bi === i
           return (
             <button
               key={i}
               onClick={() => clickBar(i)}
               aria-pressed={inSel}
               style={{
-                padding: "6px 10px", borderRadius: "var(--db-r-md)", fontSize: "var(--db-fs-sm)", cursor: "pointer",
+                padding: "6px 10px", borderRadius: "var(--db-r-md)", fontSize: "var(--db-fs-sm)",
+                cursor: isNetwork ? "default" : "pointer",
                 fontFamily: "var(--font-mono, monospace)",
-                border: `1px solid ${inSel ? "var(--db-accent)" : "var(--db-card-border)"}`,
-                background: inSel ? "color-mix(in srgb, var(--db-accent) 15%, var(--db-bg))" : "var(--db-card-bg)",
+                border: `1px solid ${isNow ? "var(--db-c-green, var(--db-accent))" : inSel ? "var(--db-accent)" : "var(--db-card-border)"}`,
+                background: isNow
+                  ? "color-mix(in srgb, var(--db-c-green, var(--db-accent)) 18%, var(--db-bg))"
+                  : inSel ? "color-mix(in srgb, var(--db-accent) 15%, var(--db-bg))" : "var(--db-card-bg)",
                 color: inSel ? "var(--db-accent)" : "var(--db-text)",
               }}
             >
@@ -393,17 +581,19 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
             }}
           />
         </div>
-        <div style={{ flex: "0 0 170px" }}>
-          <label style={{ fontSize: "var(--db-fs-sm)", color: "var(--db-accent)" }} htmlFor="ll-pos">Position</label>
-          <select
-            id="ll-pos"
-            value={position}
-            onChange={(e) => setPosition(e.target.value)}
-            style={{ ...selectStyle, marginTop: "6px", padding: "8px 10px", fontSize: "var(--db-fs-md)" }}
-          >
-            {POSITIONS.map(p => <option key={p} value={p}>{p}</option>)}
-          </select>
-        </div>
+        {!isNetwork && (
+          <div style={{ flex: "0 0 170px" }}>
+            <label style={{ fontSize: "var(--db-fs-sm)", color: "var(--db-accent)" }} htmlFor="ll-pos">Position</label>
+            <select
+              id="ll-pos"
+              value={position}
+              onChange={(e) => setPosition(e.target.value)}
+              style={{ ...selectStyle, marginTop: "6px", padding: "8px 10px", fontSize: "var(--db-fs-md)" }}
+            >
+              {POSITIONS.map(p => <option key={p} value={p}>{p}</option>)}
+            </select>
+          </div>
+        )}
       </div>
 
       {/* Complexity ladder — same bars, five readings from skeleton to exotic */}
@@ -419,7 +609,7 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
               key={L.n}
               onClick={() => setLevel(L.n)}
               aria-pressed={active}
-              title={L.blurb}
+              title={`${L.blurb} — ${TN_LEVEL_RULES[L.n]}`}
               style={{
                 flex: "1 1 116px", minWidth: "108px", textAlign: "left",
                 padding: "7px 10px", borderRadius: "var(--db-r-md)", cursor: "pointer",
@@ -431,7 +621,7 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
               }}
             >
               <div style={{ fontSize: "var(--db-fs-xs)", opacity: 0.6 }}>
-                L{L.n}{cached ? " \u25CF" : ""}
+                L{L.n}{cached ? " ●" : ""}
               </div>
               <div style={{
                 fontSize: "var(--db-fs-sm)", fontWeight: 700,
@@ -442,6 +632,7 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
           )
         })}
       </div>
+      <div style={{ fontSize: "var(--db-fs-xs)", opacity: 0.6, marginTop: "6px" }}>{TN_LEVEL_RULES[level]}</div>
 
       <button
         onClick={generate}
@@ -465,6 +656,31 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
 
       {result && (
         <>
+          {/* Export — a fresh line, straight into notation software */}
+          <div style={{
+            marginTop: "14px", padding: "12px 14px", borderRadius: "var(--db-r-md)",
+            border: "1px solid var(--db-panel-border)", background: "var(--db-card-bg)",
+            display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap",
+          }}>
+            <div style={{ flex: "1 1 240px" }}>
+              <div style={{ fontSize: "var(--db-fs-sm)", fontWeight: 700 }}>Export this line</div>
+              <div style={{ fontSize: "var(--db-fs-xs)", opacity: 0.62 }}>
+                MusicXML — notation, chord symbols, and the string/fret it was written for.
+                Opens in MuseScore, Sibelius, Finale, Dorico.
+              </div>
+            </div>
+            <button
+              onClick={exportXML}
+              style={{
+                padding: "8px 16px", borderRadius: "var(--db-r-md)", cursor: "pointer",
+                border: "1px solid var(--db-accent)", background: "transparent",
+                color: "var(--db-accent)", fontSize: "var(--db-fs-sm)", fontWeight: 700,
+              }}
+            >
+              {exported ? "✓ Exported" : "⤓ MusicXML"}
+            </button>
+          </div>
+
           {/* Practice transport — loop the section with the rhythm section */}
           <div style={{
             marginTop: "16px", paddingTop: "14px",
@@ -540,6 +756,34 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
             </span>
           </div>
 
+          {/* Faders — balance the line against the band */}
+          <div style={{ display: "flex", gap: "18px", flexWrap: "wrap", marginTop: "12px" }}>
+            <label style={{ fontSize: "var(--db-fs-xs)", opacity: 0.75, display: "flex", alignItems: "center", gap: "8px" }}>
+              Band
+              <input
+                type="range" min={0} max={2} step={0.05} value={bandLevel}
+                onChange={(e) => setBandLevel(Number(e.target.value))}
+                style={{ width: "120px" }}
+                aria-label="Band volume"
+              />
+              <span style={{ fontFamily: "var(--font-mono, monospace)", minWidth: "34px" }}>
+                {Math.round(bandLevel * 100)}%
+              </span>
+            </label>
+            <label style={{ fontSize: "var(--db-fs-xs)", opacity: 0.75, display: "flex", alignItems: "center", gap: "8px" }}>
+              Line
+              <input
+                type="range" min={0} max={2} step={0.05} value={lineLevel}
+                onChange={(e) => setLineLevel(Number(e.target.value))}
+                style={{ width: "120px" }}
+                aria-label="Line melody volume"
+              />
+              <span style={{ fontFamily: "var(--font-mono, monospace)", minWidth: "34px" }}>
+                {Math.round(lineLevel * 100)}%
+              </span>
+            </label>
+          </div>
+
           {/* Fretboard walkthrough */}
           <div style={{
             marginTop: "18px", paddingTop: "14px",
@@ -549,7 +793,7 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
               <label style={{ fontSize: "var(--db-fs-sm)", color: "var(--db-accent)" }}>The line</label>
               <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                 <span style={{ fontSize: "var(--db-fs-xs)", opacity: 0.62 }}>
-                  {ramp && withBand && playing ? `${liveTempo}\u2191` : tempo} bpm
+                  {ramp && withBand && playing ? `${liveTempo}↑` : tempo} bpm
                 </span>
                 <input
                   type="range" min={60} max={220} value={tempo}

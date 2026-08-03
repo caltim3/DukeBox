@@ -104,6 +104,53 @@ function ensureSynths() {
   hihat.volume.value = -20
 }
 
+// ─── Band / line faders ──────────────────────────────────────────────────────
+// Line Lab needs to balance a generated line against the rhythm section, so
+// every voice is tagged as "band" or "line" and trimmed from its mixed-in
+// resting level rather than being re-routed through a bus. The base numbers are
+// the levels each voice was already set to; a fader of 1 leaves the mix exactly
+// as it was before faders existed.
+const BASE_DB = {
+  piano: -14, drums: -10, bass: -8, kick: -10, ride: -16, hihat: -20,
+  linePiano: -10, lead: -16,
+}
+let _bandLevel = 1
+let _lineLevel = 1
+
+const trimDb = (baseDb, level) =>
+  level <= 0 ? -Infinity : baseDb + 20 * Math.log10(Math.min(2, level))
+
+function applyMixLevels() {
+  const { piano: pianoSampler, linePiano, drums, bass } = getSamplers() ?? {}
+  const set = (node, base, level) => {
+    if (node) try { node.volume.value = trimDb(base, level) } catch {}
+  }
+  set(pianoSampler, BASE_DB.piano, _bandLevel)
+  set(piano,        BASE_DB.piano, _bandLevel)
+  set(drums,        BASE_DB.drums, _bandLevel)
+  set(bass,         BASE_DB.bass,  _bandLevel)
+  set(kick,         BASE_DB.kick,  _bandLevel)
+  set(ride,         BASE_DB.ride,  _bandLevel)
+  set(hihat,        BASE_DB.hihat, _bandLevel)
+  set(linePiano,    BASE_DB.linePiano, _lineLevel)
+  set(lead,         BASE_DB.lead,      _lineLevel)
+}
+
+/**
+ * Set the band and generated-line faders (0 = silent, 1 = the stock mix, 2 =
+ * +6 dB). Either key may be omitted to leave that fader alone. Takes effect
+ * immediately, whether or not the transport is running.
+ */
+export function setMixLevels({ band, line } = {}) {
+  if (band != null) _bandLevel = Math.max(0, Math.min(2, band))
+  if (line != null) _lineLevel = Math.max(0, Math.min(2, line))
+  applyMixLevels()
+}
+
+export function getMixLevels() {
+  return { band: _bandLevel, line: _lineLevel }
+}
+
 // ─── Voicings ────────────────────────────────────────────────────────────────
 function assignOctaves(noteNames, baseOctave = 4) {
   const result = []
@@ -301,6 +348,25 @@ export async function playSingleNote(noteWithOctave, dur = "8n", vel = 0.8) {
 }
 
 /**
+ * Fire one note of a generated line through the LINE piano sampler.
+ * Same buffers as the band's piano, but on its own voice so the Line Lab fader
+ * can balance the line against the rhythm section.
+ */
+export async function playLineNote(noteWithOctave, dur = "8n", vel = 0.8) {
+  await Tone.start()
+  ensureSynths()
+  await initSamplers()
+  applyMixLevels()
+  const { linePiano, piano: pianoSampler } = getSamplers() ?? {}
+  const voice = linePiano || pianoSampler
+  const now = Tone.now()
+  try {
+    if (voice) voice.triggerAttackRelease(noteWithOctave, dur, now, vel)
+    else lead.triggerAttackRelease(noteWithOctave, dur, now, vel)
+  } catch { /* out-of-range note — skip rather than throw */ }
+}
+
+/**
  * Sound one chord through the shared piano sampler.
  * Line Lab's solo preview steps notes on a wall-clock timer with no transport
  * of its own, so it needs a way to put the harmony under the line — otherwise
@@ -317,6 +383,7 @@ export async function playChordStab(symbol, dur = 2, vel = 0.45) {
   await Tone.start()
   ensureSynths()
   await initSamplers()
+  applyMixLevels()
   const { piano: pianoSampler } = getSamplers() ?? {}
   const notes = chordVoicing(cleaned, false)
   const now = Tone.now()
@@ -338,6 +405,8 @@ export function stopAll() {
   rebuilders = {}
   if (piano) piano.releaseAll()
   if (lead)  try { lead.triggerRelease() } catch {}
+  const { linePiano } = getSamplers() ?? {}
+  if (linePiano) try { linePiano.releaseAll() } catch {}
 }
 
 /**
@@ -432,6 +501,7 @@ export async function startPlayback({
   ensureSynths()
   await initSamplers()
   ensureReverbSend(reverbAmount)
+  applyMixLevels()   // faders survive a stop/start
 
   // Multiple passes are laid end-to-end on ONE timeline rather than restarting
   // playback per pass. Restarting meant a full stopAll() + rebuild between
@@ -575,11 +645,16 @@ export async function startPlayback({
     })
   }
 
-  // Line Lab — generated single-note line on the lead synth, in the pocket with
-  // the rhythm section. Additive: only runs when lineEvents are passed in.
+  // Line Lab — the generated single-note line, in the pocket with the rhythm
+  // section. Plays on the dedicated line piano so it shares the band's timbre
+  // while keeping its own fader; the sine lead is the fallback if the samples
+  // never loaded. Additive: only runs when lineEvents are passed in.
   if (lineEvents?.length) {
+    const { linePiano } = getSamplers() ?? {}
     makePart(lineEvents, (time, ev) => {
-      lead.triggerAttackRelease(ev.note, ev.dur, time, ev.vel ?? 0.72)
+      const vel = ev.vel ?? 0.72
+      if (linePiano) linePiano.triggerAttackRelease(ev.note, ev.dur, time, vel)
+      else lead.triggerAttackRelease(ev.note, ev.dur, time, vel)
       if (onLineNote) draw.schedule(() => onLineNote(ev.barIdx, ev.noteIdx), time)
     })
   }

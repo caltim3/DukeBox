@@ -63,6 +63,7 @@ for (const p of BASS_PITCHES)
       BASS_URLS[`${p}_${v}_rr${r}`] = `/samples/bass/${p}_${v}_rr${r}.mp3`
 
 let _piano = null
+let _linePiano = null
 let _drums  = null
 let _bass   = null
 let _loadPromise = null
@@ -80,6 +81,7 @@ export async function initSamplers() {
   _loadPromise = (async () => {
     // 1. Create both instruments synchronously — registers all URLs with Tone
     let pianoRef = null
+    let linePianoRef = null
     let drumsRef = null
     let bassRef  = null
 
@@ -88,6 +90,18 @@ export async function initSamplers() {
       pianoRef.volume.value = -14
     } catch (err) {
       console.warn("DukeBox: Piano sampler creation failed.", err)
+    }
+
+    // A SECOND piano sampler, used only for Line Lab's generated lines. The
+    // line and the band need independent faders, and one sampler can't hold two
+    // volumes — so the line gets its own voice off the same buffers (the URLs
+    // are identical, so this costs one cache hit per file, not a second
+    // download).
+    try {
+      linePianoRef = new Tone.Sampler({ urls: PIANO_URLS, release: 1.2 }).toDestination()
+      linePianoRef.volume.value = -10
+    } catch (err) {
+      console.warn("DukeBox: Line piano sampler creation failed.", err)
     }
 
     try {
@@ -114,6 +128,7 @@ export async function initSamplers() {
 
     // 3. Assign regardless of partial failures — null stays null if creation failed
     _piano = pianoRef
+    _linePiano = linePianoRef
     _drums = drumsRef
     _bass  = bassRef
   })()
@@ -122,10 +137,10 @@ export async function initSamplers() {
 }
 
 /**
- * Returns { piano, drums, bass } — null for any that failed to create.
+ * Returns { piano, linePiano, drums, bass } — null for any that failed to create.
  */
 export function getSamplers() {
-  return { piano: _piano, drums: _drums, bass: _bass }
+  return { piano: _piano, linePiano: _linePiano, drums: _drums, bass: _bass }
 }
 
 /**
@@ -146,8 +161,9 @@ export function isDrumSampleReady(players, key) {
 
 export function disposeSamplers() {
   try { _piano?.dispose() } catch {}
+  try { _linePiano?.dispose() } catch {}
   try { _drums?.dispose() } catch {}
   try { _bass?.dispose()  } catch {}
-  _piano = _drums = _bass = null
+  _piano = _linePiano = _drums = _bass = null
   _loadPromise = null
 }
