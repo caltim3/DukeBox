@@ -1,45 +1,50 @@
 "use client"
 
-// Gig Bar Strip — the four bars you're actually playing, floating above every
-// workspace while a chart is running.
+// Gig Bar Strip — the full section you're currently playing, floating above
+// every workspace while a chart is running.
 //
 // Gig Mode's full stage chart only exists on the Gig tab, so the moment you
 // switched to Practice to reach for the tempo or the fretboard you lost the
-// playhead. This strip follows the transport everywhere: the tune's name above,
-// four measure boxes below in the current phrase, measure numbers inside them,
-// and the accent colour on the bar sounding now.
+// playhead. This strip follows the transport everywhere: the tune and section
+// names above, every measure in that section below, measure numbers inside
+// them, and the accent colour on the bar sounding now.
 //
 // It renders as a fixed bar plus an in-flow spacer of the same height, so it
 // pins to the top of every screen without ever covering the controls beneath
-// it. The two heights are driven by one CSS class each, from one rule.
+// it. The spacer and fixed strip share the same calculated height.
 
-const WINDOW = 4
+const GRID_COLUMNS = 4
 
 export default function GigBarStrip({ bars, title, playheadIndex, isPlaying, onStop }) {
   if (!isPlaying || playheadIndex == null || !bars?.length) return null
 
-  // Lock to four-bar phrases rather than scrolling one bar at a time — the
-  // window only moves when the phrase does, so the chart doesn't crawl sideways
-  // underneath you while you're reading it.
-  const start = Math.floor(playheadIndex / WINDOW) * WINDOW
-  const phrase = bars.slice(start, start + WINDOW)
+  // A section is the contiguous run carrying the active bar's section label.
+  // Keeping it contiguous matters for forms that return to another section
+  // with the same name later in the tune.
+  const activeSection = bars[playheadIndex]?.section ?? null
+  let start = playheadIndex
+  let end = playheadIndex
+  while (start > 0 && (bars[start - 1]?.section ?? null) === activeSection) start--
+  while (end < bars.length - 1 && (bars[end + 1]?.section ?? null) === activeSection) end++
+
+  const sectionBars = bars.slice(start, end + 1)
+  const sectionLabel = activeSection || `Bars ${start + 1}\u2013${end + 1}`
+  const rowCount = Math.ceil(sectionBars.length / GRID_COLUMNS)
+  const stripHeight = 35 + rowCount * 58
 
   return (
     <>
       <style>{`
-        .gig-strip, .gig-strip-spacer { height: 96px; }
-        @media (max-width: 560px) {
-          .gig-strip, .gig-strip-spacer { height: 84px; }
-        }
         @media print { .gig-strip, .gig-strip-spacer { display: none !important; } }
       `}</style>
 
-      <div className="gig-strip-spacer" aria-hidden="true" />
+      <div className="gig-strip-spacer" aria-hidden="true" style={{ height: stripHeight }} />
 
       <div
         className="gig-strip"
         style={{
           position: "fixed", top: 0, left: 0, right: 0, zIndex: 40,
+          height: stripHeight,
           boxSizing: "border-box",
           display: "flex", flexDirection: "column", alignItems: "center",
           justifyContent: "center", gap: "5px",
@@ -50,11 +55,18 @@ export default function GigBarStrip({ bars, title, playheadIndex, isPlaying, onS
           pointerEvents: "none",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: "10px", maxWidth: "100%" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", width: "100%", maxWidth: "1460px" }}>
           <div style={{
             fontSize: "var(--db-fs-sm)", fontWeight: 700, letterSpacing: "0.06em",
             textTransform: "uppercase", color: "var(--db-accent)",
             whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+          }}>
+            {sectionLabel}
+          </div>
+          <div style={{
+            marginLeft: "auto", fontSize: "var(--db-fs-xs)", fontWeight: 650,
+            color: "var(--db-muted)", whiteSpace: "nowrap", overflow: "hidden",
+            textOverflow: "ellipsis",
           }}>
             {title || "Now playing"}
           </div>
@@ -76,10 +88,11 @@ export default function GigBarStrip({ bars, title, playheadIndex, isPlaying, onS
         </div>
 
         <div style={{
-          display: "grid", gridTemplateColumns: `repeat(${phrase.length}, minmax(56px, 132px))`,
-          gap: "6px", width: "100%", maxWidth: "620px",
+          display: "grid", gridTemplateColumns: `repeat(${GRID_COLUMNS}, minmax(0, 1fr))`,
+          gridAutoRows: "50px",
+          gap: "8px", width: "100%", maxWidth: "1460px",
         }}>
-          {phrase.map((bar, i) => {
+          {sectionBars.map((bar, i) => {
             const index = start + i
             const isNow = index === playheadIndex
             return (
