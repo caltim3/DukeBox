@@ -43,6 +43,7 @@ import GigBarStrip from "@/components/GigBarStrip"
 import { lineToTransportEvents } from "@/lib/music/lines"
 import SongCrafter from "@/components/SongCrafter"
 import GigMode from "@/components/GigMode"
+import MelodyPaths from "@/components/MelodyPaths"
 import { useAuth, useCloudLibrary } from "@/lib/cloud"
 
 // audio.js (Tone.js) is loaded lazily on first play so AudioContext is only
@@ -288,10 +289,6 @@ export default function Home() {
   const approachLines = useMemo(() => {
     return generateApproachLines(bars)
   }, [bars])
-
-  const phrase = useMemo(() => {
-    return approachLines.flatMap(line => line.phrase)
-  }, [approachLines])
 
   const notationBars = useMemo(() => {
     return approachLines.map((line, i) => ({
@@ -557,6 +554,8 @@ export default function Home() {
 
   function loadForm(formName, { exitPractice = false } = {}) {
     setSelectedForm(formName)
+    setActiveGigSongId(null)
+    setActiveSongTitle(null)
     if (exitPractice) {
       practiceModeRef.current = false
       setPracticeMode(false)
@@ -602,6 +601,7 @@ export default function Home() {
         bars, keyRoot: k, keyMode: m,
         tempo: gigTempoNumber(row.gig.tempo),
         songId: `gig:${row.gig.id}`,
+        title: row.name,
       })
       showToast(`Loaded ${row.name} — ${bars.length} bars`)
       return
@@ -858,6 +858,8 @@ export default function Home() {
 
     // Trigger auto-play after React commits the new bars to state
     pendingStartRef.current = true
+    setActiveGigSongId(null)
+    setActiveSongTitle(STARTER_PRESETS.find((preset) => preset.id === starterId)?.label ?? null)
   }
 
   // Double-click a bar → loop just that chord for isolated practice.
@@ -2793,13 +2795,21 @@ export default function Home() {
         </div>}
 
         {inMode("practice","write") && <div style={panelStyle}>
-          <div style={eyebrowStyle}>CONTINUOUS APPROACH LINE</div>
-          <div style={{ fontSize: "var(--db-fs-sm)", opacity: 0.55, marginBottom: "8px", marginTop: "-4px" }}>
-            7→3 guide-tone line across the full chart — the melodic skeleton bar by bar
+          <div style={{ ...eyebrowStyle, marginBottom: "4px" }}>MELODY PATHS</div>
+          <div style={{ fontSize: "var(--db-fs-sm)", opacity: 0.55, marginBottom: "14px" }}>
+            Guide-tone skeletons and one-note-per-measure melody mapping for the live chart
           </div>
-          <div style={{ fontSize: "var(--db-fs-lg)", lineHeight: 1.9, color: "var(--db-c-purple)" }}>
-            {phrase.length ? phrase.join("  →  ") : "No phrase generated"}
-          </div>
+          <MelodyPaths
+            key={`${activeSongTitle || selectedForm}:${keyRoot}:${keyMode}:${bars.map(bar => `${bar.symbol}:${bar.beats || 4}`).join("|")}`}
+            bars={bars}
+            tonic={keyRoot}
+            keyMode={keyMode}
+            title={activeSongTitle || (selectedForm !== "Custom" ? selectedForm : "Custom chart")}
+            formCategories={FORM_CATEGORIES}
+            userLibrary={userLibrary}
+            gigSongs={GIGBOOK_SONGS}
+            onPickSong={loadSearchPick}
+          />
         </div>}
 
         {/* ── FRET FLOW ─────────────────────────────────────────────── */}
