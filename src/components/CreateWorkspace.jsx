@@ -120,7 +120,7 @@ export default function CreateWorkspace({
         />
       </Section>
 
-      <Section title="SONGSHEET" subtitle="Edit, preview, export, and save the composition" color="var(--db-c-amber)" panelStyle={panelStyle} open>
+      <Section title="SONGSHEET" subtitle="Arrange sections and measures into a library-ready lead sheet" color="var(--db-c-amber)" panelStyle={panelStyle} open>
         <SongSheet
           draft={songSheetDraft}
           onChange={onDraftChange}

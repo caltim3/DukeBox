@@ -46,38 +46,37 @@ export function detectLocalFunction(bar, prevBar = null, nextBar = null) {
     if (nextBar) {
       const motion = intervalBetweenRoots(root, nextBar.root)
 
-      if (motion === 5 || motion === 11) {
-        return "dominant"
-      }
+      if (motion === 5) return "dominant"
+      if (motion === 11) return "tritone sub"
 
       if (motion === 1) {
-        return "backdoor / side-slip"
+        return "backdoor"
       }
     }
 
-    return "dominant color"
+    return "dominant"
   }
 
   if (isMinorQuality(quality)) {
     if (nextBar && isDominantQuality(nextBar.quality)) {
       const motion = intervalBetweenRoots(root, nextBar.root)
-      if (motion === 5) return "predominant"
+      if (motion === 5) return "subdominant"
     }
 
-    return "minor color"
+    return "minor"
   }
 
   if (isHalfDimQuality(quality)) {
-    return "predominant"
+    return "subdominant"
   }
 
   if (isMajorQuality(quality)) {
     if (prevBar && isDominantQuality(prevBar.quality)) {
       const motion = intervalBetweenRoots(prevBar.root, root)
-      if (motion === 5 || motion === 11) return "tonic arrival"
+      if (motion === 5 || motion === 11) return "tonic"
     }
 
-    return "tonic / major color"
+    return "tonic"
   }
 
   return "color"

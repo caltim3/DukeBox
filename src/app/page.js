@@ -7,8 +7,6 @@ import {
   buildChordSymbol,
   chordInfo,
   scaleNotes,
-  analyzeGuideToneMotion,
-  melodicTargets,
   generateApproachLines,
   martinoMapper,
   getHexatonicBebopNotes,
@@ -141,25 +139,6 @@ const INITIAL_BARS = [
   { root: "F",  quality: "7", symbol: "F7",   section: "A" },
 ]
 
-// Converts Tonal.js interval notation → readable jazz shorthand
-// e.g. "3m" → "m3", "5d" → "b5", "7M" → "M7", "1P" → "R"
-function formatInterval(ivl) {
-  const map = {
-    "1P": "R",
-    "2m": "m2",  "2M": "M2",  "2A": "#2",
-    "3m": "m3",  "3M": "M3",
-    "4P": "P4",  "4A": "#4",
-    "5d": "b5",  "5P": "P5",  "5A": "#5",
-    "6m": "m6",  "6M": "M6",
-    "7d": "dim7","7m": "m7",  "7M": "M7",
-    "8P": "R",
-    "9m": "b9",  "9M": "9",   "9A": "#9",
-    "11P":"P11", "11A":"#11",
-    "13m":"b13", "13M":"13",
-  }
-  return map[ivl] ?? ivl
-}
-
 // ─── Workspaces ───────────────────────────────────────────────────────────────
 // The app had grown into several products stacked vertically — 11 panels and ~317
 // controls on one 5-screen page, all at equal weight. Modes show one workspace
@@ -236,7 +215,6 @@ export default function Home() {
   const inMode = (...ids) => ids.includes(mode)
   const [showShortcuts, setShowShortcuts] = useState(false)
   const [clipboardBar, setClipboardBar] = useState(null)
-  const [showBarDetails, setShowBarDetails] = useState(false)
   const [toast, setToast] = useState(null)
   const [showStickyPlay, setShowStickyPlay] = useState(false)
   // Mirrored from PracticeTimer so the fretboard can show the clock too —
@@ -325,16 +303,8 @@ export default function Home() {
 
   const selectedBar = bars[selectedIndex]
 
-  const progression = useMemo(() => {
-    return analyzeGuideToneMotion(bars)
-  }, [bars])
-
   const harmonicContext = useMemo(() => {
     return analyzeProgressionContext(bars)
-  }, [bars])
-
-  const targets = useMemo(() => {
-    return melodicTargets(bars)
   }, [bars])
 
   const approachLines = useMemo(() => {
@@ -2354,17 +2324,6 @@ export default function Home() {
                 marginLeft: "4px",
               }}>📜 Scroll</button>
               <button
-                onClick={() => setShowBarDetails(p => !p)}
-                style={{
-                  padding: "3px 10px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-sm)", cursor: "pointer",
-                  background: showBarDetails ? "rgba(201,167,255,0.18)" : "var(--db-card-bg)",
-                  border: showBarDetails ? "1px solid var(--db-c-purple)" : "1px solid var(--db-card-border)",
-                  color: showBarDetails ? "var(--db-c-purple)" : "var(--db-muted)",
-                  fontWeight: showBarDetails ? 700 : 400,
-                }}
-                title="Show harmonic function, cadence, intervals, and chord spelling on every bar"
-              >🔬 Details</button>
-              <button
                 onClick={copyChartAsText}
                 style={{
                   padding: "3px 10px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-sm)", cursor: "pointer",
@@ -2425,8 +2384,7 @@ export default function Home() {
                           const globalIdx = rowIdx * gridColumns + colIdx
                           const isActive = globalIdx === teleActive
                           const isPlayhead = globalIdx === playheadIndex
-                          const guide = progression[globalIdx]?.guideTones || []
-                          const target = targets[globalIdx]
+                          const functionLabel = harmonicContext[globalIdx]?.functionLabel || "color"
                           return (
                             <div
                               key={globalIdx}
@@ -2446,14 +2404,9 @@ export default function Home() {
                                 color: isPlayhead ? "var(--db-c-green)" : isActive ? "var(--db-accent)" : "var(--db-text)" }}>
                                 {bar.symbol}
                               </div>
-                              <div style={{ fontSize: "var(--db-fs-xs)", color: "var(--db-c-amber)", opacity: 0.85 }}>
-                                {guide.length ? guide.join(" / ") : "—"}
+                              <div style={{ fontSize: "var(--db-fs-xs)", color: "var(--db-c-salmon)", fontWeight: 750, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                                {functionLabel}
                               </div>
-                              {target?.targetNote && (
-                                <div style={{ fontSize: "var(--db-fs-xs)", color: "var(--db-c-blue)", opacity: 0.75 }}>
-                                  → {target.targetNote}
-                                </div>
-                              )}
                             </div>
                           )
                         })}
@@ -2474,15 +2427,11 @@ export default function Home() {
           >
             {bars.flatMap((bar, index) => {
               const active = index === selectedIndex
-              const guide = progression[index]?.guideTones || []
-              const target = targets[index]
               const context = harmonicContext[index]
-              const { intervals: rawIntervals = [], notes: chordNotes = [] } = chordInfo(bar.symbol)
               const isPlayhead = index === playheadIndex
               const inLoop =
                 index >= Math.min(loopStart, loopEnd) && index <= Math.max(loopStart, loopEnd)
               const roman = romanNumerals[index]
-              const approachPill = APPROACH_PILLS[approachLines[index]?.approachType] || null
 
               const prevSection = index > 0 ? bars[index - 1].section : null
               const showSectionHeader = bar.section && bar.section !== prevSection
@@ -2621,47 +2570,14 @@ export default function Home() {
                     </div>
                   )}
 
-                  {/* Approach-type pill — how this bar's line reaches the next chord */}
-                  {approachPill && (
-                    <div style={{
-                      display: "inline-block", marginBottom: "6px",
-                      fontSize: "var(--db-fs-xs)", fontWeight: 700, letterSpacing: "0.04em",
-                      padding: "2px 7px", borderRadius: "var(--db-r-pill)",
-                      background: `color-mix(in srgb, ${approachPill.color} 16%, transparent)`,
-                      border: `1px solid color-mix(in srgb, ${approachPill.color} 40%, transparent)`,
-                      color: approachPill.color,
-                    }} title={approachPill.hint}>
-                      {approachPill.label}
-                    </div>
-                  )}
-
-                  {/* Always-on essentials: guide tones + next target */}
-                  <div style={{ fontSize: "var(--db-fs-xs)", color: "var(--db-c-amber)", marginBottom: "3px" }}>
-                    <span style={{ opacity: 0.7 }}>Guide Tones </span>{guide.length ? guide.join(" / ") : "—"}
+                  {/* One compact harmonic role. Melody Paths owns the note-level guidance. */}
+                  <div style={{
+                    display: "inline-block", marginBottom: "8px",
+                    fontSize: "var(--db-fs-xs)", fontWeight: 800, letterSpacing: "0.06em",
+                    textTransform: "uppercase", color: "var(--db-c-salmon)",
+                  }}>
+                    {context?.functionLabel || "color"}
                   </div>
-                  <div style={{ fontSize: "var(--db-fs-xs)", color: "var(--db-c-green)", marginBottom: "6px" }}>
-                    <span style={{ opacity: 0.7 }}>Next Target </span>{target?.targetNote || "—"}
-                  </div>
-
-                  {/* Deeper analysis — collapsed by default to reduce first-run overload */}
-                  {showBarDetails && (
-                    <>
-                      <div style={{ fontSize: "var(--db-fs-xs)", color: "var(--db-c-salmon)", marginBottom: "3px" }}>
-                        <span style={{ opacity: 0.7 }}>Harmonic Function </span>{context?.functionLabel || "—"}
-                      </div>
-                      <div style={{ fontSize: "var(--db-fs-xs)", color: "var(--db-c-salmon)", marginBottom: "3px" }}>
-                        <span style={{ opacity: 0.7 }}>Cadence </span>{context?.cadenceLabels?.join(", ") || "—"}
-                      </div>
-                      <div style={{ fontSize: "var(--db-fs-xs)", color: "var(--db-c-blue)", marginBottom: "3px" }}>
-                        <span style={{ opacity: 0.7 }}>Intervals </span>
-                        {rawIntervals.length ? rawIntervals.map(formatInterval).join("  ") : "—"}
-                      </div>
-                      <div style={{ fontSize: "var(--db-fs-xs)", color: "var(--db-c-purple)", marginBottom: "6px" }}>
-                        <span style={{ opacity: 0.7 }}>Spelling </span>
-                        {chordNotes.length ? chordNotes.join("  ") : "—"}
-                      </div>
-                    </>
-                  )}
 
                   {/* Per-bar chord editor */}
                   <div style={{
@@ -3365,13 +3281,6 @@ const PROMPT_TEMPLATES = [
   "Rhythm Changes in Bb, bebop bridge",
   "Modal tune in D dorian, 16 bars, sparse harmony",
 ]
-
-// How each bar's approach line reaches the next chord (from generateApproachLines)
-const APPROACH_PILLS = {
-  "guide-tone-step": { label: "7→3", color: "var(--db-c-green)", hint: "Guide tone resolves by step into the next chord" },
-  "chromatic-below": { label: "CHROMATIC", color: "var(--db-c-blue)", hint: "Approaches the next target from a half step below" },
-  "anchor":          { label: "ANCHOR", color: "var(--db-muted)", hint: "Rests on a guide tone — no onward resolution" },
-}
 
 const selectStyle = {
   width: "100%",
