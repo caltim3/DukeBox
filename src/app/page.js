@@ -35,13 +35,13 @@ import { parseGigChord, GIGBOOK_SONGS, gigSongToBars, parseGigKey, gigTempoNumbe
 import Fretboard from "@/components/Fretboard"
 import MetronomePanel from "@/components/MetronomePanel"
 import PracticeTimer from "@/components/PracticeTimer"
-import LineLab from "@/components/LineLab"
 import SongSearch from "@/components/SongSearch"
 import GigBarStrip from "@/components/GigBarStrip"
 import { lineToTransportEvents } from "@/lib/music/lines"
-import SongCrafter from "@/components/SongCrafter"
 import GigMode from "@/components/GigMode"
 import MelodyPaths from "@/components/MelodyPaths"
+import CreateWorkspace from "@/components/CreateWorkspace"
+import ReferenceGuides from "@/components/ReferenceGuides"
 import { useAuth, useCloudLibrary } from "@/lib/cloud"
 
 // audio.js (Tone.js) is loaded lazily on first play so AudioContext is only
@@ -161,12 +161,13 @@ function formatInterval(ivl) {
 }
 
 // ─── Workspaces ───────────────────────────────────────────────────────────────
-// The app had grown into four products stacked vertically — 11 panels and ~317
+// The app had grown into several products stacked vertically — 11 panels and ~317
 // controls on one 5-screen page, all at equal weight. Modes show one workspace
 // at a time; nothing was removed, it's just no longer all at once.
 const MODES = [
   { id: "practice",  label: "Practice",  icon: "🎧", blurb: "Play along, loop a section, drill it slow" },
   { id: "gig",       label: "Gig",       icon: "🎤", blurb: "Stage charts and setlists" },
+  { id: "create",    label: "Create",    icon: "✍️", blurb: "Build charts, compose songs, and develop melodic lines" },
   { id: "reference", label: "Reference", icon: "📖", blurb: "Circle of fifths, key chart, progressions" },
   { id: "tonal",     label: "Tonal",     icon: "🎹", blurb: "The published Tonal app, embedded as-is" },
 ]
@@ -224,6 +225,7 @@ export default function Home() {
   const [showGenNotes, setShowGenNotes] = useState(false)
   const [compingStyle, setCompingStyle] = useState(DEFAULT_COMPING_STYLE)
   const [lastGenChart, setLastGenChart] = useState(null)
+  const [songSheetDraft, setSongSheetDraft] = useState(null)
   const [showImportModal, setShowImportModal] = useState(false)
   const [importText, setImportText] = useState("")
   const [importStatus, setImportStatus] = useState(null)
@@ -696,6 +698,14 @@ export default function Home() {
         keyMode: chart.keyMode || "major",
         tempo: chart.tempo || tempo,
       })
+      setSongSheetDraft({
+        title: chart.title || "AI Chart",
+        bars: chart.bars.map((bar) => ({ ...bar })),
+        keyRoot: chart.keyRoot || "C",
+        keyMode: chart.keyMode || "major",
+        tempo: chart.tempo || tempo,
+        updatedAt: Date.now(),
+      })
       // Remember the prompt (most recent first, de-duped, capped) — rides along
       // with the synced library so history follows you across devices.
       setLibrary(lib => {
@@ -771,6 +781,61 @@ export default function Home() {
     setLibrary(lib => ({ ...lib, songs: [...lib.songs.filter(e => e.name !== entry.name), entry] }))
     setSelectedForm(entry.name)
     setLastGenChart(null)
+    showToast(`Saved ${entry.name} to My Library`)
+  }
+
+  function createSongSheetDraft({ title, bars: draftBars, keyRoot: draftRoot, keyMode: draftMode, tempo: draftTempo }) {
+    setSongSheetDraft({
+      title: title?.trim() || "Untitled Song",
+      bars: (draftBars || []).map((bar) => ({ ...bar })),
+      keyRoot: draftRoot || "C",
+      keyMode: draftMode || "major",
+      tempo: draftTempo || originalTempo || 110,
+      updatedAt: Date.now(),
+    })
+  }
+
+  function startSongSheetFromCurrentChart() {
+    createSongSheetDraft({
+      title: selectedForm && selectedForm !== "Custom" ? selectedForm : "Untitled Song",
+      bars,
+      keyRoot,
+      keyMode,
+      tempo: originalTempo,
+    })
+  }
+
+  function saveSongSheetToLibrary(draft) {
+    const name = draft.title.trim()
+    if (!name || !draft.bars.length) return
+    const entry = {
+      name,
+      bars: draft.bars.map((bar) => ({ ...bar })),
+      keyRoot: draft.keyRoot,
+      keyMode: draft.keyMode,
+      tempo: draft.tempo,
+      updatedAt: Date.now(),
+    }
+    setLibrary((lib) => ({
+      ...lib,
+      songs: [...(lib.songs || []).filter((song) => song.name !== entry.name), entry],
+    }))
+    setSelectedForm(entry.name)
+    setSongSheetDraft((current) => current ? { ...current, updatedAt: entry.updatedAt } : current)
+    showToast(`Saved ${entry.name} to My Library`)
+  }
+
+  function openSongSheetInPractice(draft) {
+    loadGigSong({
+      bars: draft.bars.map((bar) => ({ ...bar })),
+      keyRoot: draft.keyRoot,
+      keyMode: draft.keyMode,
+      tempo: draft.tempo,
+      autoplay: false,
+      songId: null,
+      title: draft.title,
+      toMode: "practice",
+    })
   }
 
   function removeFromLibrary(name) {
@@ -782,7 +847,7 @@ export default function Home() {
   // Gig Mode deliberately STAYS OPEN so you can read the stage chart while it
   // plays — the open chart lights the current measure via activeGigSongId.
   function loadGigSong({ bars, keyRoot, keyMode, tempo, autoplay, songId, title, toMode }) {
-    if (toMode) setMode(toMode)   // e.g. Song Crafter hands off into Practice
+    if (toMode) chooseMode(toMode)
     if (playingRef.current) stopPlayback()
     practiceModeRef.current = false
     setPracticeMode(false)
@@ -1458,24 +1523,45 @@ export default function Home() {
               eyebrowStyle={eyebrowStyle}
               selectStyle={selectStyle}
             />
-
-            {/* Song Crafter sits with the Gig Book: the book is the tunes you
-                already have, the crafter is where the next one comes from.
-                It still hands finished charts to Practice, where they can be
-                edited — the floating bar strip keeps the playhead visible on
-                the way over. */}
-            <div style={{ marginTop: "16px" }}>
-              <SongCrafter
-                onSendToChart={({ bars, keyRoot, keyMode, title }) =>
-                  // Jump to Practice — otherwise it autoplays a chart you can't see.
-                  loadGigSong({ bars, keyRoot, keyMode, tempo: originalTempo, autoplay: true, songId: null, title, toMode: "practice" })
-                }
-                panelStyle={panelStyle}
-                eyebrowStyle={eyebrowStyle}
-                selectStyle={selectStyle}
-              />
-            </div>
           </div>
+        )}
+
+        {inMode("create") && (
+          <CreateWorkspace
+            generator={{
+              promptText,
+              setPromptText,
+              isGenerating,
+              generationNotes,
+              generationError,
+              showGenNotes,
+              setShowGenNotes,
+              lastGenChart,
+              handleGenerateChart,
+              surpriseMe,
+              saveToLibrary,
+              promptHistory,
+              promptTemplates: PROMPT_TEMPLATES,
+              chartBars: bars,
+              chartTitle: selectedForm,
+            }}
+            songSheetDraft={songSheetDraft}
+            onDraftChange={setSongSheetDraft}
+            onDraftSave={saveSongSheetToLibrary}
+            onDraftOpenPractice={openSongSheetInPractice}
+            onStartDraft={startSongSheetFromCurrentChart}
+            onSongCrafted={(result) => {
+              createSongSheetDraft(result)
+              chooseMode("create")
+              showToast("SongCrafter sent the arrangement to SongSheet")
+            }}
+            originalTempo={originalTempo}
+            stopPlayback={stopPlayback}
+            playLineSection={playLineSection}
+            panelStyle={panelStyle}
+            eyebrowStyle={eyebrowStyle}
+            selectStyle={selectStyle}
+          />
         )}
 
         {/* ── Tonal ─────────────────────────────────────────────────
@@ -2713,61 +2799,7 @@ export default function Home() {
           )}
         </details>}
 
-        {inMode("practice") && <details style={panelStyle}>
-          <summary style={{ cursor: "pointer", listStyle: "none", display: "flex", alignItems: "center", gap: "10px", fontWeight: 800 }}>
-            <span aria-hidden="true" style={{ fontSize: "1.35rem", color: "var(--db-c-purple)" }}>＋</span>
-            <span style={{ ...eyebrowStyle, marginBottom: 0, color: "var(--db-c-purple)" }}>AI CHART GENERATOR</span>
-            <span style={{ fontSize: "var(--db-fs-sm)", opacity: 0.55, fontWeight: 400 }}>Build a new chart from a description</span>
-          </summary>
-          <div style={{ marginTop: "14px" }}>
-            <div style={{ display: "flex", gap: "10px", alignItems: "flex-start", flexWrap: "wrap" }}>
-              <textarea
-                value={promptText}
-                onChange={(e) => setPromptText(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) handleGenerateChart() }}
-                placeholder={'Describe the chart you want, for example: "12-bar minor blues in F with a backdoor dominant"'}
-                disabled={isGenerating}
-                style={{
-                  flex: "1 1 560px", minHeight: "76px", padding: "12px", resize: "vertical",
-                  borderRadius: "var(--db-r-md)", border: "1px solid rgba(201,167,255,0.25)",
-                  background: "var(--db-input-bg)", color: "var(--db-text)", fontSize: "var(--db-fs-md)",
-                  fontFamily: "Arial, sans-serif", lineHeight: 1.5,
-                }}
-              />
-              <button
-                onClick={handleGenerateChart}
-                disabled={isGenerating || !promptText.trim()}
-                style={{ ...buttonStyle("var(--db-c-purple)"), padding: "12px 18px", opacity: isGenerating || !promptText.trim() ? 0.5 : 1 }}
-              >
-                {isGenerating ? "Generating…" : "Generate"}
-              </button>
-            </div>
-            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "center", marginTop: "8px" }}>
-              <button onClick={surpriseMe} disabled={isGenerating} style={{ ...buttonStyle("var(--db-c-purple)"), padding: "4px 11px", fontSize: "var(--db-fs-sm)" }}>🎲 Surprise me</button>
-              {PROMPT_TEMPLATES.map((template) => (
-                <button key={template} onClick={() => setPromptText(template)} disabled={isGenerating} style={{ ...neutralButtonStyle, padding: "4px 10px", fontSize: "var(--db-fs-xs)" }}>
-                  {template.length > 38 ? `${template.slice(0, 37)}…` : template}
-                </button>
-              ))}
-            </div>
-            {promptHistory.length > 0 && (
-              <select value="" onChange={(e) => { if (e.target.value) setPromptText(e.target.value) }} style={{ ...selectStyle, marginTop: "8px", width: "100%" }} aria-label="Recent chart prompts">
-                <option value="">Re-use a recent prompt…</option>
-                {promptHistory.map((prompt, index) => <option key={index} value={prompt}>{prompt}</option>)}
-              </select>
-            )}
-            {generationError && <div style={{ marginTop: "10px", color: "var(--db-c-salmon)", fontSize: "var(--db-fs-sm)" }}>{generationError}</div>}
-            {(generationNotes || isGenerating) && (
-              <div style={{ marginTop: "10px" }}>
-                <button onClick={() => setShowGenNotes((open) => !open)} style={{ background: "none", border: 0, color: "var(--db-c-purple)", cursor: "pointer", padding: 0 }}>
-                  {showGenNotes ? "▼" : "▶"} Generation notes
-                </button>
-                {showGenNotes && <div style={{ marginTop: "6px", padding: "10px 12px", background: "rgba(201,167,255,0.07)", borderRadius: "var(--db-r-md)" }}>{generationNotes || "Writing…"}</div>}
-              </div>
-            )}
-            {lastGenChart && <button onClick={saveToLibrary} style={{ ...buttonStyle("var(--db-c-green)"), marginTop: "10px" }}>+ Add to My Library</button>}
-          </div>
-        </details>}
+        {inMode("reference") && <ReferenceGuides panelStyle={panelStyle} />}
 
         {/* ── FRET FLOW ─────────────────────────────────────────────── */}
         {inMode("reference") && (() => {
@@ -2865,22 +2897,6 @@ export default function Home() {
             eyebrowStyle={eyebrowStyle}
             selectStyle={selectStyle}
             inlineLabelStyle={inlineLabelStyle}
-          />
-        </PracticeExpander>}
-
-        {/* Line Lab — the merged lab (chart changes or triad-network presets),
-            at the foot of the Practice bench under BeatForge. It drives the
-            same rhythm section, so it shares the transport with everything
-            above it. */}
-        {inMode("practice") && <PracticeExpander title="LINE LAB" subtitle="Improvised single-note lines over your chart or the triad network" color="var(--db-c-green)" panelStyle={panelStyle}>
-          <LineLab
-            chartBars={bars}
-            chartTitle={selectedForm}
-            onStopPlayback={stopPlayback}
-            playLineSection={playLineSection}
-            panelStyle={{ ...panelStyle, margin: "14px 0 0" }}
-            eyebrowStyle={eyebrowStyle}
-            selectStyle={selectStyle}
           />
         </PracticeExpander>}
 

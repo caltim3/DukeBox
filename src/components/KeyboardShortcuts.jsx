@@ -8,8 +8,9 @@ const GROUPS = [
     items: [
       ["1", "Practice workspace"],
       ["2", "Gig workspace"],
-      ["3", "Reference workspace"],
-      ["4", "Tonal workspace"],
+      ["3", "Create workspace"],
+      ["4", "Reference workspace"],
+      ["5", "Tonal workspace"],
       ["/", "Search songs and charts"],
       ["C", "Open categories"],
       ["P", "Open projects and charts"],
@@ -139,7 +140,7 @@ export default function KeyboardShortcuts() {
 
       if (open || isTyping() || event.metaKey || event.ctrlKey || event.altKey) return
 
-      const workspaces = { "1": "Practice", "2": "Gig", "3": "Reference", "4": "Tonal" }
+      const workspaces = { "1": "Practice", "2": "Gig", "3": "Create", "4": "Reference", "5": "Tonal" }
       if (workspaces[event.key]) {
         event.preventDefault()
         event.stopPropagation()
@@ -163,7 +164,7 @@ export default function KeyboardShortcuts() {
       } else if (key === "p") {
         event.preventDefault()
         event.stopPropagation()
-        clickWorkspace("Practice")
+        clickWorkspace("Create")
         requestAnimationFrame(() => focusRegionControl(["songbook", "chart generator", "projects"], "select, input, textarea, button"))
       } else if (key === "f") {
         event.preventDefault()

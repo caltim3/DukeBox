@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Likas Page 2 for Guitar: Pivots, Surrounds, Peterson, Evans</title>
+<style>
+  :root{
+    --tolex:#17150f;
+    --tolex2:#201d14;
+    --paper:#f3ead6;
+    --paper2:#eadfc4;
+    --ink:#231d10;
+    --gold:#c99a3c;
+    --gold-bright:#e6b95c;
+    --brass:#8a6a2a;
+    --muted:#7d7460;
+    --target:#8c2f1b;
+    --line:#b8a87f;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    background:
+      radial-gradient(1200px 500px at 50% -200px, #2a2618 0%, transparent 60%),
+      var(--tolex);
+    color:var(--paper);
+    font-family:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+    padding:0 0 80px;
+  }
+  header{
+    max-width:980px;margin:0 auto;padding:44px 24px 10px;
+  }
+  .eyebrow{
+    font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--gold);
+    margin-bottom:12px;
+  }
+  h1{
+    font-size:clamp(28px,4.4vw,44px);font-weight:600;line-height:1.08;
+    letter-spacing:-.01em;color:#f7efdd;
+  }
+  h1 em{font-style:italic;color:var(--gold-bright)}
+  .sub{margin-top:10px;color:#b9ae93;font-size:15px;max-width:62ch;line-height:1.5}
+
+  /* control bar */
+  .controls{
+    max-width:980px;margin:26px auto 0;padding:0 24px;
+    display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;
+  }
+  .ctl{display:flex;flex-direction:column;gap:6px}
+  .ctl label{
+    font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:#9a8f74;
+  }
+  select{
+    background:var(--tolex2);color:var(--paper);
+    border:1px solid #4a4128;border-radius:6px;
+    padding:9px 34px 9px 12px;font-size:15px;font-family:inherit;
+    appearance:none;-webkit-appearance:none;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M0 0l5 6 5-6z' fill='%23c99a3c'/></svg>");
+    background-repeat:no-repeat;background-position:right 12px center;
+    cursor:pointer;
+  }
+  select:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+  .toggle{
+    display:flex;align-items:center;gap:8px;color:#b9ae93;font-size:14px;
+    padding-bottom:9px;cursor:pointer;user-select:none;
+  }
+  .toggle input{accent-color:var(--gold);width:15px;height:15px;cursor:pointer}
+
+  /* barrel gauge: signature element */
+  .gauge-wrap{max-width:980px;margin:22px auto 0;padding:0 24px}
+  .gauge{
+    background:var(--tolex2);border:1px solid #3c3520;border-radius:10px;
+    padding:14px 18px 16px;
+  }
+  .gauge-title{
+    font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:#9a8f74;
+    margin-bottom:10px;display:flex;justify-content:space-between;
+  }
+  .gauge-title b{color:var(--gold-bright);font-weight:600;letter-spacing:.12em}
+  .neck{position:relative;height:44px}
+  .neck svg{width:100%;height:44px;display:block}
+
+  /* exercises */
+  main{max-width:980px;margin:34px auto 0;padding:0 24px;display:flex;flex-direction:column;gap:26px}
+  .card{
+    background:linear-gradient(180deg,var(--paper) 0%,var(--paper2) 100%);
+    color:var(--ink);
+    border-radius:10px;
+    box-shadow:0 1px 0 rgba(255,255,255,.06) inset, 0 10px 30px rgba(0,0,0,.45);
+    padding:22px 24px 20px;
+    position:relative;overflow:hidden;
+  }
+  .card::before{
+    content:"";position:absolute;left:0;top:0;bottom:0;width:5px;
+    background:linear-gradient(180deg,var(--gold),var(--brass));
+  }
+  .card-head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:6px}
+  .card h2{font-size:20px;font-weight:700;letter-spacing:-.005em}
+  .chord{
+    font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    font-size:14px;font-weight:700;color:#6b4f14;
+    background:#e4d5ad;border:1px solid #cbb87f;border-radius:5px;padding:2px 8px;
+  }
+  .card p.desc{font-size:14px;color:#5c5237;line-height:1.5;max-width:70ch;margin-bottom:10px}
+  .figures{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+  .fig{
+    font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    font-size:11px;color:#4c421f;background:#e9ddb9;border:1px solid #d2c08a;
+    border-radius:999px;padding:3px 10px;
+  }
+  .tabscroll{overflow-x:auto;padding-bottom:4px}
+  pre.tab{
+    font-family:ui-monospace,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+    font-size:13.5px;line-height:1.42;color:#2a2310;
+    white-space:pre;
+  }
+  pre.tab .nm{color:#8a7c52}
+  pre.tab .tg{color:var(--target);font-weight:700}
+  .legend{
+    margin-top:8px;font-size:12px;color:#6d6244;
+    font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  .legend .tg{color:var(--target);font-weight:700}
+  .offwin{margin-top:2px;font-size:12px;color:#8c2f1b}
+
+  .section-head{margin-top:22px}
+  .section-head h2{
+    font-size:clamp(22px,3vw,30px);font-weight:600;color:#f7efdd;
+    letter-spacing:-.01em;margin-top:6px;
+  }
+  .section-head p{margin-top:8px;color:#b9ae93;font-size:14.5px;line-height:1.55;max-width:74ch}
+  footer{
+    max-width:980px;margin:40px auto 0;padding:0 24px;color:#7d7460;font-size:12.5px;line-height:1.6;
+    font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  @media (prefers-reduced-motion: no-preference){
+    .card{transition:transform .15s ease}
+  }
+  @media (max-width:640px){
+    pre.tab{font-size:12px}
+    .card{padding:18px 16px 16px}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="eyebrow">Harry Likas / Page 2 / Guitar Edition</div>
+  <h1>Pivots, Surrounds &amp; Blues Breaks, <em>in the middle of the barrel</em></h1>
+  <p class="sub">Every example from the sheet, rendered as tablature. Pick a key and a neck window; fingerings are recomputed to sit inside the window whenever the notes allow it. Circled targets from the sheet are shown in parentheses.</p>
+</header>
+
+<div class="controls">
+  <div class="ctl">
+    <label for="key">Key</label>
+    <select id="key"></select>
+  </div>
+  <div class="ctl">
+    <label for="pos">Neck window</label>
+    <select id="pos"></select>
+  </div>
+  <label class="toggle"><input type="checkbox" id="names" checked> Note names above tab</label>
+</div>
+
+<div class="gauge-wrap">
+  <div class="gauge">
+    <div class="gauge-title"><span>Barrel gauge</span><b id="gauge-label"></b></div>
+    <div class="neck" id="neck"></div>
+  </div>
+</div>
+
+<main id="main"></main>
+
+<footer>
+  Transcribed from the Likas sheet in C, then transposed on the fly. Octaves auto-shift per exercise so the line fits the chosen window; any note the window truly cannot reach is flagged under its tab. Standard tuning, EADGBE.
+</footer>
+
+<script>
+/* ---------- data: transcription relative to C (MIDI, C4 = 60) ----------
+   t:1 marks a circled target note from the sheet. */
+const T = p => ({p, t:1});
+const EXERCISES = [
+  {
+    title:"Diatonic 7th chords",
+    chord:{suffix:"maj"},
+    desc:"Arpeggios of every 7th chord in the major scale, ascending through the key. The sheet says to run these both directions; descend the same shapes.",
+    figures:["Imaj7","iim7","iiim7","IVmaj7","V7","vim7","viim7b5","resolve"],
+    bars:[[48,52,55,59],[50,53,57,60],[52,55,59,62],[53,57,60,64],[55,59,62,65],[57,60,64,67],[59,62,65,69],[60]]
+  },
+  {
+    title:"Chromatic approach to 7th chords",
+    chord:{suffix:"maj"},
+    desc:"Same drill with a half-step approach into each root, played as the triplet pickup on the sheet. Note the approach into IV is diatonic (a natural half step).",
+    figures:["approach + arpeggio, all seven chords"],
+    bars:[[47,48,52,55,59],[49,50,53,57,60],[51,52,55,59,62],[52,53,57,60,64],[54,55,59,62,65],[56,57,60,64,67],[58,59,62,65,69],[60]]
+  },
+  {
+    title:"Pivot and surround, one at a time",
+    chord:{suffix:"6"},
+    desc:"A surround encloses the target by half steps from above and below. A pivot rearranges arpeggio tones to reshape the line. Targets in parentheses.",
+    figures:["5 pivots to 4","4 surrounds 3","3 pivots to 2","2 surrounds 1"],
+    bars:[[67,64,60,T(65)],[65,63,T(64)],[64,60,57,T(62)],[62,61,59,T(60)]]
+  },
+  {
+    title:"The 5-4-3-2 combination",
+    chord:{suffix:"6"},
+    desc:"Pivots from chord tones, surrounds from non-chord tones, chained into one line down to the tonic.",
+    figures:["5>4 pivot","4>3 surround","3>2 pivot","2>1 surround"],
+    bars:[[67,64,60,T(65)],[63,T(64)],[60,57,T(62)],[61,59,T(60)]]
+  },
+  {
+    title:"The 8-7-6-b6 combination",
+    chord:{suffix:"6"},
+    desc:"Same logic starting from the octave: pivots from chord tones, surrounds from non-chord tones, walking 8-7-6-b6 down to the 5.",
+    figures:["8>7 pivot","7>6 surround","6>b6 pivot","b6>5 pivot"],
+    bars:[[72,67,64,T(71)],[70,68,T(69)],[64,60,T(68)],[64,60,66,T(67)]]
+  },
+  {
+    title:"Oscar Peterson's C Jam Blues break",
+    chord:{suffix:"6"},
+    desc:"The famous break, mixing the major blues scale (with the natural 3 and 6) and the minor blues scale (b3, b7, b5) in one sweep up and back down.",
+    figures:["major blues up","minor blues down"],
+    bars:[[48,50,51,52],[55,57,60,62],[63,64,67,69],[72,70,67,66],[63,62,60]]
+  },
+  {
+    title:"Bill Evans motifs",
+    chord:{suffix:"D"},
+    desc:"Four short cells over the major 7 chord: stacked surrounds, an arpeggio motif, a half-step variation, and a triplet that lands the line back on beat 1.",
+    figures:["multi surrounds","motif 2 (arpeggio)","variation (half steps)","triplet into beat 1"],
+    bars:[[62,59,T(60),65,63,T(64)],[60,64,67,71,69,67,64,62],[60,64,67,71,70,69,68,67],[67,69,71,T(72)]]
+  }
+];
+
+/* ---------- theory helpers ---------- */
+const KEYS = [
+  {name:"C",  semis:0,  flat:false},{name:"Db", semis:1,  flat:true},
+  {name:"D",  semis:2,  flat:false},{name:"Eb", semis:3,  flat:true},
+  {name:"E",  semis:4,  flat:false},{name:"F",  semis:5,  flat:true},
+  {name:"F#", semis:6,  flat:false},{name:"G",  semis:7,  flat:false},
+  {name:"Ab", semis:8,  flat:true},{name:"A",  semis:9,  flat:false},
+  {name:"Bb", semis:10, flat:true},{name:"B",  semis:11, flat:false}
+];
+const POSITIONS = [
+  {label:"Open / first (frets 0-4)", lo:0, hi:4},
+  {label:"Low (frets 1-5)", lo:1, hi:5},
+  {label:"Middle of the barrel (frets 3-8)", lo:3, hi:8, def:true},
+  {label:"Mid-high (frets 5-10)", lo:5, hi:10},
+  {label:"Upper (frets 7-12)", lo:7, hi:12}
+];
+const SHARPS=["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+const FLATS =["C","Db","D","Eb","E","F","Gb","G","Ab","A","Bb","B"];
+const STRINGS=[64,59,55,50,45,40];         /* e B G D A E */
+const SLABELS=["e","B","G","D","A","E"];
+const MAXFRET=15;
+
+function noteName(p, flat){ return (flat?FLATS:SHARPS)[((p%12)+12)%12]; }
+
+/* pick octave shift so the most notes have an in-window option */
+function bestShift(pitches, lo, hi){
+  let best=0, bestScore=-1;
+  for(const sh of [-12,0,12]){
+    let score=0;
+    for(const p0 of pitches){
+      const p=p0+sh;
+      let inWin=false, playable=false;
+      for(const s of STRINGS){
+        const f=p-s;
+        if(f>=0&&f<=MAXFRET){ playable=true; if(f>=lo&&f<=hi) inWin=true; }
+      }
+      if(inWin) score+=2; else if(playable) score+=0; else score-=5;
+    }
+    if(sh===0) score+=0.5;                 /* mild preference for written octave */
+    if(score>bestScore){ bestScore=score; best=sh; }
+  }
+  return best;
+}
+
+/* greedy string/fret assignment favoring the window and hand economy */
+function assign(pitches, lo, hi){
+  const out=[]; let prevF=(lo+hi)/2, prevS=2, offwin=0;
+  for(const p of pitches){
+    let best=null, bestCost=1e9;
+    for(let si=0; si<6; si++){
+      const f=p-STRINGS[si];
+      if(f<0||f>MAXFRET) continue;
+      let cost=0;
+      if(f<lo) cost+=(lo-f)*6;
+      else if(f>hi) cost+=(f-hi)*6;
+      cost+=Math.abs(f-prevF)*0.9 + Math.abs(si-prevS)*0.55;
+      if(f===0) cost+=0.4;                 /* open strings break the position feel */
+      if(cost<bestCost){ bestCost=cost; best={s:si,f}; }
+    }
+    if(!best){ out.push(null); offwin++; continue; }
+    if(best.f<lo||best.f>hi) offwin++;
+    out.push(best); prevF=best.f; prevS=best.s;
+  }
+  return {out, offwin};
+}
+
+/* ---------- rendering ---------- */
+const esc = s => s.replace(/&/g,"&amp;").replace(/</g,"&lt;");
+
+/* cells = [{s (0-5 or null), f, t (marked), nm (name), barEnd}] */
+function renderCells(cells, showNames){
+  const rows=SLABELS.map(l=>l+"|");
+  let nameRow="  ";
+  cells.forEach(c=>{
+    const fretStr = c.s==null? "x" : String(c.f);
+    const core = c.t? "("+fretStr+")" : fretStr;
+    const w=core.length;
+    for(let si=0; si<6; si++){
+      let cell;
+      if(c.s===si){
+        cell = c.t? '<span class="tg">('+fretStr+')</span>' : fretStr;
+        cell = "-"+cell+"-";
+      } else if(c.s==null && si===0){
+        cell = "-x-";
+      } else {
+        cell = "-"+"-".repeat(w)+"-";
+      }
+      rows[si]+=cell;
+    }
+    nameRow += " "+c.nm+" ".repeat(Math.max(0,w+1-c.nm.length));
+    if(c.barEnd){
+      for(let si=0; si<6; si++) rows[si]+="|";
+      nameRow+=" ";
+    }
+  });
+  for(let si=0; si<6; si++) rows[si]+="-|";
+  let html="";
+  if(showNames) html+='<span class="nm">'+esc(nameRow)+"</span>\n";
+  return html+rows.join("\n");
+}
+
+function renderTab(ex, key, pos, showNames){
+  const flatPitches=[]; const meta=[];
+  ex.bars.forEach((bar,bi)=>{
+    bar.forEach(n=>{
+      const obj = (typeof n==="number")?{p:n}:n;
+      flatPitches.push(obj.p+key.semis);
+      meta.push({t:!!obj.t, barEnd:false});
+    });
+    if(meta.length) meta[meta.length-1].barEnd=(bi<ex.bars.length-1);
+  });
+  const shift=bestShift(flatPitches,pos.lo,pos.hi);
+  const shifted=flatPitches.map(p=>p+shift);
+  const {out,offwin}=assign(shifted,pos.lo,pos.hi);
+
+  const cells=out.map((a,i)=>({
+    s: a? a.s : null,
+    f: a? a.f : 0,
+    t: meta[i].t,
+    nm: noteName(shifted[i], key.flat),
+    barEnd: meta[i].barEnd
+  }));
+  return {html:renderCells(cells,showNames), offwin, shift};
+}
+
+/* ---------- pivot arpeggios through the key ----------
+   Cell decoded from the source sheet (verified against F major):
+   approach (half step below root), root, 3rd an octave down (the pivot),
+   5th, 7th, major 6th. Approach + root on the root string, 3rd two
+   strings below, 5-7-6 on the string between. */
+const QUAL=[
+  {rn:"I",   t:4, f:7, s:11, x6:9, suf:""},
+  {rn:"ii",  t:3, f:7, s:10, x6:9, suf:"-"},
+  {rn:"iii", t:3, f:7, s:10, x6:8, suf:"-"},   /* sheet gives iii the minor 6th */
+  {rn:"IV",  t:4, f:7, s:11, x6:9, suf:""},
+  {rn:"V",   t:4, f:7, s:10, x6:9, suf:"7"},
+  {rn:"vi",  t:3, f:7, s:10, x6:9, suf:"-"},   /* dorian 6th, per the sheet */
+  {rn:"vii", t:3, f:6, s:10, x6:9, suf:"\u00f8"}  /* maj 6th = harmonic-minor color */
+];
+const DIAT=[0,2,4,5,7,9,11];
+
+function pivotSet(key, pos, rootStr){   /* rootStr 0..3 = e,B,G,D */
+  const sm=STRINGS[rootStr];
+  const seqFor=(rf,q)=>{
+    const R=sm+rf;
+    const seq=[
+      {p:R-1,        s:rootStr,   t:0},
+      {p:R,          s:rootStr,   t:1},
+      {p:R+q.t-12,   s:rootStr+2, t:0},
+      {p:R+q.f-12,   s:rootStr+1, t:0},
+      {p:R+q.s-12,   s:rootStr+1, t:0},
+      {p:R+q.x6-12,  s:rootStr+1, t:0}
+    ];
+    return seq.every(n=>n.p-STRINGS[n.s]>=0 && n.p-STRINGS[n.s]<=17)? seq : null;
+  };
+  /* I-chord root fret: candidate nearest the window floor */
+  let start=null, bestd=99;
+  for(let f=1; f<=14; f++){
+    if((((sm+f)%12)+12)%12===key.semis){
+      const d=Math.abs(f-Math.max(1,pos.lo));
+      if(d<bestd){ bestd=d; start=f; }
+    }
+  }
+  const cells=[], chips=[];
+  const mid=(pos.lo+pos.hi)/2;
+  for(let ci=0; ci<7; ci++){
+    const q=QUAL[ci];
+    const intended=start+DIAT[ci];
+    let seq=null, best=1e9;
+    for(const rf of [intended-12, intended, intended+12]){
+      const s=seqFor(rf,q);
+      if(!s) continue;
+      const frets=s.map(n=>n.p-STRINGS[n.s]);
+      let cost=Math.abs(rf-mid);
+      frets.forEach(f=>{ if(f<pos.lo) cost+=(pos.lo-f)*2; else if(f>pos.hi) cost+=(f-pos.hi)*2; });
+      if(cost<best){ best=cost; seq=s; }
+    }
+    seq.forEach((n,ni)=>{
+      cells.push({s:n.s, f:n.p-STRINGS[n.s], t:n.t, nm:noteName(n.p,key.flat), barEnd:(ni===5 && ci<6)});
+    });
+    chips.push(q.rn+" "+noteName((key.semis+DIAT[ci])%12+60, key.flat)+q.suf);
+  }
+  return {cells, chips};
+}
+
+function chordLabel(ex, key){
+  const s=ex.chord.suffix;
+  if(s==="maj") return "Key of "+key.name+" major";
+  if(s==="D") return key.name+"\u0394";
+  return key.name+s;
+}
+
+function draw(){
+  const key=KEYS[+document.getElementById("key").value];
+  const pos=POSITIONS[+document.getElementById("pos").value];
+  const showNames=document.getElementById("names").checked;
+
+  document.getElementById("gauge-label").textContent =
+    key.name+" / frets "+pos.lo+"-"+pos.hi;
+  drawNeck(pos);
+
+  const main=document.getElementById("main");
+  main.innerHTML="";
+  EXERCISES.forEach(ex=>{
+    const {html, offwin} = renderTab(ex, key, pos, showNames);
+    const card=document.createElement("section");
+    card.className="card";
+    card.innerHTML =
+      '<div class="card-head"><h2>'+esc(ex.title)+'</h2>'+
+      '<span class="chord">'+esc(chordLabel(ex,key))+'</span></div>'+
+      '<p class="desc">'+esc(ex.desc)+'</p>'+
+      '<div class="figures">'+ex.figures.map(f=>'<span class="fig">'+esc(f)+'</span>').join("")+'</div>'+
+      '<div class="tabscroll"><pre class="tab">'+html+'</pre></div>'+
+      '<div class="legend"><span class="tg">(n)</span> = circled target note on the sheet</div>'+
+      (offwin? '<div class="offwin">'+offwin+' note'+(offwin>1?'s':'')+' had to leave the window in this key; try a neighboring window.</div>':'');
+    main.appendChild(card);
+  });
+
+  /* pivot arpeggios through the key, one set per root string */
+  const head=document.createElement("div");
+  head.className="section-head";
+  head.innerHTML='<div class="eyebrow">From the companion sheet</div>'+
+    '<h2>Pivot arpeggios through '+esc(key.name)+' major</h2>'+
+    '<p>The six-note cell from the pivot arpeggio sheet, run through all seven diatonic chords: '+
+    'half-step approach into the root, pivot down to the 3rd, climb 5th to 7th, resolve 7-to-6. '+
+    'Sixths follow the sheet exactly: major 6th everywhere except the iii chord, which takes the minor 6th; '+
+    'the vi gets its dorian 6th and the vii&#0248; its major 6th, the relative harmonic-minor color. '+
+    'Four sets below, one per root string. '+
+    'Each set starts the I chord at the bottom of your window and ascends; when the climb runs out of reach the line drops an octave and keeps going.</p>';
+  main.appendChild(head);
+
+  const setNames=["1st string (high e)","2nd string (B)","3rd string (G)","4th string (D)"];
+  for(let rs=0; rs<4; rs++){
+    const {cells, chips}=pivotSet(key,pos,rs);
+    const card=document.createElement("section");
+    card.className="card";
+    card.innerHTML =
+      '<div class="card-head"><h2>Roots on the '+setNames[rs]+'</h2>'+
+      '<span class="chord">'+esc(key.name)+' major</span></div>'+
+      '<p class="desc">Approach and root on the '+SLABELS[rs]+' string, 3rd on the '+SLABELS[rs+2]+' string, 5-7-6 on the '+SLABELS[rs+1]+' string. Same grip walked up the key.</p>'+
+      '<div class="figures">'+chips.map(c=>'<span class="fig">'+esc(c)+'</span>').join("")+'</div>'+
+      '<div class="tabscroll"><pre class="tab">'+renderCells(cells,showNames)+'</pre></div>'+
+      '<div class="legend"><span class="tg">(n)</span> = chord root</div>';
+    main.appendChild(card);
+  }
+}
+
+function drawNeck(pos){
+  const W=920, H=44, frets=15, fx=f=>8+(W-16)*(f/frets);
+  let s='<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" aria-hidden="true">';
+  s+='<rect x="'+fx(pos.lo)+'" y="4" width="'+(fx(pos.hi+1)-fx(pos.lo))+'" height="'+(H-8)+'" rx="5" fill="rgba(201,154,60,.18)" stroke="#c99a3c" stroke-width="1.2"/>';
+  for(let f=0; f<=frets; f++){
+    s+='<line x1="'+fx(f)+'" y1="6" x2="'+fx(f)+'" y2="'+(H-6)+'" stroke="'+(f===0?'#d8cba6':'#5a5136')+'" stroke-width="'+(f===0?3:1)+'"/>';
+  }
+  [3,5,7,9,12].forEach(f=>{
+    const cx=(fx(f-1)+fx(f))/2;
+    if(f===12){ s+='<circle cx="'+cx+'" cy="'+(H/2-7)+'" r="2.6" fill="#9a8f74"/><circle cx="'+cx+'" cy="'+(H/2+7)+'" r="2.6" fill="#9a8f74"/>'; }
+    else s+='<circle cx="'+cx+'" cy="'+(H/2)+'" r="2.6" fill="#9a8f74"/>';
+  });
+  for(let f=1; f<=frets; f+=2){
+    s+='<text x="'+((fx(f-1)+fx(f))/2)+'" y="'+(H-1)+'" font-size="7.5" fill="#7d7460" text-anchor="middle" font-family="monospace">'+f+'</text>';
+  }
+  s+='</svg>';
+  document.getElementById("neck").innerHTML=s;
+}
+
+/* ---------- init ---------- */
+const keySel=document.getElementById("key");
+KEYS.forEach((k,i)=>{ const o=document.createElement("option"); o.value=i; o.textContent=k.name; keySel.appendChild(o); });
+keySel.value=0;
+const posSel=document.getElementById("pos");
+POSITIONS.forEach((p,i)=>{ const o=document.createElement("option"); o.value=i; o.textContent=p.label; if(p.def) o.selected=true; posSel.appendChild(o); });
+["key","pos","names"].forEach(id=>document.getElementById(id).addEventListener("change",draw));
+draw();
+</script>
+</body>
+</html>

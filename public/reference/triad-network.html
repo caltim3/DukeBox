@@ -1,0 +1,1050 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Triad Network: Practice System</title>
+<style>
+  :root {
+    --accent: #3b82f6;
+    --bg: #0f0f0f;
+    --surface: #1a1a1a;
+    --surface2: #242424;
+    --border: #2e2e2e;
+    --text: #e8e8e8;
+    --text-muted: #888;
+    --text-dim: #555;
+    --radius: 10px;
+    --font: "Inter", "Helvetica Neue", Arial, sans-serif;
+    --font-mono: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
+    --l1: #4ade80;
+    --l2: #22d3ee;
+    --l3: #3b82f6;
+    --l4: #a78bfa;
+    --l5: #f472b6;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { background: var(--bg); color: var(--text); font-family: var(--font); }
+  body {
+    max-width: 820px;
+    margin: 0 auto;
+    padding: 48px 32px 80px;
+    line-height: 1.7;
+    font-size: 16px;
+  }
+  .header { border-bottom: 1px solid var(--border); padding-bottom: 20px; margin-bottom: 8px; }
+  .type-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--accent); margin-bottom: 12px; padding: 4px 10px;
+    border: 1px solid var(--accent); border-radius: 99px; opacity: 0.85;
+  }
+  h1.card-title { font-size: 28px; font-weight: 700; line-height: 1.25; color: #fff; margin-bottom: 12px; }
+  .meta { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; font-size: 12px; color: var(--text-muted); }
+  .meta-dot { color: var(--text-dim); }
+
+  /* Inside/outside spectrum rail */
+  .spectrum {
+    margin: 24px 0 40px;
+  }
+  .spectrum-bar {
+    height: 8px; border-radius: 99px;
+    background: linear-gradient(90deg, var(--l1), var(--l2), var(--l3), var(--l4), var(--l5));
+  }
+  .spectrum-labels { display: flex; justify-content: space-between; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); margin-top: 8px; }
+
+  h2 {
+    font-size: 20px; font-weight: 700; color: #fff;
+    margin: 56px 0 6px; padding-top: 24px; border-top: 1px solid var(--border);
+  }
+  h2 .part-label { display: block; font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); margin-bottom: 6px; }
+  h3 { font-size: 16px; font-weight: 600; color: #fff; margin: 28px 0 8px; }
+  p { margin: 12px 0; color: var(--text); }
+  p.lede { color: var(--text-muted); margin-bottom: 20px; }
+  strong { color: #fff; }
+  em { color: var(--text); }
+
+  table { width: 100%; border-collapse: collapse; margin: 16px 0 24px; font-size: 14px; }
+  th {
+    text-align: left; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--text-muted); padding: 8px 10px; border-bottom: 1px solid var(--border);
+  }
+  td { padding: 9px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  td:first-child { white-space: nowrap; }
+
+  .mono, code { font-family: var(--font-mono); font-size: 13px; color: #fff; }
+  .notes {
+    font-family: var(--font-mono); font-size: 13px;
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 6px;
+    padding: 1px 7px; white-space: nowrap; color: #fff;
+  }
+  .line-ex {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 12px 16px; margin: 12px 0; font-family: var(--font-mono); font-size: 13.5px;
+    line-height: 2; overflow-x: auto;
+  }
+  .line-ex .cap { display: block; font-family: var(--font); font-size: 12px; color: var(--text-muted); line-height: 1.5; margin-bottom: 4px; }
+
+  .lv { display: inline-block; font-family: var(--font-mono); font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 99px; color: #0f0f0f; margin-right: 6px; }
+  .lv1 { background: var(--l1); } .lv2 { background: var(--l2); } .lv3 { background: var(--l3); color:#fff; } .lv4 { background: var(--l4); } .lv5 { background: var(--l5); }
+  tr.rl1 td:first-child { box-shadow: inset 3px 0 0 var(--l1); }
+  tr.rl2 td:first-child { box-shadow: inset 3px 0 0 var(--l2); }
+  tr.rl3 td:first-child { box-shadow: inset 3px 0 0 var(--l3); }
+  tr.rl4 td:first-child { box-shadow: inset 3px 0 0 var(--l4); }
+  tr.rl5 td:first-child { box-shadow: inset 3px 0 0 var(--l5); }
+
+  .module {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 20px 22px; margin: 20px 0;
+  }
+  .module h3 { margin-top: 0; }
+  .module .tagline { font-size: 13px; color: var(--text-muted); margin-top: -4px; margin-bottom: 14px; }
+  .stage { margin: 14px 0; padding-left: 14px; border-left: 2px solid var(--border); }
+  .stage .stage-name { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+  .stage p { margin: 4px 0; font-size: 14.5px; }
+
+  .callout {
+    background: var(--surface2); border-left: 3px solid var(--accent); border-radius: 0 var(--radius) var(--radius) 0;
+    padding: 12px 16px; margin: 18px 0; font-size: 14.5px;
+  }
+  .callout .co-label { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); display: block; margin-bottom: 4px; }
+
+  .gate { font-size: 13px; color: var(--text-muted); margin-top: 10px; }
+  .gate strong { color: var(--text); }
+
+  ul, ol { margin: 10px 0 14px 22px; }
+  li { margin: 5px 0; }
+
+  .netsvg { display: block; margin: 20px auto; max-width: 100%; }
+
+  .tags { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--border); font-size: 13px; color: var(--accent); }
+  .footer-brand { font-size: 12px; color: var(--text-dim); margin-top: 10px; }
+
+  @media (max-width: 640px) {
+    body { padding: 32px 18px 60px; }
+    table { font-size: 12.5px; display: block; overflow-x: auto; }
+  }
+  @media print {
+    html { background: #fff; color: #111; }
+    body { color: #111; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="type-badge">Practice System</div>
+  <h1 class="card-title">The Triad Network: Pairs, Cells, Pivots, and Enclosures as Bebop Language</h1>
+  <div class="meta">
+    <span>Built from the "Triad Pairs and Cells" card</span>
+    <span class="meta-dot">·</span>
+    <span>August 2026</span>
+    <span class="meta-dot">·</span>
+    <span>Guitar, all examples transposable</span>
+  </div>
+</div>
+
+<div class="spectrum">
+  <div class="spectrum-bar"></div>
+  <div class="spectrum-labels"><span>L1 · Inside (chord tones)</span><span>L3 · Chromatic gravity</span><span>L5 · Outside (planing, side-slip)</span></div>
+</div>
+
+<!-- ─────────────────────────── PART 0 ─────────────────────────── -->
+<h2><span class="part-label">Part 0</span>The Network Model</h2>
+<p class="lede">One mental model runs through this entire system. Learn it first; every drill afterward is just a region of this map.</p>
+
+<p>A <strong>triad network</strong> is a graph. The <strong>nodes</strong> are harmonic objects: triads, 7th arpeggios, quartal stacks, pentatonic fragments, dim7 arpeggios. The <strong>edges</strong> are the moves that connect two nodes: chromatic enclosures, passing diminished, guide-tone steps, pentatonic connectors, chromatic slides. A triad pair is the smallest possible network: two nodes, no edges. That is exactly why raw pair playing sounds like an exercise. The pairs are consonant blocks separated by a whole step, with none of the half-step gravity that defines bebop. This system fixes that by making you practice edges as deliberately as you practice nodes. It is also why enclosures are conceptually prior to pairs here: learn the gravity mechanism first, then the blocks that lack it, and the blocks never get the chance to sound like blocks.</p>
+
+<svg class="netsvg" viewBox="0 0 720 260" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Triad network for C lydian">
+  <defs>
+    <style>
+      .nd { fill: #1a1a1a; stroke-width: 1.5; }
+      .nl { font: 700 13px "JetBrains Mono", monospace; fill: #fff; text-anchor: middle; }
+      .ns { font: 500 10px "Inter", sans-serif; fill: #888; text-anchor: middle; }
+      .ed { stroke: #2e2e2e; stroke-width: 1.5; fill: none; }
+      .el { font: 500 10px "Inter", sans-serif; fill: #666; text-anchor: middle; }
+    </style>
+  </defs>
+  <!-- edges -->
+  <line class="ed" x1="130" y1="130" x2="590" y2="130" stroke="#f472b6" stroke-dasharray="4 4"/>
+  <text class="el" x="360" y="120" fill="#f472b6">raw pair jump (no edge)</text>
+  <path class="ed" d="M150 118 Q 250 40 360 46" stroke="#4ade80"/>
+  <path class="ed" d="M360 46 Q 470 40 572 116" stroke="#4ade80"/>
+  <text class="el" x="360" y="30" fill="#4ade80">Em7 pivot (diatonic)</text>
+  <path class="ed" d="M150 145 Q 250 225 360 228" stroke="#3b82f6"/>
+  <path class="ed" d="M360 228 Q 470 225 575 145" stroke="#3b82f6"/>
+  <text class="el" x="360" y="252" fill="#3b82f6">C#°7 passing dim (chromatic)</text>
+  <path class="ed" d="M180 100 Q 300 78 358 62" stroke="#a78bfa" stroke-dasharray="2 3"/>
+  <text class="el" x="240" y="70" fill="#a78bfa">quartal E-A-D</text>
+  <!-- nodes -->
+  <circle class="nd" cx="130" cy="130" r="34" stroke="#4ade80"/>
+  <text class="nl" x="130" y="128">C</text><text class="ns" x="130" y="144">C E G</text>
+  <circle class="nd" cx="590" cy="130" r="34" stroke="#4ade80"/>
+  <text class="nl" x="590" y="128">D</text><text class="ns" x="590" y="144">D F# A</text>
+  <circle class="nd" cx="360" cy="52" r="28" stroke="#22d3ee"/>
+  <text class="nl" x="360" y="50">Em7</text><text class="ns" x="360" y="65">E G B D</text>
+  <circle class="nd" cx="360" cy="222" r="28" stroke="#3b82f6"/>
+  <text class="nl" x="360" y="220">C#°7</text><text class="ns" x="360" y="235">C# E G Bb</text>
+</svg>
+
+<p><strong>Inside vs outside is graph distance.</strong> A node built from chord tones is distance zero. Diatonic nodes and edges are one step out. Chromatic edges add tension that resolves by half step, so they sound out for a beat and in on arrival. Superimposed systems (melodic minor, quartal) are further out, and planing or side-slipping the whole network is the edge of the map. The level system below is just this distance made explicit, and it matches the five-level complexity ladder in Line Lab, so the guide and the app grade material the same way.</p>
+
+<div class="callout"><span class="co-label">The one-sentence method</span>
+Practice nodes until they are automatic, then practice edges until the seams disappear, then displace everything rhythmically until it stops sounding like geometry and starts sounding like language.</div>
+
+<!-- ─────────────────────────── PART 0.5 ─────────────────────────── -->
+<h2><span class="part-label">Part 0.5</span>The Bebop Skeleton</h2>
+<p class="lede">Before any device: the metric grammar everything must fit. Bebop is not a scale sound, it is targeted motion through harmony. Every later object in this system, pair, cell, pivot, enclosure, is judged by whether it obeys this skeleton.</p>
+<ul>
+  <li><strong>Chord tones on strong beats</strong> (1 and 3), approach material on weak beats and upbeats. The listener's ear checks the harmony on the strong beats; that is where you must be accountable.</li>
+  <li><strong>Guide-tone rails.</strong> The 3rds and 7ths are the destination grid. Over a II-V-I: b7 of the II resolves to 3 of the V, b7 of the V resolves to 3 of the I. Every phrase you build later decorates this rail.</li>
+  <li><strong>Resolution into the next chord,</strong> not just the current one. A phrase that ends where the next harmony begins is a sentence; one that ends inside its own chord is a fragment.</li>
+  <li><strong>Short phrases first.</strong> Two-beat and one-bar phrases with eighth-note flow, before anything longer.</li>
+</ul>
+<p><strong>Starter vocabulary, deliberately tiny:</strong> 1-3-5-7, diatonic passing tones, one chromatic approach, one enclosure. Drill: over a looped II-V-I, build two-beat phrases that land a guide tone on beat 1 of every chord, using nothing else. When that is automatic, the skeleton is installed and the devices can hang on it.</p>
+
+<!-- ─────────────────────────── PART 1 ─────────────────────────── -->
+<h2><span class="part-label">Part 1</span>The Level System: Inside to Outside</h2>
+<p class="lede">Each level defines which nodes and edges you are allowed to use. Restriction is the point: you cannot hear what a level sounds like if you are always allowed everything. Every level has a gate; do not move up until you clear it.</p>
+
+<table>
+  <tr><th>Level</th><th>Allowed nodes</th><th>Allowed edges</th><th>Sound reference</th></tr>
+  <tr class="rl1"><td><span class="lv lv1">L1</span>Chord tones</td>
+    <td>Arpeggio of the chord itself; cells <span class="notes">1-2-3-5</span> and <span class="notes">3-5-7-9</span></td>
+    <td>None. Blocks only.</td>
+    <td>Swing-era vertical playing</td></tr>
+  <tr class="rl2"><td><span class="lv lv2">L2</span>Diatonic</td>
+    <td>The classic pairs (C+D, Eb+F, Bb+C); diatonic 7th arps</td>
+    <td>Diatonic pivots only: Em7, Gmaj7, Am7 upper structure</td>
+    <td>Early modal, inside modern</td></tr>
+  <tr class="rl3"><td><span class="lv lv3">L3</span>Chromatic gravity</td>
+    <td>Same nodes as L2</td>
+    <td>Enclosures, passing diminished, neighbor expansion, chromatic approach</td>
+    <td>Parker, Barry Harris</td></tr>
+  <tr class="rl4"><td><span class="lv lv4">L4</span>Superimposition</td>
+    <td>Melodic minor systems (lyd. dom., alt, m7b5), quartal stacks, pentatonic fragments</td>
+    <td>All of L3 plus quartal and pentatonic pivots</td>
+    <td>Shorter, Hancock, Stern</td></tr>
+  <tr class="rl5"><td><span class="lv lv5">L5</span>Outside</td>
+    <td>Alt pairs (Gb+Ab), symmetric dim systems (C, Eb, Gb, A), superimposed II-V structures, any node a half step away</td>
+    <td>Chromatic planing, side-slipping the whole network, symmetric sequencing</td>
+    <td>Brecker, Rosenwinkel, Monder</td></tr>
+</table>
+
+<p><strong>Gates.</strong> <span class="lv lv1">L1</span> all four cell rotations from every chord tone, forward and retrograde, 80 bpm, no stopping. <span class="lv lv2">L2</span> one pair in all inversions through one position, plus one pivot chain, from memory. <span class="lv lv3">L3</span> every triad arrival in a chorus approached by enclosure or half step, recorded and checked. <span class="lv lv4">L4</span> the C+D pair deployed over Cmaj7#11, C7#11, and Gb7alt in one sitting (the transferability test). <span class="lv lv5">L5</span> leave and return convincingly: one bar out, resolve by half step, on a recording you would let someone else hear.</p>
+
+<!-- ─────────────────────────── PART 2 ─────────────────────────── -->
+<h2><span class="part-label">Part 2</span>Device Modules</h2>
+<p class="lede">Five devices, one identical practice loop: <strong>Hear → Isolate → Connect → Displace → Apply</strong>. The loop is the method; the device is just the material fed through it. Two rules bind every drill: sing the target notes before you play them, and end on a named resolution note. If you cannot name where the phrase lands, you are running a fingering, not language. Default protocol for every module: metronome 60 to 120 bpm in steps of 10, three keys per day moving in fourths, one fretboard position per week, record 8 bars at the end of each week.</p>
+
+<div class="module">
+  <h3>Module A · Triad Pairs <span style="color:var(--text-dim); font-weight:400;">(nodes)</span></h3>
+  <p class="tagline">Two triads, no common tones, alternated in inversions. The raw material.</p>
+  <div class="stage"><span class="stage-name">Hear</span>
+    <p>Sing both triads over a droned root, then sing only the color tones (F# and A over C) so the ear owns the tension before the fingers do.</p></div>
+  <div class="stage"><span class="stage-name">Isolate</span>
+    <p>One pair, one position. Root position, 1st, and 2nd inversions of each triad, ascending and descending: <span class="notes">C E G · D F# A</span>, then <span class="notes">E G C · F# A D</span>, then <span class="notes">G C E · A D F#</span>. Then interlock: up C, down D, up C in the next inversion. Then extract 4-note cells from the combined collection: <span class="notes">C E D F#</span>, <span class="notes">E G F# A</span>, <span class="notes">G C A D</span>. Six-note streams are the exercise sound; four-note extractions are the language sound.</p></div>
+  <div class="stage"><span class="stage-name">Connect</span>
+    <p>Voice-led inversion chains chosen for minimal motion: <span class="notes">E G C → F# A D</span> (every voice moves a whole step), and <span class="notes">G C E → F# A D</span> (one voice falls while two rise). Hear voices, not blocks.</p></div>
+  <div class="stage"><span class="stage-name">Displace</span>
+    <p>Start the second triad on the and of 1, then on beat 2, then on the and of 2. Same notes, three different phrases.</p></div>
+  <div class="stage"><span class="stage-name">Apply</span>
+    <p>Loop one chord from the reference table (Cmaj7 → C+D, Cm7 → Eb+F, C7 → Bb+C) and improvise using only that pair for 3 minutes. Subordination rule: over Cmaj7, land E or B on strong beats, treat F# and A as color, resolve D to C or E when the phrase ends. The collection serves the harmony, never the reverse.</p></div>
+  <p class="gate"><strong>Priority pairs, in order:</strong> C+D over maj7#11 (also covers C7#11 and Gb7alt), Eb+F over m7 dorian, Bb+C over dom7, F+G over tonic melodic minor, Gb+Ab over alt.</p>
+</div>
+
+<div class="module">
+  <h3>Module B · Melodic Cells <span style="color:var(--text-dim); font-weight:400;">(nodes)</span></h3>
+  <p class="tagline">Four-note units you sequence and displace. The bebop atom.</p>
+  <div class="stage"><span class="stage-name">Hear</span>
+    <p>Sing each cell from its chord tone, then sing only the destination note of the phrase you are about to play.</p></div>
+  <div class="stage"><span class="stage-name">Isolate</span>
+    <p>Core cells over C: <span class="notes">1-2-3-5</span> (Coltrane cell), <span class="notes">3-5-7-9</span> (rootless arp), <span class="notes">5-6-7-9</span>, <span class="notes">1-2-b3-5</span> minor, <span class="notes">b9-#9-3-b7</span> (alt cell). Run each from every chord tone, forward and retrograde.</p></div>
+  <div class="stage"><span class="stage-name">Connect</span>
+    <p>Chain cells so the last note of one is a half step or whole step from the first note of the next. Sequence <span class="notes">1-2-3-5</span> up the scale degrees, then through the cycle of fourths.</p></div>
+  <div class="stage"><span class="stage-name">Displace</span>
+    <p>The card's own rule, made a drill: shift each cell to start on the upbeat. Then start mid-cell (note 3 on beat 1). A four-note unit sounds like language only after it survives displacement.</p></div>
+  <div class="stage"><span class="stage-name">Apply</span>
+    <p>Over a II-V loop, one cell per chord, changing the starting chord tone every chorus.</p></div>
+  <p class="gate"><strong>Key identity:</strong> <span class="notes">3-5-7-9</span> is the money cell. Em7 arp over C is Cmaj9; Ebmaj7 arp over Cm is Cm9; Em7b5 arp over C7 is C9. One shape, three chords.</p>
+</div>
+
+<div class="module">
+  <h3>Module C · Pivot Arpeggios <span style="color:var(--text-dim); font-weight:400;">(edges as objects)</span></h3>
+  <p class="tagline">An intermediate arpeggio with maximum overlap with both triads. The A-X-B move.</p>
+  <div class="stage"><span class="stage-name">Hear</span>
+    <p>Sing triad A's last note, the pivot's outline, and triad B's first note as one line. If you cannot sing the seam, the pivot is decoration.</p></div>
+  <div class="stage"><span class="stage-name">Isolate</span>
+    <p>Learn each pivot as a shape between C and D: <span class="notes">Em7 (E G B D)</span> smooth and inside, <span class="notes">Gmaj7 (G B D F#)</span> linear and modern, <span class="notes">C#°7 (C# E G Bb)</span> bebop tension, <span class="notes">quartal E A D</span> open, <span class="notes">A7 (A C# E G)</span> dominant, tonicizing the destination, <span class="notes">B° (B D F)</span> Barry Harris symmetric, <span class="notes">Db triad</span> chromatic slide.</p></div>
+  <div class="stage"><span class="stage-name">Connect</span>
+    <p>The reinterpretation question, as a drill: pick the last note of triad A and the first note of triad B, and find three different arpeggios containing both. For <span class="notes">G → D</span>: G major, Em, Bm. Play all three; hear three flavors of the same seam. Every rep uses the full format: primary object, pivot, target object, named resolution note. Example: C triad, C#°7 fragment, D triad, resolve to E, the 3rd of Cmaj7.</p></div>
+  <div class="stage"><span class="stage-name">Displace</span>
+    <p>Vary where the pivot lands: pivot on beat 2, pivot straddling the barline, pivot compressed into a triplet (see Module E).</p></div>
+  <div class="stage"><span class="stage-name">Apply</span>
+    <p>One chorus where every triad change goes through a pivot, and no pivot type repeats within 8 bars.</p></div>
+  <p class="gate"><strong>Litmus test:</strong> the Gmaj7 pivot proves the concept. <span class="notes">C E G · G B D F# · D F# A</span> is not a jump at all, it is one continuous lydian stack: C E G B D F# A. Outside pivots (Dbmaj7, Ebm7, even Ebm7 to Ab7 as a superimposed II-V into D) are judged by one criterion only: the strength of the resolution, never membership in the parent scale.</p>
+</div>
+
+<div class="module">
+  <h3>Module D · Chromatic Enclosures <span style="color:var(--text-dim); font-weight:400;">(edges)</span></h3>
+  <p class="tagline">Approach every arrival from above and below. This is the half-step gravity the pairs lack.</p>
+  <div class="stage"><span class="stage-name">Hear</span>
+    <p>Sing the target note first, then the enclosure into it. The ear should want the resolution before the hands supply it.</p></div>
+  <div class="stage"><span class="stage-name">Isolate</span>
+    <p>Four enclosure shapes on a single target (D): above-below <span class="notes">Eb C# D</span>, below-above <span class="notes">C# Eb D</span>, double chromatic from below <span class="notes">C C# D</span>, scale-above chromatic-below <span class="notes">E C# D</span>. All four on every note of both triads in the pair. Grade them by size: single approach (<span class="notes">C# D</span>), two-note enclosure (<span class="notes">Eb C# D</span>), extended three-note (<span class="notes">Eb C C# D</span>). Bigger enclosures buy more tension and cost more time; spend accordingly.</p></div>
+  <div class="stage"><span class="stage-name">Connect</span>
+    <p>Enclose only the first note of each new triad: <span class="notes">C E G · Eb C# D · F# A</span>. Then neighbor expansion, where every triad tone gets its own approach: <span class="notes">Eb-D · G-F# · Bb-A</span>. Then the passing diminished as a four-note enclosure of the entire triad: <span class="notes">C E G · C# E G Bb · D F# A</span>, every voice resolving by half step.</p></div>
+  <div class="stage"><span class="stage-name">Displace</span>
+    <p>Move the enclosure off the downbeat so the target lands on the beat and the tension lands before it. Enclosure on the and of 4 into a downbeat arrival is the single most Parker-sounding rhythm available.</p></div>
+  <div class="stage"><span class="stage-name">Apply</span>
+    <p>Take yesterday's L2 recording and re-play it note for note, adding enclosures at every triad arrival. Same skeleton, different century.</p></div>
+  <p class="gate"><strong>Rule of thumb:</strong> only one note has to move chromatically for a pair to stop sounding like a pair. <span class="notes">C → C# → D</span> beats <span class="notes">C → D</span> every time.</p>
+</div>
+
+<div class="module">
+  <h3>Module E · Rest-Stroke Triplet Arpeggios <span style="color:var(--text-dim); font-weight:400;">(the engine)</span></h3>
+  <p class="tagline">Not in the source card, and it turns out to be the structural glue: every node is a 3-note shape, and a bridge (triad, connector, triad) is 9 notes, exactly three triplet beats.</p>
+  <div class="stage"><span class="stage-name">Hear</span>
+    <p>Sing the triplet stream with accents on object boundaries, then sing it flat with no accents. Both versions live in the ear before the pick moves.</p></div>
+  <div class="stage"><span class="stage-name">Isolate</span>
+    <p>Mechanics first, on the easiest material. Rest stroke: the downstroke follows through and comes to rest on the next lower string. It produces a fat accent and a physical time anchor. Rule: every string change to a new string gets a rest-stroke downstroke; notes repeating on a string alternate. One triad, three inversions up the neck, straight triplets at 60 bpm, rest stroke on the first note of every beat. Then restart the same material from the second and third triplet partials.</p></div>
+  <div class="stage"><span class="stage-name">Connect</span>
+    <p>Pair alternation on the triplet grid: <span class="notes">C E G</span> on beat 1, <span class="notes">D F# A</span> on beat 2, next inversions on beats 3 and 4. Then the 9-note bridge as three triplet beats: triad A, connector, triad B, with the rest-stroke accent announcing each object. That accent is stage one, training wheels for the ear.</p></div>
+  <div class="stage"><span class="stage-name">Displace</span>
+    <p>Stage two: erase the accents. Same stream, phrased across the barline with no bump at object boundaries, so the line stops telegraphing its construction. Then start the 9-note bridge on beat 2 so it ends on the and of 4. Then superimpose 3 against 4: continuous triplets while the pair changes every 4 notes, so the accents drift across the shapes. This is where Martino-style relentlessness comes from.</p></div>
+  <div class="stage"><span class="stage-name">Apply</span>
+    <p>One chorus of continuous triplets over a slow loop, all vocabulary drawn from the current level's nodes and edges. Sparse comping, metronome on 2 and 4.</p></div>
+  <p class="gate"><strong>Why it matters:</strong> the triplet grid removes the decision of when to play, so all attention goes to which node and which edge. It is a constraint that manufactures fluency.</p>
+</div>
+
+<div class="callout"><span class="co-label">Lesson scoping</span>
+One session, one of each: one harmonic context, one pair, one cell, one pivot type, one enclosure type, one rhythmic pattern, one final phrase, one outside level. Next session, keep everything and change exactly one element. Depth comes from controlled variation, not from new material.</div>
+
+<!-- ─────────────────────────── PART 3 ─────────────────────────── -->
+<h2><span class="part-label">Part 3</span>The Bridge Practicum</h2>
+<p class="lede">The rotating-connector drill from the source card, expanded into a six-week routine. The exercise: never play <span class="notes">A B, A B, A B</span>. Always play <span class="notes">A, connector, B · B, connector, A</span>, and force a different connector every single time. After a few weeks the brain stops hearing two triads and starts hearing one melodic line that happens to be built from pair vocabulary.</p>
+
+<table>
+  <tr><th>Week</th><th>Connector family</th><th>Daily drill (15 min)</th><th>Level</th></tr>
+  <tr class="rl2"><td>1</td><td>Diatonic pivots</td><td>Em7, Gmaj7, Am7 between C and D. Three bridges per direction, no repeats within a round.</td><td><span class="lv lv2">L2</span></td></tr>
+  <tr class="rl3"><td>2</td><td>Enclosures</td><td>All four enclosure shapes as the connector. Target always lands on the beat.</td><td><span class="lv lv3">L3</span></td></tr>
+  <tr class="rl3"><td>3</td><td>Passing diminished + neighbor figures</td><td>C#°7 both directions; neighbor expansion of the arrival triad.</td><td><span class="lv lv3">L3</span></td></tr>
+  <tr class="rl4"><td>4</td><td>Pentatonic + quartal fragments</td><td>3-note fragments (<span class="notes">A G E</span>, <span class="notes">B A F#</span>, <span class="notes">E A D</span>) as connective tissue.</td><td><span class="lv lv4">L4</span></td></tr>
+  <tr class="rl5"><td>5</td><td>Chromatic planing + slide</td><td><span class="notes">C · Db · D</span> as full arpeggios; side-slip and return.</td><td><span class="lv lv5">L5</span></td></tr>
+  <tr class="rl5"><td>6</td><td>Free rotation</td><td>Any connector, but never the same one twice in a chorus. Record and audit.</td><td><span class="lv lv2">L2</span>–<span class="lv lv5">L5</span></td></tr>
+</table>
+
+<div class="line-ex"><span class="cap">Four bridges over Cmaj7, same pair, four completely different sentences:</span>
+C E G · Eb C# D · D F# A&nbsp;&nbsp;&nbsp;(enclosure)<br>
+C E G · E F F# · D F# A&nbsp;&nbsp;&nbsp;&nbsp;(double chromatic)<br>
+C E G · Bb A G · D F# A&nbsp;&nbsp;&nbsp;&nbsp;(pentatonic)<br>
+D F# A · G F E · C E G&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(scalar descent, reversed direction)
+</div>
+
+<p><strong>Triplet-grid weeks.</strong> From week 3 onward, repeat each day's material a second time as continuous rest-stroke triplets: every bridge becomes three triplet beats, accents on object boundaries. Week 6 on the triplet grid is the full synthesis: nodes, edges, displacement, and the picking engine, all at once.</p>
+
+<h3>The Phrase Formula (week 6 capstone)</h3>
+<p>The full sentence grammar the bridges have been building toward:</p>
+<div class="line-ex"><span class="cap">Grow the chain. Start with three components, add one per week:</span>
+cell → pivot → target<br>
+enclosure → cell → pivot → target<br>
+pickup → enclosure → cell → triad fragment → pivot → second triad → chromatic exit → guide-tone resolution
+</div>
+<p>Not every phrase needs every element; the formula is a menu, not a mandate. A worked example over Cmaj7 heading into Dm7:</p>
+<div class="line-ex"><span class="cap">One phrase, five components:</span>
+C# D · E G F# A · G B D F# · E · F A C
+</div>
+<p><span class="notes">C# D</span> chromatic approach, <span class="notes">E G F# A</span> interlocked C/D pair material, <span class="notes">G B D F#</span> Gmaj7 pivot, <span class="notes">E</span> the resolution note bridging both harmonies, <span class="notes">F A C</span> Dm7 arrival. This analysis format is exactly what Line Lab should emit next to every generated line.</p>
+
+<!-- ─────────────────────────── PART 4 ─────────────────────────── -->
+<h2><span class="part-label">Part 4</span>Progression Types</h2>
+<p class="lede">The network deployed against the six harmonic situations that cover most of the repertoire. Each one stresses a different part of the system: fast harmonic rhythm stresses cells, static harmony stresses edges and levels, cyclic dominants stress transferability.</p>
+
+<h3>Blues (F)</h3>
+<table>
+  <tr><th>Bars</th><th>Chord</th><th>Nodes</th><th>Move</th></tr>
+  <tr class="rl2"><td>1–3</td><td class="mono">F7</td><td><span class="notes">Eb + F</span></td><td>Home pair. Establish it plainly.</td></tr>
+  <tr class="rl4"><td>4</td><td class="mono">Cm7 F7alt</td><td><span class="notes">Cb + Db</span> (from Gb mel. minor)</td><td>Alt pair as a ramp into the IV.</td></tr>
+  <tr class="rl2"><td>5–6</td><td class="mono">Bb7 · B°7</td><td><span class="notes">Ab + Bb</span>, then dim system</td><td>B°7 bar: major triads a whole step above each chord tone (C#, E, G, Bb).</td></tr>
+  <tr class="rl3"><td>7–8</td><td class="mono">F7 · D7alt</td><td><span class="notes">Eb + F</span> → <span class="notes">Ab + Bb</span> (Eb mm)</td><td>Note the recycled pair: Ab+Bb serves Bb7 in bar 5 and D7alt in bar 8. One shape, two meanings.</td></tr>
+  <tr class="rl3"><td>9–10</td><td class="mono">Gm7 · C7</td><td><span class="notes">Bb + C</span> for both</td><td>One pair rail through the whole II-V.</td></tr>
+  <tr class="rl5"><td>11–12</td><td class="mono">turnaround</td><td>planing</td><td>Slide the F7 pair up a half step and back on the last two beats.</td></tr>
+</table>
+<p><strong>Drill:</strong> one chorus per level, L1 through L5, same tempo. The blues is the best audit form there is because the form is short enough to hold all five choruses in memory and compare.</p>
+
+<h3>Major II-V-I (C)</h3>
+<div class="line-ex"><span class="cap">The one-pair rail, then the half-step drop:</span>
+Dm7&nbsp;&nbsp;→ F + G&nbsp;&nbsp;&nbsp;(dorian pair)<br>
+G7&nbsp;&nbsp;&nbsp;→ F + G&nbsp;&nbsp;&nbsp;(same pair, reinterpreted as b7 + 1)<br>
+G7alt → Db + Eb&nbsp;(Ab mel. minor)<br>
+Cmaj7 → C + D&nbsp;&nbsp;&nbsp;(lydian pair)
+</div>
+<p>Two insights do all the work here. First, <span class="notes">F + G</span> covers both Dm7 and G7, so the first three bars can ride one rail and the line stays coherent by construction. Second, the alt pair <span class="notes">Db + Eb</span> resolves into the tonic pair <span class="notes">C + D</span> by parallel half-step planing: the outside move and the resolution are the same physical shape a fret apart. That is L5 tension with L1 logic.</p>
+
+<h3>Minor II-V-i (C minor)</h3>
+<div class="line-ex"><span class="cap">Three parallel melodic minor systems:</span>
+Dm7b5&nbsp;→ F mel. minor&nbsp;&nbsp;→ Bb + C<br>
+G7alt&nbsp;&nbsp;→ Ab mel. minor&nbsp;→ Db + Eb<br>
+Cm(maj7) → C mel. minor&nbsp;&nbsp;→ F + G
+</div>
+<p>The entire minor II-V-i is one device, melodic minor, transposed twice: up a minor third, then up a major third. Any melodic minor vocabulary you own transposes directly through all three chords. The pairs even move logically: <span class="notes">Bb+C → Db+Eb → F+G</span>, two half-step-adjacent systems resolving up a fourth. Practice the three scales as one gesture before practicing the pairs.</p>
+
+<h3>Static chords (one-chord vamps)</h3>
+<p>No harmonic rhythm means you supply the motion. This is where the level system becomes the form itself. Over a Cmaj7 vamp: 8 bars L1 (pure arps and cells), 8 bars L2 (C+D with diatonic pivots), 8 bars L3 (every arrival enclosed), 8 bars L4 (quartal and pentatonic pivots), 8 bars L5 (side-slip to Db+Eb and resolve). Then freely mix, with a <strong>tension budget</strong>: you may leave whenever you like, but every departure must return by half step within two beats. Static harmony is the only context where you can hear each level in isolation, which is why it comes before tunes.</p>
+
+<h3>Modal (D dorian, So What / Impressions form)</h3>
+<p>Nodes: the dorian pair <span class="notes">F + G</span>, the minor pair <span class="notes">Dm + Em</span>, quartal stacks <span class="notes">D G C</span> and <span class="notes">E A D</span>. Sixteen bars is a long time; structure it as a network walk, not a scale run. The AABA form gives you the outside move for free: when the form lifts to Eb dorian, everything transposes up a half step (<span class="notes">Gb + Ab</span>, <span class="notes">Ebm + Fm</span>). Practice deliberately blurring that seam, starting the Eb material a bar early (L5 side-slip) or holding D material a bar late, then resolving.</p>
+
+<h3>Rhythm changes (Bb)</h3>
+<p>The A sections move at two beats per chord, too fast for pairs. This is cell territory: one 4-note cell per chord, glued by guide tones. <span class="notes">1-2-3-5</span> on Bb, <span class="notes">3-5-b7-9</span> on G7, and so on, with the 3rds and 7ths as the rail the cells decorate. The bridge is the opposite: one chord per two bars, exactly one pair per chord, and the dominant pairs descend the cycle in a perfect sequence:</p>
+<div class="line-ex"><span class="cap">Bridge: one pair per dominant, moving in fourths:</span>
+D7 → C + D&nbsp;&nbsp;&nbsp;·&nbsp;&nbsp;G7 → F + G&nbsp;&nbsp;&nbsp;·&nbsp;&nbsp;C7 → Bb + C&nbsp;&nbsp;&nbsp;·&nbsp;&nbsp;F7 → Eb + F
+</div>
+<p>The same b7+1 shape transposed four times. Learn the bridge as one object and rhythm changes stops being scary. Drill: A sections at L1–L3 (cells and enclosures), bridge at L2–L4 (pairs and pivots), and alternate which section gets the attention each day.</p>
+
+<!-- ─────────────────────────── PART 5 ─────────────────────────── -->
+<h2><span class="part-label">Part 5</span>Tune Application: Black Orpheus</h2>
+<p class="lede">Everything converges on one vehicle. Black Orpheus (A minor) is ideal: a tonic minor, a minor II-V that repeats, a major II-V-I detour, all at a singable tempo. Loop the first 8 bars slowed down and run the level passes.</p>
+
+<h3>The network map, bars 1–8</h3>
+<table>
+  <tr><th>Bars</th><th>Chords</th><th>System</th><th>Nodes</th></tr>
+  <tr class="rl2"><td>1, 3, 5</td><td class="mono">Am7 / Am(maj7)</td><td>A melodic minor (tonic minor)</td><td><span class="notes">D + E</span> pair; cells <span class="notes">1-2-b3-5</span>, <span class="notes">b3-5-7-9</span> (C E G# B)</td></tr>
+  <tr class="rl3"><td>2, 4, 8</td><td class="mono">Bm7b5 · E7b9</td><td>D mel. minor → E dim. dom. (or F mm for full alt)</td><td><span class="notes">G + A</span> pair → dim system triads <span class="notes">E, G, Bb, C#</span>; alt cell <span class="notes">F-G-G#-D</span></td></tr>
+  <tr class="rl2"><td>6</td><td class="mono">Dm7 · G7</td><td>C major (II-V rail)</td><td><span class="notes">F + G</span> for both chords</td></tr>
+  <tr class="rl2"><td>7</td><td class="mono">Cmaj7</td><td>C lydian</td><td><span class="notes">C + D</span> pair; Em7 pivot</td></tr>
+</table>
+
+<p><strong>The teachable coincidence:</strong> the A section is three pair systems a whole step apart. <span class="notes">D + E</span> for the tonic, <span class="notes">G + A</span> for the half-diminished, <span class="notes">F + G</span> for the II-V detour. Learn the three pairs in one position and the first eight bars become one connected region of the network instead of six chord symbols.</p>
+
+<h3>The five passes</h3>
+<table>
+  <tr><th>Pass</th><th>Constraint</th><th>What to listen for</th></tr>
+  <tr class="rl1"><td><span class="lv lv1">L1</span></td><td>Chord-tone arps and cells only, quarter notes and eighths.</td><td>Can you hear the changes with zero decoration? If not, nothing above this will land.</td></tr>
+  <tr class="rl2"><td><span class="lv lv2">L2</span></td><td>The three pairs, diatonic pivots only.</td><td>The whole-step relationship between the three systems. Seams allowed.</td></tr>
+  <tr class="rl3"><td><span class="lv lv3">L3</span></td><td>Same skeleton, every arrival enclosed; passing dim through E7b9 (<span class="notes">G#°7</span> is diatonic to it).</td><td>Seams gone. This pass should sound like bebop, full stop.</td></tr>
+  <tr class="rl4"><td><span class="lv lv4">L4</span></td><td>Melodic minor superimposition on E7 (F mm: <span class="notes">Bb + C</span>), quartal pivots on the Am bars.</td><td>Color without losing the form. The b9/b13 tension resolving to C and E of Am.</td></tr>
+  <tr class="rl5"><td><span class="lv lv5">L5</span></td><td>Side-slip the Am pair (<span class="notes">Eb + F</span> for a bar), planing through the turnaround. Triplet grid, rest strokes, the whole engine.</td><td>Out and back by half step. If a listener can sing where you'll resolve, you've earned the level.</td></tr>
+</table>
+
+<h3>Weekly protocol on the loop</h3>
+<ol>
+  <li><strong>Mon/Tue:</strong> passes L1 and L2 at 60 percent tempo, three keys is waived, this stays in A minor.</li>
+  <li><strong>Wed/Thu:</strong> pass L3, plus the week's Bridge Practicum connector family applied to the tune.</li>
+  <li><strong>Fri:</strong> passes L4 and L5, triplet-grid versions of anything that survived the week.</li>
+  <li><strong>Sat:</strong> record one full chorus, free level mixing with the tension budget. Audit against last week's take: fewer seams, or no promotion. Then compose: write and record three original phrases over bars 1 to 8, one fully inside (L1 to L2), one chromatic (L3), one deliberately outside with a clear resolution (L5). Improvising rents the vocabulary; composing buys it.</li>
+</ol>
+
+<div class="callout"><span class="co-label">Endgame</span>
+The tutorial succeeds when the vocabulary stops being nameable in real time. You will not think "Em7 pivot into an enclosure on the triplet grid." You will think in regions of the network and hear one continuous line, which is what Brecker, Rosenwinkel, Lund, and Monder are doing when triad pairs sound like language instead of geometry.</div>
+
+<!-- ─────────────────────────── PART 6 ─────────────────────────── -->
+<h2><span class="part-label">Part 6</span>Martino Mode: The One-Region II-V-I</h2>
+<p class="lede">Your signature reduction. Three intimidating moves, ii minor over the ii, ii minor over the dominant, lydian on the tonic, collapse into one thing you already own: a single minor region and a single note flip. This is the section that makes the hard stuff easy, because it removes almost every decision.</p>
+
+<div class="callout"><span class="co-label">The whole idea in one line</span>
+Dm7, G7, and Cmaj7 in C major are the <strong>same seven notes</strong>. Stay in D minor across the ii and the V. Flip one note (F to F#) on the I. That is Martino Mode.</div>
+
+<h3>Why it works: you are refusing to move</h3>
+<p>D dorian, G mixolydian, and C major are one scale spelled from three starting points. So "ii minor over the ii" and "ii minor over the dominant" are not two techniques. They are you playing D minor and declining to change when the chord changes. Over G, that same D-minor material reads as a rootless <span class="notes">G9</span> (D-F-A = 5, b7, 9); let the full scale through and the 3rd (B) and 13th (E) are already under your fingers as <span class="notes">G mixolydian</span>. The lydian on the I is then a <strong>one-note flip</strong>: raise F to F#, and D dorian becomes D mixolydian, which is C lydian. Natural F for the changes, sharp F the instant you land on the tonic.</p>
+
+<svg class="netsvg" viewBox="0 0 720 300" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Martino Mode network for a C major II-V-I">
+  <defs><style>
+    .mnd { fill:#1a1a1a; stroke-width:1.5; }
+    .mnl { font:700 13px "JetBrains Mono", monospace; fill:#fff; text-anchor:middle; }
+    .mns { font:500 10px "Inter", sans-serif; fill:#888; text-anchor:middle; }
+    .med { stroke:#2e2e2e; stroke-width:1.5; fill:none; }
+    .mel { font:600 10px "Inter", sans-serif; text-anchor:middle; }
+    .msub { font:500 9px "Inter", sans-serif; fill:#666; text-anchor:middle; }
+  </style></defs>
+  <!-- spine edges -->
+  <path class="med" d="M168 185 L262 185" stroke="#22d3ee"/>
+  <text class="mel" x="215" y="176" fill="#22d3ee">same Dm</text>
+  <path class="med" d="M458 185 L552 185" stroke="#4ade80"/>
+  <text class="mel" x="505" y="176" fill="#4ade80">flip F to F#</text>
+  <!-- altered detour -->
+  <path class="med" d="M360 148 L360 92" stroke="#f472b6" stroke-dasharray="4 4"/>
+  <text class="mel" x="360" y="128" fill="#f472b6">up 1/2 step</text>
+  <path class="med" d="M400 70 Q 540 70 600 152" stroke="#f472b6" stroke-dasharray="4 4"/>
+  <text class="mel" x="540" y="58" fill="#f472b6">slide down 1/2 step to resolve</text>
+  <!-- nodes -->
+  <circle class="mnd" cx="120" cy="185" r="38" stroke="#22d3ee"/>
+  <text class="mnl" x="120" y="181">Dm7 (ii)</text><text class="mns" x="120" y="197">play Dm</text>
+  <circle class="mnd" cx="360" cy="185" r="38" stroke="#22d3ee"/>
+  <text class="mnl" x="360" y="181">G7 (V)</text><text class="mns" x="360" y="197">play Dm = G9</text>
+  <circle class="mnd" cx="600" cy="185" r="38" stroke="#4ade80"/>
+  <text class="mnl" x="600" y="181">Cmaj7 (I)</text><text class="mns" x="600" y="197">D w/ F# = lydian</text>
+  <circle class="mnd" cx="360" cy="60" r="34" stroke="#f472b6"/>
+  <text class="mnl" x="360" y="56">G7alt</text><text class="mns" x="360" y="71">Ab mel min</text>
+  <!-- shared tritone tag -->
+  <text class="msub" x="360" y="245">shared anchor: B and F (the 3 and b7) never move</text>
+</svg>
+
+<h3>Network 1 &middot; The Changes (Dm7 and G7): C major / D dorian</h3>
+<p>One region covers both chords. Everything here is diatonic to C. The minor conversion is the whole point: <strong>Dm is your answer to both bars.</strong></p>
+<table>
+  <tr><th>Layer</th><th>Nodes</th><th>Use</th></tr>
+  <tr class="rl2"><td>Minor conversion</td><td><span class="notes">Dm / Dm7</span></td><td>Play over ii <em>and</em> V without changing a note. Over G it is a rootless G9; add B for the 3rd.</td></tr>
+  <tr class="rl2"><td>Triad pairs</td><td><span class="notes">F + G</span> (bIII+IV), <span class="notes">Dm + Em</span> (i+ii)</td><td>F+G is the workhorse rail across the entire ii-V. Dm+Em for a darker inside color.</td></tr>
+  <tr class="rl2"><td>Pivot arps</td><td><span class="notes">Am7, Fmaj7, Em7, Cmaj7</span></td><td>All diatonic 7ths of C. Any of them threads the ii into the V seamlessly.</td></tr>
+  <tr class="rl2"><td>Guide tones</td><td>Dm7: <span class="notes">F / C</span> &middot; G7: <span class="notes">B / F</span></td><td>F is shared (b3 of Dm, b7 of G). It is the pivot the whole region turns on.</td></tr>
+</table>
+
+<h3>Network 2 &middot; The Resolution (Cmaj7): C lydian / D mixolydian</h3>
+<p>Same fingers, one flip. Raise F to F# and the region becomes lydian. The minor conversion for lydian is <strong>Bm7</strong> (B D F# A = 7, 9, #11, 13), which is just the iii-of-lydian sitting on top.</p>
+<table>
+  <tr><th>Layer</th><th>Nodes</th><th>Use</th></tr>
+  <tr class="rl4"><td>Minor conversion</td><td><span class="notes">Bm / Bm7</span></td><td>Bm over Cmaj7 = the full lydian upper structure. The F# is the #11 color.</td></tr>
+  <tr class="rl2"><td>Triad pairs</td><td><span class="notes">C + D</span> (lydian pair), <span class="notes">G + D</span></td><td>C+D is the tonic pair. D triad carries the #11 (F#) and 13 (A).</td></tr>
+  <tr class="rl2"><td>Pivot arps</td><td><span class="notes">Em7, Gmaj7, Bm7</span></td><td>Gmaj7 pivot proves the sound: C E G B D F# A is one continuous lydian stack.</td></tr>
+  <tr class="rl1"><td>Guide tones</td><td><span class="notes">E / B</span></td><td>Land the phrase on E (3rd). F# resolves to E; the flip creates the pull.</td></tr>
+</table>
+
+<h3>Network 3 &middot; The Altered Detour (G7alt): Ab melodic minor</h3>
+<p>When you want teeth on the V, this is the only region that leaves home, and it leaves by exactly a half step. G7alt is Ab melodic minor, sitting one fret above your C-lydian region. The trick that makes it easy: <strong>G7 and G7alt share the B-F tritone.</strong> Keep those two notes as anchors, add the altered color around them, then slide the whole shape down a half step into C+D.</p>
+<table>
+  <tr><th>Layer</th><th>Nodes</th><th>Tones over G</th></tr>
+  <tr class="rl5"><td>Minor conversion (has the 3rd)</td><td><span class="notes">Abm / Abm(maj7)</span></td><td>Ab-B-Eb-G = b9, 3, #5, 7. Strongest resolution, keeps the defining 3rd.</td></tr>
+  <tr class="rl5"><td>Minor conversion (ii of the alt key)</td><td><span class="notes">Bbm</span></td><td>Bb-Db-F = #9, b5, b7. Keeps the "always a ii minor" logic, one region up.</td></tr>
+  <tr class="rl5"><td>Triad pair (the money pair)</td><td><span class="notes">Db + Eb</span> major</td><td>Db = b5,b7,b9 &middot; Eb = #5,root,#9. Together: every altered tension at once.</td></tr>
+  <tr class="rl5"><td>Resolution</td><td>slide down a half step</td><td>Db+Eb drops to C+D: Db&rarr;C, Eb&rarr;D, F&rarr;E, Ab&rarr;G. The altered shape becomes the tonic shape one fret lower.</td></tr>
+</table>
+
+<h3>The signature line, spelled out</h3>
+<p>One breath across all three chords, natural F on the changes, F# on the tonic:</p>
+<div class="line-ex"><span class="cap">Plain (fully in the D region):</span>
+Dm7 : D  E  F  A&nbsp;&nbsp;&nbsp;&nbsp;(1 2 b3 5)<br>
+G7 &nbsp;: C  A  F  D&nbsp;&nbsp;&nbsp;&nbsp;(11 9 b7 5, same Dm sound = rootless G9)<br>
+Cmaj7: E  F#  G  B  &rarr; E&nbsp;&nbsp;&nbsp;(3 #4 5 7, the flip, resolve to 3)
+</div>
+<div class="line-ex"><span class="cap">Altered V (lift up a half step, slide back down):</span>
+Dm7 : D  E  F  A<br>
+G7alt: Db  F  Ab&nbsp;&nbsp;&nbsp;&nbsp;(b5 b7 b9, Db triad from Ab mel minor)<br>
+Cmaj7: C  E  G&nbsp;&nbsp;&nbsp;&nbsp;(the Db shape slid down one fret) &rarr; E
+</div>
+
+<h3>Make it easy: the five-drill ladder</h3>
+<p class="lede">Each drill isolates exactly one thing. Do them in order; do not add the next element until the current one is automatic. This is how a hard sound becomes a reflex.</p>
+
+<div class="module">
+  <h3><span class="lv lv1">L1</span>Drill 1 &middot; Anchor the tritone</h3>
+  <p class="tagline">The skeleton. Three notes for the whole progression.</p>
+  <p style="font-size:14.5px;">Over the loop, play only guide tones: <span class="notes">F</span> on Dm7 (b3), <span class="notes">B or F</span> on G7 (3 or b7), <span class="notes">E</span> on Cmaj7 (3). Half notes, metronome on 2 and 4. You are proving you can hear the resolution with three notes before you decorate anything.</p>
+</div>
+<div class="module">
+  <h3><span class="lv lv2">L2</span>Drill 2 &middot; The one-region flip</h3>
+  <p class="tagline">The core move, nothing else.</p>
+  <p style="font-size:14.5px;">Noodle freely in <span class="notes">D dorian</span> over Dm7 and G7. On beat 1 of Cmaj7, change exactly one note: <span class="notes">F becomes F#</span>. Everything else stays. Loop it slow until the flip is muscle memory and you stop thinking about the chords at all.</p>
+</div>
+<div class="module">
+  <h3><span class="lv lv2">L2</span>Drill 3 &middot; Minor-conversion licks</h3>
+  <p class="tagline">Prove the reduction with real vocabulary.</p>
+  <p style="font-size:14.5px;">Take one <span class="notes">Dm7</span> lick you already know. Play it <em>verbatim</em> over both Dm7 and G7. Hear it recolor into G9 without you touching it. Then resolve with one <span class="notes">Bm7</span> lick over Cmaj7 for the lydian. Two licks, whole progression.</p>
+</div>
+<div class="module">
+  <h3><span class="lv lv3">L3</span>Drill 4 &middot; Two pairs, with gravity</h3>
+  <p class="tagline">Add half-step motion.</p>
+  <p style="font-size:14.5px;"><span class="notes">F + G</span> pair over the ii-V, <span class="notes">C + D</span> pair on the I. Then enclose every arrival: chromatic approach into F on Dm7, into B or F on G7, into E on Cmaj7. Same skeleton as Drill 1, now wearing bebop clothes.</p>
+</div>
+<div class="module">
+  <h3><span class="lv lv5">L5</span>Drill 5 &middot; The altered lift-and-drop</h3>
+  <p class="tagline">The one that sounds impossible and is not.</p>
+  <p style="font-size:14.5px;">Over G7, start in D dorian (inside). On beat 3, jump the color <span class="notes">up a half step</span> into Ab melodic minor (<span class="notes">Db + Eb</span>, or <span class="notes">Bbm</span>), keeping <span class="notes">B and F</span> under your ears as anchors. Then <span class="notes">slide the whole shape down a half step</span> into C + D on the tonic. Up for tension, down to resolve. That descent is the entire trick.</p>
+</div>
+
+<h3>Level map for Martino Mode</h3>
+<table>
+  <tr><th>Level</th><th>What you play over the 251</th></tr>
+  <tr class="rl1"><td><span class="lv lv1">L1</span></td><td>Guide-tone skeleton: F on ii, B/F on V, E on I.</td></tr>
+  <tr class="rl2"><td><span class="lv lv2">L2</span></td><td>One region: D dorian on ii and V, flip F to F# on I. Minor-conversion licks.</td></tr>
+  <tr class="rl3"><td><span class="lv lv3">L3</span></td><td>F+G and C+D pairs, enclosures into every guide tone, passing diminished on the V.</td></tr>
+  <tr class="rl4"><td><span class="lv lv4">L4</span></td><td>Bm7 lydian superimposition on I, quartal and dominant pivots, upper-structure color.</td></tr>
+  <tr class="rl5"><td><span class="lv lv5">L5</span></td><td>Ab melodic minor altered over V (Db+Eb / Bbm / Abm), side-slip resolution down a half step.</td></tr>
+</table>
+
+<div class="callout"><span class="co-label">Make it yours</span>
+The region concept transposes to any key by one relationship: <strong>play the ii minor, hold it through the V, flip the 4th to #4 on the I.</strong> For altered, lift a half step above the tonic into melodic minor and slide back down. Learn it in C, then move the whole picture. The signature is not the notes, it is the refusal to move until the tonic, and the single flip when you arrive.</div>
+
+<!-- ─────────────────────────── PART 7 ─────────────────────────── -->
+<h2><span class="part-label">Part 7</span>Line Lab: Generate, See, Practice</h2>
+<p class="lede">Every chord type, progression type, device, and level from this tutorial, wired to a line generator. Select a context, see a pre-seeded example in tab, or generate a new line with per-bar device analysis and a named resolution note. Same vocabulary, same levels, same phrase logic as the tutorial above.</p>
+
+<div id="linelab-app">
+  <noscript><p style="color:#f87171;">Line Lab requires JavaScript.</p></noscript>
+</div>
+
+<style>
+  /* ── Line Lab styles ── */
+  #linelab-app { margin-top: 8px; }
+  .ll-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); gap: 10px; margin-bottom: 16px; }
+  .ll-label { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); display: block; }
+  .ll-select {
+    display: block; width: 100%; margin-top: 4px;
+    background: var(--surface); color: var(--text); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 10px; font-size: 14px; font-family: var(--font);
+    cursor: pointer; outline: none; appearance: auto;
+  }
+  .ll-levels { display: flex; gap: 6px; margin-bottom: 16px; }
+  .ll-lvbtn {
+    border-radius: 8px; padding: 6px 14px; font-size: 13px; font-weight: 700;
+    cursor: pointer; font-family: var(--font-mono); border: 1px solid var(--border);
+    background: var(--surface); color: var(--text-muted); transition: all 0.15s; text-align: center;
+  }
+  .ll-lvbtn.active { color: #0f0f0f; }
+  .ll-lvbtn .ll-lvname { display: block; font-size: 10px; font-weight: 400; opacity: 0.8; font-family: var(--font); }
+  .ll-rule { font-size: 12px; color: var(--text-dim); margin-bottom: 16px; }
+  .ll-dir {
+    width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 14px; color: var(--text); font-size: 14px; font-family: var(--font);
+    outline: none; margin-bottom: 16px;
+  }
+  .ll-dir::placeholder { color: var(--text-dim); }
+  .ll-ctx {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 12px 16px; margin-bottom: 16px; font-size: 13px; display: flex; flex-wrap: wrap; gap: 14px;
+  }
+  .ll-ctx-label { color: var(--text-muted); }
+  .ll-ctx-val { color: #fff; font-family: var(--font-mono); }
+  .ll-ctx-desc { width: 100%; margin-top: 6px; color: var(--text-muted); font-size: 12px; border-top: 1px solid var(--border); padding-top: 8px; }
+  .ll-gen-btn {
+    background: var(--accent); color: #fff; border: none; border-radius: 8px;
+    padding: 12px 32px; font-size: 15px; font-weight: 600; cursor: pointer;
+    width: 100%; margin-bottom: 20px; transition: opacity 0.15s;
+  }
+  .ll-gen-btn:disabled { background: var(--surface2); opacity: 0.6; cursor: wait; }
+  .ll-section-label {
+    font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--text-muted); margin-bottom: 10px;
+  }
+  .ll-bar { margin-bottom: 18px; }
+  .ll-bar-head { display: flex; gap: 10px; align-items: baseline; margin-bottom: 5px; }
+  .ll-bar-chord { font-family: var(--font-mono); font-size: 14px; font-weight: 700; color: #fff; }
+  .ll-bar-lv { font-size: 11px; font-weight: 600; padding: 1px 8px; border-radius: 99px; }
+  .ll-bar-device { font-size: 12px; color: var(--text-muted); }
+  .ll-tab-box {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    padding: 8px 14px; font-family: var(--font-mono); font-size: 13px; line-height: 1.6;
+    overflow-x: auto; white-space: pre;
+  }
+  .ll-tab-str { color: #ccc; }
+  .ll-tab-str-label { color: var(--text-dim); display: inline-block; width: 18px; }
+  .ll-bar-reason { font-size: 12px; color: var(--text-muted); margin-top: 4px; line-height: 1.5; }
+  .ll-bar-res { font-size: 11px; color: var(--accent); margin-top: 2px; }
+  .ll-analysis { background: var(--surface); border-left: 3px solid var(--accent); border-radius: 0 var(--radius) var(--radius) 0; padding: 10px 14px; margin-top: 12px; font-size: 13px; color: var(--text-muted); }
+  .ll-analysis-label { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); display: block; margin-bottom: 4px; }
+  .ll-error { background: #2a1515; border: 1px solid #5c2020; border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; font-size: 13px; color: #f87171; }
+  .ll-history { margin-top: 32px; border-top: 1px solid var(--border); padding-top: 16px; }
+  .ll-hist-item summary { cursor: pointer; font-size: 13px; color: var(--text-muted); padding: 5px 0; list-style: none; }
+  .ll-hist-item summary::-webkit-details-marker { display: none; }
+  .ll-hist-item[open] summary { margin-bottom: 8px; }
+  .ll-hist-body { padding-left: 12px; padding-top: 4px; }
+  @media (max-width: 640px) { .ll-levels { flex-wrap: wrap; } .ll-controls { grid-template-columns: 1fr 1fr; } }
+</style>
+
+<script>
+(function() {
+  // ── Data ──
+  const TONICS = ["C","Db","D","Eb","E","F","F#","Gb","G","Ab","A","Bb","B"];
+
+  const CHORD_TYPES = {
+    maj7:    { label:"maj7",       scale:"lydian",              pairs:["D+C","G+D"],           cells:["1-2-3-5","5-6-7-9","3-5-7-9"],     color:"9, #11, 13" },
+    m7:      { label:"m7 (dorian)",scale:"dorian",              pairs:["bIII+IV","Im+IIm"],    cells:["1-2-b3-5","b3-5-b7-9","1-b3-4-5"], color:"9, 11, 13" },
+    m_maj7:  { label:"m(maj7)",    scale:"melodic minor",       pairs:["IV+V","Im+V+"],        cells:["1-2-b3-5","5-6-7-9","b3-5-7-9"],   color:"maj7, nat 13 over minor" },
+    dom7:    { label:"7 (mixo)",   scale:"mixolydian",          pairs:["bVII+I"],              cells:["1-2-3-5","3-5-b7-9","b7-1-2-3"],   color:"9, 13" },
+    dom7s11: { label:"7#11",       scale:"lydian dominant",     pairs:["I+II"],                cells:["3-5-b7-9","2-3-#4-6"],             color:"9, #11, 13" },
+    alt:     { label:"7alt",       scale:"altered (mel. minor)",pairs:["bV+bVI"],              cells:["3-#5-b7-b9","b9-#9-3-b7"],         color:"b9, #9, b5, #5" },
+    "13b9":  { label:"13b9",       scale:"half-whole dim",      pairs:["VI+I","bIII+VI"],      cells:["1-b9-3-5 shifted m3rds","3-5-b7-b9"], color:"b9, #9, nat 13" },
+    m7b5:    { label:"m7b5",       scale:"locrian nat 2",       pairs:["bVI+bVII","bIIIm+IVm"],cells:["1-b3-b5-b7","b3-b5-b7-9"],        color:"nat 9" },
+    dim7:    { label:"dim7",       scale:"whole-half dim",      pairs:["II+IV","bVI+VII"],     cells:["dim7+chrom approach","1-2-b3-4 in m3rds"], color:"dim maj7 colors" },
+  };
+
+  const PROGRESSIONS = {
+    static:        { label:"Static chord",             bars:[{deg:"I",quality:"maj7",beats:4}], desc:"One chord, you supply the motion. Run levels 1 through 5 as the form." },
+    major_251_martino: { label:"Major II-V-I (Martino Mode)", bars:[{deg:"IIm7",quality:"m7",beats:4},{deg:"V7",quality:"dom7",beats:4},{deg:"Imaj7",quality:"maj7",beats:4},{deg:"Imaj7",quality:"maj7",beats:4}], desc:"Minor conversion: play the ii minor (dorian) over BOTH ii and V, lydian on the I via a one-note F-to-F# flip. Altered option on V from Ab melodic minor, sliding down a half step. Anchored on the shared B-F tritone." },
+    major_251:     { label:"Major II-V-I",              bars:[{deg:"IIm7",quality:"m7",beats:4},{deg:"V7",quality:"dom7",beats:4},{deg:"Imaj7",quality:"maj7",beats:4},{deg:"Imaj7",quality:"maj7",beats:4}], desc:"F+G pair rails both II and V; alt pair on V resolves by half-step planing into the tonic pair." },
+    minor_251:     { label:"Minor ii-V-i",              bars:[{deg:"IIm7b5",quality:"m7b5",beats:4},{deg:"V7alt",quality:"alt",beats:4},{deg:"Im(maj7)",quality:"m_maj7",beats:4},{deg:"Im(maj7)",quality:"m_maj7",beats:4}], desc:"Three parallel melodic minor systems a minor third apart." },
+    blues:         { label:"Blues (12 bar)",             bars:[{deg:"I7",quality:"dom7",beats:4},{deg:"I7",quality:"dom7",beats:4},{deg:"I7",quality:"dom7",beats:4},{deg:"I7",quality:"dom7",beats:4},{deg:"IV7",quality:"dom7",beats:4},{deg:"IV7",quality:"dom7",beats:4},{deg:"I7",quality:"dom7",beats:4},{deg:"VI7alt",quality:"alt",beats:4},{deg:"IIm7",quality:"m7",beats:4},{deg:"V7",quality:"dom7",beats:4},{deg:"I7",quality:"dom7",beats:4},{deg:"V7",quality:"dom7",beats:4}], desc:"Recycled pairs: bVII+I for I7, same shape transposed for IV7." },
+    modal:         { label:"Modal (dorian, 4 bars)",    bars:[{deg:"Im7",quality:"m7",beats:4},{deg:"Im7",quality:"m7",beats:4},{deg:"Im7",quality:"m7",beats:4},{deg:"Im7",quality:"m7",beats:4}], desc:"Network walk: dorian pair, minor pair, quartal stacks. The level system becomes the form." },
+    rhythm_a:      { label:"Rhythm changes (A)",        bars:[{deg:"Imaj7",quality:"maj7",beats:2},{deg:"VIm7",quality:"m7",beats:2},{deg:"IIm7",quality:"m7",beats:2},{deg:"V7",quality:"dom7",beats:2},{deg:"IIIm7",quality:"m7",beats:2},{deg:"VI7",quality:"dom7",beats:2},{deg:"IIm7",quality:"m7",beats:2},{deg:"V7",quality:"dom7",beats:2}], desc:"Two beats per chord: cells + guide tones, one 4-note cell per chord." },
+    rhythm_bridge: { label:"Rhythm changes (bridge)",   bars:[{deg:"III7",quality:"dom7",beats:4},{deg:"III7",quality:"dom7",beats:4},{deg:"VI7",quality:"dom7",beats:4},{deg:"VI7",quality:"dom7",beats:4},{deg:"II7",quality:"dom7",beats:4},{deg:"II7",quality:"dom7",beats:4},{deg:"V7",quality:"dom7",beats:4},{deg:"V7",quality:"dom7",beats:4}], desc:"One pair per dominant, descending in fourths. bVII+I transposed four times." },
+  };
+
+  const DEVICES = [
+    {id:"all",          label:"All devices"},
+    {id:"minor_conversion", label:"Minor conversion (Martino)"},
+    {id:"triad_pairs",  label:"Triad pairs"},
+    {id:"cells",        label:"Melodic cells"},
+    {id:"enclosures",   label:"Chromatic enclosures"},
+    {id:"pivots",       label:"Pivot arpeggios"},
+    {id:"triplets",     label:"Rest-stroke triplets"},
+    {id:"phrase",       label:"Phrase formula"},
+  ];
+
+  const LEVELS = [
+    {id:1, label:"L1", name:"Chord tones",      color:"#4ade80", rule:"Chord tones, diatonic cells, single chromatic approaches only."},
+    {id:2, label:"L2", name:"Diatonic",          color:"#22d3ee", rule:"Classic triad pairs, diatonic 7th pivots. Fully inside."},
+    {id:3, label:"L3", name:"Chromatic gravity",color:"#3b82f6", rule:"Enclosures, passing diminished, neighbor expansion. Every arrival by half step."},
+    {id:4, label:"L4", name:"Superimposition",  color:"#a78bfa", rule:"Melodic minor systems, quartal stacks, pentatonic pivots. Tritone-sub transferability."},
+    {id:5, label:"L5", name:"Outside",           color:"#f472b6", rule:"Alt pairs, symmetric dim, chromatic planing, side-slipping. Resolve by half step within 2 beats."},
+  ];
+
+  // ── Pre-seeded examples ──
+  const EXAMPLES = {
+    maj7: {
+      label:"Cmaj7 / Triad pairs + Em7 pivot / L2",
+      bars:[
+        {chord:"Cmaj7",device:"triad pair C+D",level:2,reasoning:"C triad ascending root pos, voice-led into D triad 1st inversion via minimal motion",
+         tab:{e:"-------2---------",B:"-----1---3-------",G:"---0-------2-----",D:"-----------------",A:"-3---------------",E:"-----------------"},resolution_note:"E (3rd of Cmaj7)"},
+        {chord:"Cmaj7",device:"Em7 pivot arpeggio",level:2,reasoning:"Em7 diatonic pivot reconnects D material back to C, landing on B (maj7)",
+         tab:{e:"-0---------------",B:"---0---1---------",G:"-----0-----0-----",D:"-----------2-----",A:"-----------------",E:"-----------------"},resolution_note:"B (7th of Cmaj7)"},
+      ],
+      analysis:"C triad -> D triad (lydian pair) -> Em7 diatonic pivot -> resolution to B. Two nodes, one edge, one continuous line through the C lydian network."
+    },
+    m7: {
+      label:"Cm7 / Dorian pair Eb+F / L2",
+      bars:[
+        {chord:"Cm7",device:"triad pair Eb+F",level:2,reasoning:"Eb triad root pos into F triad 1st inv. F triad carries A natural (13), the dorian signature",
+         tab:{e:"-----------------",B:"-4---6---5-------",G:"---3-------5-----",D:"---------3-------",A:"-----------------",E:"-----------------"},resolution_note:"Eb (b3 of Cm7)"},
+      ],
+      analysis:"Eb+F dorian pair. The F triad's A natural is the defining color of dorian over plain aeolian."
+    },
+    dom7: {
+      label:"C7 / Enclosure + 1-2-3-5 cell / L3",
+      bars:[
+        {chord:"C7",device:"enclosure + melodic cell",level:3,reasoning:"Db-B-C above-below enclosure on root, then 1-2-3-5 cell ascending, chromatic approach to Bb (b7)",
+         tab:{e:"-----------------",B:"-2-0-1-3-5-------",G:"-----------2-4---",D:"---------------3-",A:"-----------------",E:"-----------------"},resolution_note:"Bb (b7 of C7)"},
+      ],
+      analysis:"L3 chromatic gravity: enclosure adds the half-step tension the chord tones lack, cell provides the melodic shape, resolution lands on b7."
+    },
+    alt: {
+      label:"C7alt / Alt pair Gb+Ab / L4",
+      bars:[
+        {chord:"C7alt",device:"triad pair Gb+Ab",level:4,reasoning:"Gb triad (contains b5, b7, b9 of C) into Ab triad (#5, b3/b9 enharmonic, 3). Maximum tension",
+         tab:{e:"-2---4---3-------",B:"---2---4---------",G:"-----------------",D:"-----------------",A:"-----------------",E:"-----------------"},resolution_note:"E (3rd, resolves to F in target)"},
+      ],
+      analysis:"Gb+Ab from Db melodic minor. b9, #9, b5, #5 all present. The same pair serves Gb7 as a tritone sub."
+    },
+    m7b5: {
+      label:"Cm7b5 / Cell b3-b5-b7-9 / L3",
+      bars:[
+        {chord:"Cm7b5",device:"cell b3-b5-b7-9",level:3,reasoning:"Ebm(maj7) arpeggio = rootless Cm9(b5). The natural 9 distinguishes locrian nat 2 from plain locrian",
+         tab:{e:"-----------------",B:"-4---2-----------",G:"---3---3---------",D:"---------1-------",A:"-----------------",E:"-----------------"},resolution_note:"D (nat 9 of Cm7b5)"},
+      ],
+      analysis:"b3-b5-b7-9 cell as Ebm(maj7) arpeggio. Comes from Eb melodic minor, same system that chains through the minor II-V."
+    },
+    dim7: {
+      label:"Cdim7 / Barry Harris dim + chromatic approach / L3",
+      bars:[
+        {chord:"Cdim7",device:"dim7 arp + chromatic approach",level:3,reasoning:"Chromatic approach from below each dim7 chord tone, sequenced in minor 3rds (symmetric)",
+         tab:{e:"-----------------",B:"-4-5---1-2-------",G:"---------2-3-----",D:"-----------------",A:"-3-4-------------",E:"-----------------"},resolution_note:"C (root of Cdim7)"},
+      ],
+      analysis:"Barry Harris diminished treatment: chromatic approach below each chord tone creates all the half-step motion. Symmetric, so it sequences perfectly in minor 3rds."
+    },
+    m_maj7: {
+      label:"Cm(maj7) / F+G melodic minor pair / L2",
+      bars:[
+        {chord:"Cm(maj7)",device:"triad pair F+G",level:2,reasoning:"F triad (11, 13, root) into G triad (5, 7, 9). G carries the natural 7 and 13 that define melodic minor",
+         tab:{e:"-----------------",B:"---6-5---3-------",G:"-5-------4-------",D:"-----------5-----",A:"-----------------",E:"-----------------"},resolution_note:"B (maj7 of Cm(maj7))"},
+      ],
+      analysis:"F+G pair from C melodic minor. Same pair works over F7#11 (lydian dominant) and B7alt. Three chord contexts from one shape."
+    },
+    dom7s11: {
+      label:"C7#11 / C+D pair (lydian dominant) / L4",
+      bars:[
+        {chord:"C7#11",device:"triad pair C+D + quartal pivot",level:4,reasoning:"C+D pair, same as Cmaj7 lydian but over a dominant. D triad carries the #11. Quartal E-A-D pivot",
+         tab:{e:"---------2-------",B:"---1-3-----3-----",G:"-0-----------2---",D:"-----------0-----",A:"-3---------------",E:"-----------------"},resolution_note:"E (3rd of C7)"},
+      ],
+      analysis:"C+D pair in lydian dominant context. Identical fingering to the Cmaj7#11 pair, different harmonic meaning. Quartal E-A-D pivot opens the sound (Hancock territory)."
+    },
+    "13b9": {
+      label:"C13b9 / Symmetric dim pairs / L3",
+      bars:[
+        {chord:"C13b9",device:"dim dom symmetric pairs",level:3,reasoning:"A+C major triads (minor 3rd apart from the half-whole dim). Symmetry means the pattern sequences in minor 3rds automatically",
+         tab:{e:"---0-1-----------",B:"-1-----1---------",G:"---2-------0-----",D:"---------2-------",A:"-0---------------",E:"-----------------"},resolution_note:"A (13 of C13b9)"},
+      ],
+      analysis:"C and A major triads from the half-whole diminished. Any two major triads a minor 3rd or tritone apart work (C, Eb, Gb, A). Natural 13 over a b9 chord: the defining sound."
+    },
+  };
+
+  // Map chord quality to tonic-relative progression bars
+  const PROG_EXAMPLES = {
+    major_251: {
+      label:"Major II-V-I in C / One-pair rail + alt resolution / L3",
+      bars:[
+        {chord:"Dm7",device:"dorian pair F+G",level:2,reasoning:"F+G dorian pair, same rail will carry through the V chord",
+         tab:{e:"---------1-------",B:"---1-3-----3-----",G:"-2-----------2---",D:"-----------------",A:"-----------------",E:"-----------------"},resolution_note:"F (b3 of Dm7, becomes b7 of G7)"},
+        {chord:"G7",device:"same pair reinterpreted",level:2,reasoning:"F+G continues: F is b7, G is root. Same pair, different harmonic function",
+         tab:{e:"-1-3-------------",B:"-------3-1-------",G:"-----------0-----",D:"-----------------",A:"-----------------",E:"-----------------"},resolution_note:"B (3rd of G7, becomes 7th of Cmaj7)"},
+        {chord:"G7alt",device:"alt pair Db+Eb",level:4,reasoning:"Db+Eb from Ab melodic minor. Resolves into C+D by parallel half-step drop",
+         tab:{e:"---4-6-4---------",B:"-4-------2-------",G:"-----------0-----",D:"-----------------",A:"-----------------",E:"-----------------"},resolution_note:"E (landing on 3rd of Cmaj7)"},
+        {chord:"Cmaj7",device:"lydian pair C+D",level:2,reasoning:"C+D lydian pair. The alt pair resolved here by half-step planing: Db->C, Eb->D",
+         tab:{e:"---------2-------",B:"-----1-3---------",G:"---0-------------",D:"-----------------",A:"-3---------------",E:"-----------------"},resolution_note:"E (3rd of Cmaj7)"},
+      ],
+      analysis:"F+G rails both IIm7 and V7 (one pair, two chords). Alt pair Db+Eb resolves into tonic pair C+D by parallel half-step drop. L5 tension with L1 logic."
+    },
+    minor_251: {
+      label:"Minor ii-V-i in C / Three melodic minor systems / L4",
+      bars:[
+        {chord:"Dm7b5",device:"Eb mel minor: Ab+Bb pair",level:4,reasoning:"Dm7b5 from Eb melodic minor. Ab+Bb pair provides the natural 9",
+         tab:{e:"-----------------",B:"-4-6---4---------",G:"---5-------3-----",D:"-----------5-----",A:"-----------------",E:"-----------------"},resolution_note:"F (b3 of Dm7b5)"},
+        {chord:"G7alt",device:"Ab mel minor: Db+Eb pair",level:4,reasoning:"G7alt from Ab melodic minor. Up a minor 3rd from the II chord's system",
+         tab:{e:"---4-6-4---------",B:"-4-------6-------",D:"-----------------",G:"-----------------",A:"-----------------",E:"-----------------"},resolution_note:"B (3rd of G7, resolves to C)"},
+        {chord:"Cm(maj7)",device:"C mel minor: F+G pair",level:2,reasoning:"F+G melodic minor pair. Resolution target. G triad carries the natural 7 and 13",
+         tab:{e:"-----------------",B:"---5-3-----------",G:"-5-----4---------",D:"---------5-------",A:"-----------------",E:"-----------------"},resolution_note:"B (maj7 of Cm(maj7))"},
+        {chord:"Cm(maj7)",device:"cell 5-6-7-9",level:2,reasoning:"5-6-7-9 cell yields the nat 6 and maj7. MJQ/modern tonic minor sound",
+         tab:{e:"-----------------",B:"-1---0-----------",G:"---0-------0-----",D:"---------2-------",A:"-----------------",E:"-----------------"},resolution_note:"Eb (b3 of Cm)"},
+      ],
+      analysis:"Three parallel melodic minor systems: Eb mm (IIm7b5), Ab mm (V7alt), C mm (Im). Each is a minor 3rd apart. One body of vocabulary, transposed twice."
+    },
+    major_251_martino: {
+      label:"Major II-V-I (Martino Mode) / minor conversion + altered lift / one region",
+      bars:[
+        {chord:"Dm7",device:"minor conversion (Dm = the ii)",level:2,reasoning:"D dorian, 1-2-b3-5 cell. This is home base; the same region carries the next bar untouched",
+         tab:{e:"-----------------",B:"-----------------",G:"-----------------",D:"-------7---------",A:"-5-7-8---8-------",E:"-----------------"},resolution_note:"F (b3 of Dm7, becomes b7 of G7)"},
+        {chord:"G7",device:"minor conversion (Dm over V = G9)",level:2,reasoning:"Same Dm material, no note changed. Over G it reads 11-9-b7-5: a rootless G9. Land D (5th)",
+         tab:{e:"-----------------",B:"-----------------",G:"-----------------",D:"----7------------",A:"-3-----8-5-------",E:"-----------------"},resolution_note:"D (5th of G7); F stays available as the guide tone"},
+        {chord:"G7alt",device:"altered lift (Db triad, Ab mel minor)",level:5,reasoning:"OPTIONAL tension bar: Db-F-Ab = b5,b7,b9 from Ab melodic minor, one fret above the tonic region. B and F remain the anchors",
+         tab:{e:"-----------------",B:"-----------------",G:"-----------------",D:"-------6---------",A:"-4-8-------------",E:"-----------------"},resolution_note:"whole shape slides down a half step to C-E-G on Cmaj7"},
+        {chord:"Cmaj7",device:"lydian flip (F to F#) / Bm upper structure",level:2,reasoning:"The one-note flip: F becomes F#, D dorian becomes C lydian. E-F#-G-B = 3-#4-5-7. F# is the #11 color",
+         tab:{e:"-----------------",B:"-----------------",G:"-------4---------",D:"---4-5-----------",A:"-7---------7-----",E:"-----------------"},resolution_note:"E (3rd of Cmaj7); F# is the lydian #11"},
+      ],
+      analysis:"One D-dorian region covers ii and V (Dm over both = G9 on the V). One note flips (F to F#) for C lydian on the I. The altered bar lifts a half step into Ab melodic minor and slides back down, with B and F anchoring throughout. Bars 3 and 4 are alternates: use the plain G7 into Cmaj7, or the G7alt lift into Cmaj7."
+    },
+  };
+
+  const SYSTEM_PROMPT = `You are a bebop jazz line generator for guitar. You produce single-note improvised lines in guitar tablature.
+
+CRITICAL RULES:
+1. Output ONLY valid JSON. No markdown, no backticks, no preamble.
+2. Each bar gets: the chord symbol, a device label, a brief reasoning note, and a TAB line.
+3. Tab format: use "e:", "B:", "G:", "D:", "A:", "E:" for the six strings (high to low). Show fret numbers at rhythmic positions. Use dashes for empty beats. Keep all six strings aligned.
+4. Lines must be idiomatic bebop guitar: playable in one position, voice-led, chord tones on strong beats.
+5. Every phrase must end on a named resolution note (3rd or 7th of the destination chord).
+6. The "devices" field names which tutorial device produced the material.
+
+LEVEL SYSTEM:
+- L1: chord tones, diatonic cells (1-2-3-5, 3-5-7-9), single chromatic approaches
+- L2: triad pairs from the source scale, diatonic 7th pivots (Em7, Gmaj7)
+- L3: enclosures (above-below, double chromatic), passing diminished, neighbor expansion
+- L4: melodic minor superimposition, quartal pivots, pentatonic connectors, dominant pivots
+- L5: alt pairs, chromatic planing, side-slipping, symmetric dim, superimposed II-Vs
+
+TRIAD PAIR REFERENCE (from root C, transpose):
+- Cmaj7 lydian: C+D maj | Cm7 dorian: Eb+F maj | Cm(maj7) mel minor: F+G maj
+- C7 mixo: Bb+C maj | C7#11 lyd dom: C+D maj | C7alt: Gb+Ab maj
+- C13b9 dim dom: A+C maj (m3/tritone apart) | Cm7b5 locrian nat 2: Ab+Bb maj
+- Cdim7 whole-half: D+F maj
+
+PIVOT ARPEGGIOS: diatonic 7ths (Em7, Gmaj7), diminished (C#dim7), quartal (E-A-D), dominant (A7 tonicizing D), pentatonic, symmetric (B dim), chromatic slide (Db triad).
+
+ENCLOSURES: above-below (Eb-C#-D), below-above (C#-Eb-D), double chromatic (C-C#-D). Grade by size.
+
+PHRASE FORMULA: pickup > enclosure > cell > triad fragment > pivot > second triad > chromatic exit > guide-tone resolution. Not every phrase needs every element.
+
+MARTINO MODE (minor conversion), for a major II-V-I: play the ii minor (dorian) over BOTH the ii and the V. Over the V this Dm material is a rootless 9 sound; let the full scale through for mixolydian with the 3rd. Over the I, raise the 4th to #4 for lydian (a one-note flip: D dorian becomes C lydian), or superimpose the minor a maj7 above the tonic (Bm7 over Cmaj7 = 7-9-#11-13). For altered V, superimpose the melodic minor a half step above the tonic (Ab melodic minor over G7 in C), using Db+Eb major triads or Bbm/Abm, keeping the shared 3rd-7th tritone (B-F) as anchors, and resolve by sliding the whole shape down a half step into the I. The dominant 3rd and 7th never move; only the color around them changes. When the device is "minor conversion" or the progression is Martino Mode, build the line this way.
+
+JSON SCHEMA:
+{"bars":[{"chord":"Dm7","device":"melodic cell","level":2,"reasoning":"1-2-b3-5 cell from D","tab":{"e":"-------5--3--------","B":"---3-5-------6-5---","G":"---5---------------","D":"-5-----------------","A":"-------------------","E":"-------------------"},"resolution_note":"F (b3 of Dm7)"}],"analysis":"Brief network path analysis."}`;
+
+  // ── State ──
+  let state = { tonic:"C", chordType:"maj7", progression:"static", device:"all", level:2, direction:"", result:null, loading:false, error:null, showExample:true, history:[] };
+  const root = document.getElementById("linelab-app");
+
+  function setState(patch) {
+    Object.assign(state, patch);
+    render();
+  }
+
+  function buildPrompt() {
+    const ct = CHORD_TYPES[state.chordType];
+    const lv = LEVELS[state.level - 1];
+    const prog = PROGRESSIONS[state.progression];
+    let barDesc;
+    if (state.progression === "static") {
+      barDesc = "bar 1-4: " + state.tonic + ct.label + " (scale: " + ct.scale + "; pairs: " + ct.pairs.join(", ") + "; cells: " + ct.cells.join(", ") + ")";
+    } else {
+      barDesc = prog.bars.map(function(b, i) {
+        const bt = CHORD_TYPES[b.quality];
+        return "bar " + (i+1) + ": " + b.deg + " = " + state.tonic + (bt ? bt.label : b.quality) + (b.beats !== 4 ? " [" + b.beats + "-beat bar]" : "") + " (scale: " + (bt ? bt.scale : "chord tones") + "; pairs: " + (bt && bt.pairs ? bt.pairs.join(", ") : "n/a") + ")";
+      }).join("\n");
+    }
+    const devStr = state.device === "all" ? "triad pairs, melodic cells, enclosures, pivot arpeggios, rest-stroke triplets, phrase formula" : (DEVICES.find(function(d){return d.id===state.device}) || {}).label || state.device;
+    return "COMPLEXITY LEVEL " + state.level + " (" + lv.name + "): " + lv.rule + "\n\nGenerate one connected improvised line in guitar tablature over:\n" + barDesc + "\n\nPrimary devices: " + devStr + ".\nTonic: " + state.tonic + ". Chord quality: " + ct.label + ". Target colors: " + (ct.color||"") + ".\nPosition: 5th-7th fret area.\nProgression: " + prog.label + ". " + prog.desc + "\n" + (state.direction ? "Additional direction: " + state.direction : "") + "\n\nChord tones on strong beats, guide-tone targeting, resolution into the next chord. Return ONLY the JSON object.";
+  }
+
+  async function generate() {
+    setState({ loading:true, error:null, showExample:false, result:null });
+    try {
+      const resp = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-6",
+          max_tokens: 2000,
+          system: SYSTEM_PROMPT,
+          messages: [{ role: "user", content: buildPrompt() }],
+        }),
+      });
+      const data = await resp.json();
+      const text = (data.content || []).map(function(c){return c.text||""}).join("");
+      const cleaned = text.replace(/```json|```/g, "").trim();
+      const parsed = JSON.parse(cleaned);
+      const hist = [{ tonic:state.tonic, chordType:state.chordType, progression:state.progression, device:state.device, level:state.level, bars:parsed.bars, analysis:parsed.analysis, ts:Date.now() }].concat(state.history).slice(0, 20);
+      setState({ result:parsed, loading:false, history:hist });
+    } catch (e) {
+      setState({ error: e.message || "Generation failed", loading:false });
+    }
+  }
+
+  // ── Renderers ──
+  function renderTab(bars, compact) {
+    if (!bars || !bars.length) return "";
+    const strings = ["e","B","G","D","A","E"];
+    return bars.map(function(bar) {
+      const lv = LEVELS[(bar.level||1)-1] || LEVELS[0];
+      const dark = bar.level >= 3;
+      let h = '<div class="ll-bar">';
+      h += '<div class="ll-bar-head">';
+      h += '<span class="ll-bar-chord">' + esc(bar.chord) + '</span>';
+      h += '<span class="ll-bar-lv" style="background:'+lv.color+';color:'+(dark?"#fff":"#0f0f0f")+'">' + lv.label + '</span>';
+      h += '<span class="ll-bar-device">' + esc(bar.device) + '</span>';
+      h += '</div>';
+      h += '<div class="ll-tab-box">';
+      strings.forEach(function(s) {
+        h += '<div class="ll-tab-str"><span class="ll-tab-str-label">' + s + '|</span>' + esc(bar.tab && bar.tab[s] ? bar.tab[s] : "-------------------") + '</div>';
+      });
+      h += '</div>';
+      if (bar.reasoning) h += '<div class="ll-bar-reason">' + esc(bar.reasoning) + '</div>';
+      if (bar.resolution_note) h += '<div class="ll-bar-res">Resolution: ' + esc(bar.resolution_note) + '</div>';
+      h += '</div>';
+      return h;
+    }).join("");
+  }
+
+  function esc(s) { const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
+
+  function render() {
+    const ct = CHORD_TYPES[state.chordType];
+    const prog = PROGRESSIONS[state.progression];
+    const lv = LEVELS[state.level - 1];
+
+    // Determine which example to show
+    let exData = null, exLabel = "";
+    if (state.showExample && !state.result) {
+      // Progression-specific example?
+      if (PROG_EXAMPLES[state.progression]) {
+        exData = PROG_EXAMPLES[state.progression];
+        exLabel = exData.label;
+      } else if (EXAMPLES[state.chordType]) {
+        exData = EXAMPLES[state.chordType];
+        exLabel = exData.label;
+      }
+    }
+
+    let html = '';
+
+    // Controls
+    html += '<div class="ll-controls">';
+    html += '<label class="ll-label">Tonic<select class="ll-select" id="ll-tonic">' + TONICS.map(function(t){return '<option value="'+t+'"'+(t===state.tonic?' selected':'')+'>'+t+'</option>'}).join("") + '</select></label>';
+    html += '<label class="ll-label">Chord type<select class="ll-select" id="ll-chord">' + Object.keys(CHORD_TYPES).map(function(k){return '<option value="'+k+'"'+(k===state.chordType?' selected':'')+'>'+CHORD_TYPES[k].label+'</option>'}).join("") + '</select></label>';
+    html += '<label class="ll-label">Progression<select class="ll-select" id="ll-prog">' + Object.keys(PROGRESSIONS).map(function(k){return '<option value="'+k+'"'+(k===state.progression?' selected':'')+'>'+PROGRESSIONS[k].label+'</option>'}).join("") + '</select></label>';
+    html += '<label class="ll-label">Device<select class="ll-select" id="ll-device">' + DEVICES.map(function(d){return '<option value="'+d.id+'"'+(d.id===state.device?' selected':'')+'>'+d.label+'</option>'}).join("") + '</select></label>';
+    html += '</div>';
+
+    // Levels
+    html += '<div style="margin-bottom:4px"><span class="ll-label">Level (inside to outside)</span></div>';
+    html += '<div class="ll-levels">';
+    LEVELS.forEach(function(l) {
+      const active = l.id === state.level;
+      const dark = l.id >= 3;
+      html += '<button class="ll-lvbtn' + (active?" active":"") + '" data-level="'+l.id+'" style="'+(active?'background:'+l.color+';border-color:'+l.color+';color:'+(dark?"#fff":"#0f0f0f")+'"':'')+'">' + l.label + '<span class="ll-lvname">' + l.name + '</span></button>';
+    });
+    html += '</div>';
+    html += '<div class="ll-rule">' + esc(lv.rule) + '</div>';
+
+    // Direction
+    html += '<input class="ll-dir" id="ll-direction" type="text" value="' + esc(state.direction) + '" placeholder="Optional direction: e.g. \'start on the 5th string\', \'use Em7 pivot\', \'phrase across the barline\'...">';
+
+    // Context panel
+    html += '<div class="ll-ctx">';
+    html += '<div><span class="ll-ctx-label">Scale: </span><span class="ll-ctx-val">' + esc(ct.scale) + '</span></div>';
+    html += '<div><span class="ll-ctx-label">Pairs: </span><span class="ll-ctx-val">' + esc(ct.pairs.join(", ")) + '</span></div>';
+    html += '<div><span class="ll-ctx-label">Cells: </span><span class="ll-ctx-val">' + esc(ct.cells.join(", ")) + '</span></div>';
+    html += '<div><span class="ll-ctx-label">Color: </span><span class="ll-ctx-val">' + esc(ct.color) + '</span></div>';
+    if (state.progression !== "static") {
+      html += '<div class="ll-ctx-desc"><strong>' + esc(prog.label) + ':</strong> ' + esc(prog.desc) + '</div>';
+    }
+    html += '</div>';
+
+    // Generate button
+    html += '<button class="ll-gen-btn" id="ll-gen"' + (state.loading?' disabled':'') + '>' + (state.loading ? 'Generating line...' : 'Generate Line') + '</button>';
+
+    // Error
+    if (state.error) {
+      html += '<div class="ll-error">' + esc(state.error) + '</div>';
+    }
+
+    // Example
+    if (exData && !state.result) {
+      html += '<div class="ll-section-label">Example: ' + esc(exLabel) + '</div>';
+      html += renderTab(exData.bars);
+      if (exData.analysis) {
+        html += '<div class="ll-analysis"><span class="ll-analysis-label">Network analysis</span>' + esc(exData.analysis) + '</div>';
+      }
+    }
+
+    // Result
+    if (state.result) {
+      html += '<div class="ll-section-label">Generated: ' + esc(state.tonic + ct.label) + ' / ' + esc((DEVICES.find(function(d){return d.id===state.device})||{}).label||"") + ' / L' + state.level + '</div>';
+      html += renderTab(state.result.bars);
+      if (state.result.analysis) {
+        html += '<div class="ll-analysis"><span class="ll-analysis-label">Network analysis</span>' + esc(state.result.analysis) + '</div>';
+      }
+    }
+
+    // History
+    if (state.history.length > 0) {
+      const histToShow = state.result ? state.history.slice(1) : state.history;
+      if (histToShow.length > 0) {
+        html += '<div class="ll-history">';
+        html += '<div class="ll-section-label">Previous generations</div>';
+        histToShow.forEach(function(h) {
+          const hct = CHORD_TYPES[h.chordType] || {label:h.chordType};
+          const hlv = LEVELS[h.level-1] || LEVELS[0];
+          const hdev = (DEVICES.find(function(d){return d.id===h.device})||{}).label||"";
+          const hprog = (PROGRESSIONS[h.progression]||{}).label||"";
+          html += '<details class="ll-hist-item"><summary>';
+          html += '<span style="font-family:var(--font-mono);color:#fff">' + esc(h.tonic + hct.label) + '</span> / ';
+          html += '<span style="color:'+hlv.color+'">L'+h.level+'</span> / ';
+          html += esc(hdev) + ' / ' + esc(hprog);
+          html += '</summary><div class="ll-hist-body">' + renderTab(h.bars, true);
+          if (h.analysis) html += '<div style="font-size:12px;color:#666;margin-top:4px">' + esc(h.analysis) + '</div>';
+          html += '</div></details>';
+        });
+        html += '</div>';
+      }
+    }
+
+    root.innerHTML = html;
+
+    // Bind events
+    document.getElementById("ll-tonic").onchange = function(e) { setState({tonic:e.target.value}); };
+    document.getElementById("ll-chord").onchange = function(e) { setState({chordType:e.target.value, showExample:true, result:null}); };
+    document.getElementById("ll-prog").onchange = function(e) { setState({progression:e.target.value, showExample:true, result:null}); };
+    document.getElementById("ll-device").onchange = function(e) { setState({device:e.target.value}); };
+    document.getElementById("ll-direction").onchange = function(e) { setState({direction:e.target.value}); };
+    document.getElementById("ll-gen").onclick = generate;
+    document.querySelectorAll(".ll-lvbtn").forEach(function(btn) {
+      btn.onclick = function() { setState({level: parseInt(btn.dataset.level)}); };
+    });
+  }
+
+  render();
+})();
+</script>
+
+<div class="tags">#triad-networks &nbsp; #triad-pairs &nbsp; #melodic-cells &nbsp; #pivot-arpeggios &nbsp; #enclosures &nbsp; #rest-stroke-triplets &nbsp; #practice-system &nbsp; #line-lab</div>
+<div class="footer-brand">Drop into DukeBox at <span class="mono">public/triad-network-tutorial.html</span> · Line Lab shares the 5-level ladder with <span class="mono">feat/line-lab-practice</span></div>
+
+</body>
+</html>
