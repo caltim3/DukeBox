@@ -61,12 +61,12 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
       const isPassing = !isRoot && !isTarget && inPassing
       const isGuide   = !isRoot && !isTarget && !isPassing && inGuide
       // Color priority: root > resolution target > bebop passing > guide tone > scale/chord
-      const color = isRoot    ? "#BD2031"
-                  : isTarget  ? "#E09B3D"   // amber  — resolution target note
-                  : isPassing ? "#56C568"   // green  — bebop chromatic passing tone
-                  : isGuide   ? "#FFD54F"   // gold   — guide tones (3rd / 7th)
-                  : view === "scale" ? "#3A78C9"  // blue  — scale tone
-                  : "#3A9C5A"               // green  — chord tone
+      const color = isRoot    ? "var(--root)"
+                  : isTarget  ? "var(--target)"
+                  : isPassing ? "var(--passing)"
+                  : isGuide   ? "var(--target)"
+                  : view === "scale" ? "var(--scale)"
+                  : "var(--chord)"
       dots.push({
         key:  `${si}-${f}`,
         cx:   dotX(f),
@@ -90,13 +90,13 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
     <svg viewBox={`0 0 ${W} ${H + 24}`} style={{ width: "100%", display: "block" }}>
 
       {/* Fretboard wood background */}
-      <rect x={NUT_X} y={0} width={FRET_AREA} height={H} rx={3} fill="#18100A" />
+      <rect x={NUT_X} y={0} width={FRET_AREA} height={H} rx={3} fill="var(--fretboard)" />
 
       {/* String lines (thicker for lower strings) */}
       {strings.map((_, si) => (
         <line key={`s${si}`}
           x1={NUT_X - 2} y1={strY(si)} x2={W} y2={strY(si)}
-          stroke="#8A7850" strokeWidth={0.6 + si * 0.22}
+          stroke="var(--muted)" strokeWidth={0.6 + si * 0.22}
         />
       ))}
 
@@ -105,7 +105,7 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
         <line key={`f${f}`}
           x1={fretLineX(f)} y1={Y_TOP - 5}
           x2={fretLineX(f)} y2={Y_TOP + STR_SPAN + 5}
-          stroke={f === 0 ? "#8A6A50" : "#444"} strokeWidth={f === 0 ? 5 : 1.2}
+          stroke={f === 0 ? "var(--text)" : "var(--fretwire)"} strokeWidth={f === 0 ? 5 : 1.2}
         />
       ))}
 
@@ -113,17 +113,17 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
       {MARKER_FRETS.flatMap(f => {
         const x = NUT_X + (f - 0.5) * FRET_W
         if (f === 12) return [
-          <circle key={`m${f}a`} cx={x} cy={midY - STR_SPAN * 0.22} r={4.5} fill="#3A2E20" />,
-          <circle key={`m${f}b`} cx={x} cy={midY + STR_SPAN * 0.22} r={4.5} fill="#3A2E20" />,
+          <circle key={`m${f}a`} cx={x} cy={midY - STR_SPAN * 0.22} r={4.5} fill="var(--marker)" />,
+          <circle key={`m${f}b`} cx={x} cy={midY + STR_SPAN * 0.22} r={4.5} fill="var(--marker)" />,
         ]
-        return [<circle key={`m${f}`} cx={x} cy={midY} r={4.5} fill="#3A2E20" />]
+        return [<circle key={`m${f}`} cx={x} cy={midY} r={4.5} fill="var(--marker)" />]
       })}
 
       {/* Fret number labels */}
       {NUM_FRET_LABELS.map(f => (
         <text key={`n${f}`}
           x={NUT_X + (f - 0.5) * FRET_W} y={LABEL_Y}
-          textAnchor="middle" fill="#555" fontSize={10} fontFamily="Arial, sans-serif"
+          textAnchor="middle" fill="var(--muted)" fontSize={10} fontFamily="Arial, sans-serif"
         >{f}</text>
       ))}
 
@@ -131,7 +131,7 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
       {strings.map((note, si) => (
         <text key={`sl${si}`}
           x={16} y={strY(si) + 4}
-          textAnchor="middle" fill="#888" fontSize={10} fontFamily="Arial, sans-serif"
+          textAnchor="middle" fill="var(--muted)" fontSize={10} fontFamily="Arial, sans-serif"
         >{note}</text>
       ))}
 
@@ -161,14 +161,14 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
             <circle cx={d.cx} cy={d.cy} r={d.r} fill={d.color} />
             {glyph && <title>{`${d.label} → ${goesTo ?? "?"} · ${motionWord}`}</title>}
             <text x={d.cx} y={d.cy + 3.5}
-              textAnchor="middle" fill="white"
+              textAnchor="middle" fill="var(--bg)"
               fontSize={d.isRoot ? 9 : 8} fontWeight="bold" fontFamily="Arial, sans-serif"
             >{d.label}</text>
             {glyph && (
               <text x={d.cx} y={d.cy - d.r - 2.5}
                 textAnchor="middle" fontSize={12.5} fontWeight="bold"
                 fontFamily="Arial, sans-serif" letterSpacing="-1.5"
-                fill="#FFD54F" stroke="#000" strokeWidth="0.9" paintOrder="stroke"
+                fill="var(--target)" stroke="var(--bg)" strokeWidth="0.9" paintOrder="stroke"
               >{glyph}</text>
             )}
           </g>

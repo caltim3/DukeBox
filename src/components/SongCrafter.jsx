@@ -21,7 +21,7 @@ const uid = () => `sc${++_uid}`
 
 // ─── Wall-chart styling ───────────────────────────────────────────────────────
 const CHART_CELL = {
-  border: "1.5px solid #111",
+  border: "1.5px solid var(--line)",
   textAlign: "center",
   padding: "9px 3px",
 }
@@ -343,11 +343,7 @@ export default function SongCrafter({ onSendToChart, panelStyle, eyebrowStyle, s
         </div>
       </div>
 
-      {/* ── All keys chart ────────────────────────────────────────────────
-          Drawn as the printed wall chart rather than a themed table: fixed
-          colours in every app palette, because it reads as a reference card.
-          The cyan columns are the primary triads (I, IV, V) — the same coding
-          the classic chart uses. Still fully interactive. */}
+      {/* ── All keys chart ──────────────────────────────────────────────── */}
       <div style={{ marginTop: "20px" }} className="db-chartcard">
         <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", marginBottom: "7px" }}>
           <div style={{ fontSize: "0.72rem", fontWeight: 700, letterSpacing: "0.1em", color: "var(--db-accent)" }}>
@@ -377,11 +373,11 @@ export default function SongCrafter({ onSendToChart, panelStyle, eyebrowStyle, s
         </div>
 
         <div style={{
-          overflowX: "auto", background: "#ffffff", borderRadius: "10px",
+          overflowX: "auto", background: "var(--surface)", borderRadius: "10px",
           padding: "12px", border: "1px solid var(--db-panel-border)",
         }}>
           <h3 style={{
-            margin: "2px 0 10px", textAlign: "center", color: "#111",
+            margin: "2px 0 10px", textAlign: "center", color: "var(--text)",
             fontSize: "1.15rem", fontWeight: 800, letterSpacing: "0.01em",
           }}>Chords In All Major Keys</h3>
 
@@ -391,12 +387,12 @@ export default function SongCrafter({ onSendToChart, panelStyle, eyebrowStyle, s
           }}>
             <thead>
               <tr>
-                <th style={{ ...CHART_CELL, background: "#fff", color: "#111", fontSize: "0.72rem", lineHeight: 1.15, width: "68px" }}>
+                <th style={{ ...CHART_CELL, background: "var(--surface)", color: "var(--text)", fontSize: "0.72rem", lineHeight: 1.15, width: "68px" }}>
                   Major<br />Keys
                 </th>
                 {DEGREE_LABELS.map((d, i) => (
                   <th key={d} style={{
-                    ...CHART_CELL, background: "#9BDB3B", color: "#111",
+                    ...CHART_CELL, background: "var(--accent)", color: "var(--accent-ink)",
                     fontSize: "1.05rem", fontWeight: 700,
                   }}
                     title={PRIMARY_DEGREES.has(i) ? `${d} — primary (major) triad` : `${d}`}
@@ -416,9 +412,9 @@ export default function SongCrafter({ onSendToChart, panelStyle, eyebrowStyle, s
                           width: "100%", height: "100%", padding: "9px 4px", cursor: "pointer",
                           border: "none", fontWeight: 800, fontSize: "1.02rem",
                           fontFamily: "inherit",
-                          background: isKey ? "#F2A93B" : "#FFFF33",
-                          color: "#111",
-                          outline: isKey ? "3px solid #C77800" : "none",
+                          background: isKey ? "var(--hot)" : "var(--target)",
+                          color: "var(--accent-ink)",
+                          outline: isKey ? "3px solid var(--accent)" : "none",
                           outlineOffset: "-3px",
                         }}
                         title={`Switch to ${k} — transposes the sheet`}
@@ -434,10 +430,10 @@ export default function SongCrafter({ onSendToChart, panelStyle, eyebrowStyle, s
                           style={{
                             width: "100%", height: "100%", padding: "9px 3px", cursor: "pointer",
                             border: "none", fontFamily: "inherit",
-                            fontWeight: 700, fontSize: "1rem", color: "#111",
+                            fontWeight: 700, fontSize: "1rem", color: "var(--text)",
                             background: isKey
-                              ? "#FFE9A8"
-                              : PRIMARY_DEGREES.has(i) ? "#A8DCEB" : "#ffffff",
+                              ? "var(--sel)"
+                              : PRIMARY_DEGREES.has(i) ? "var(--loop)" : "var(--surface)",
                           }}
                         >{prettyChord(sym)}</button>
                       </td>
@@ -448,7 +444,7 @@ export default function SongCrafter({ onSendToChart, panelStyle, eyebrowStyle, s
             </tbody>
           </table>
 
-          <p style={{ margin: "10px 2px 2px", textAlign: "center", color: "#333", fontSize: "0.72rem", lineHeight: 1.5 }}>
+          <p style={{ margin: "10px 2px 2px", textAlign: "center", color: "var(--muted)", fontSize: "0.72rem", lineHeight: 1.5 }}>
             All the common triads belonging to each key. Roman numerals give each chord&apos;s position in the scale;
             the blue columns are the primary triads (I, IV, V).
           </p>

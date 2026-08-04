@@ -9,13 +9,12 @@ import { useMemo, useRef, useState } from "react"
 import { GIGBOOK_SONGS, gigSongToBars, parseGigKey, gigTempoNumber } from "@/lib/music/gigbook"
 import { FORMS, FORM_NAMES } from "@/lib/music/forms"
 
-// ─── Theme presets (scoped to the gig panel) ─────────────────────────────────
-const THEMES = {
-  Paper:    { bg: "#f7f5ef", panel: "#fffdf8", ink: "#1a1a1a", muted: "#6b6459", line: "#d9d2c4", accent: "#8a5a2b", chordBg: "#fffdf8", chordBorder: "#e2dccd" },
-  Stage:    { bg: "#0b0b0d", panel: "#151518", ink: "#f4f3ef", muted: "#9a978f", line: "#2b2b30", accent: "#ffcf6b", chordBg: "#1c1c20", chordBorder: "#33333a" },
-  Midnight: { bg: "#0a1024", panel: "#111a33", ink: "#eaf0ff", muted: "#8ea0c8", line: "#243356", accent: "#61dafb", chordBg: "#152142", chordBorder: "#2a3c66" },
+// Gig charts consume the same app-wide semantic theme as every other workspace.
+const THEME = {
+  bg: "var(--bg)", panel: "var(--surface)", ink: "var(--text)", muted: "var(--muted)",
+  line: "var(--line)", accent: "var(--accent)", accentInk: "var(--accent-ink)",
+  chordBg: "var(--surface2)", chordBorder: "var(--line)",
 }
-const THEME_NAMES = Object.keys(THEMES)
 
 // ─── Build a uniform {id, title, key, source, chart} for any song source ─────
 function barsToSections(bars) {
@@ -68,8 +67,7 @@ export default function GigMode({
 
   const poolById = useMemo(() => Object.fromEntries(pool.map(s => [s.id, s])), [pool])
 
-  const [themeName, setThemeName] = useState("Stage")
-  const theme = THEMES[themeName]
+  const theme = THEME
   const [chordSize, setChordSize] = useState(24)
   const [query, setQuery] = useState("")
   const [activeSetlist, setActiveSetlist] = useState(null)   // setlist id or null (all songs)
@@ -179,10 +177,6 @@ export default function GigMode({
         </div>
 
         <div style={{ marginLeft: "auto", display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }} className="gig-no-print">
-          <select value={themeName} onChange={e => setThemeName(e.target.value)}
-            style={{ ...selectStyle, width: "auto", padding: "5px 8px", background: theme.panel, color: theme.ink, border: `1px solid ${theme.line}` }}>
-            {THEME_NAMES.map(t => <option key={t} value={t}>{t}</option>)}
-          </select>
           <label style={{ fontSize: "0.78rem", color: theme.muted, display: "flex", alignItems: "center", gap: "6px" }}>
             Size
             <input type="range" min="16" max="40" value={chordSize} onChange={e => setChordSize(Number(e.target.value))} />
@@ -328,7 +322,7 @@ export default function GigMode({
                             border: `2px solid ${isNow ? theme.accent : theme.chordBorder}`,
                             borderRadius: "8px",
                             padding: "10px 6px", textAlign: "center", fontWeight: 700,
-                            color: isNow ? theme.panel : theme.ink,
+                            color: isNow ? theme.accentInk : theme.ink,
                             fontSize: `${chordSize}px`, lineHeight: 1.1,
                             boxShadow: isNow ? `0 0 18px ${theme.accent}` : "none",
                             transition: "background 0.12s, color 0.12s, box-shadow 0.12s",
@@ -374,7 +368,6 @@ function ghostBtn(theme) {
 function solidBtn(theme) {
   return {
     padding: "6px 14px", borderRadius: "8px", cursor: "pointer", fontWeight: 700, fontSize: "0.85rem",
-    background: `color-mix(in srgb, ${theme.accent} 22%, ${theme.panel})`,
-    color: theme.accent, border: `1px solid ${theme.accent}`,
+    background: theme.accent, color: theme.accentInk, border: `1px solid ${theme.accent}`,
   }
 }

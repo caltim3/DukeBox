@@ -1,16 +1,5 @@
-import { Geist, Geist_Mono } from "next/font/google";
 import KeyboardShortcuts from "@/components/KeyboardShortcuts";
 import "./globals.css";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
 
 export const metadata = {
   title: "The DukeBox",
@@ -18,9 +7,24 @@ export const metadata = {
 };
 
 export default function RootLayout({ children }) {
+  const themeBootScript = `
+    (() => {
+      const palettes = ['bluenote','brass','console','loft','ecm','hotclub','chalk','tape'];
+      const savedPalette = localStorage.getItem('dukebox-palette');
+      const savedMode = localStorage.getItem('dukebox-mode');
+      const palette = palettes.includes(savedPalette) ? savedPalette : 'bluenote';
+      const mode = savedMode === 'light' || savedMode === 'dark'
+        ? savedMode
+        : (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+      document.documentElement.dataset.palette = palette;
+      document.documentElement.dataset.mode = mode;
+      document.documentElement.style.colorScheme = mode;
+    })();
+  `
   return (
-    <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable}`}>
+    <html lang="en" data-palette="bluenote" data-mode="dark" suppressHydrationWarning>
+      <head><script dangerouslySetInnerHTML={{ __html: themeBootScript }} /></head>
+      <body>
         {children}
         <KeyboardShortcuts />
       </body>

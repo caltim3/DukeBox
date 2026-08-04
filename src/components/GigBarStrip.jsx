@@ -116,7 +116,7 @@ export default function GigBarStrip({ bars, title, playheadIndex, isPlaying, onS
                   background: isNow
                     ? "color-mix(in srgb, var(--db-accent) 78%, var(--db-bg))"
                     : "var(--db-card-bg)",
-                  color: isNow ? "var(--db-bg)" : "var(--db-text)",
+                  color: isNow ? "var(--accent-ink)" : "var(--text)",
                   border: `2px solid ${isNow ? "var(--db-accent)" : "var(--db-card-border)"}`,
                   boxShadow: isNow ? "0 0 16px color-mix(in srgb, var(--db-accent) 55%, transparent)" : "none",
                   transition: "background 0.12s, color 0.12s, box-shadow 0.12s",

@@ -120,7 +120,7 @@ export default function SongSearch({
             borderRadius: "var(--db-r-md)",
             border: "1px solid var(--db-panel-border)",
             background: "var(--db-panel-bg)",
-            boxShadow: "0 10px 30px rgba(0,0,0,0.4)",
+            boxShadow: "0 10px 30px var(--shadow)",
           }}
         >
           {results.map((r, i) => {

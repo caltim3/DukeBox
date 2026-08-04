@@ -7,14 +7,14 @@ import SongSearch from "@/components/SongSearch"
 const NOTES_SHARP = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 const NOTES_FLAT = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"]
 
-const DEFAULT_COLORS = {
-  root: "#ef6f6c",
-  third: "#f4b942",
-  fifth: "#5fa8d3",
-  seventh: "#9b6dd6",
-  alter: "#d95d39",
-  guide: "#2d7f5e",
-  melody: "#d1498b",
+const DEFAULT_COLOR_TOKENS = {
+  root: "--root",
+  third: "--chord",
+  fifth: "--scale",
+  seventh: "--target",
+  alter: "--hot",
+  guide: "--chord",
+  melody: "--accent",
 }
 
 const COLOR_LABELS = {
@@ -159,10 +159,24 @@ export default function MelodyPaths({
   onPathChange,
 }) {
   const [melodyByMeasure, setMelodyByMeasure] = useState({})
-  const [colors, setColors] = useState(DEFAULT_COLORS)
+  const [colors, setColors] = useState(null)
   const [linePoints, setLinePoints] = useState({ guide: "", melody: "" })
   const chartRef = useRef(null)
   const nodeRefs = useRef(new Map())
+
+  useEffect(() => {
+    const root = document.documentElement
+    const readThemeColors = () => {
+      const styles = getComputedStyle(root)
+      setColors(Object.fromEntries(Object.entries(DEFAULT_COLOR_TOKENS).map(
+        ([key, token]) => [key, styles.getPropertyValue(token).trim()]
+      )))
+    }
+    readThemeColors()
+    const observer = new MutationObserver(readThemeColors)
+    observer.observe(root, { attributes: true, attributeFilter: ["data-palette", "data-mode"] })
+    return () => observer.disconnect()
+  }, [])
 
   const scalePcs = useMemo(() => scalePitchClasses(tonic, keyMode), [tonic, keyMode])
   const measures = useMemo(() => groupMeasures(bars), [bars])
@@ -240,13 +254,13 @@ export default function MelodyPaths({
 
   return (
     <div className="mp-root" style={{
-      "--mp-root": colors.root,
-      "--mp-third": colors.third,
-      "--mp-fifth": colors.fifth,
-      "--mp-seventh": colors.seventh,
-      "--mp-alter": colors.alter,
-      "--mp-guide": colors.guide,
-      "--mp-melody": colors.melody,
+      "--mp-root": colors?.root || "var(--root)",
+      "--mp-third": colors?.third || "var(--chord)",
+      "--mp-fifth": colors?.fifth || "var(--scale)",
+      "--mp-seventh": colors?.seventh || "var(--target)",
+      "--mp-alter": colors?.alter || "var(--hot)",
+      "--mp-guide": colors?.guide || "var(--chord)",
+      "--mp-melody": colors?.melody || "var(--accent)",
     }}>
       <style>{`
         .mp-root * { box-sizing: border-box; }
@@ -316,8 +330,8 @@ export default function MelodyPaths({
       <div className="mp-legend">
         {Object.entries(COLOR_LABELS).map(([key, label]) => (
           <label className="mp-legend-item" key={key} title={`Change ${label.toLowerCase()} color`}>
-            <span className="mp-swatch" style={{ background: colors[key] }}>
-              <input type="color" value={colors[key]} onChange={(event) => setColors((previous) => ({ ...previous, [key]: event.target.value }))} />
+            <span className="mp-swatch" style={{ background: colors?.[key] || `var(${DEFAULT_COLOR_TOKENS[key]})` }}>
+              {colors && <input type="color" value={colors[key]} onChange={(event) => setColors((previous) => ({ ...previous, [key]: event.target.value }))} />}
             </span>
             {label}
           </label>
