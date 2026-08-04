@@ -822,23 +822,23 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
                 role="img"
                 aria-label="Fretboard showing the generated line, current note highlighted during playback"
               >
-                <rect x={nutX} y={10} width={fbW - nutX - 12} height={fbH - 24} fill="#18100A" rx={4} />
-                <rect x={nutX - 4} y={10} width={5} height={fbH - 24} fill="#E8DFC8" rx={1} />
+                <rect x={nutX} y={10} width={fbW - nutX - 12} height={fbH - 24} fill="var(--fretboard)" rx={4} />
+                <rect x={nutX - 4} y={10} width={5} height={fbH - 24} fill="var(--text)" rx={1} />
                 {Array.from({ length: fretCount }, (_, i) => (
-                  <rect key={i} x={nutX + (i + 1) * fretW} y={10} width={1.6} height={fbH - 24} fill="#5a5348" />
+                  <rect key={i} x={nutX + (i + 1) * fretW} y={10} width={1.6} height={fbH - 24} fill="var(--fretwire)" />
                 ))}
                 {[3, 5, 7, 9, 15].map(f => (
-                  <circle key={f} cx={nutX + (f - 0.5) * fretW} cy={fbH / 2 - 2} r={4.5} fill="#3A2E20" />
+                  <circle key={f} cx={nutX + (f - 0.5) * fretW} cy={fbH / 2 - 2} r={4.5} fill="var(--marker)" />
                 ))}
-                <circle cx={nutX + 11.5 * fretW} cy={fbH / 2 - 21} r={4.5} fill="#3A2E20" />
-                <circle cx={nutX + 11.5 * fretW} cy={fbH / 2 + 17} r={4.5} fill="#3A2E20" />
+                <circle cx={nutX + 11.5 * fretW} cy={fbH / 2 - 21} r={4.5} fill="var(--marker)" />
+                <circle cx={nutX + 11.5 * fretW} cy={fbH / 2 + 17} r={4.5} fill="var(--marker)" />
                 {[1, 2, 3, 4, 5, 6].map(s => (
                   <line key={s} x1={nutX - 4} y1={stringY(s)} x2={fbW - 12} y2={stringY(s)}
-                    stroke="#8A7850" strokeWidth={0.6 + s * 0.24} />
+                    stroke="var(--muted)" strokeWidth={0.6 + s * 0.24} />
                 ))}
                 {[3, 5, 7, 9, 12, 15].map(f => (
                   <text key={f} x={nutX + (f - 0.5) * fretW} y={fbH - 2} textAnchor="middle"
-                    fontSize={9} fill="#888" fontFamily="Arial, sans-serif">{f}</text>
+                    fontSize={9} fill="var(--muted)" fontFamily="Arial, sans-serif">{f}</text>
                 ))}
                 {flatNotes.map((n, i) => {
                   const isCurrent = currentNote && i === playIdx
@@ -847,12 +847,12 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
                     <g key={i}>
                       <circle
                         cx={noteX(n.f)} cy={stringY(n.s)} r={isCurrent ? 9 : 6}
-                        fill={isCurrent ? "#E09B3D" : played ? "rgba(224,155,61,0.4)" : "rgba(255,255,255,0.3)"}
-                        stroke={isCurrent ? "#FFF3D6" : "none"} strokeWidth={isCurrent ? 1.5 : 0}
+                        fill={isCurrent ? "var(--target)" : played ? "color-mix(in srgb, var(--target) 40%, transparent)" : "color-mix(in srgb, var(--text) 30%, transparent)"}
+                        stroke={isCurrent ? "var(--text)" : "none"} strokeWidth={isCurrent ? 1.5 : 0}
                       />
                       {isCurrent && (
                         <text x={noteX(n.f)} y={stringY(n.s) + 3.5} textAnchor="middle"
-                          fontSize={8.5} fontWeight="bold" fill="#1B1608" fontFamily="Arial, sans-serif">
+                          fontSize={8.5} fontWeight="bold" fill="var(--bg)" fontFamily="Arial, sans-serif">
                           {noteName(n.s, n.f)}
                         </text>
                       )}

@@ -46,7 +46,7 @@ export default function ReferenceGuides({ panelStyle }) {
                 height: guide.height,
                 border: "1px solid var(--db-panel-border)",
                 borderRadius: "var(--db-r-md)",
-                background: "#fff",
+                background: "var(--surface)",
                 display: "block",
               }}
             />

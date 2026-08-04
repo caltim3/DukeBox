@@ -3,14 +3,14 @@
 // progress bar timed to the bar's duration so you can see the change coming.
 
 const CATEGORY_COLORS = {
-  minor:              "#2f6fed",
-  dominant:           "#d32f2f",
-  major:              "#00c853",
-  "half-diminished":  "#7b1fa2",
-  augmented:          "#111111",
-  "fully-diminished": "#f9a825",
-  altered:            "#7f0000",
-  rest:               "#666666",
+  minor:              "var(--scale)",
+  dominant:           "var(--hot)",
+  major:              "var(--chord)",
+  "half-diminished":  "var(--target)",
+  augmented:          "var(--passing)",
+  "fully-diminished": "var(--accent)",
+  altered:            "var(--hot)",
+  rest:               "var(--muted)",
 }
 
 export function runwayCategory(quality) {
@@ -49,9 +49,9 @@ export default function Runway({ bars, playheadIndex, tempo, onSelectBar }) {
                 fontSize: "var(--db-fs-sm)",
                 fontWeight: 700,
                 cursor: onSelectBar ? "pointer" : "default",
-                color: "#fff",
+                color: "var(--accent-ink)",
                 background: `color-mix(in srgb, ${color} ${isCurrent ? 92 : 55}%, transparent)`,
-                border: isCurrent ? "2px solid #fff" : "2px solid transparent",
+                border: isCurrent ? "2px solid var(--text)" : "2px solid transparent",
                 boxShadow: isCurrent ? `0 0 10px ${color}` : "none",
                 transition: "background 0.15s, box-shadow 0.15s",
               }}
@@ -63,7 +63,7 @@ export default function Runway({ bars, playheadIndex, tempo, onSelectBar }) {
                   style={{
                     position: "absolute", left: 0, top: 0, bottom: 0, width: "100%",
                     transformOrigin: "left",
-                    background: "rgba(255,255,255,0.28)",
+                    background: "color-mix(in srgb, var(--text) 28%, transparent)",
                     animation: `dbRunwayFill ${barSec}s linear forwards`,
                   }}
                 />

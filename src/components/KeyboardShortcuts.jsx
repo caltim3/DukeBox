@@ -208,7 +208,7 @@ export default function KeyboardShortcuts() {
       style={{
         position: "fixed", inset: 0, zIndex: 1000,
         display: "grid", placeItems: "center",
-        padding: "20px", background: "rgba(0,0,0,0.62)",
+        padding: "20px", background: "var(--overlay)",
       }}
     >
       <section
@@ -221,7 +221,7 @@ export default function KeyboardShortcuts() {
           padding: "24px", borderRadius: "14px",
           border: "1px solid var(--db-accent)",
           background: "var(--db-bg)", color: "var(--db-text)",
-          boxShadow: "0 24px 80px rgba(0,0,0,0.55)",
+          boxShadow: "0 24px 80px var(--shadow)",
         }}
       >
         <header style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "18px" }}>

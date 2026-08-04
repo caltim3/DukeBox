@@ -51,82 +51,15 @@ async function loadAudio() {
 }
 
 const PALETTES = [
-  {
-    id: "tonal", name: "Tonal", emoji: "🎨", mode: "light",
-    bg: "#f0f0f0", text: "#2a2c2f", accent: "#007bff",
-    panelBg: "#ffffff", panelBorder: "#d4e1e1",
-    sideBg: "#2a2c2f", sideBorder: "#57383c",
-    inputBg: "#f2f2f2", cardBg: "#ffffff", cardBorder: "#d4e1e1",
-    muted: "#66727a",
-    cPurple: "#33337b", cGreen: "#4caf50", cBlue: "#337dc4",
-    cAmber: "#a35933", cGold: "#c47d33", cSalmon: "#db6060", cPink: "#bd2031",
-  },
-  {
-    id: "jupiter", name: "Forest", emoji: "🌿", mode: "light",
-    bg: "#f5f6f8", text: "#18201c", accent: "#2d8a5e",
-    panelBg: "#ffffff", panelBorder: "#d9dedb",
-    sideBg: "#202923", sideBorder: "#344039",
-    inputBg: "#edf1ee", cardBg: "#ffffff", cardBorder: "#d9dedb",
-    muted: "#5f6d65",
-    cPurple: "#7c3aed", cGreen: "#16865a", cBlue: "#2563eb",
-    cAmber: "#b45309", cGold: "#946200", cSalmon: "#dc2626", cPink: "#be185d",
-  },
-  {
-    id: "jupiter-dark", name: "Forest Dark", emoji: "🌲", mode: "dark", cssClass: "dark",
-    bg: "#0f1117", text: "#edf4ef", accent: "#3db87a",
-    panelBg: "#141820", panelBorder: "#2b333d",
-    sideBg: "#101a15", sideBorder: "#294235",
-    inputBg: "#1b222b", cardBg: "#141820", cardBorder: "#2b333d",
-    muted: "#a4b0a9",
-    cPurple: "#a78bfa", cGreen: "#4ade80", cBlue: "#60a5fa",
-    cAmber: "#fbbf24", cGold: "#facc15", cSalmon: "#fb7185", cPink: "#f472b6",
-  },
-  {
-    id: "ember", name: "Ember", emoji: "🔥", mode: "dark", cssClass: "dark theme-ember",
-    bg: "#110e0a", text: "#fff5e6", accent: "#f59e0b",
-    panelBg: "#161310", panelBorder: "#3d3021",
-    sideBg: "#1b1209", sideBorder: "#50361b",
-    inputBg: "#211a13", cardBg: "#161310", cardBorder: "#3d3021",
-    muted: "#c2ad91",
-    cPurple: "#c084fc", cGreen: "#4ade80", cBlue: "#60a5fa",
-    cAmber: "#f59e0b", cGold: "#facc15", cSalmon: "#fb7185", cPink: "#f472b6",
-  },
-  {
-    id: "slate", name: "Slate", emoji: "🪨", mode: "dark", cssClass: "dark theme-slate",
-    bg: "#0d1117", text: "#e8f0f2", accent: "#2dd4bf",
-    panelBg: "#141a22", panelBorder: "#2a3542",
-    sideBg: "#101820", sideBorder: "#28434a",
-    inputBg: "#1b2430", cardBg: "#141a22", cardBorder: "#2a3542",
-    muted: "#9dabb8",
-    cPurple: "#a78bfa", cGreen: "#4ade80", cBlue: "#60a5fa",
-    cAmber: "#fbbf24", cGold: "#facc15", cSalmon: "#fb7185", cPink: "#f472b6",
-  },
-  {
-    id: "ocean", name: "Ocean", emoji: "🌊", mode: "light", cssClass: "theme-ocean",
-    bg: "#99ccff", text: "#10233f", accent: "#1a3a6e",
-    panelBg: "#ccffff", panelBorder: "#76a9d5",
-    sideBg: "#18375f", sideBorder: "#31547e",
-    inputBg: "#e1f7ff", cardBg: "#ccffff", cardBorder: "#76a9d5",
-    muted: "#425d78",
-    cPurple: "#6d28d9", cGreen: "#087f5b", cBlue: "#1d4ed8",
-    cAmber: "#9a4d00", cGold: "#7c5c00", cSalmon: "#c81e3a", cPink: "#a41465",
-  },
-  {
-    id: "daylight", name: "Daylight", emoji: "☀️", mode: "light", cssClass: "theme-daylight",
-    bg: "#f8f9fb", text: "#1c1b22", accent: "#7c3aed",
-    panelBg: "#ffffff", panelBorder: "#dddce5",
-    sideBg: "#25222d", sideBorder: "#403b49",
-    inputBg: "#f0eff5", cardBg: "#ffffff", cardBorder: "#dddce5",
-    muted: "#66616f",
-    cPurple: "#7c3aed", cGreen: "#16865a", cBlue: "#2563eb",
-    cAmber: "#b45309", cGold: "#946200", cSalmon: "#dc2626", cPink: "#be185d",
-  },
+  { id: "bluenote", name: "Bluenote", emoji: "🎷" },
+  { id: "brass", name: "Smoke & Brass", emoji: "🎺" },
+  { id: "console", name: "Console", emoji: "🎛️" },
+  { id: "loft", name: "Neon Loft", emoji: "💡" },
+  { id: "ecm", name: "ECM", emoji: "🧊" },
+  { id: "hotclub", name: "Hot Club", emoji: "🔥" },
+  { id: "chalk", name: "Chalkboard", emoji: "✏️" },
+  { id: "tape", name: "Tape & Ferrite", emoji: "📼" },
 ]
-
-// Version the preference when the default changes so existing installations
-// receive Tonal once, then persist whatever palette the player chooses.
-const PALETTE_STORAGE_KEY = "dukebox-theme-v2"
-const PALETTE_CLASSES = ["dark", "theme-ember", "theme-slate", "theme-ocean", "theme-daylight", "theme-midnight", "theme-rose"]
 
 const INITIAL_BARS = [
   { root: "Bb", quality: "7", symbol: "Bb7",  section: "A" },
@@ -255,6 +188,8 @@ export default function Home() {
   const [anticipateOn, setAnticipateOn] = useState(false)   // second fretboard showing the next chord
   const [practiceMode, setPracticeMode] = useState(false)
   const [paletteIndex, setPaletteIndex] = useState(0)
+  const [colorMode, setColorMode] = useState("dark")
+  const [themePickerOpen, setThemePickerOpen] = useState(false)
   const [gridColumns, setGridColumns] = useState(4)
   const [scrollMode, setScrollMode] = useState(false)
 
@@ -286,20 +221,33 @@ export default function Home() {
     setPaletteIndex((index) => (index + 1) % PALETTES.length)
   }, [])
 
-  // Restore and apply the selected palette across the whole document.
+  const setTheme = useCallback((paletteId, mode) => {
+    const root = document.documentElement
+    if (paletteId && PALETTES.some(({ id }) => id === paletteId)) {
+      root.dataset.palette = paletteId
+      window.localStorage.setItem("dukebox-palette", paletteId)
+      setPaletteIndex(PALETTES.findIndex(({ id }) => id === paletteId))
+    }
+    if (mode === "light" || mode === "dark") {
+      root.dataset.mode = mode
+      root.style.colorScheme = mode
+      window.localStorage.setItem("dukebox-mode", mode)
+      setColorMode(mode)
+    }
+  }, [])
+
+  // The blocking head script has already painted the stored theme. This only
+  // synchronizes the controls with the attributes it selected.
   useEffect(() => {
-    const savedId = window.localStorage.getItem(PALETTE_STORAGE_KEY)
-    const savedIndex = PALETTES.findIndex(({ id }) => id === savedId)
+    const root = document.documentElement
+    const savedIndex = PALETTES.findIndex(({ id }) => id === root.dataset.palette)
     if (savedIndex >= 0) setPaletteIndex(savedIndex)
+    setColorMode(root.dataset.mode === "light" ? "light" : "dark")
   }, [])
 
   useEffect(() => {
-    const root = document.documentElement
-    root.classList.remove(...PALETTE_CLASSES)
-    if (palette.cssClass) root.classList.add(...palette.cssClass.split(" "))
-    root.style.colorScheme = palette.mode
-    window.localStorage.setItem(PALETTE_STORAGE_KEY, palette.id)
-  }, [palette])
+    setTheme(palette.id, null)
+  }, [palette.id, setTheme])
 
   const selectedBar = bars[selectedIndex]
 
@@ -1224,57 +1172,6 @@ export default function Home() {
     <>
     <style>{`
       :root {
-        --db-bg: ${palette.bg};
-        --db-text: ${palette.text};
-        --db-accent: ${palette.accent};
-        --db-panel-bg: ${palette.panelBg};
-        --db-panel-border: ${palette.panelBorder};
-        --db-side-bg: ${palette.sideBg};
-        --db-side-border: ${palette.sideBorder};
-        --db-input-bg: ${palette.inputBg};
-        --db-card-bg: ${palette.cardBg};
-        --db-card-border: ${palette.cardBorder};
-        --db-muted: ${palette.muted};
-        --db-c-purple: ${palette.cPurple};
-        --db-c-green:  ${palette.cGreen};
-        --db-c-blue:   ${palette.cBlue};
-        --db-c-amber:  ${palette.cAmber};
-        --db-c-gold:   ${palette.cGold};
-        --db-c-salmon: ${palette.cSalmon};
-        --db-c-pink:   ${palette.cPink};
-
-        /* Jupiter-compatible semantic aliases keep every app surface on the
-           active palette while existing DukeBox components use --db-* tokens. */
-        --background: var(--db-bg);
-        --foreground: var(--db-text);
-        --border: var(--db-panel-border);
-        --card: var(--db-card-bg);
-        --card-foreground: var(--db-text);
-        --card-border: var(--db-card-border);
-        --popover: var(--db-panel-bg);
-        --popover-foreground: var(--db-text);
-        --popover-border: var(--db-panel-border);
-        --primary: var(--db-accent);
-        --primary-foreground: ${palette.mode === "dark" ? "#101411" : "#ffffff"};
-        --secondary: var(--db-side-bg);
-        --secondary-foreground: ${palette.mode === "dark" ? "#edf4ef" : "#ffffff"};
-        --muted: var(--db-input-bg);
-        --muted-foreground: var(--db-muted);
-        --accent: var(--db-accent);
-        --accent-foreground: var(--primary-foreground);
-        --destructive: var(--db-c-salmon);
-        --destructive-foreground: #ffffff;
-        --input: var(--db-input-bg);
-        --ring: var(--db-accent);
-        --sidebar: var(--db-side-bg);
-        --sidebar-foreground: var(--secondary-foreground);
-        --sidebar-border: var(--db-side-border);
-        --sidebar-primary: var(--db-accent);
-        --sidebar-primary-foreground: var(--primary-foreground);
-        --sidebar-accent: var(--db-card-bg);
-        --sidebar-accent-foreground: var(--db-text);
-        --sidebar-ring: var(--db-accent);
-
         /* ── Design tokens ────────────────────────────────────────────
            Type collapsed from 23 ad-hoc sizes to six steps, radius from
            ten values to three. Per-element sizing is what made the app
@@ -1404,19 +1301,49 @@ export default function Home() {
           }}>
             The DukeBox
           </h1>
-          <button
-            onClick={cyclePalette}
-            style={{
-              padding: "6px 14px", borderRadius: "var(--db-r-md)", cursor: "pointer", fontWeight: 600, fontSize: "var(--db-fs-md)",
-              border: "1px solid var(--db-panel-border)",
-              background: "var(--db-panel-bg)",
-              color: "var(--db-accent)",
-              flexShrink: 0,
-            }}
-            title="Cycle color palette (;)"
-          >
-            {palette.emoji} {palette.name}
-          </button>
+          <div style={{ position: "relative", flexShrink: 0 }}>
+            <button
+              onClick={() => setThemePickerOpen((open) => !open)}
+              aria-expanded={themePickerOpen}
+              aria-haspopup="dialog"
+              style={{
+                padding: "6px 14px", borderRadius: "var(--db-r-md)", cursor: "pointer", fontWeight: 600, fontSize: "var(--db-fs-md)",
+                border: "1px solid var(--line)", background: "var(--surface)", color: "var(--accent)",
+              }}
+              title="Choose palette and light or dark mode (; cycles palettes)"
+            >
+              {palette.emoji} {palette.name} · {colorMode === "dark" ? "Dark" : "Light"}
+            </button>
+            {themePickerOpen && (
+              <div role="dialog" aria-label="Color theme" style={{
+                position: "absolute", zIndex: 40, top: "calc(100% + 7px)", left: 0,
+                width: "230px", padding: "10px", borderRadius: "var(--db-r-md)",
+                background: "var(--surface)", border: "1px solid var(--line)",
+                boxShadow: "0 12px 36px var(--shadow)", display: "grid", gap: "8px",
+              }}>
+                <label style={{ display: "grid", gap: "4px", color: "var(--muted)", fontSize: "var(--db-fs-xs)" }}>
+                  PALETTE
+                  <select value={palette.id} onChange={(event) => setTheme(event.target.value, null)} style={{
+                    padding: "7px 9px", borderRadius: "var(--db-r-sm)", background: "var(--surface2)",
+                    color: "var(--text)", border: "1px solid var(--line)",
+                  }}>
+                    {PALETTES.map((item) => <option key={item.id} value={item.id}>{item.emoji} {item.name}</option>)}
+                  </select>
+                </label>
+                <div role="group" aria-label="Color mode" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px" }}>
+                  {["dark", "light"].map((modeName) => (
+                    <button key={modeName} onClick={() => setTheme(null, modeName)} style={{
+                      padding: "7px 8px", borderRadius: "var(--db-r-sm)", cursor: "pointer", textTransform: "capitalize",
+                      background: colorMode === modeName ? "var(--accent)" : "var(--surface2)",
+                      color: colorMode === modeName ? "var(--accent-ink)" : "var(--text)",
+                      border: `1px solid ${colorMode === modeName ? "var(--accent)" : "var(--line)"}`,
+                    }}>{modeName}</button>
+                  ))}
+                </div>
+                <div style={{ color: "var(--muted)", fontSize: "var(--db-fs-xs)" }}>Press ; to cycle palettes</div>
+              </div>
+            )}
+          </div>
 
           {/* Keyboard shortcuts are meaningless on a touch device — hidden there
               rather than competing for the little horizontal room a phone has. */}
@@ -1465,8 +1392,8 @@ export default function Home() {
                   padding: "9px 14px", borderRadius: "var(--db-r-md)", cursor: "pointer",
                   fontWeight: 700, fontSize: "var(--db-fs-md)",
                   border: on ? "1px solid var(--db-accent)" : "1px solid transparent",
-                  background: on ? "color-mix(in srgb, var(--db-accent) 16%, var(--db-bg))" : "transparent",
-                  color: on ? "var(--db-accent)" : "var(--db-text)",
+                  background: on ? "var(--accent)" : "transparent",
+                  color: on ? "var(--accent-ink)" : "var(--text)",
                   opacity: on ? 1 : 0.72,
                 }}
               >
@@ -1571,7 +1498,7 @@ export default function Home() {
                 width: "100%", height: "min(82vh, 900px)", minHeight: "520px",
                 border: "1px solid var(--db-panel-border)",
                 borderRadius: "var(--db-r-md)",
-                background: "#fff",
+                background: "var(--surface)",
                 display: "block",
               }}
             />
@@ -1656,7 +1583,7 @@ export default function Home() {
             {userLibrary.some((e) => e.name === selectedForm) && (
               <button
                 onClick={() => removeFromLibrary(selectedForm)}
-                style={{ ...buttonStyle("#ff8a8a", "#200a0a"), padding: "6px 10px", fontSize: "var(--db-fs-sm)" }}
+                style={{ ...buttonStyle("var(--hot)", "var(--accent-ink)"), padding: "6px 10px", fontSize: "var(--db-fs-sm)" }}
                 title="Remove this chart from your library"
               >
                 × Remove
@@ -1774,11 +1701,9 @@ export default function Home() {
               style={{
                 padding: "11px 28px", borderRadius: "var(--db-r-md)", cursor: "pointer",
                 fontWeight: 800, fontSize: "var(--db-fs-lg)", letterSpacing: "0.02em",
-                border: `2px solid ${isPlaying ? "var(--db-c-salmon)" : "var(--db-c-amber)"}`,
-                background: isPlaying
-                  ? "color-mix(in srgb, var(--db-c-salmon) 18%, var(--db-bg))"
-                  : "color-mix(in srgb, var(--db-c-amber) 18%, var(--db-bg))",
-                color: isPlaying ? "var(--db-c-salmon)" : "var(--db-c-amber)",
+                border: `2px solid ${isPlaying ? "var(--hot)" : "var(--accent)"}`,
+                background: isPlaying ? "var(--hot)" : "var(--accent)",
+                color: "var(--accent-ink)",
                 minWidth: "132px",
               }}
             >
@@ -1839,7 +1764,7 @@ export default function Home() {
                   Close
                 </button>
                 {importStatus && (
-                  <span style={{ fontSize: "var(--db-fs-sm)", color: importStatus.ok ? "var(--db-c-green)" : "#ff8a8a" }}>
+                  <span style={{ fontSize: "var(--db-fs-sm)", color: importStatus.ok ? "var(--passing)" : "var(--hot)" }}>
                     {importStatus.msg}
                   </span>
                 )}
@@ -2008,10 +1933,10 @@ export default function Home() {
                   <input type="checkbox" checked={loopEnabled} onChange={(e) => setLoopEnabled(e.target.checked)} />
                   Loop
                 </label>
-                <button onClick={() => setLoopStart(selectedIndex)} style={buttonStyle("var(--db-c-gold)")}>
+                <button onClick={() => setLoopStart(selectedIndex)} style={buttonStyle("var(--hot)")}>
                   Set Start at Selected Bar
                 </button>
-                <button onClick={() => setLoopEnd(selectedIndex)} style={buttonStyle("var(--db-c-gold)")}>
+                <button onClick={() => setLoopEnd(selectedIndex)} style={buttonStyle("var(--hot)")}>
                   Set End at Selected Bar
                 </button>
               </div>
@@ -2077,9 +2002,9 @@ export default function Home() {
               <div style={{ display: "flex", gap: "4px" }}>
                 <button onClick={() => setBebopOverlay(p => !p)} style={{
                   padding: "4px 10px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-sm)", cursor: "pointer",
-                  background: bebopOverlay ? "rgba(86,197,104,0.22)" : "var(--db-panel-bg)",
-                  border:     bebopOverlay ? "1px solid #56C568" : "1px solid var(--db-panel-border)",
-                  color:      bebopOverlay ? "#56C568" : "var(--db-text)",
+                  background: bebopOverlay ? "color-mix(in srgb, var(--passing) 22%, transparent)" : "var(--surface)",
+                  border:     bebopOverlay ? "1px solid var(--passing)" : "1px solid var(--line)",
+                  color:      bebopOverlay ? "var(--passing)" : "var(--text)",
                   fontWeight: bebopOverlay ? 700 : 400,
                   opacity:    bebopOverlay ? 1 : 0.7,
                 }}>
@@ -2087,9 +2012,9 @@ export default function Home() {
                 </button>
                 <button onClick={() => setTargetsOverlay(p => !p)} style={{
                   padding: "4px 10px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-sm)", cursor: "pointer",
-                  background: targetsOverlay ? "rgba(255,213,79,0.22)" : "var(--db-panel-bg)",
-                  border:     targetsOverlay ? "1px solid #FFD54F" : "1px solid var(--db-panel-border)",
-                  color:      targetsOverlay ? "#c49800" : "var(--db-text)",
+                  background: targetsOverlay ? "color-mix(in srgb, var(--target) 22%, transparent)" : "var(--surface)",
+                  border:     targetsOverlay ? "1px solid var(--target)" : "1px solid var(--line)",
+                  color:      targetsOverlay ? "var(--target)" : "var(--text)",
                   fontWeight: targetsOverlay ? 700 : 400,
                   opacity:    targetsOverlay ? 1 : 0.7,
                 }}>
@@ -2255,19 +2180,19 @@ export default function Home() {
             )}
 
             <div style={{ marginTop: "8px", display: "flex", gap: "14px", fontSize: "var(--db-fs-sm)", flexWrap: "wrap" }} >
-              <span style={{ opacity: 0.7 }}><span style={{ color: "#BD2031" }}>●</span> Root</span>
-              <span style={{ opacity: 0.7 }}><span style={{ color: "#3A9C5A" }}>●</span> Chord tone</span>
-              <span style={{ opacity: 0.7 }}><span style={{ color: "#3A78C9" }}>●</span> Scale tone</span>
+              <span style={{ opacity: 0.7 }}><span style={{ color: "var(--root)" }}>●</span> Root</span>
+              <span style={{ opacity: 0.7 }}><span style={{ color: "var(--chord)" }}>●</span> Chord tone</span>
+              <span style={{ opacity: 0.7 }}><span style={{ color: "var(--scale)" }}>●</span> Scale tone</span>
               <span style={{ opacity: bebopOverlay || scaleFilter === "barry" ? 0.85 : 0.4 }}>
-                <span style={{ color: "#56C568" }}>●</span> {scaleFilter === "barry" ? "Barry passing tone" : "Bebop passing"}
+                <span style={{ color: "var(--passing)" }}>●</span> {scaleFilter === "barry" ? "Barry passing tone" : "Bebop passing"}
               </span>
-              <span style={{ opacity: targetsOverlay ? 0.85 : 0.4 }}><span style={{ color: "#FFD54F" }}>●</span> {melodyPathModeLabel} path</span>
+              <span style={{ opacity: targetsOverlay ? 0.85 : 0.4 }}><span style={{ color: "var(--target)" }}>●</span> {melodyPathModeLabel} path</span>
               {targetsOverlay && anticipateOn && (
-                <span style={{ opacity: 0.85, color: "#FFD54F" }}>
+                <span style={{ opacity: 0.85, color: "var(--target)" }}>
                   → up a semitone · →→ up a whole tone · ← ←← down · = stays
                 </span>
               )}
-              <span style={{ opacity: 0.7 }}><span style={{ color: "#E09B3D" }}>●</span> Target note</span>
+              <span style={{ opacity: 0.7 }}><span style={{ color: "var(--target)" }}>●</span> Target note</span>
             </div>
           </div>
         )}
@@ -2309,7 +2234,7 @@ export default function Home() {
                   aria-pressed={gridColumns === n}
                   style={{
                   padding: "3px 8px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-sm)", cursor: "pointer",
-                  background: gridColumns === n ? "rgba(224,180,76,0.18)" : "var(--db-card-bg)",
+                  background: gridColumns === n ? "var(--sel)" : "var(--surface)",
                   border: gridColumns === n ? "1px solid var(--db-c-amber)" : "1px solid var(--db-card-border)",
                   color: gridColumns === n ? "var(--db-c-amber)" : "var(--db-muted)",
                   fontWeight: gridColumns === n ? 700 : 400,
@@ -2317,7 +2242,7 @@ export default function Home() {
               ))}
               <button onClick={() => setScrollMode(p => !p)} style={{
                 padding: "3px 10px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-sm)", cursor: "pointer",
-                background: scrollMode ? "rgba(127,200,255,0.18)" : "var(--db-card-bg)",
+                background: scrollMode ? "var(--sel)" : "var(--surface)",
                 border: scrollMode ? "1px solid var(--db-c-blue)" : "1px solid var(--db-card-border)",
                 color: scrollMode ? "var(--db-c-blue)" : "var(--db-muted)",
                 fontWeight: scrollMode ? 700 : 400,
@@ -2364,8 +2289,8 @@ export default function Home() {
                     width: `calc(${(1 / gridColumns) * 100}% - 8px)`,
                     height: `${TELE_ROW_H}px`,
                     borderRadius: "var(--db-r-md)",
-                    border: "2px solid rgba(224,180,76,0.65)",
-                    boxShadow: "0 0 28px rgba(224,180,76,0.22)",
+                    border: "2px solid var(--accent)",
+                    boxShadow: "0 0 28px var(--sel)",
                     transition: "left 0.3s ease-in-out",
                   }} />
                   <div style={{
@@ -2392,8 +2317,8 @@ export default function Home() {
                               style={{
                                 padding: "10px",
                                 borderRadius: "var(--db-r-md)",
-                                background: isPlayhead ? "rgba(139,211,168,0.1)" : isActive ? "rgba(224,180,76,0.08)" : "var(--db-card-bg)",
-                                border: isPlayhead ? "1px solid rgba(139,211,168,0.25)" : isActive ? "1px solid rgba(224,180,76,0.25)" : "1px solid var(--db-card-border)",
+                                background: isPlayhead ? "var(--loop)" : isActive ? "var(--sel)" : "var(--surface)",
+                                border: isPlayhead ? "1px solid var(--hot)" : isActive ? "1px solid var(--chord)" : "1px solid var(--line)",
                                 cursor: "pointer",
                                 display: "flex", flexDirection: "column",
                                 justifyContent: "center", alignItems: "center", textAlign: "center",
@@ -2451,7 +2376,7 @@ export default function Home() {
                       opacity: 0.85,
                       paddingTop: index > 0 ? "10px" : "0",
                       paddingBottom: "4px",
-                      borderBottom: "1px solid rgba(224,180,76,0.2)",
+                      borderBottom: "1px solid var(--line)",
                       marginBottom: "2px",
                     }}
                   >
@@ -2487,23 +2412,23 @@ export default function Home() {
                     borderRadius: "var(--db-r-md)",
                     // Playhead reads boldest, then selection, then loop range.
                     border: isPlayhead
-                      ? "2px solid var(--db-c-green)"
+                      ? "2px solid var(--accent)"
                       : active
-                      ? "2px solid var(--db-c-amber)"
+                      ? "2px solid var(--chord)"
                       : inLoop && loopEnabled
-                      ? "1px solid var(--db-c-gold)"
+                      ? "1px solid var(--hot)"
                       : "1px solid var(--db-card-border)",
                     background: isPlayhead
-                      ? "color-mix(in srgb, var(--db-c-green) 22%, var(--db-bg))"
+                      ? "color-mix(in srgb, var(--accent) 22%, var(--bg))"
                       : active
-                      ? "rgba(224,180,76,0.12)"
+                      ? "var(--sel)"
                       : inLoop && loopEnabled
-                      ? "color-mix(in srgb, var(--db-c-gold) 12%, var(--db-bg))"
+                      ? "var(--loop)"
                       : "var(--db-card-bg)",
                     boxShadow: dragIndex === index
-                      ? "0 0 0 2px rgba(127,200,255,0.45)"
+                      ? "0 0 0 2px var(--chord)"
                       : isPlayhead
-                      ? "0 0 16px color-mix(in srgb, var(--db-c-green) 45%, transparent)"
+                      ? "0 0 16px color-mix(in srgb, var(--accent) 45%, transparent)"
                       : "none",
                     cursor: "pointer",
                     position: "relative",
@@ -2517,8 +2442,8 @@ export default function Home() {
                       {(bar.beats ?? 4) === 2 && (
                         <div style={{
                           fontSize: "var(--db-fs-xs)", fontWeight: 700, padding: "1px 4px",
-                          borderRadius: "var(--db-r-sm)", background: "rgba(127,200,255,0.15)",
-                          border: "1px solid rgba(127,200,255,0.3)", color: "var(--db-c-blue)",
+                          borderRadius: "var(--db-r-sm)", background: "var(--sel)",
+                          border: "1px solid var(--chord)", color: "var(--chord)",
                           lineHeight: 1.4,
                         }}>
                           ½
@@ -2532,8 +2457,8 @@ export default function Home() {
                           ? `Restore bar ${barLabels[index]} to a full measure`
                           : `Split bar ${barLabels[index]} into two half-bars`}
                         style={{
-                          background: (bar.beats ?? 4) === 2 ? "rgba(127,200,255,0.1)" : "none",
-                          border: (bar.beats ?? 4) === 2 ? "1px solid rgba(127,200,255,0.3)" : "none",
+                          background: (bar.beats ?? 4) === 2 ? "var(--sel)" : "none",
+                          border: (bar.beats ?? 4) === 2 ? "1px solid var(--chord)" : "none",
                           color: (bar.beats ?? 4) === 2 ? "var(--db-c-blue)" : "var(--db-muted)",
                           cursor: "pointer", fontSize: "var(--db-fs-xs)", padding: "0 4px", lineHeight: 1.6,
                           borderRadius: "var(--db-r-sm)",
@@ -2547,7 +2472,7 @@ export default function Home() {
                           onClick={(e) => { e.stopPropagation(); removeBar(index) }}
                           aria-label={`Remove bar ${barLabels[index]}`}
                           style={{
-                            background: "none", border: "none", color: "rgba(255,100,100,0.6)",
+                            background: "none", border: "none", color: "var(--hot)", opacity: 0.65,
                             cursor: "pointer", fontSize: "var(--db-fs-md)", padding: "0 2px", lineHeight: 1,
                           }}
                           title="Remove bar"
@@ -2825,7 +2750,7 @@ export default function Home() {
           onClick={() => setShowShortcuts(false)}
           style={{
             position: "fixed", inset: 0, zIndex: 50,
-            background: "rgba(0,0,0,0.55)",
+            background: "var(--overlay)",
             display: "flex", alignItems: "center", justifyContent: "center",
           }}
         >
@@ -2835,7 +2760,7 @@ export default function Home() {
               background: "var(--db-bg)", color: "var(--db-text)",
               border: "1px solid var(--db-accent)", borderRadius: "var(--db-r-md)",
               padding: "24px 28px", minWidth: "min(440px, 92vw)", maxWidth: "92vw",
-              boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
+              boxShadow: "0 20px 60px var(--shadow)",
             }}
           >
             <div style={{ display: "flex", alignItems: "center", marginBottom: "14px" }}>
@@ -2889,7 +2814,7 @@ export default function Home() {
               ? "color-mix(in srgb, var(--db-c-salmon) 25%, var(--db-bg))"
               : "color-mix(in srgb, var(--db-c-amber) 25%, var(--db-bg))",
             color: isPlaying ? "var(--db-c-salmon)" : "var(--db-c-amber)",
-            boxShadow: "0 6px 24px rgba(0,0,0,0.35)",
+            boxShadow: "0 6px 24px var(--shadow)",
             backdropFilter: "blur(8px)",
           }}
         >
@@ -2904,7 +2829,7 @@ export default function Home() {
           background: "var(--db-panel-bg)", color: "var(--db-text)",
           border: "1px solid var(--db-accent)", borderRadius: "var(--db-r-md)",
           padding: "10px 18px", fontSize: "var(--db-fs-md)",
-          boxShadow: "0 8px 30px rgba(0,0,0,0.35)", backdropFilter: "blur(8px)",
+          boxShadow: "0 8px 30px var(--shadow)", backdropFilter: "blur(8px)",
         }}>
           {toast}
         </div>
@@ -3118,7 +3043,7 @@ function DesertNoirPanel({ meta }) {
         ))}
       </div>
 
-      <div style={{ border: "1px dashed var(--db-accent)", borderRadius: "var(--db-r-md)", padding: "14px 16px", background: "rgba(224,180,76,0.06)" }}>
+      <div style={{ border: "1px dashed var(--accent)", borderRadius: "var(--db-r-md)", padding: "14px 16px", background: "var(--sel)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
           <div style={{ fontSize: "var(--db-fs-xs)", fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--db-accent)" }}>✦ Idea Dice</div>
           <button onClick={() => setDice(roll())} style={{ marginLeft: "auto", padding: "4px 12px", borderRadius: "var(--db-r-md)", border: "1px solid var(--db-accent)", background: "transparent", color: "var(--db-text)", cursor: "pointer", fontSize: "var(--db-fs-sm)" }}>

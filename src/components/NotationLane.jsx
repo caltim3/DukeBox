@@ -50,7 +50,7 @@ function Notehead({ x, y, pos, color, label, labelAbove = false }) {
         const ly = y + (pos - lp) * 8
         return (
           <line key={lp} x1={x - 12} y1={ly} x2={x + 12} y2={ly}
-            stroke="rgba(255,255,255,0.50)" strokeWidth="1.3" />
+            stroke="color-mix(in srgb, var(--text) 50%, transparent)" strokeWidth="1.3" />
         )
       })}
       {acc && (
@@ -140,26 +140,26 @@ export default function NotationLane({
 
         {/* Background */}
         <rect x={0} y={0} width={totalW} height={svgH} rx={12}
-          fill="rgba(4,4,18,0.72)" />
+          fill="var(--surface2)" />
 
         {/* Five staff lines */}
         {staffLineYs.map((y, i) => (
           <line key={i} x1={CLEF_W - 10} y1={y} x2={totalW - R_PAD} y2={y}
-            stroke="rgba(255,255,255,0.20)" strokeWidth="1" />
+            stroke="color-mix(in srgb, var(--text) 20%, transparent)" strokeWidth="1" />
         ))}
 
         {/* Treble clef glyph */}
         <text x={4} y={staffBot + 18} fontSize="82"
           fontFamily="'Bravura','Noto Music','FreeSerif',Georgia,serif"
-          fill="rgba(255,255,255,0.45)" dominantBaseline="auto">
+          fill="color-mix(in srgb, var(--text) 45%, transparent)" dominantBaseline="auto">
           𝄞
         </text>
 
         {/* Opening double bar */}
         <line x1={CLEF_W - 9} y1={staffTop} x2={CLEF_W - 9} y2={staffBot}
-          stroke="rgba(255,255,255,0.55)" strokeWidth="2.5" />
+          stroke="color-mix(in srgb, var(--text) 55%, transparent)" strokeWidth="2.5" />
         <line x1={CLEF_W - 5} y1={staffTop} x2={CLEF_W - 5} y2={staffBot}
-          stroke="rgba(255,255,255,0.25)" strokeWidth="1" />
+          stroke="color-mix(in srgb, var(--text) 25%, transparent)" strokeWidth="1" />
 
         {/* Bar backgrounds, bar lines, bar numbers, chord symbols ABOVE staff */}
         {barData.map(({ i, bar, x0 }) => {
@@ -173,18 +173,18 @@ export default function NotationLane({
               <rect x={x0} y={0} width={bw} height={svgH}
                 rx={4}
                 fill={
-                  play  ? "rgba(86,197,104,0.10)" :
-                  sel   ? "rgba(224,180,76,0.12)"  : "transparent"
+                  play  ? "var(--loop)" :
+                  sel   ? "var(--sel)"  : "transparent"
                 } />
 
               {/* bar line on right edge */}
               <line x1={x0 + bw} y1={staffTop} x2={x0 + bw} y2={staffBot}
-                stroke="rgba(255,255,255,0.20)" strokeWidth="1" />
+                stroke="color-mix(in srgb, var(--text) 20%, transparent)" strokeWidth="1" />
 
               {/* Bar number — top of header */}
               <text x={x0 + 6} y={14}
                 fontSize="10" fontFamily="Arial, sans-serif"
-                fill={sel ? "rgba(255,235,150,0.9)" : "rgba(255,255,255,0.30)"}>
+                fill={sel ? "var(--target)" : "color-mix(in srgb, var(--text) 30%, transparent)"}>
                 {label}
               </text>
 
@@ -193,9 +193,9 @@ export default function NotationLane({
                 textAnchor="middle"
                 fontSize="15" fontFamily="Arial, sans-serif" fontWeight="700"
                 fill={
-                  play ? "#8bd3a8"
-                  : sel  ? "#f0d070"
-                  : "rgba(255,255,255,0.88)"
+                  play ? "var(--hot)"
+                  : sel  ? "var(--target)"
+                  : "var(--text)"
                 }>
                 {bar.chord}
               </text>
@@ -205,14 +205,14 @@ export default function NotationLane({
 
         {/* Closing double bar */}
         <line x1={totalW - R_PAD - 3} y1={staffTop} x2={totalW - R_PAD - 3} y2={staffBot}
-          stroke="rgba(255,255,255,0.30)" strokeWidth="1" />
+          stroke="color-mix(in srgb, var(--text) 30%, transparent)" strokeWidth="1" />
         <line x1={totalW - R_PAD} y1={staffTop} x2={totalW - R_PAD} y2={staffBot}
-          stroke="rgba(255,255,255,0.55)" strokeWidth="3" />
+          stroke="color-mix(in srgb, var(--text) 55%, transparent)" strokeWidth="3" />
 
         {/* Dashed melodic contour */}
         {contour.length > 2 && (
           <polyline points={contour.join(" ")} fill="none"
-            stroke="rgba(255,255,255,0.10)" strokeWidth="1.5"
+            stroke="color-mix(in srgb, var(--text) 10%, transparent)" strokeWidth="1.5"
             strokeDasharray="4 4" strokeLinejoin="round" />
         )}
 
@@ -223,13 +223,13 @@ export default function NotationLane({
 
           // Arrival = structural note for THIS chord → RED
           // Departure = leading tone toward NEXT chord → GREEN
-          const arrColor = play ? "#8bd3a8"
-                         : sel  ? "#ff6b6b"
-                         : "#e05050"
+          const arrColor = play ? "var(--hot)"
+                         : sel  ? "var(--root)"
+                         : "var(--hot)"
 
-          const depColor = play ? "#8bd3a8"
-                         : sel  ? "#69e080"
-                         : "#4caf7d"
+          const depColor = play ? "var(--hot)"
+                         : sel  ? "var(--passing)"
+                         : "var(--chord)"
 
           // Slur arc between the two notes
           const arcY = Math.min(arrY, depY) - 22
@@ -238,7 +238,7 @@ export default function NotationLane({
           return (
             <g key={`n-${i}`} onClick={() => onSelectBar(i)} style={{ cursor: "pointer" }}>
               <path d={slur} fill="none"
-                stroke="rgba(255,255,255,0.15)" strokeWidth="1.2" />
+                stroke="color-mix(in srgb, var(--text) 15%, transparent)" strokeWidth="1.2" />
               <Notehead x={arrX} y={arrY} pos={arrP}
                 color={arrColor} label={bar.arrivalNote} />
               <Notehead x={depX} y={depY} pos={depP}
