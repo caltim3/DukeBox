@@ -54,6 +54,16 @@ async function loadAudio() {
 
 const PALETTES = [
   {
+    id: "tonal", name: "Tonal", emoji: "🎨", mode: "light",
+    bg: "#f0f0f0", text: "#2a2c2f", accent: "#007bff",
+    panelBg: "#ffffff", panelBorder: "#d4e1e1",
+    sideBg: "#2a2c2f", sideBorder: "#57383c",
+    inputBg: "#f2f2f2", cardBg: "#ffffff", cardBorder: "#d4e1e1",
+    muted: "#66727a",
+    cPurple: "#33337b", cGreen: "#4caf50", cBlue: "#337dc4",
+    cAmber: "#a35933", cGold: "#c47d33", cSalmon: "#db6060", cPink: "#bd2031",
+  },
+  {
     id: "jupiter", name: "Forest", emoji: "🌿", mode: "light",
     bg: "#f5f6f8", text: "#18201c", accent: "#2d8a5e",
     panelBg: "#ffffff", panelBorder: "#d9dedb",
@@ -115,7 +125,9 @@ const PALETTES = [
   },
 ]
 
-const PALETTE_STORAGE_KEY = "dukebox-theme"
+// Version the preference when the default changes so existing installations
+// receive Tonal once, then persist whatever palette the player chooses.
+const PALETTE_STORAGE_KEY = "dukebox-theme-v2"
 const PALETTE_CLASSES = ["dark", "theme-ember", "theme-slate", "theme-ocean", "theme-daylight", "theme-midnight", "theme-rose"]
 
 const INITIAL_BARS = [
@@ -294,7 +306,7 @@ export default function Home() {
     setPaletteIndex((index) => (index + 1) % PALETTES.length)
   }, [])
 
-  // Restore and apply the selected Jupiter palette across the whole document.
+  // Restore and apply the selected palette across the whole document.
   useEffect(() => {
     const savedId = window.localStorage.getItem(PALETTE_STORAGE_KEY)
     const savedIndex = PALETTES.findIndex(({ id }) => id === savedId)
