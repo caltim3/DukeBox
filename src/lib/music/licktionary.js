@@ -1,3 +1,5 @@
+import { playbookGuide } from "@/lib/music/lickGuides"
+
 export const LICK_CHARTS = [
   // SET ONE
   {
@@ -205,13 +207,22 @@ export function abcToLine(abc, { cue = "", device = "" } = {}) {
   let currentChord = ""
   let tupletLeft = 0
   let pendingRestBeats = 0
+  let measureBeats = 0
 
   const flush = () => {
     if (!notes.length && !chords.length) return
-    bars.push({ c: chords.join(" ") || currentChord, n: notes, d: device, x: cue })
+    bars.push({
+      c: chords.join(" ") || currentChord,
+      n: notes,
+      d: device,
+      x: cue,
+      beats: Math.max(4, measureBeats || 4),
+      tailRest: pendingRestBeats,
+    })
     notes = []
     chords = []
     pendingRestBeats = 0
+    measureBeats = 0
   }
 
   const tokenRe = /"([^"]+)"|\(3|([_=^]?)([A-Ga-gz])([,']*)(\d*)|(\|+)/g
@@ -229,6 +240,7 @@ export function abcToLine(abc, { cue = "", device = "" } = {}) {
     const units = Number(m[5] || 1)
     const beats = units * 0.5 * (tupletLeft > 0 ? 2 / 3 : 1)
     if (tupletLeft > 0) tupletLeft -= 1
+    measureBeats += beats
     if (letter.toLowerCase() === "z") { pendingRestBeats += beats; continue }
     const midi = abcMidi(letter, m[4], m[2])
     const [s, f] = guitarPosition(midi)
@@ -240,17 +252,23 @@ export function abcToLine(abc, { cue = "", device = "" } = {}) {
 }
 
 export function presetLicks() {
-  return LICK_CHARTS.flatMap((chart) => ["major", "minor"].map((mode) => ({
-    id: `playbook-${chart.n}-${mode}`,
-    n: chart.n,
-    name: chart.name,
-    mode,
-    device: chart.dev,
-    cue: chart.cue,
-    baseKey: "C",
-    builtIn: true,
-    line: abcToLine(chart[mode], { cue: chart.cue, device: chart.dev }),
-  })))
+  return LICK_CHARTS.flatMap((chart) => {
+    const guide = playbookGuide(chart.n)
+    const name = guide?.name || chart.name
+    const cue = guide?.cue || chart.cue
+    return ["major", "minor"].map((mode) => ({
+      id: `playbook-${chart.n}-${mode}`,
+      n: chart.n,
+      name,
+      mode,
+      device: chart.dev,
+      cue,
+      baseKey: "C",
+      builtIn: true,
+      guide,
+      line: abcToLine(guide?.notation?.[mode] || chart[mode], { cue, device: chart.dev }),
+    }))
+  })
 }
 
 export function inferLineKey(line) {
