@@ -176,20 +176,26 @@ function transposeChord(symbol, semitones) {
   return `${LICK_KEYS[root]}${m[3]}`
 }
 
-function guitarPosition(midi, preferredString = 3) {
+function guitarPosition(midi) {
   const choices = []
   for (let s = 1; s <= 6; s++) {
     const fret = midi - OPEN_MIDI[s]
-    if (fret >= 0 && fret <= 18) choices.push({ s, fret, score: Math.abs(s - preferredString) * 2 + Math.abs(fret - 7) * 0.12 })
+    if (fret >= 0 && fret <= 24) choices.push({ s, fret })
   }
-  if (!choices.length) return guitarPosition(midi < 40 ? midi + 12 : midi - 12, preferredString)
-  choices.sort((a, b) => a.score - b.score)
+  if (!choices.length) return guitarPosition(midi < 40 ? midi + 12 : midi - 12)
+  // ABCJS's guitar tablature takes the highest-pitched string on which a
+  // single note is available. Mirroring that rule here keeps the compact line
+  // data, playback, and MusicXML technical marks aligned with the original
+  // Ways In tablature when no custom neck position has been requested.
   return [choices[0].s, choices[0].fret]
 }
 
 function abcMidi(letter, marks, accidental, accidentalState) {
   const upper = letter.toUpperCase()
-  let midi = 60 + NOTE_PC[upper]
+  // ABCJS's string-tab pitch convention maps uppercase C to 48 and its guitar
+  // tuning E,/A,/D/G/B/e to standard sounding guitar MIDI 40/45/50/55/59/64.
+  // Using the same octave here makes the notes we play agree with its TAB.
+  let midi = 48 + NOTE_PC[upper]
   if (letter === letter.toLowerCase()) midi += 12
   for (const mark of marks || "") midi += mark === "," ? -12 : mark === "'" ? 12 : 0
   const stateKey = `${letter}${marks || ""}`
@@ -291,9 +297,109 @@ export function transposeLine(line, fromKey = "C", toKey = "C") {
       c: String(bar.c || "").split(/\s+/).map((chord) => transposeChord(chord, semitones)).join(" "),
       n: (bar.n || []).map(([s, f, beats, wait = 0]) => {
         const midi = (OPEN_MIDI[s] ?? 64) + Number(f || 0) + semitones
-        const [nextS, nextF] = guitarPosition(midi, s)
+        const [nextS, nextF] = guitarPosition(midi)
         return [nextS, nextF, beats, wait]
       }),
     })),
   }
+}
+
+function positionsForMidi(midi) {
+  const out = []
+  for (let s = 1; s <= 6; s++) {
+    const fret = midi - OPEN_MIDI[s]
+    if (fret >= 0 && fret <= 24) out.push({ s, fret })
+  }
+  return out
+}
+
+// Re-finger a line without changing its notes or intervals. The dynamic-
+// programming pass looks at the complete phrase instead of greedily choosing
+// each note, so it strongly prefers the requested five-fret box while avoiding
+// gratuitous string/fret jumps. It may move the complete lick by octave when a
+// distant neck position cannot contain the original register.
+export function refingerLine(line, positionFret, span = 5) {
+  const start = Math.max(1, Math.min(19, Math.round(Number(positionFret) || 1)))
+  const end = Math.min(24, start + Math.max(4, Math.round(Number(span) || 5)) - 1)
+  const events = []
+
+  ;(line?.bars || []).forEach((bar, barIndex) => {
+    ;(bar.n || []).forEach(([s, f], noteIndex) => {
+      events.push({ barIndex, noteIndex, midi: (OPEN_MIDI[s] ?? 64) + Number(f || 0) })
+    })
+  })
+  if (!events.length) return line
+
+  const center = (start + end) / 2
+
+  function solve(octaveShift) {
+    const candidates = events.map((event) => positionsForMidi(event.midi + octaveShift))
+    if (candidates.some((options) => !options.length)) return null
+    const costs = []
+    const back = []
+
+    candidates.forEach((options, index) => {
+      costs[index] = []
+      back[index] = []
+      options.forEach((pos, optionIndex) => {
+        const outside = pos.fret < start ? start - pos.fret : pos.fret > end ? pos.fret - end : 0
+        const local = outside * outside * 40 + Math.abs(pos.fret - center) * 0.18
+        if (index === 0) {
+          costs[index][optionIndex] = local
+          back[index][optionIndex] = -1
+          return
+        }
+        let best = Infinity
+        let bestPrev = 0
+        candidates[index - 1].forEach((prev, prevIndex) => {
+          const transition = Math.abs(pos.fret - prev.fret) * 0.42 + Math.abs(pos.s - prev.s) * 0.28
+          const score = costs[index - 1][prevIndex] + local + transition
+          if (score < best) { best = score; bestPrev = prevIndex }
+        })
+        costs[index][optionIndex] = best
+        back[index][optionIndex] = bestPrev
+      })
+    })
+
+    let chosen = costs[costs.length - 1].reduce((best, cost, index, arr) => cost < arr[best] ? index : best, 0)
+    const score = costs[costs.length - 1][chosen] + Math.abs(octaveShift / 12) * 2
+    const path = new Array(events.length)
+    for (let index = events.length - 1; index >= 0; index--) {
+      path[index] = candidates[index][chosen]
+      chosen = back[index][chosen]
+    }
+    return { path, score, octaveShift }
+  }
+
+  // Moving a lick a long way up or down the guitar sometimes requires the
+  // whole phrase to change octave. Treat that as one global displacement, not
+  // per-note octave hopping, so the melodic contour remains intact.
+  const solutions = [0, 12, -12, 24, -24].map(solve).filter(Boolean)
+  const bestSolution = solutions.reduce((best, next) => !best || next.score < best.score ? next : best, null)
+  if (!bestSolution) return line
+  const { path, octaveShift } = bestSolution
+
+  const bars = (line?.bars || []).map((bar) => ({ ...bar, n: (bar.n || []).map((note) => [...note]) }))
+  events.forEach((event, index) => {
+    const old = bars[event.barIndex].n[event.noteIndex]
+    bars[event.barIndex].n[event.noteIndex] = [path[index].s, path[index].fret, old[2], old[3] || 0]
+  })
+
+  return {
+    ...line,
+    bars,
+    // Once the guitarist chooses a different position, rebuild the ABC from
+    // the actual events so staff, TAB, playback, and export remain one object.
+    notationAbc: null,
+    notationTranspose: 0,
+    tabFingeringOverride: true,
+    neckPosition: start,
+    neckSpan: end - start + 1,
+    neckOctaveShift: octaveShift,
+  }
+}
+
+export function lineFretRange(line) {
+  const frets = (line?.bars || []).flatMap((bar) => (bar.n || []).map((note) => Number(note[1]) || 0))
+  return frets.length ? [Math.min(...frets), Math.max(...frets)] : [0, 0]
 }

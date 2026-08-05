@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import LineNotation from "@/components/LineNotation"
 import { lineNoteMidi, midiToToneNote } from "@/lib/music/lines"
-import { LICK_KEYS, transposeLine } from "@/lib/music/licktionary"
+import { LICK_KEYS, refingerLine, transposeLine } from "@/lib/music/licktionary"
 
 const actionStyle = {
   padding: "6px 10px", borderRadius: "var(--db-r-md)", cursor: "pointer",
@@ -27,11 +27,15 @@ function timedEvents(line) {
   return { events, totalBeats: elapsed }
 }
 
-function LickPanel({ lick, targetKey, tempo, onOpen }) {
+function LickPanel({ lick, targetKey, neckPosition, tempo, onOpen }) {
   const timers = useRef([])
   const [playing, setPlaying] = useState(false)
   const [activeIndex, setActiveIndex] = useState(-1)
-  const line = lick ? transposeLine(lick.line, lick.baseKey || "C", targetKey) : { bars: [] }
+  const line = useMemo(() => {
+    if (!lick) return { bars: [] }
+    const transposed = transposeLine(lick.line, lick.baseKey || "C", targetKey)
+    return neckPosition == null ? transposed : refingerLine(transposed, neckPosition)
+  }, [lick, targetKey, neckPosition])
 
   function stop() {
     timers.current.forEach(clearTimeout)
@@ -58,7 +62,7 @@ function LickPanel({ lick, targetKey, tempo, onOpen }) {
     } catch { stop() }
   }
 
-  useEffect(() => stop, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => stop, [])
 
   if (!lick) return null
 
@@ -77,7 +81,7 @@ function LickPanel({ lick, targetKey, tempo, onOpen }) {
           <button type="button" onClick={playing ? stop : play} style={{ ...actionStyle, color: "var(--db-c-green, var(--db-accent))", borderColor: "var(--db-c-green, var(--db-accent))" }}>
             {playing ? "■ Stop" : "▶ Play"}
           </button>
-          <button type="button" onClick={() => onOpen(lick.id, targetKey)} style={{ ...actionStyle, color: "var(--db-accent)", borderColor: "var(--db-accent)" }}>
+          <button type="button" onClick={() => onOpen(lick.id, targetKey, neckPosition)} style={{ ...actionStyle, color: "var(--db-accent)", borderColor: "var(--db-accent)" }}>
             Open in Line Lab
           </button>
         </div>
@@ -121,6 +125,7 @@ function BeforeBeatOne({ steps = [] }) {
 
 export default function Licktionary({ licks, selectedLickId, onOpenLick, selectStyle }) {
   const [targetKey, setTargetKey] = useState("C")
+  const [neckPosition, setNeckPosition] = useState(null)
   const [tempo, setTempo] = useState(160)
   const [query, setQuery] = useState("")
   const builtIns = useMemo(() => licks.filter((lick) => lick.builtIn), [licks])
@@ -155,6 +160,20 @@ export default function Licktionary({ licks, selectedLickId, onOpenLick, selectS
             {LICK_KEYS.map((key) => <option key={key} value={key}>{key}</option>)}
           </select>
         </label>
+        <div style={{ minWidth: "190px" }}>
+          <div style={{ fontSize: "var(--db-fs-xs)", color: "var(--db-muted)", display: "flex", alignItems: "center", gap: "6px" }}>
+            <span>{neckPosition == null ? "Neck: Original (Ways In)" : `Neck: frets ${neckPosition}–${neckPosition + 4}`}</span>
+            {neckPosition != null && (
+              <button type="button" onClick={() => setNeckPosition(null)} style={{ ...actionStyle, padding: "2px 6px", fontSize: "10px" }}>Original</button>
+            )}
+          </div>
+          <input
+            type="range" min="1" max="15" step="1" value={neckPosition ?? 5}
+            onChange={(e) => setNeckPosition(Number(e.target.value))}
+            aria-label="Preferred five-fret guitar neck position"
+            style={{ display: "block", width: "190px", marginTop: "7px" }}
+          />
+        </div>
         <label style={{ fontSize: "var(--db-fs-xs)", color: "var(--db-muted)" }}>Playback {tempo} bpm
           <input type="range" min="70" max="220" step="5" value={tempo} onChange={(e) => setTempo(Number(e.target.value))} style={{ display: "block", width: "130px", marginTop: "7px" }} />
         </label>
@@ -186,8 +205,8 @@ export default function Licktionary({ licks, selectedLickId, onOpenLick, selectS
             )}
             <BeforeBeatOne steps={group.guide?.steps} />
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(350px, 1fr))", gap: "10px" }}>
-              <LickPanel lick={group.major} targetKey={targetKey} tempo={tempo} onOpen={onOpenLick} />
-              <LickPanel lick={group.minor} targetKey={targetKey} tempo={tempo} onOpen={onOpenLick} />
+              <LickPanel lick={group.major} targetKey={targetKey} neckPosition={neckPosition} tempo={tempo} onOpen={onOpenLick} />
+              <LickPanel lick={group.minor} targetKey={targetKey} neckPosition={neckPosition} tempo={tempo} onOpen={onOpenLick} />
             </div>
             <div style={{ marginTop: "9px", paddingLeft: "10px", borderLeft: "3px solid var(--db-c-gold, var(--db-accent))", fontSize: "var(--db-fs-sm)", fontStyle: "italic", color: "var(--db-muted)" }}>{group.cue}</div>
           </article>
@@ -202,7 +221,7 @@ export default function Licktionary({ licks, selectedLickId, onOpenLick, selectS
             {custom.map((lick) => (
               <div key={lick.id} style={{ outline: lick.id === selectedLickId ? "2px solid var(--db-accent)" : "none", borderRadius: "var(--db-r-md)" }}>
                 <div style={{ fontSize: "var(--db-fs-sm)", fontWeight: 800, marginBottom: "5px" }}>{lick.name}</div>
-                <LickPanel lick={lick} targetKey={targetKey} tempo={tempo} onOpen={onOpenLick} />
+                <LickPanel lick={lick} targetKey={targetKey} neckPosition={neckPosition} tempo={tempo} onOpen={onOpenLick} />
               </div>
             ))}
           </div>

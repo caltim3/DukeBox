@@ -21,7 +21,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import LineNotation from "@/components/LineNotation"
 import { exportLineMusicXML } from "@/lib/music/leadsheet"
-import { LICK_KEYS, transposeLine } from "@/lib/music/licktionary"
+import { inferLineKey, LICK_KEYS, lineFretRange, refingerLine, transposeLine } from "@/lib/music/licktionary"
 import { parseGigChord } from "@/lib/music/gigbook"
 import {
   TN_TONICS, TN_CHORD_TYPES, TN_PROGRESSIONS, TN_POSITIONS,
@@ -104,11 +104,15 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
   const isLicktionary = source === "licktionary"
   const isChart = source === "chart"
   const [lickKey, setLickKey] = useState("C")
+  const [neckPosition, setNeckPosition] = useState(null)
+  const [resultTransposeKey, setResultTransposeKey] = useState("")
 
   useEffect(() => {
     if (!requestedLick?.id) return
     setSource("licktionary")
     setLickKey(requestedLick.key || "C")
+    setNeckPosition(requestedLick.neckPosition ?? null)
+    setResultTransposeKey("")
     onSelectLick?.(requestedLick.id)
   }, [requestedLick?.nonce]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -206,14 +210,28 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
     setExported(false)
   }, [isLicktionary, lickLine]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const resultBaseKey = useMemo(
+    () => result ? (isLicktionary ? lickKey : inferLineKey(result)) : "C",
+    [result, isLicktionary, lickKey]
+  )
+  const keyedResult = useMemo(() => {
+    if (!result || isLicktionary || !resultTransposeKey || resultTransposeKey === resultBaseKey) return result
+    return transposeLine(result, resultBaseKey, resultTransposeKey)
+  }, [result, isLicktionary, resultTransposeKey, resultBaseKey])
+  const workingResult = useMemo(
+    () => keyedResult && neckPosition != null ? refingerLine(keyedResult, neckPosition) : keyedResult,
+    [keyedResult, neckPosition]
+  )
+  const workingFretRange = useMemo(() => lineFretRange(workingResult), [workingResult])
+
   // Each note carries the chord that should be sounding under it, so the solo
   // preview can comp along. A bar's `c` may name more than one chord
   // ("Bm7b5 E7b9"); those split the bar evenly, in written order.
   const flatNotes = useMemo(() => {
-    if (!result) return []
+    if (!workingResult) return []
     const out = []
     let carriedRest = 0
-    result.bars.forEach((bar, bi) => {
+    workingResult.bars.forEach((bar, bi) => {
       const notes = bar.n || []
       const syms = String(bar.c || "").trim().split(/\s+/).filter(Boolean)
       const usedBeats = notes.reduce((n, ev) => n + (Number(ev[2]) || 0) + (Number(ev[3]) || 0), 0)
@@ -235,7 +253,7 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
     for (const n of out) spans[n.chordKey] = (spans[n.chordKey] || 0) + n.b
     for (const n of out) n.chordBeats = spans[n.chordKey]
     return out
-  }, [result])
+  }, [workingResult])
 
   function clickBar(i) {
     if (!isChart) return
@@ -302,7 +320,7 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
 
   function onBandNote(barIdx, noteIdx) {
     let running = 0
-    for (let b = 0; b < barIdx; b++) running += (result?.bars?.[b]?.n || []).length
+    for (let b = 0; b < barIdx; b++) running += (workingResult?.bars?.[b]?.n || []).length
     const next = running + noteIdx
     setPlayIdx(next)
     setSoundingIdx(next)
@@ -331,7 +349,7 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
       if (cap !== rampCap) setRampCap(cap)
       setPlaying(true)
       playLineSection({
-        line: result,
+        line: workingResult,
         barsOverride: isNetwork ? netBars : null,
         startIndex: isNetwork ? 0 : selStart,
         endIndex: isNetwork ? netBars.length - 1 : Math.min(selEnd, selStart + 7),
@@ -420,7 +438,7 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
       : isNetwork
       ? `${TN_PROGRESSIONS[progression].label} in ${tonic}`
       : (chartTitle && chartTitle !== "Custom" ? chartTitle : "Line Lab")
-    const ok = exportLineMusicXML({ line: result, title, tempo, level: isLicktionary ? null : level })
+    const ok = exportLineMusicXML({ line: workingResult, title, tempo, level: isLicktionary ? null : level })
     setExported(ok)
   }
 
@@ -429,11 +447,11 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
     const suggested = `${chartTitle && chartTitle !== "Custom" ? chartTitle : "Line Lab"} L${level}`
     const name = window.prompt("Name this lick:", suggested)?.trim()
     if (!name) return
-    onSaveLick({ name, line: result, baseKey: null, mode: "custom", device: Array.from(devices).join(" · "), cue: extra || result.s || "Saved from Line Lab" })
+    onSaveLick({ name, line: workingResult, baseKey: null, mode: "custom", device: Array.from(devices).join(" · "), cue: extra || result.s || "Saved from Line Lab" })
   }
 
   // ─── Fretboard geometry ───────────────────────────────────────────────────
-  const fretCount = 15
+  const fretCount = 20
   const fbW = 640, fbH = 132, nutX = 36
   const fretW = (fbW - nutX - 12) / fretCount
   const stringY = (s) => 18 + (s - 1) * 19
@@ -743,6 +761,44 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
 
       {result && (
         <>
+          {/* One pitch layer for the entire result: transpose first, then choose
+              equivalent guitar locations inside a five-fret hand position. */}
+          <div style={{
+            marginTop: "14px", padding: "11px 14px", borderRadius: "var(--db-r-md)",
+            border: "1px solid var(--db-panel-border)", background: "var(--db-input-bg)",
+            display: "flex", gap: "16px", alignItems: "end", flexWrap: "wrap",
+          }}>
+            {!isLicktionary && (
+              <label style={{ fontSize: "var(--db-fs-xs)", color: "var(--db-muted)" }}>Transpose line
+                <select
+                  value={resultTransposeKey}
+                  onChange={(e) => setResultTransposeKey(e.target.value)}
+                  style={{ ...selectStyle, display: "block", width: "145px", marginTop: "4px" }}
+                >
+                  <option value="">Original ({resultBaseKey})</option>
+                  {LICK_KEYS.map((key) => <option key={key} value={key}>{key}</option>)}
+                </select>
+              </label>
+            )}
+            <div style={{ flex: "0 1 255px", minWidth: "210px" }}>
+              <div style={{ fontSize: "var(--db-fs-xs)", color: "var(--db-muted)", display: "flex", gap: "7px", alignItems: "center", flexWrap: "wrap" }}>
+                <span>{neckPosition == null ? `Neck: Original · frets ${workingFretRange[0]}–${workingFretRange[1]}` : `Neck: target ${neckPosition}–${neckPosition + 4} · actual ${workingFretRange[0]}–${workingFretRange[1]}`}</span>
+                {neckPosition != null && (
+                  <button type="button" onClick={() => setNeckPosition(null)} style={{ ...chip(false), padding: "2px 7px", fontSize: "10px" }}>Original</button>
+                )}
+              </div>
+              <input
+                type="range" min="1" max="15" step="1" value={neckPosition ?? 5}
+                onChange={(e) => setNeckPosition(Number(e.target.value))}
+                aria-label="Preferred five-fret guitar neck position"
+                style={{ display: "block", width: "100%", marginTop: "8px" }}
+              />
+            </div>
+            <div style={{ fontSize: "var(--db-fs-xs)", color: "var(--db-muted)", maxWidth: "330px", lineHeight: 1.4 }}>
+              Five-fret box. Notes, intervals, and rhythm stay fixed; a distant position may move the whole lick by octave.
+            </div>
+          </div>
+
           {/* Export — a fresh line, straight into notation software */}
           <div style={{
             marginTop: "14px", padding: "12px 14px", borderRadius: "var(--db-r-md)",
@@ -964,7 +1020,7 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
             {currentNote && (
               <div style={{ fontSize: "var(--db-fs-sm)", color: "var(--db-accent)", marginTop: "4px", fontFamily: "var(--font-mono, monospace)" }}>
                 {noteName(currentNote.s, currentNote.f)} — string {currentNote.s}, fret {currentNote.f} — bar{" "}
-                {currentNote.bi + 1}: {result.bars[currentNote.bi]?.c}
+                {currentNote.bi + 1}: {workingResult.bars[currentNote.bi]?.c}
               </div>
             )}
           </div>
@@ -972,12 +1028,12 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
           {/* Standard notation + TAB — driven by the same timed line events as playback */}
           <div style={{ marginTop: "14px", overflowX: "auto" }}>
             <label style={{ fontSize: "var(--db-fs-sm)", color: "var(--db-accent)", display: "block", marginBottom: "8px" }}>Notation + TAB</label>
-            <LineNotation line={result} tempo={tempo} activeIndex={soundingIdx} />
+            <LineNotation line={workingResult} tempo={tempo} activeIndex={soundingIdx} />
           </div>
 
           {/* Per-bar reasoning */}
           <div style={{ display: "grid", gap: "8px", marginTop: "14px" }}>
-            {result.bars.map((bar, i) => (
+            {workingResult.bars.map((bar, i) => (
               <div key={i} style={{
                 background: currentNote && currentNote.bi === i
                   ? "color-mix(in srgb, var(--db-accent) 12%, var(--db-card-bg))"

@@ -5,6 +5,8 @@ import { lineNoteMidi } from "@/lib/music/lines"
 
 const TAB_TUNING = ["E,", "A,", "D", "G", "B", "e"]
 const PC_ABC = ["C", "_D", "D", "_E", "E", "F", "_G", "G", "_A", "A", "_B", "B"]
+const OPEN_MIDI = { 1: 64, 2: 59, 3: 55, 4: 50, 5: 45, 6: 40 }
+const TAB_STRING_STEP = 3 * (30 * 93 / 720) // ABCJS: linePitch 3 × spacing.STEP
 
 function midiToAbc(midi) {
   const pc = ((midi % 12) + 12) % 12
@@ -49,7 +51,9 @@ function lineToAbcNotes(line) {
       }
 
       const midi = lineNoteMidi(Number(s), Number(f))
-      tokens.push(`${midiToAbc(midi)}${tripletLeft ? "" : durationUnits(dur)}`)
+      // Guitar notation sounds an octave below written pitch. ABCJS's guitar
+      // TAB follows that convention, so write generated line events +12 here.
+      tokens.push(`${midiToAbc(midi + 12)}${tripletLeft ? "" : durationUnits(dur)}`)
       if (tripletLeft) tripletLeft -= 1
     })
 
@@ -68,6 +72,12 @@ export default function LineNotation({ line, tempo = 120, activeIndex = -1, comp
   const [abcjs, setAbcjs] = useState(null)
   const [renderError, setRenderError] = useState(false)
   const abc = useMemo(() => fullAbc(line, tempo), [line, tempo])
+  const explicitTab = useMemo(
+    () => (!line?.notationAbc || line?.tabFingeringOverride)
+      ? (line?.bars || []).flatMap((bar) => (bar.n || []).map(([s, f]) => ({ s: Number(s), f: Number(f) })))
+      : null,
+    [line]
+  )
 
   useEffect(() => {
     let cancelled = false
@@ -93,10 +103,30 @@ export default function LineNotation({ line, tempo = 120, activeIndex = -1, comp
         visualTranspose: Number(line?.notationTranspose) || 0,
         tablature: [{ instrument: "guitar", tuning: TAB_TUNING }],
       })
+
+      // ABCJS owns the engraving, spacing, rhythm, and TAB staff. For lines
+      // with an explicit DukeBox fingering, replace only each generated TAB
+      // number's string/fret placement. This is what makes a neck-position
+      // choice visible without changing the musical pitch.
+      if (explicitTab?.length) {
+        const tabNotes = Array.from(hostRef.current.querySelectorAll(".abcjs-tab-number"))
+        tabNotes.forEach((node, index) => {
+          const target = explicitTab[index]
+          if (!target) return
+          const midi = lineNoteMidi(target.s, target.f)
+          let autoString = 6
+          for (let s = 1; s <= 6; s++) {
+            if (midi >= OPEN_MIDI[s]) { autoString = s; break }
+          }
+          const originalY = Number(node.getAttribute("y"))
+          if (Number.isFinite(originalY)) node.setAttribute("y", String(originalY + (target.s - autoString) * TAB_STRING_STEP))
+          node.textContent = String(target.f)
+        })
+      }
     } catch {
       setRenderError(true)
     }
-  }, [abcjs, abc, compact, line?.notationTranspose])
+  }, [abcjs, abc, compact, line?.notationTranspose, explicitTab])
 
   useEffect(() => {
     const host = hostRef.current

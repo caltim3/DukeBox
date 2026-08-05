@@ -134,9 +134,9 @@ export default function CreateWorkspace({
     setSelectedLickId(lick.id)
   }
 
-  function openLickInLineLab(id, key = "C") {
+  function openLickInLineLab(id, key = "C", neckPosition = null) {
     setSelectedLickId(id)
-    setRequestedLick({ id, key, nonce: Date.now() })
+    setRequestedLick({ id, key, neckPosition, nonce: Date.now() })
     window.setTimeout(() => {
       const section = document.getElementById("create-line-lab")
       if (section) {
