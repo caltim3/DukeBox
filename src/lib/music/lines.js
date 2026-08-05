@@ -45,7 +45,8 @@ export function lineToTransportEvents(lineBars, sectionBars = []) {
     const barBeats = sectionBars[barIdx]?.beats ?? 4
     const barStart = totalBeats
     let pos = 0
-    ;(bar.n || []).forEach(([s, f, b], noteIdx) => {
+    ;(bar.n || []).forEach(([s, f, b, wait = 0], noteIdx) => {
+      pos += Number(wait) || 0
       if (pos >= barBeats) return
       const abs = barStart + pos
       const measure = Math.floor(abs / 4)
@@ -112,10 +113,11 @@ export function buildTab(resultBars) {
   resultBars.forEach((bar) => {
     const notes = bar.n || []
     const syms = String(bar.c || "").trim().split(/\s+/).filter(Boolean)
-    const barBeats = notes.reduce((n, ev) => n + (Number(ev[2]) || 0), 0) || 4
+    const barBeats = notes.reduce((n, ev) => n + (Number(ev[2]) || 0) + (Number(ev[3]) || 0), 0) || 4
 
     let pos = 0
-    const cells = notes.map(([s, f, b]) => {
+    const cells = notes.map(([s, f, b, wait = 0]) => {
+      pos += Number(wait) || 0
       const fret = String(f)
       const count = countLabel(pos)
       const ci = syms.length > 1
