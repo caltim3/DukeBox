@@ -187,13 +187,14 @@ function guitarPosition(midi, preferredString = 3) {
   return [choices[0].s, choices[0].fret]
 }
 
-function abcMidi(letter, marks, accidental) {
+function abcMidi(letter, marks, accidental, accidentalState) {
   const upper = letter.toUpperCase()
   let midi = 60 + NOTE_PC[upper]
   if (letter === letter.toLowerCase()) midi += 12
   for (const mark of marks || "") midi += mark === "," ? -12 : mark === "'" ? 12 : 0
-  if (accidental === "_") midi -= 1
-  else if (accidental === "^") midi += 1
+  const stateKey = `${letter}${marks || ""}`
+  if (accidental) accidentalState.set(stateKey, accidental === "_" ? -1 : accidental === "^" ? 1 : 0)
+  midi += accidentalState.get(stateKey) || 0
   return midi
 }
 
@@ -208,6 +209,7 @@ export function abcToLine(abc, { cue = "", device = "" } = {}) {
   let tupletLeft = 0
   let pendingRestBeats = 0
   let measureBeats = 0
+  let accidentalState = new Map()
 
   const flush = () => {
     if (!notes.length && !chords.length) return
@@ -223,6 +225,7 @@ export function abcToLine(abc, { cue = "", device = "" } = {}) {
     chords = []
     pendingRestBeats = 0
     measureBeats = 0
+    accidentalState = new Map()
   }
 
   const tokenRe = /"([^"]+)"|\(3|([_=^]?)([A-Ga-gz])([,']*)(\d*)|(\|+)/g
@@ -242,13 +245,13 @@ export function abcToLine(abc, { cue = "", device = "" } = {}) {
     if (tupletLeft > 0) tupletLeft -= 1
     measureBeats += beats
     if (letter.toLowerCase() === "z") { pendingRestBeats += beats; continue }
-    const midi = abcMidi(letter, m[4], m[2])
+    const midi = abcMidi(letter, m[4], m[2], accidentalState)
     const [s, f] = guitarPosition(midi)
     notes.push([s, f, beats, pendingRestBeats])
     pendingRestBeats = 0
   }
   flush()
-  return { bars, s: cue }
+  return { bars, s: cue, notationAbc: abc, notationTranspose: 0 }
 }
 
 export function presetLicks() {
@@ -282,6 +285,7 @@ export function transposeLine(line, fromKey = "C", toKey = "C") {
   if (!semitones) return line
   return {
     ...line,
+    notationTranspose: (Number(line?.notationTranspose) || 0) + semitones,
     bars: (line?.bars || []).map((bar) => ({
       ...bar,
       c: String(bar.c || "").split(/\s+/).map((chord) => transposeChord(chord, semitones)).join(" "),
