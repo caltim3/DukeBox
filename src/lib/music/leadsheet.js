@@ -674,7 +674,12 @@ export function exportLineMusicXML({ line, title, tempo, level }) {
     })
 
     let filled = 0   // in divisions, so a short bar can be padded with a rest
-    ;(bar.n || []).forEach(([s, f, b]) => {
+    ;(bar.n || []).forEach(([s, f, b, wait = 0]) => {
+      const waitDivs = Math.max(0, Math.round((Number(wait) || 0) * LINE_DIVISIONS))
+      if (waitDivs) {
+        filled += waitDivs
+        x.push(`      <note><rest/><duration>${waitDivs}</duration></note>`)
+      }
       const d = lineDurationOf(b)
       const dur = Math.max(1, Math.round(b * LINE_DIVISIONS))
       const pitch = midiToMXLPitch((LINE_OPEN_MIDI[s] ?? 64) + (Number(f) || 0))
