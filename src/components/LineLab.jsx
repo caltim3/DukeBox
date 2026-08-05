@@ -1,6 +1,6 @@
 "use client"
 
-// Line Lab — generate a single-note improvised line, return it as tab with
+// Line Lab — generate a single-note improvised line, return it as notation + TAB with
 // per-bar reasoning, step it across the fretboard, and practice it with the
 // rhythm section.
 //
@@ -19,7 +19,7 @@
 // and band/fretboard playback are identical whichever source you use.
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { buildTab } from "@/lib/music/lines"
+import LineNotation from "@/components/LineNotation"
 import { exportLineMusicXML } from "@/lib/music/leadsheet"
 import { LICK_KEYS, transposeLine } from "@/lib/music/licktionary"
 import { parseGigChord } from "@/lib/music/gigbook"
@@ -123,6 +123,7 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
   const [error, setError] = useState(null)
   const [result, setResult] = useState(null)
   const [playIdx, setPlayIdx] = useState(-1)
+  const [soundingIdx, setSoundingIdx] = useState(-1)
   const [playing, setPlaying] = useState(false)
   const timerRef = useRef(null)
   const noteTimerRef = useRef(null)
@@ -211,19 +212,23 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
   const flatNotes = useMemo(() => {
     if (!result) return []
     const out = []
+    let carriedRest = 0
     result.bars.forEach((bar, bi) => {
       const notes = bar.n || []
       const syms = String(bar.c || "").trim().split(/\s+/).filter(Boolean)
-      const barBeats = notes.reduce((n, ev) => n + (Number(ev[2]) || 0) + (Number(ev[3]) || 0), 0) || 4
+      const usedBeats = notes.reduce((n, ev) => n + (Number(ev[2]) || 0) + (Number(ev[3]) || 0), 0)
+      const barBeats = Number(bar.beats) || usedBeats || 4
       let pos = 0
-      notes.forEach(([s, f, b, wait = 0]) => {
-        pos += Number(wait) || 0
+      notes.forEach(([s, f, b, wait = 0], noteIndex) => {
+        const effectiveWait = (Number(wait) || 0) + (noteIndex === 0 ? carriedRest : 0)
+        pos += effectiveWait
         const ci = syms.length > 1
           ? Math.min(syms.length - 1, Math.floor((pos / barBeats) * syms.length))
           : 0
-        out.push({ s, f, b, wait: Number(wait) || 0, bi, chord: syms[ci] || "", chordKey: `${bi}:${ci}` })
+        out.push({ s, f, b, wait: effectiveWait, bi, chord: syms[ci] || "", chordKey: `${bi}:${ci}` })
         pos += b
       })
+      carriedRest = Number(bar.tailRest) || 0
     })
     // How long each chord rings: until the next chord change.
     const spans = {}
@@ -273,6 +278,7 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
   function stopLine() {
     setPlaying(false)
     setPlayIdx(-1)
+    setSoundingIdx(-1)
     prevBarRef.current = -1
     lastChordRef.current = null
     clearTimeout(timerRef.current)
@@ -297,7 +303,9 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
   function onBandNote(barIdx, noteIdx) {
     let running = 0
     for (let b = 0; b < barIdx; b++) running += (result?.bars?.[b]?.n || []).length
-    setPlayIdx(running + noteIdx)
+    const next = running + noteIdx
+    setPlayIdx(next)
+    setSoundingIdx(next)
   }
 
   // Network presets aren't in the loaded chart, so the band has to be handed
@@ -331,7 +339,7 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
         muteLine,
         onBar: onBandBar,
         onLineNote: onBandNote,
-        onDone: () => { setPlaying(false); setPlayIdx(-1) },
+        onDone: () => { setPlaying(false); setPlayIdx(-1); setSoundingIdx(-1) },
       })
       return
     }
@@ -351,8 +359,13 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
       playChord(note.chord, note.chordBeats)
     }
     const waitMs = (note.wait || 0) * (60 / tempo) * 1000
-    if (waitMs) noteTimerRef.current = setTimeout(() => playNote(note.s, note.f), waitMs)
-    else playNote(note.s, note.f)
+    if (waitMs) {
+      setSoundingIdx(-1)
+      noteTimerRef.current = setTimeout(() => { setSoundingIdx(playIdx); playNote(note.s, note.f) }, waitMs)
+    } else {
+      setSoundingIdx(playIdx)
+      playNote(note.s, note.f)
+    }
     const ms = (note.b + (note.wait || 0)) * (60 / tempo) * 1000
     timerRef.current = setTimeout(() => setPlayIdx(i => i + 1), ms)
     return () => { clearTimeout(timerRef.current); clearTimeout(noteTimerRef.current) }
@@ -442,7 +455,7 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
       <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "4px", flexWrap: "wrap" }}>
         <div style={{ ...eyebrowStyle, marginBottom: 0 }}>LINE LAB</div>
         <div style={{ fontSize: "var(--db-fs-sm)", opacity: 0.62 }}>
-          Improvised single-note lines — as tab, with per-bar reasoning, over your chart or the triad network
+              Improvised single-note lines — as notation + TAB, with per-bar reasoning, over your chart or the triad network
         </div>
       </div>
 
@@ -956,13 +969,10 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
             )}
           </div>
 
-          {/* Tab */}
+          {/* Standard notation + TAB — driven by the same timed line events as playback */}
           <div style={{ marginTop: "14px", overflowX: "auto" }}>
-            <label style={{ fontSize: "var(--db-fs-sm)", color: "var(--db-accent)" }}>Tab</label>
-            <pre style={{
-              fontFamily: "var(--font-mono, monospace)", fontSize: "var(--db-fs-sm)", lineHeight: 1.5,
-              color: "var(--db-text)", marginTop: "8px", whiteSpace: "pre",
-            }}>{buildTab(result.bars)}</pre>
+            <label style={{ fontSize: "var(--db-fs-sm)", color: "var(--db-accent)", display: "block", marginBottom: "8px" }}>Notation + TAB</label>
+            <LineNotation line={result} tempo={tempo} activeIndex={soundingIdx} />
           </div>
 
           {/* Per-bar reasoning */}
