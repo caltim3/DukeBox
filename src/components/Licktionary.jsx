@@ -1,7 +1,8 @@
 "use client"
 
-import { useMemo, useState } from "react"
-import { buildTab } from "@/lib/music/lines"
+import { useEffect, useMemo, useRef, useState } from "react"
+import LineNotation from "@/components/LineNotation"
+import { lineNoteMidi, midiToToneNote } from "@/lib/music/lines"
 import { LICK_KEYS, transposeLine } from "@/lib/music/licktionary"
 
 const actionStyle = {
@@ -10,9 +11,58 @@ const actionStyle = {
   color: "var(--db-text)", fontSize: "var(--db-fs-xs)", fontWeight: 700,
 }
 
-function LickPanel({ lick, targetKey, onOpen }) {
+function timedEvents(line) {
+  const events = []
+  let elapsed = 0
+  let globalIndex = 0
+  for (const bar of line?.bars || []) {
+    let pos = 0
+    for (const [s, f, dur, wait = 0] of bar.n || []) {
+      pos += Number(wait) || 0
+      events.push({ at: elapsed + pos, s, f, globalIndex: globalIndex++ })
+      pos += Number(dur) || 0
+    }
+    elapsed += Math.max(Number(bar.beats) || 0, pos, 4)
+  }
+  return { events, totalBeats: elapsed }
+}
+
+function LickPanel({ lick, targetKey, tempo, onOpen }) {
+  const timers = useRef([])
+  const [playing, setPlaying] = useState(false)
+  const [activeIndex, setActiveIndex] = useState(-1)
+  const line = lick ? transposeLine(lick.line, lick.baseKey || "C", targetKey) : { bars: [] }
+
+  function stop() {
+    timers.current.forEach(clearTimeout)
+    timers.current = []
+    setPlaying(false)
+    setActiveIndex(-1)
+  }
+
+  async function play() {
+    stop()
+    const { events, totalBeats } = timedEvents(line)
+    if (!events.length) return
+    setPlaying(true)
+    const beatMs = 60000 / tempo
+    try {
+      const audio = await import("@/lib/music/audio")
+      events.forEach((event) => {
+        timers.current.push(window.setTimeout(() => {
+          setActiveIndex(event.globalIndex)
+          Promise.resolve(audio.playLineNote(midiToToneNote(lineNoteMidi(event.s, event.f)))).catch(() => {})
+        }, event.at * beatMs))
+      })
+      timers.current.push(window.setTimeout(stop, totalBeats * beatMs + 120))
+    } catch { stop() }
+  }
+
+  useEffect(() => stop, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   if (!lick) return null
-  const line = transposeLine(lick.line, lick.baseKey || "C", targetKey)
+
+  const modeNotes = lick.guide?.notes?.[lick.mode] || []
   return (
     <div style={{
       minWidth: 0, border: "1px solid var(--db-panel-border)", borderRadius: "var(--db-r-md)",
@@ -23,29 +73,55 @@ function LickPanel({ lick, targetKey, onOpen }) {
           fontSize: "var(--db-fs-xs)", fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase",
           color: lick.mode === "minor" ? "var(--db-c-blue, var(--db-accent))" : "var(--db-c-salmon, var(--db-accent))",
         }}>{lick.mode === "minor" ? "Minor ii-V-i" : lick.mode === "major" ? "Major ii-V-I" : "Saved lick"}</span>
-        <button type="button" onClick={() => onOpen(lick.id, targetKey)} style={{ ...actionStyle, marginLeft: "auto", color: "var(--db-accent)", borderColor: "var(--db-accent)" }}>
-          ▶ Open in Line Lab
-        </button>
+        <div style={{ marginLeft: "auto", display: "flex", gap: "6px", flexWrap: "wrap" }}>
+          <button type="button" onClick={playing ? stop : play} style={{ ...actionStyle, color: "var(--db-c-green, var(--db-accent))", borderColor: "var(--db-c-green, var(--db-accent))" }}>
+            {playing ? "■ Stop" : "▶ Play"}
+          </button>
+          <button type="button" onClick={() => onOpen(lick.id, targetKey)} style={{ ...actionStyle, color: "var(--db-accent)", borderColor: "var(--db-accent)" }}>
+            Open in Line Lab
+          </button>
+        </div>
       </div>
-      <div style={{ display: "flex", gap: "5px", flexWrap: "wrap", marginBottom: "8px" }}>
-        {(line.bars || []).map((bar, index) => (
-          <span key={index} style={{
-            padding: "3px 7px", borderRadius: "var(--db-r-sm, 6px)",
-            border: "1px solid var(--db-panel-border)", fontFamily: "var(--font-mono, monospace)",
-            fontSize: "var(--db-fs-xs)", color: "var(--db-accent)",
-          }}>{bar.c}</span>
-        ))}
+      <LineNotation line={line} tempo={tempo} activeIndex={activeIndex} compact />
+      {modeNotes.length > 0 && (
+        <div style={{ marginTop: "10px", display: "grid", gap: "5px", fontSize: "var(--db-fs-sm)", lineHeight: 1.45 }}>
+          {modeNotes.map((note, index) => (
+            <div key={index} style={index === 1 ? {
+              fontFamily: "var(--font-mono, monospace)", padding: "4px 7px", borderRadius: "var(--db-r-sm, 6px)",
+              background: "color-mix(in srgb, var(--db-accent) 7%, transparent)",
+            } : undefined}>{note}</div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function BeforeBeatOne({ steps = [] }) {
+  if (!steps.length) return null
+  return (
+    <div style={{ margin: "10px 0 12px", padding: "10px 12px", borderLeft: "3px solid var(--db-accent)", background: "color-mix(in srgb, var(--db-accent) 5%, transparent)" }}>
+      <div style={{ fontSize: "var(--db-fs-xs)", textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 800, color: "var(--db-accent)", marginBottom: "7px" }}>Before beat one</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: "8px" }}>
+        {steps.map((step, i) => {
+          const split = step.indexOf(". ")
+          const lead = split > 0 ? step.slice(0, split + 1) : step
+          const rest = split > 0 ? step.slice(split + 2) : ""
+          return (
+            <div key={i} style={{ display: "flex", gap: "8px", fontSize: "var(--db-fs-sm)", lineHeight: 1.4 }}>
+              <span style={{ flex: "0 0 25px", height: "25px", display: "inline-flex", alignItems: "center", justifyContent: "center", border: "1px solid var(--db-accent)", borderRadius: "50%", color: "var(--db-accent)", fontWeight: 800 }}>{i + 1}</span>
+              <span><b>{lead}</b>{rest ? ` ${rest}` : ""}</span>
+            </div>
+          )
+        })}
       </div>
-      <pre style={{
-        margin: 0, overflowX: "auto", fontFamily: "var(--font-mono, monospace)",
-        fontSize: "11px", lineHeight: 1.35, color: "var(--db-text)", opacity: 0.86,
-      }}>{buildTab(line.bars || [])}</pre>
     </div>
   )
 }
 
 export default function Licktionary({ licks, selectedLickId, onOpenLick, selectStyle }) {
   const [targetKey, setTargetKey] = useState("C")
+  const [tempo, setTempo] = useState(160)
   const [query, setQuery] = useState("")
   const builtIns = useMemo(() => licks.filter((lick) => lick.builtIn), [licks])
   const custom = useMemo(() => licks.filter((lick) => !lick.builtIn), [licks])
@@ -53,8 +129,9 @@ export default function Licktionary({ licks, selectedLickId, onOpenLick, selectS
     const q = query.trim().toLowerCase()
     const byNumber = new Map()
     for (const lick of builtIns) {
-      if (q && !`${lick.name} ${lick.device} ${lick.cue}`.toLowerCase().includes(q)) continue
-      const group = byNumber.get(lick.n) || { n: lick.n, name: lick.name, device: lick.device, cue: lick.cue }
+      const searchable = `${lick.name} ${lick.device} ${lick.cue} ${lick.guide?.credit || ""} ${lick.guide?.style || ""} ${lick.guide?.shape || ""} ${(lick.guide?.steps || []).join(" ")}`.toLowerCase()
+      if (q && !searchable.includes(q)) continue
+      const group = byNumber.get(lick.n) || { n: lick.n, name: lick.name, device: lick.device, cue: lick.cue, guide: lick.guide }
       group[lick.mode] = lick
       byNumber.set(lick.n, group)
     }
@@ -70,13 +147,16 @@ export default function Licktionary({ licks, selectedLickId, onOpenLick, selectS
         <div style={{ flex: "1 1 360px" }}>
           <div style={{ fontSize: "var(--db-fs-lg)", fontWeight: 800 }}>Twenty-Four Ways In</div>
           <div style={{ fontSize: "var(--db-fs-sm)", color: "var(--db-muted)", marginTop: "3px" }}>
-            The full bebop line playbook, major and minor. Every lick can move to any key and opens directly in Line Lab for playback and MusicXML.
+            The full bebop line playbook: plan the line, see standard notation + TAB, hear it in time, transpose it, then open it in Line Lab.
           </div>
         </div>
         <label style={{ fontSize: "var(--db-fs-xs)", color: "var(--db-muted)" }}>Transpose all to
           <select value={targetKey} onChange={(e) => setTargetKey(e.target.value)} style={{ ...selectStyle, width: "90px", marginTop: "4px" }}>
             {LICK_KEYS.map((key) => <option key={key} value={key}>{key}</option>)}
           </select>
+        </label>
+        <label style={{ fontSize: "var(--db-fs-xs)", color: "var(--db-muted)" }}>Playback {tempo} bpm
+          <input type="range" min="70" max="220" step="5" value={tempo} onChange={(e) => setTempo(Number(e.target.value))} style={{ display: "block", width: "130px", marginTop: "7px" }} />
         </label>
         <input
           value={query}
@@ -89,31 +169,40 @@ export default function Licktionary({ licks, selectedLickId, onOpenLick, selectS
         />
       </div>
 
-      <div style={{ display: "grid", gap: "18px" }}>
+      <div style={{ display: "grid", gap: "22px" }}>
         {groups.map((group) => (
           <article key={group.n} style={{ borderTop: "3px solid var(--db-text)", paddingTop: "10px" }}>
-            <div style={{ display: "flex", alignItems: "baseline", gap: "10px", flexWrap: "wrap", marginBottom: "9px" }}>
+            <div style={{ display: "flex", alignItems: "baseline", gap: "10px", flexWrap: "wrap" }}>
               <span style={{ fontFamily: "var(--font-mono, monospace)", fontSize: "var(--db-fs-xs)", color: "var(--db-muted)" }}>No. {group.n}</span>
               <strong style={{ fontSize: "var(--db-fs-lg)" }}>{group.name}</strong>
+              {group.guide?.credit && <span style={{ fontSize: "var(--db-fs-xs)", color: "var(--db-muted)", fontStyle: "italic" }}>{group.guide.credit}</span>}
               <span style={{ marginLeft: "auto", fontFamily: "var(--font-mono, monospace)", fontSize: "var(--db-fs-xs)", color: "var(--db-muted)" }}>{group.device}</span>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: "10px" }}>
-              <LickPanel lick={group.major} targetKey={targetKey} onOpen={onOpenLick} />
-              <LickPanel lick={group.minor} targetKey={targetKey} onOpen={onOpenLick} />
+            {group.guide?.style && <div style={{ marginTop: "4px", fontSize: "var(--db-fs-xs)", color: "var(--db-muted)", textTransform: "uppercase", letterSpacing: "0.06em" }}>{group.guide.style}</div>}
+            {group.guide?.shape && (
+              <div style={{ marginTop: "8px", padding: "7px 10px", borderRadius: "var(--db-r-md)", background: "var(--db-input-bg)", fontFamily: "var(--font-mono, monospace)", fontSize: "var(--db-fs-sm)", color: "var(--db-accent)" }}>
+                {group.guide.shape}
+              </div>
+            )}
+            <BeforeBeatOne steps={group.guide?.steps} />
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(350px, 1fr))", gap: "10px" }}>
+              <LickPanel lick={group.major} targetKey={targetKey} tempo={tempo} onOpen={onOpenLick} />
+              <LickPanel lick={group.minor} targetKey={targetKey} tempo={tempo} onOpen={onOpenLick} />
             </div>
-            <div style={{ marginTop: "8px", fontSize: "var(--db-fs-sm)", fontStyle: "italic", color: "var(--db-muted)" }}>{group.cue}</div>
+            <div style={{ marginTop: "9px", paddingLeft: "10px", borderLeft: "3px solid var(--db-c-gold, var(--db-accent))", fontSize: "var(--db-fs-sm)", fontStyle: "italic", color: "var(--db-muted)" }}>{group.cue}</div>
           </article>
         ))}
       </div>
 
       {custom.length > 0 && (
         <div style={{ marginTop: "24px", borderTop: "4px double var(--db-text)", paddingTop: "14px" }}>
-          <div style={{ fontSize: "var(--db-fs-lg)", fontWeight: 800, marginBottom: "10px" }}>My Line Lab Licks</div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: "10px" }}>
+          <div style={{ fontSize: "var(--db-fs-lg)", fontWeight: 800, marginBottom: "4px" }}>My Line Lab Licks</div>
+          <div style={{ fontSize: "var(--db-fs-sm)", color: "var(--db-muted)", marginBottom: "10px" }}>Anything you save from Line Lab gets the same notation, TAB, transposition, timed playback, and MusicXML path as the built-in playbook.</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(350px, 1fr))", gap: "10px" }}>
             {custom.map((lick) => (
               <div key={lick.id} style={{ outline: lick.id === selectedLickId ? "2px solid var(--db-accent)" : "none", borderRadius: "var(--db-r-md)" }}>
                 <div style={{ fontSize: "var(--db-fs-sm)", fontWeight: 800, marginBottom: "5px" }}>{lick.name}</div>
-                <LickPanel lick={lick} targetKey={targetKey} onOpen={onOpenLick} />
+                <LickPanel lick={lick} targetKey={targetKey} tempo={tempo} onOpen={onOpenLick} />
               </div>
             ))}
           </div>
