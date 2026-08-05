@@ -1,9 +1,14 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import LineLab from "@/components/LineLab"
+import Licktionary from "@/components/Licktionary"
 import SongCrafter from "@/components/SongCrafter"
 import SongSheet from "@/components/SongSheet"
+import { inferLineKey, presetLicks } from "@/lib/music/licktionary"
+
+const BUILT_IN_LICKS = presetLicks()
+const SAVED_LICKS_KEY = "dukebox.licktionary.v1"
 
 const neutralButton = {
   padding: "8px 12px",
@@ -15,10 +20,10 @@ const neutralButton = {
   fontWeight: 700,
 }
 
-function Section({ title, subtitle, color, panelStyle, open = false, children }) {
+function Section({ id, title, subtitle, color, panelStyle, open = false, children }) {
   const [expanded, setExpanded] = useState(open)
   return (
-    <details open={expanded} onToggle={(event) => setExpanded(event.currentTarget.open)} style={panelStyle}>
+    <details id={id} open={expanded} onToggle={(event) => setExpanded(event.currentTarget.open)} style={panelStyle}>
       <summary style={{ cursor: "pointer", listStyle: "none", display: "flex", alignItems: "center", gap: "10px", fontWeight: 800, flexWrap: "wrap" }}>
         <span aria-hidden="true" style={{ fontSize: "1.35rem", color }}>＋</span>
         <span style={{ fontSize: "var(--db-fs-lg)", letterSpacing: "0.06em", color }}>{title}</span>
@@ -101,6 +106,45 @@ export default function CreateWorkspace({
 }) {
   const workingBars = songSheetDraft?.bars || generator.chartBars
   const workingTitle = songSheetDraft?.title || generator.chartTitle
+  const [savedLicks, setSavedLicks] = useState([])
+  const [selectedLickId, setSelectedLickId] = useState(BUILT_IN_LICKS[0]?.id || "")
+  const [requestedLick, setRequestedLick] = useState(null)
+  const licks = useMemo(() => [...BUILT_IN_LICKS, ...savedLicks], [savedLicks])
+
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(SAVED_LICKS_KEY) || "[]")
+      if (Array.isArray(saved)) setSavedLicks(saved)
+    } catch { /* corrupt local data should never break Create */ }
+  }, [])
+
+  function saveLick(entry) {
+    const lick = {
+      ...entry,
+      id: `line-lab-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      baseKey: entry.baseKey || inferLineKey(entry.line),
+      builtIn: false,
+      createdAt: new Date().toISOString(),
+    }
+    setSavedLicks((prev) => {
+      const next = [...prev, lick]
+      try { window.localStorage.setItem(SAVED_LICKS_KEY, JSON.stringify(next)) } catch {}
+      return next
+    })
+    setSelectedLickId(lick.id)
+  }
+
+  function openLickInLineLab(id, key = "C") {
+    setSelectedLickId(id)
+    setRequestedLick({ id, key, nonce: Date.now() })
+    window.setTimeout(() => {
+      const section = document.getElementById("create-line-lab")
+      if (section) {
+        section.open = true
+        section.scrollIntoView({ behavior: "smooth", block: "start" })
+      }
+    }, 0)
+  }
 
   return (
     <div style={{ display: "grid", gap: "16px", marginBottom: "20px" }}>
@@ -130,7 +174,7 @@ export default function CreateWorkspace({
         />
       </Section>
 
-      <Section title="LINE LAB" subtitle="Develop single-note lines over the active draft" color="var(--db-c-green)" panelStyle={panelStyle}>
+      <Section id="create-line-lab" title="LINE LAB" subtitle="Develop single-note lines over the active draft" color="var(--db-c-green)" panelStyle={panelStyle}>
         <LineLab
           chartBars={workingBars}
           chartTitle={workingTitle}
@@ -138,6 +182,20 @@ export default function CreateWorkspace({
           playLineSection={playLineSection}
           panelStyle={{ ...panelStyle, margin: 0 }}
           eyebrowStyle={eyebrowStyle}
+          selectStyle={selectStyle}
+          licks={licks}
+          selectedLickId={selectedLickId}
+          onSelectLick={setSelectedLickId}
+          requestedLick={requestedLick}
+          onSaveLick={saveLick}
+        />
+      </Section>
+
+      <Section title="LICKTIONARY" subtitle="24 bebop approaches in major and minor, plus your saved Line Lab licks" color="var(--db-c-pink, var(--db-c-purple))" panelStyle={panelStyle}>
+        <Licktionary
+          licks={licks}
+          selectedLickId={selectedLickId}
+          onOpenLick={openLickInLineLab}
           selectStyle={selectStyle}
         />
       </Section>
