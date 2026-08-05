@@ -21,6 +21,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { buildTab } from "@/lib/music/lines"
 import { exportLineMusicXML } from "@/lib/music/leadsheet"
+import { LICK_KEYS, transposeLine } from "@/lib/music/licktionary"
 import { parseGigChord } from "@/lib/music/gigbook"
 import {
   TN_TONICS, TN_CHORD_TYPES, TN_PROGRESSIONS, TN_POSITIONS,
@@ -90,7 +91,7 @@ function parseBars(text) {
   return bars
 }
 
-export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyle, selectStyle, onStopPlayback, playLineSection }) {
+export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyle, selectStyle, onStopPlayback, playLineSection, licks = [], selectedLickId, onSelectLick, requestedLick, onSaveLick }) {
   // Seed the sheet from whatever chart is loaded in DukeBox
   const chartAsSheet = useMemo(
     () => (chartBars ?? []).map(b => b.symbol).join(" | "),
@@ -100,6 +101,16 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
   // ── Source: your chart, or a triad-network preset ──
   const [source, setSource] = useState("chart")
   const isNetwork = source === "network"
+  const isLicktionary = source === "licktionary"
+  const isChart = source === "chart"
+  const [lickKey, setLickKey] = useState("C")
+
+  useEffect(() => {
+    if (!requestedLick?.id) return
+    setSource("licktionary")
+    setLickKey(requestedLick.key || "C")
+    onSelectLick?.(requestedLick.id)
+  }, [requestedLick?.nonce]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const [sheet, setSheet] = useState(chartAsSheet)
   const [selStart, setSelStart] = useState(0)
@@ -114,6 +125,7 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
   const [playIdx, setPlayIdx] = useState(-1)
   const [playing, setPlaying] = useState(false)
   const timerRef = useRef(null)
+  const noteTimerRef = useRef(null)
 
   // ── Network preset controls ──
   const [tonic, setTonic] = useState("C")
@@ -162,13 +174,21 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
   )
 
   const chartChords = useMemo(() => parseBars(sheet), [sheet])
-  const bars = isNetwork ? netChords : chartChords
+  const selectedLick = useMemo(
+    () => licks.find((lick) => lick.id === selectedLickId) || licks[0] || null,
+    [licks, selectedLickId]
+  )
+  const lickLine = useMemo(
+    () => selectedLick ? transposeLine(selectedLick.line, selectedLick.baseKey || "C", lickKey) : null,
+    [selectedLick, lickKey]
+  )
+  const bars = isLicktionary ? (lickLine?.bars || []).map((bar) => bar.c) : isNetwork ? netChords : chartChords
 
   useEffect(() => {
-    if (isNetwork) return
+    if (!isChart) return
     setSelStart(0)
     setSelEnd(Math.min(3, Math.max(0, chartChords.length - 1)))
-  }, [sheet, chartChords.length, isNetwork])
+  }, [sheet, chartChords.length, isChart])
 
   // A new section — or a new source — invalidates every cached level
   useEffect(() => {
@@ -176,6 +196,14 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
     setResult(null)
     setExported(false)
   }, [selStart, selEnd, sheet, source, progression, tonic, chordType])
+
+  useEffect(() => {
+    if (!isLicktionary) return
+    stopLine()
+    setWithBand(false)
+    setResult(lickLine)
+    setExported(false)
+  }, [isLicktionary, lickLine]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Each note carries the chord that should be sounding under it, so the solo
   // preview can comp along. A bar's `c` may name more than one chord
@@ -186,13 +214,14 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
     result.bars.forEach((bar, bi) => {
       const notes = bar.n || []
       const syms = String(bar.c || "").trim().split(/\s+/).filter(Boolean)
-      const barBeats = notes.reduce((n, ev) => n + (Number(ev[2]) || 0), 0) || 4
+      const barBeats = notes.reduce((n, ev) => n + (Number(ev[2]) || 0) + (Number(ev[3]) || 0), 0) || 4
       let pos = 0
-      notes.forEach(([s, f, b]) => {
+      notes.forEach(([s, f, b, wait = 0]) => {
+        pos += Number(wait) || 0
         const ci = syms.length > 1
           ? Math.min(syms.length - 1, Math.floor((pos / barBeats) * syms.length))
           : 0
-        out.push({ s, f, b, bi, chord: syms[ci] || "", chordKey: `${bi}:${ci}` })
+        out.push({ s, f, b, wait: Number(wait) || 0, bi, chord: syms[ci] || "", chordKey: `${bi}:${ci}` })
         pos += b
       })
     })
@@ -204,7 +233,7 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
   }, [result])
 
   function clickBar(i) {
-    if (isNetwork) return
+    if (!isChart) return
     if (selStart === selEnd && i > selStart) setSelEnd(i)
     else { setSelStart(i); setSelEnd(i) }
   }
@@ -247,6 +276,7 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
     prevBarRef.current = -1
     lastChordRef.current = null
     clearTimeout(timerRef.current)
+    clearTimeout(noteTimerRef.current)
     if (withBand) onStopPlayback?.()
   }
 
@@ -320,13 +350,15 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
       lastChordRef.current = note.chordKey
       playChord(note.chord, note.chordBeats)
     }
-    playNote(note.s, note.f)
-    const ms = note.b * (60 / tempo) * 1000
+    const waitMs = (note.wait || 0) * (60 / tempo) * 1000
+    if (waitMs) noteTimerRef.current = setTimeout(() => playNote(note.s, note.f), waitMs)
+    else playNote(note.s, note.f)
+    const ms = (note.b + (note.wait || 0)) * (60 / tempo) * 1000
     timerRef.current = setTimeout(() => setPlayIdx(i => i + 1), ms)
-    return () => clearTimeout(timerRef.current)
+    return () => { clearTimeout(timerRef.current); clearTimeout(noteTimerRef.current) }
   }, [playing, playIdx])   // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => () => clearTimeout(timerRef.current), [])
+  useEffect(() => () => { clearTimeout(timerRef.current); clearTimeout(noteTimerRef.current) }, [])
 
   async function generate() {
     stopLine()
@@ -370,11 +402,21 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
   }
 
   function exportXML() {
-    const title = isNetwork
+    const title = isLicktionary
+      ? `${selectedLick?.name || "Lick"} (${selectedLick?.mode || "custom"}, ${lickKey})`
+      : isNetwork
       ? `${TN_PROGRESSIONS[progression].label} in ${tonic}`
       : (chartTitle && chartTitle !== "Custom" ? chartTitle : "Line Lab")
-    const ok = exportLineMusicXML({ line: result, title, tempo, level })
+    const ok = exportLineMusicXML({ line: result, title, tempo, level: isLicktionary ? null : level })
     setExported(ok)
+  }
+
+  function saveCurrentLick() {
+    if (!result || !onSaveLick) return
+    const suggested = `${chartTitle && chartTitle !== "Custom" ? chartTitle : "Line Lab"} L${level}`
+    const name = window.prompt("Name this lick:", suggested)?.trim()
+    if (!name) return
+    onSaveLick({ name, line: result, baseKey: null, mode: "custom", device: Array.from(devices).join(" · "), cue: extra || result.s || "Saved from Line Lab" })
   }
 
   // ─── Fretboard geometry ───────────────────────────────────────────────────
@@ -411,6 +453,9 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
         </button>
         <button onClick={() => setSource("network")} aria-pressed={isNetwork} style={chip(isNetwork)}>
           Triad network preset
+        </button>
+        <button onClick={() => setSource("licktionary")} aria-pressed={isLicktionary} style={chip(isLicktionary)}>
+          Licktionary
         </button>
       </div>
 
@@ -452,7 +497,7 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
       </details>
 
       {/* ── Chart source: lead sheet + bar picker ── */}
-      {!isNetwork && (
+      {isChart && (
         <>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: "14px" }}>
             <label style={{ fontSize: "var(--db-fs-sm)", color: "var(--db-accent)" }} htmlFor="ll-sheet">Changes</label>
@@ -520,10 +565,38 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
         </>
       )}
 
+      {isLicktionary && (
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(220px, 2fr) minmax(120px, 1fr)", gap: "10px", marginTop: "14px" }}>
+          <label style={{ fontSize: "var(--db-fs-xs)", opacity: 0.7 }}>Lick
+            <select
+              value={selectedLick?.id || ""}
+              onChange={(e) => onSelectLick?.(e.target.value)}
+              style={{ ...selectStyle, width: "100%", marginTop: "4px" }}
+            >
+              {licks.map((lick) => (
+                <option key={lick.id} value={lick.id}>
+                  {lick.n ? `${lick.n}. ` : ""}{lick.name} · {lick.mode}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label style={{ fontSize: "var(--db-fs-xs)", opacity: 0.7 }}>Key
+            <select value={lickKey} onChange={(e) => setLickKey(e.target.value)} style={{ ...selectStyle, width: "100%", marginTop: "4px" }}>
+              {LICK_KEYS.map((key) => <option key={key} value={key}>{key}</option>)}
+            </select>
+          </label>
+          {selectedLick && (
+            <div style={{ gridColumn: "1 / -1", fontSize: "var(--db-fs-sm)", lineHeight: 1.5, opacity: 0.78 }}>
+              <b>{selectedLick.device}</b>{selectedLick.cue ? ` · ${selectedLick.cue}` : ""}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Bars — clickable in Chart mode, the preset section in Network mode */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
         {bars.map((b, i) => {
-          const inSel = isNetwork ? true : (i >= selStart && i <= selEnd)
+          const inSel = !isChart ? true : (i >= selStart && i <= selEnd)
           const isNow = currentNote?.bi === i
           return (
             <button
@@ -532,7 +605,7 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
               aria-pressed={inSel}
               style={{
                 padding: "6px 10px", borderRadius: "var(--db-r-md)", fontSize: "var(--db-fs-sm)",
-                cursor: isNetwork ? "default" : "pointer",
+                cursor: isChart ? "pointer" : "default",
                 fontFamily: "var(--font-mono, monospace)",
                 border: `1px solid ${isNow ? "var(--db-c-green, var(--db-accent))" : inSel ? "var(--db-accent)" : "var(--db-card-border)"}`,
                 background: isNow
@@ -548,7 +621,7 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
       </div>
 
       {/* Devices + direction */}
-      <div style={{ marginTop: "16px" }}>
+      {!isLicktionary && <div style={{ marginTop: "16px" }}>
         <label style={{ fontSize: "var(--db-fs-sm)", color: "var(--db-accent)" }}>Devices</label>
         <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "8px" }}>
           {DEVICES.map(d => (
@@ -563,9 +636,9 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
             </button>
           ))}
         </div>
-      </div>
+      </div>}
 
-      <div style={{ display: "flex", gap: "12px", marginTop: "14px", flexWrap: "wrap" }}>
+      {!isLicktionary && <div style={{ display: "flex", gap: "12px", marginTop: "14px", flexWrap: "wrap" }}>
         <div style={{ flex: "1 1 240px" }}>
           <label style={{ fontSize: "var(--db-fs-sm)", color: "var(--db-accent)" }} htmlFor="ll-extra">Direction (optional)</label>
           <input
@@ -594,10 +667,10 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
             </select>
           </div>
         )}
-      </div>
+      </div>}
 
       {/* Complexity ladder — same bars, five readings from skeleton to exotic */}
-      <div style={{ fontSize: "var(--db-fs-xs)", opacity: 0.62, margin: "14px 0 7px" }}>
+      {!isLicktionary && <><div style={{ fontSize: "var(--db-fs-xs)", opacity: 0.62, margin: "14px 0 7px" }}>
         Complexity — generate the same bars at any level, then compare
       </div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
@@ -650,6 +723,7 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
       >
         {loading ? "Comping…" : result ? `Regenerate L${level}` : `Generate L${level}`}
       </button>
+      </>}
       {error && (
         <div style={{ marginTop: "10px", color: "var(--db-c-salmon)", fontSize: "var(--db-fs-md)" }}>{error}</div>
       )}
@@ -679,6 +753,18 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
             >
               {exported ? "✓ Exported" : "⤓ MusicXML"}
             </button>
+            {!isLicktionary && onSaveLick && (
+              <button
+                onClick={saveCurrentLick}
+                style={{
+                  padding: "8px 16px", borderRadius: "var(--db-r-md)", cursor: "pointer",
+                  border: "1px solid var(--db-c-green)", background: "transparent",
+                  color: "var(--db-c-green)", fontSize: "var(--db-fs-sm)", fontWeight: 700,
+                }}
+              >
+                + Add to Licktionary
+              </button>
+            )}
           </div>
 
           {/* Practice transport — loop the section with the rhythm section */}
