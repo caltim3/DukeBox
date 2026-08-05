@@ -31,11 +31,17 @@ function LickPanel({ lick, targetKey, neckPosition, tempo, onOpen }) {
   const timers = useRef([])
   const [playing, setPlaying] = useState(false)
   const [activeIndex, setActiveIndex] = useState(-1)
+  const [panelKey, setPanelKey] = useState(targetKey)
+  const [panelNeck, setPanelNeck] = useState(neckPosition)
+
+  useEffect(() => setPanelKey(targetKey), [targetKey])
+  useEffect(() => setPanelNeck(neckPosition), [neckPosition])
+
   const line = useMemo(() => {
     if (!lick) return { bars: [] }
-    const transposed = transposeLine(lick.line, lick.baseKey || "C", targetKey)
-    return neckPosition == null ? transposed : refingerLine(transposed, neckPosition)
-  }, [lick, targetKey, neckPosition])
+    const transposed = transposeLine(lick.line, lick.baseKey || "C", panelKey)
+    return panelNeck == null ? transposed : refingerLine(transposed, panelNeck)
+  }, [lick, panelKey, panelNeck])
 
   function stop() {
     timers.current.forEach(clearTimeout)
@@ -81,9 +87,42 @@ function LickPanel({ lick, targetKey, neckPosition, tempo, onOpen }) {
           <button type="button" onClick={playing ? stop : play} style={{ ...actionStyle, color: "var(--db-c-green, var(--db-accent))", borderColor: "var(--db-c-green, var(--db-accent))" }}>
             {playing ? "■ Stop" : "▶ Play"}
           </button>
-          <button type="button" onClick={() => onOpen(lick.id, targetKey, neckPosition)} style={{ ...actionStyle, color: "var(--db-accent)", borderColor: "var(--db-accent)" }}>
+          <button type="button" onClick={() => onOpen(lick.id, panelKey, panelNeck)} style={{ ...actionStyle, color: "var(--db-accent)", borderColor: "var(--db-accent)" }}>
             Open in Line Lab
           </button>
+        </div>
+      </div>
+      <div style={{
+        display: "flex", alignItems: "end", gap: "14px", flexWrap: "wrap",
+        marginBottom: "10px", padding: "9px 10px", borderRadius: "var(--db-r-md)",
+        border: "1px solid var(--db-panel-border)", background: "var(--db-input-bg)",
+      }}>
+        <label style={{ fontSize: "var(--db-fs-xs)", color: "var(--db-muted)", fontWeight: 700 }}>
+          KEY
+          <select
+            value={panelKey}
+            onChange={(e) => setPanelKey(e.target.value)}
+            style={{ display: "block", width: "76px", marginTop: "4px", padding: "5px 7px", borderRadius: "var(--db-r-sm, 6px)", border: "1px solid var(--db-panel-border)", background: "var(--db-card-bg)", color: "var(--db-text)" }}
+          >
+            {LICK_KEYS.map((key) => <option key={key} value={key}>{key}</option>)}
+          </select>
+        </label>
+        <div style={{ flex: "1 1 220px", minWidth: "190px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "7px", fontSize: "var(--db-fs-xs)", color: "var(--db-muted)", fontWeight: 700 }}>
+            <span>NECK POSITION: {panelNeck == null ? "Original" : `${panelNeck}–${panelNeck + 4}`}</span>
+            {panelNeck != null && (
+              <button type="button" onClick={() => setPanelNeck(null)} style={{ ...actionStyle, padding: "2px 6px", fontSize: "10px" }}>Original</button>
+            )}
+          </div>
+          <input
+            type="range" min="1" max="15" step="1" value={panelNeck ?? 5}
+            onChange={(e) => setPanelNeck(Number(e.target.value))}
+            aria-label={`${lick.name} preferred five-fret guitar neck position`}
+            style={{ display: "block", width: "100%", marginTop: "7px" }}
+          />
+          <div style={{ display: "flex", justifyContent: "space-between", marginTop: "1px", fontSize: "10px", color: "var(--db-muted)" }}>
+            <span>1st fret</span><span>15th fret</span>
+          </div>
         </div>
       </div>
       <LineNotation line={line} tempo={tempo} activeIndex={activeIndex} compact />
