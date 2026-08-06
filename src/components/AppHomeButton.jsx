@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 
-const BRAND_ICON = "/dukebox-jazzmaster-original.svg"
+const BRAND_ICON = "/dukebox-jazzmaster.svg"
 
 function textOf(element) {
   return element?.textContent?.replace(/\s+/g, " ").trim().toLowerCase() ?? ""
