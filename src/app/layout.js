@@ -7,9 +7,9 @@ export const metadata = {
   title: "The DukeBox",
   description: "The Duke Box",
   icons: {
-    icon: "/dukebox-goldtop.svg",
-    shortcut: "/dukebox-goldtop.svg",
-    apple: "/dukebox-goldtop.svg",
+    icon: "/dukebox-jazzmaster.svg",
+    shortcut: "/dukebox-jazzmaster.svg",
+    apple: "/dukebox-jazzmaster.svg",
   },
 };
 
@@ -34,11 +34,11 @@ export default function RootLayout({ children }) {
         <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
         <style>{`
           .db-pickup-logo-mark {
-            width: 30px !important;
-            height: 30px !important;
-            flex: 0 0 30px !important;
+            width: 38px !important;
+            height: 38px !important;
+            flex: 0 0 38px !important;
             transform: none !important;
-            background: url('/dukebox-goldtop.svg') center / contain no-repeat !important;
+            background: url('/dukebox-jazzmaster.svg') center / contain no-repeat !important;
           }
           .db-pickup-logo-mark i { display: none !important; }
         `}</style>
