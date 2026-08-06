@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react"
 
+const BRAND_ICON = "/dukebox-jazzmaster-original.svg"
+
 function textOf(element) {
   return element?.textContent?.replace(/\s+/g, " ").trim().toLowerCase() ?? ""
 }
@@ -55,23 +57,18 @@ export default function AppHomeButton() {
           z-index: 9999;
           width: 48px;
           height: 48px;
-          padding: 2px;
-          border: 1px solid var(--db-panel-border, rgba(127, 127, 127, 0.28));
-          border-radius: 13px;
-          background: var(--db-panel-bg, rgba(255, 255, 255, 0.92));
-          color: inherit;
-          box-shadow: 0 7px 22px var(--shadow, rgba(0, 0, 0, 0.16));
-          display: grid;
-          place-items: center;
+          padding: 0;
+          border: 0;
+          border-radius: 0;
+          background: transparent;
+          box-shadow: none;
+          display: block;
           cursor: pointer;
-          transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
-          backdrop-filter: blur(8px);
+          transition: transform 140ms ease;
         }
 
         .db-app-home-button:hover {
           transform: translateY(-1px) scale(1.04);
-          border-color: var(--db-accent, currentColor);
-          box-shadow: 0 10px 28px var(--shadow, rgba(0, 0, 0, 0.2));
         }
 
         .db-app-home-button:focus-visible {
@@ -81,8 +78,8 @@ export default function AppHomeButton() {
 
         .db-app-home-button img {
           display: block;
-          width: 43px;
-          height: 43px;
+          width: 100%;
+          height: 100%;
           object-fit: contain;
         }
 
@@ -104,16 +101,10 @@ export default function AppHomeButton() {
           }
 
           .db-app-home-button {
-            top: 14px;
+            top: 16px;
             left: 12px;
             width: 42px;
             height: 42px;
-            border-radius: 11px;
-          }
-
-          .db-app-home-button img {
-            width: 37px;
-            height: 37px;
           }
         }
       `}</style>
@@ -124,7 +115,7 @@ export default function AppHomeButton() {
         title="Back to DukeBox home"
         aria-label="Back to DukeBox home"
       >
-        <img src="/dukebox-jazzmaster.svg" alt="" aria-hidden="true" />
+        <img src={BRAND_ICON} alt="" aria-hidden="true" />
         <span className="db-app-home-button-label">Home</span>
       </button>
     </>
