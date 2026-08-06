@@ -1,4 +1,5 @@
 import KeyboardShortcuts from "@/components/KeyboardShortcuts";
+import PickupPracticeHome from "@/components/PickupPracticeHome";
 import "./globals.css";
 
 export const metadata = {
@@ -26,6 +27,7 @@ export default function RootLayout({ children }) {
       <head><script dangerouslySetInnerHTML={{ __html: themeBootScript }} /></head>
       <body>
         {children}
+        <PickupPracticeHome />
         <KeyboardShortcuts />
       </body>
     </html>
