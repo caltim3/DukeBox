@@ -5,6 +5,11 @@ import "./globals.css";
 export const metadata = {
   title: "The DukeBox",
   description: "The Duke Box",
+  icons: {
+    icon: "/dukebox-goldtop.svg",
+    shortcut: "/dukebox-goldtop.svg",
+    apple: "/dukebox-goldtop.svg",
+  },
 };
 
 export default function RootLayout({ children }) {
@@ -24,7 +29,19 @@ export default function RootLayout({ children }) {
   `
   return (
     <html lang="en" data-palette="bluenote" data-mode="dark" suppressHydrationWarning>
-      <head><script dangerouslySetInnerHTML={{ __html: themeBootScript }} /></head>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
+        <style>{`
+          .db-pickup-logo-mark {
+            width: 30px !important;
+            height: 30px !important;
+            flex: 0 0 30px !important;
+            transform: none !important;
+            background: url('/dukebox-goldtop.svg') center / contain no-repeat !important;
+          }
+          .db-pickup-logo-mark i { display: none !important; }
+        `}</style>
+      </head>
       <body>
         {children}
         <PickupPracticeHome />
