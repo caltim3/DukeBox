@@ -3,13 +3,15 @@ import PickupPracticeHome from "@/components/PickupPracticeHome";
 import AppHomeButton from "@/components/AppHomeButton";
 import "./globals.css";
 
+const BRAND_ICON = "/dukebox-jazzmaster-original.svg";
+
 export const metadata = {
   title: "The DukeBox",
   description: "The Duke Box",
   icons: {
-    icon: "/dukebox-jazzmaster.svg",
-    shortcut: "/dukebox-jazzmaster.svg",
-    apple: "/dukebox-jazzmaster.svg",
+    icon: BRAND_ICON,
+    shortcut: BRAND_ICON,
+    apple: BRAND_ICON,
   },
 };
 
@@ -27,18 +29,19 @@ export default function RootLayout({ children }) {
       document.documentElement.dataset.mode = mode;
       document.documentElement.style.colorScheme = mode;
     })();
-  `
+  `;
+
   return (
     <html lang="en" data-palette="bluenote" data-mode="dark" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
         <style>{`
           .db-pickup-logo-mark {
-            width: 38px !important;
-            height: 38px !important;
-            flex: 0 0 38px !important;
+            width: 34px !important;
+            height: 34px !important;
+            flex: 0 0 34px !important;
             transform: none !important;
-            background: url('/dukebox-jazzmaster.svg') center / contain no-repeat !important;
+            background: url('${BRAND_ICON}') center / contain no-repeat !important;
           }
           .db-pickup-logo-mark i { display: none !important; }
         `}</style>
