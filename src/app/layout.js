@@ -3,7 +3,7 @@ import PickupPracticeHome from "@/components/PickupPracticeHome";
 import AppHomeButton from "@/components/AppHomeButton";
 import "./globals.css";
 
-const BRAND_ICON = "/dukebox-jazzmaster-original.svg";
+const BRAND_ICON = "/dukebox-jazzmaster.svg";
 
 export const metadata = {
   title: "The DukeBox",
