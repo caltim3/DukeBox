@@ -45,19 +45,19 @@ export default function AppHomeButton() {
     <>
       <style>{`
         body:not(.db-pickup-home-open) > main h1:first-of-type {
-          padding-left: 54px !important;
+          padding-left: 58px !important;
         }
 
         .db-app-home-button {
           position: fixed;
-          top: 20px;
-          left: 20px;
+          top: 18px;
+          left: 18px;
           z-index: 9999;
-          width: 44px;
-          height: 44px;
-          padding: 4px;
+          width: 48px;
+          height: 48px;
+          padding: 2px;
           border: 1px solid var(--db-panel-border, rgba(127, 127, 127, 0.28));
-          border-radius: 12px;
+          border-radius: 13px;
           background: var(--db-panel-bg, rgba(255, 255, 255, 0.92));
           color: inherit;
           box-shadow: 0 7px 22px var(--shadow, rgba(0, 0, 0, 0.16));
@@ -81,8 +81,8 @@ export default function AppHomeButton() {
 
         .db-app-home-button img {
           display: block;
-          width: 34px;
-          height: 34px;
+          width: 43px;
+          height: 43px;
           object-fit: contain;
         }
 
@@ -100,20 +100,20 @@ export default function AppHomeButton() {
 
         @media (max-width: 560px) {
           body:not(.db-pickup-home-open) > main h1:first-of-type {
-            padding-left: 46px !important;
+            padding-left: 50px !important;
           }
 
           .db-app-home-button {
-            top: 18px;
-            left: 14px;
-            width: 38px;
-            height: 38px;
-            border-radius: 10px;
+            top: 14px;
+            left: 12px;
+            width: 42px;
+            height: 42px;
+            border-radius: 11px;
           }
 
           .db-app-home-button img {
-            width: 30px;
-            height: 30px;
+            width: 37px;
+            height: 37px;
           }
         }
       `}</style>
@@ -124,7 +124,7 @@ export default function AppHomeButton() {
         title="Back to DukeBox home"
         aria-label="Back to DukeBox home"
       >
-        <img src="/dukebox-goldtop.svg" alt="" aria-hidden="true" />
+        <img src="/dukebox-jazzmaster.svg" alt="" aria-hidden="true" />
         <span className="db-app-home-button-label">Home</span>
       </button>
     </>
