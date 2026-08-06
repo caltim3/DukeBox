@@ -40,6 +40,16 @@ export default function RootLayout({ children }) {
             background: url('/dukebox-goldtop.svg') center / contain no-repeat !important;
           }
           .db-pickup-logo-mark i { display: none !important; }
+
+          body > main h1:first-of-type::before {
+            content: "";
+            display: inline-block;
+            width: 42px;
+            height: 42px;
+            margin-right: 10px;
+            vertical-align: -8px;
+            background: url('/dukebox-goldtop.svg') center / contain no-repeat;
+          }
         `}</style>
       </head>
       <body>
