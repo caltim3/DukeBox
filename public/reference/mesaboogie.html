@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Mesa/Boogie & F‑30 Deep Dive</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 960px;
+      margin: 2rem auto;
+      padding: 0 1rem 3rem;
+      line-height: 1.5;
+      color: #111;
+      background: #fafafa;
+    }
+    h1, h2, h3 {
+      font-weight: 700;
+      margin-top: 2rem;
+    }
+    h1 {
+      text-align: center;
+      letter-spacing: 0.05em;
+    }
+    a {
+      color: #0066cc;
+      text-decoration: none;
+    }
+    a:hover {
+      text-decoration: underline;
+    }
+    .tagline {
+      text-align: center;
+      color: #555;
+      margin-bottom: 2rem;
+    }
+    .two-column {
+      display: grid;
+      grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+      gap: 1.5rem;
+    }
+    .card {
+      background: #fff;
+      border-radius: 6px;
+      border: 1px solid #ddd;
+      padding: 1rem 1.25rem;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+    }
+    ul {
+      padding-left: 1.1rem;
+    }
+    li {
+      margin-bottom: 0.35rem;
+    }
+    .amp-panel {
+      margin-top: 1rem;
+      padding: 1.25rem;
+      border-radius: 8px;
+      border: 1px solid #bbb;
+      background: linear-gradient(#222, #111);
+      color: #eee;
+      font-family: system-ui, sans-serif;
+    }
+    .amp-panel-title {
+      font-size: 0.9rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      text-align: center;
+      margin-bottom: 0.5rem;
+      color: #f5f5f5;
+    }
+    .amp-panel-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
+    }
+    .knob-group {
+      flex: 1;
+      text-align: center;
+    }
+    .knob-label {
+      font-size: 0.7rem;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+      margin-bottom: 0.25rem;
+    }
+    .knob {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      margin: 0 auto;
+      background: radial-gradient(circle at 30% 30%, #fff, #999 45%, #222 75%);
+      border: 1px solid #000;
+      position: relative;
+    }
+    .knob::after {
+      content: "";
+      position: absolute;
+      width: 2px;
+      height: 12px;
+      background: #000;
+      left: 50%;
+      top: 6px;
+      transform: translateX(-50%);
+    }
+    .indicator-bar {
+      width: 42px;
+      height: 4px;
+      background: #555;
+      margin: 4px auto 0;
+      border-radius: 2px;
+    }
+    .panel-footer {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 0.5rem;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1rem;
+      background: #fff;
+      border-radius: 6px;
+      overflow: hidden;
+      font-size: 0.9rem;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 0.55rem 0.4rem;
+      text-align: center;
+    }
+    th {
+      background: #f0f0f0;
+      font-weight: 600;
+    }
+    .style-col {
+      text-align: left;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .dial-note {
+      font-size: 0.8rem;
+      color: #555;
+      margin-top: 0.4rem;
+    }
+    .section-note {
+      font-size: 0.85rem;
+      color: #666;
+      margin-top: 0.25rem;
+    }
+    .chip {
+      display: inline-block;
+      padding: 0.15rem 0.4rem;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      background: #e8f0fe;
+      color: #174ea6;
+      margin-right: 0.25rem;
+    }
+    @media (max-width: 720px) {
+      .two-column {
+        grid-template-columns: minmax(0, 1fr);
+      }
+    }
+  </style>
+</head>
+<body>
+
+<h1>Mesa/Boogie & the F‑30</h1>
+<div class="tagline">
+  History, tube lineage, and a practical tone guide for the Mesa/Boogie F‑Series F‑30.
+</div>
+
+<section id="mesa-history">
+  <h2>Mesa/Boogie: Company & Evolution</h2>
+  <div class="two-column">
+    <div class="card">
+      <h3>Origins & “Boogie” Moment</h3>
+      <p>
+        Mesa/Boogie (Mesa Engineering) was founded in Petaluma, California in 1969 by Randall Smith, initially as a small repair shop modding Fender combos.[web:2]  
+      </p>
+      <p>
+        Smith’s hot‑rodded Fender Princeton with a Bassman power section impressed Carlos Santana, who famously said “that amp really boogies,” giving the brand its Boogie name and cementing Mesa as the original boutique high‑gain amp builder.[web:2][web:6][web:5]
+      </p>
+
+      <h3>Mark Series & Rectifier Era</h3>
+      <p>
+        In the early 1970s Mesa pioneered cascading gain stages, leading to the Mark I and subsequent Mark Series amplifiers, which became Mesa’s flagship line and popularized modern high‑gain circuits.[web:2][web:3][web:5]
+      </p>
+      <p>
+        Through the Mark III and Mark IV, the Mark series remained the flagship before the Rectifier family took off in the early 1990s, defining much of modern rock and metal tone.[web:2][web:3][web:5]
+      </p>
+
+      <h3>Gibson Era & Current Position</h3>
+      <p>
+        In 2021 Mesa/Boogie was acquired by Gibson; Randy Smith joined Gibson as Master Designer, and Mesa became Gibson’s “Custom Shop for amplifiers,” with Mesa continuing to design and build amps under its own identity.[web:8][web:11][web:12]
+      </p>
+      <p>
+        Today Mesa’s range spans Mark VII and derivatives, Rectifiers, compact “5:25/5:35” Mark offshoots, California Tweed, Fillmore, and other lines covering clean American voices, vintage crunch, and modern high gain under the Gibson umbrella.[web:2][web:16]
+      </p>
+    </div>
+
+    <div class="card">
+      <h3>Key Artist Associations</h3>
+      <ul>
+        <li>Carlos Santana – early Mark I and subsequent Mark amps; helped launch Mesa’s reputation.[web:2][web:5]</li>
+        <li>Keith Richards & Ron Wood – Rolling Stones guitarists used early Mesa combos and Marks.[web:2][web:5]</li>
+        <li>John Petrucci – Dream Theater; JP‑2C signature Mark IIC+ reissue and Mark series user.[web:3][web:16]</li>
+        <li>Adam Jones – Tool guitarist and long‑time Mesa/Boogie user, involved in Gibson/Mesa collaboration.[web:8]</li>
+        <li>Many modern rock/metal players – Rectifier series became a staple of 1990s and 2000s high‑gain tones.[web:2][web:5]</li>
+      </ul>
+      <p class="section-note">
+        This is only a sample; Mesa’s footprint spans jazz, fusion, pop, and metal through Mark, Rectifier, and newer lines.[web:2][web:5]
+      </p>
+    </div>
+  </div>
+</section>
+
+<section id="mark-iv-v">
+  <h2>Mark IV & V: “Big Dogs” in Context</h2>
+  <div class="card">
+    <h3>Mark IV</h3>
+    <p>
+      The Mark IV (introduced around 1990) is a three‑channel amp with dedicated controls for each channel, combining clean, crunch, and lead voices in a single chassis; bass and mid are shared for the two rhythm channels.[web:3][web:10]
+    </p>
+    <p>
+      It became a flagship for versatile high‑gain and articulate rhythm tones, often used by hard rock and metal players, while retaining strong cleans and the classic Mesa five‑band graphic EQ.[web:3][web:10]
+    </p>
+
+    <h3>Mark V</h3>
+    <p>
+      The Mark V, released in 2009, is effectively a “greatest hits” of Mark voicings, with three channels and multiple modes referencing Mark IIC+, Mark IV, and other variants.[web:3][web:7][web:10]
+    </p>
+    <p>
+      Each channel has its own gain, three‑band EQ, presence, and master, plus switchable power levels and the familiar 5‑band graphic EQ, making it a modern centerpiece of Mesa’s Mark lineup.[web:3][web:10][web:16]
+    </p>
+
+    <h3>Where the F‑30 Fits</h3>
+    <p>
+      The F‑Series (F‑30, F‑50, F‑100) was conceived as a simpler, two‑channel, three‑mode platform that still leveraged Mesa’s high‑gain heritage but with a stripped‑down, gig‑friendly interface and lower price point.[file:1][web:2]
+    </p>
+    <p>
+      The F‑30 is the compact EL84‑powered member of the line, delivering bold cleans, mid‑gain crunch, and high‑gain lead/Contour modes in a small 1×12 combo or short head, echoing the “giant‑killer” tradition of Mesa’s early Princeton‑based combos.[file:1]
+    </p>
+  </div>
+</section>
+
+<section id="tube-types">
+  <h2>Tubes, Topology & Tonal Roles</h2>
+  <div class="card">
+    <h3>Overview of Mesa Tube Choices</h3>
+    <p>
+      Mesa’s classic high‑gain amps employ 12AX7 dual‑triode preamp tubes for gain and tone shaping, combined with various power tubes (EL84, 6L6, 6V6, etc.) to voice the output stage.[file:1][web:2]
+    </p>
+    <p>
+      Randall Smith has emphasized fixed, non‑user‑adjustable biasing and rigorous tube testing, arguing that matched tubes and hard‑wired bias values yield consistent performance without routine bias tweaks.[file:1]
+    </p>
+
+    <h3>F‑30 Tube Layout</h3>
+    <p>
+      The F‑30 uses a pair of EL84 power tubes in Mesa’s patented “Dyna‑Watt” power circuit, giving a bright, bouncy response with dynamic compression and surprising loudness for its rated power.[file:1]
+    </p>
+    <p>
+      Its preamp section uses four 12AX7 tubes, with triodes allocated to input gain stages, clean channel, additional gain/boost stages, effects send/return, and phase splitter/driver; the manual includes a tube task chart mapping each triode’s role.[file:1]
+    </p>
+
+    <h3>Comparative Tube Flavors</h3>
+    <ul>
+      <li><span class="chip">EL84</span> Chimey, bright, compressed when pushed; used in the F‑30 for lively cleans and singing leads reminiscent of small British‑style combos.[file:1]</li>
+      <li><span class="chip">6L6</span> Bigger low end, more headroom and punch; used in higher‑power Mesa amps such as the F‑50/F‑100, Mark series, and Rectifiers for tighter, more authoritative rhythm tones.[file:1][web:2]</li>
+      <li><span class="chip">12AX7</span> High‑gain dual triode used across Mesa’s lines for multiple cascading stages, tone-shaping, FX send/return, and phase splitting.[file:1][web:2]</li>
+    </ul>
+  </div>
+</section>
+
+<section id="f30-controls">
+  <h2>Mesa/Boogie F‑30: Front Panel Guide</h2>
+  <div class="two-column">
+    <div class="card">
+      <h3>Front Panel “Chart Image”</h3>
+      <p>
+        The F‑30 front panel features input, shared tone stack, per‑channel masters, reverb, and channel/Contour selection, plus standby and power switches.[file:1]
+      </p>
+      <div class="amp-panel" aria-label="Mesa F-30 front panel visualization">
+        <div class="amp-panel-title">MESA/Boogie F‑30 Front Panel</div>
+
+        <div class="amp-panel-row">
+          <div class="knob-group">
+            <div class="knob-label">Input</div>
+            <div class="indicator-bar"></div>
+          </div>
+          <div class="knob-group">
+            <div class="knob-label">Gain</div>
+            <div class="knob"></div>
+            <div class="indicator-bar"></div>
+          </div>
+          <div class="knob-group">
+            <div class="knob-label">Treble</div>
+            <div class="knob"></div>
+            <div class="indicator-bar"></div>
+          </div>
+          <div class="knob-group">
+            <div class="knob-label">Mid</div>
+            <div class="knob"></div>
+            <div class="indicator-bar"></div>
+          </div>
+          <div class="knob-group">
+            <div class="knob-label">Bass</div>
+            <div class="knob"></div>
+            <div class="indicator-bar"></div>
+          </div>
+        </div>
+
+        <div class="amp-panel-row">
+          <div class="knob-group">
+            <div class="knob-label">Reverb</div>
+            <div class="knob"></div>
+            <div class="indicator-bar"></div>
+          </div>
+          <div class="knob-group">
+            <div class="knob-label">Master Ch 1</div>
+            <div class="knob"></div>
+            <div class="indicator-bar"></div>
+          </div>
+          <div class="knob-group">
+            <div class="knob-label">Master Ch 2</div>
+            <div class="knob"></div>
+            <div class="indicator-bar"></div>
+          </div>
+          <div class="knob-group">
+            <div class="knob-label">Contour</div>
+            <div class="indicator-bar"></div>
+          </div>
+        </div>
+
+        <div class="panel-footer">
+          <span>Channel Select / FT SW</span>
+          <span>Standby</span>
+          <span>Power</span>
+        </div>
+      </div>
+      <p class="dial-note">
+        Visualization only: knob positions here are symbolic. Use the presets table below for suggested numeric positions (clock‑style or 0–10).
+      </p>
+    </div>
+
+    <div class="card">
+      <h3>Control‑by‑Control Explanation</h3>
+      <ul>
+        <li><strong>Input</strong> – Guitar input; first preamp triode stage. Use a good shielded cable to minimize noise.[file:1]</li>
+        <li><strong>Gain</strong> – Primary gain and tone‑shaping control for each mode; lower settings yield cleaner/brighter sounds, higher settings produce darker, fatter, more overdriven tones.[file:1]</li>
+        <li><strong>Treble</strong> – First in the tone stack, dominant EQ control feeding Mid and Bass. Moderate settings balance top end with enough signal for the other bands; high settings can add gain and bite, especially in Channel 1.[file:1]</li>
+        <li><strong>Mid</strong> – Adjusts midrange content and feel; lower settings scoop the mids for girth and a more compressed feel, higher settings increase focus and pick resistance.[file:1]</li>
+        <li><strong>Bass</strong> – Controls low‑frequency content; must be moderated at high Gain to avoid flabby, unfocused overdrive. Higher Bass is safe for clean, lower Bass preferred for high‑gain sounds.[file:1]</li>
+        <li><strong>Reverb</strong> – Mixes in the long‑tank, 3‑spring analog reverb; extreme settings emphasize the reverb voicing and can slightly change perceived tone.[file:1]</li>
+        <li><strong>Master (Ch 1 / Ch 2)</strong> – Per‑channel output level, FX send level, and Record/Phones send level; medium settings often balance tone and loop performance best.[file:1]</li>
+        <li><strong>Channel / Contour Selector</strong> – Mini‑toggle plus footswitch: selects Channel 1 (clean), Channel 2 (Lead 1), or Contour (Lead 2) modes; the switch must be set to FT SW for the footswitch to operate.[file:1]</li>
+        <li><strong>Standby</strong> – Lets tubes warm up at idle and provides a mute for breaks; use Standby before Power on, then flip to On after ~30 seconds for tube longevity.[file:1]</li>
+        <li><strong>Power</strong> – Main AC power switch; requires proper grounding and correct mains voltage.[file:1]</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="f30-presets">
+  <h2>F‑30 Preset Table by Style</h2>
+  <div class="card">
+    <p>
+      Settings below are expressed on a 0–10 scale and assume guitar volume near maximum and speaker load as stock. Treat them as starting points; adjust to taste and room.[file:1]
+    </p>
+
+    <table aria-label="Mesa F-30 example presets">
+      <thead>
+        <tr>
+          <th class="style-col">Style / Use</th>
+          <th>Mode</th>
+          <th>Gain</th>
+          <th>Treble</th>
+          <th>Mid</th>
+          <th>Bass</th>
+          <th>Reverb</th>
+          <th>Master Ch 1</th>
+          <th>Master Ch 2</th>
+          <th>Contour</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="style-col">Fat clean comping (jazz)</td>
+          <td>Channel 1</td>
+          <td>3.5</td>
+          <td>5</td>
+          <td>4.5</td>
+          <td>6</td>
+          <td>3</td>
+          <td>4</td>
+          <td>–</td>
+          <td>Off</td>
+        </tr>
+        <tr>
+          <td class="style-col">Squeaky bright clean (funk)</td>
+          <td>Channel 1</td>
+          <td>2.5</td>
+          <td>7</td>
+          <td>3</td>
+          <td>4</td>
+          <td>2</td>
+          <td>5</td>
+          <td>–</td>
+          <td>Off</td>
+        </tr>
+        <tr>
+          <td class="style-col">Blues crunch (low‑gain)</td>
+          <td>Channel 2 – Lead 1</td>
+          <td>5</td>
+          <td>6</td>
+          <td>4</td>
+          <td>4</td>
+          <td>2.5</td>
+          <td>–</td>
+          <td>4</td>
+          <td>Off</td>
+        </tr>
+        <tr>
+          <td class="style-col">Liquid fusion lead</td>
+          <td>Channel 2 – Lead 1</td>
+          <td>7</td>
+          <td>5</td>
+          <td>5</td>
+          <td>3.5</td>
+          <td>2</td>
+          <td>–</td>
+          <td>4.5</td>
+          <td>Off</td>
+        </tr>
+        <tr>
+          <td class="style-col">Huge rock rhythm</td>
+          <td>Contour (Lead 2)</td>
+          <td>6.5</td>
+          <td>6</td>
+          <td>3.5</td>
+          <td>4</td>
+          <td>1.5</td>
+          <td>–</td>
+          <td>4.5</td>
+          <td>On</td>
+        </tr>
+        <tr>
+          <td class="style-col">Modern high‑gain lead</td>
+          <td>Contour (Lead 2)</td>
+          <td>8</td>
+          <td>5</td>
+          <td>4</td>
+          <td>3</td>
+          <td>1</td>
+          <td>–</td>
+          <td>4</td>
+          <td>On</td>
+        </tr>
+        <tr>
+          <td class="style-col">Pedal‑friendly clean (for drives)</td>
+          <td>Channel 1</td>
+          <td>2.5</td>
+          <td>4.5</td>
+          <td>5</td>
+          <td>5</td>
+          <td>2</td>
+          <td>5</td>
+          <td>–</td>
+          <td>Off</td>
+        </tr>
+        <tr>
+          <td class="style-col">Edge‑of‑breakup (country/roots)</td>
+          <td>Channel 1</td>
+          <td>4.5</td>
+          <td>6</td>
+          <td>4</td>
+          <td>4.5</td>
+          <td>2</td>
+          <td>4.5</td>
+          <td>–</td>
+          <td>Off</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p class="section-note">
+      Mesa’s manual includes factory sample settings (Fat Clean, Squeaky Clean, Blues Power, Liquid Solo, Huge Crunch, Insane Lead); the values above are consistent with those examples but adapted to a broader stylistic palette.[file:1]
+    </p>
+  </div>
+</section>
+
+<section id="f30-links">
+  <h2>Reference & Further Reading</h2>
+  <div class="card">
+    <ul>
+      <li>Mesa F‑Series Owner’s Manual (F‑30, F‑50, F‑100) – core source for controls, tube chart, and sample settings.[file:1]</li>
+      <li>Mesa/Boogie legacy F‑Series support page: 
+        <a href="https://legacy.mesaboogie.com/support/out-of-production/f-series.html" target="_blank">
+          legacy.mesaboogie.com/support/out-of-production/f-series.html
+        </a>
+      </li>
+      <li>Mesa/Boogie company & Mark Series history: Wikipedia and Mesa’s own “Randall’s Story” articles.[web:2][web:3][web:5][web:12]</li>
+    </ul>
+  </div>
+</section>
+
+</body>
+</html>

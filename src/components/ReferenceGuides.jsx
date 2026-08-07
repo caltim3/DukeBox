@@ -4,7 +4,7 @@
 // to these same guides instead of keeping its own separate list.
 export const GUIDES = [
   {
-    title: "Likas: Pivots, Surrounds, Peterson & Evans",
+    title: "Barry Harris Practice Regimen & Pivots",
     subtitle: "Interactive guitar reference",
     src: "/reference/likas-page-2-guitar.html",
     height: "1200px",
@@ -16,6 +16,41 @@ export const GUIDES = [
     src: "/reference/triad-network.html",
     height: "1050px",
     color: "var(--db-c-purple)",
+  },
+  {
+    title: "Open Tunings 1",
+    subtitle: "Seven open tunings — chord charts, capo hacks, and songs",
+    src: "/reference/open-tunings-1.html",
+    height: "1600px",
+    color: "var(--db-c-blue)",
+  },
+  {
+    title: "Open Tunings 2",
+    subtitle: "A working guitarist's field guide to seven open tunings",
+    src: "/reference/open-tunings-2.html",
+    height: "1400px",
+    color: "var(--db-c-green)",
+  },
+  {
+    title: "Tavern Set",
+    subtitle: "Editable lead sheets",
+    src: "/reference/tavern-set.html",
+    height: "1400px",
+    color: "var(--db-c-amber)",
+  },
+  {
+    title: "The Martin 000",
+    subtitle: "History, construction, players, songs & buying guide",
+    src: "/reference/martin-000-buying-guide.html",
+    height: "1300px",
+    color: "var(--db-c-salmon)",
+  },
+  {
+    title: "Mesa Boogie",
+    subtitle: "Mesa/Boogie & F-30 deep dive — history, tubes, controls, presets",
+    src: "/reference/mesaboogie.html",
+    height: "1400px",
+    color: "var(--db-c-blue)",
   },
 ]
 
