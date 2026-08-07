@@ -17,6 +17,34 @@ export const GUIDES = [
     height: "1050px",
     color: "var(--db-c-purple)",
   },
+  {
+    title: "Open Tunings 1",
+    subtitle: "Seven open tunings — chord charts, capo hacks, and songs",
+    src: "/reference/open-tunings-1.html",
+    height: "1600px",
+    color: "var(--db-c-blue)",
+  },
+  {
+    title: "Open Tunings 2",
+    subtitle: "A working guitarist's field guide to seven open tunings",
+    src: "/reference/open-tunings-2.html",
+    height: "1400px",
+    color: "var(--db-c-green)",
+  },
+  {
+    title: "Tavern Set",
+    subtitle: "Editable lead sheets",
+    src: "/reference/tavern-set.html",
+    height: "1400px",
+    color: "var(--db-c-amber)",
+  },
+  {
+    title: "The Martin 000",
+    subtitle: "History, construction, players, songs & buying guide",
+    src: "/reference/martin-000-buying-guide.html",
+    height: "1300px",
+    color: "var(--db-c-salmon)",
+  },
 ]
 
 export default function ReferenceGuides({ panelStyle }) {

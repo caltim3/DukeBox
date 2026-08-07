@@ -1,0 +1,1824 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Open Tunings — Guitar Reference</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    /* ─── Design Tokens ─── */
+    :root, [data-theme="light"] {
+      --color-bg: #f5f0e8;
+      --color-surface: #faf7f2;
+      --color-surface-2: #fff;
+      --color-surface-offset: #ede8df;
+      --color-border: #d6cfc3;
+      --color-divider: #e2dbd0;
+      --color-text: #1e1a10;
+      --color-text-muted: #6e6658;
+      --color-text-faint: #b5aa98;
+      --color-primary: #8b4513;
+      --color-primary-hover: #6b3410;
+      --color-accent: #c47a1e;
+      --color-accent-hover: #a36016;
+      --color-string: #c9a84c;
+      --color-fret: #6b5c3e;
+      --color-dot: #8b4513;
+      --color-open-dot: #c47a1e;
+      --color-muted-dot: #b0a89a;
+      --color-chord-bg: #f0ebe0;
+      --shadow-sm: 0 1px 3px rgba(30,26,16,0.08);
+      --shadow-md: 0 4px 14px rgba(30,26,16,0.1);
+      --shadow-lg: 0 12px 40px rgba(30,26,16,0.13);
+      --radius-sm: 0.375rem;
+      --radius-md: 0.5rem;
+      --radius-lg: 0.875rem;
+      --radius-xl: 1.25rem;
+      --font-display: 'Playfair Display', Georgia, serif;
+      --font-body: 'DM Sans', system-ui, sans-serif;
+      --transition: 180ms cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    [data-theme="dark"] {
+      --color-bg: #0f0d08;
+      --color-surface: #161410;
+      --color-surface-2: #1d1a14;
+      --color-surface-offset: #201d16;
+      --color-border: #302b22;
+      --color-divider: #252018;
+      --color-text: #e8e0cf;
+      --color-text-muted: #9e9380;
+      --color-text-faint: #5e5748;
+      --color-primary: #c8713e;
+      --color-primary-hover: #d98544;
+      --color-accent: #d4951f;
+      --color-accent-hover: #e8a82a;
+      --color-string: #b8933e;
+      --color-fret: #5a4e36;
+      --color-dot: #c8713e;
+      --color-open-dot: #d4951f;
+      --color-muted-dot: #4a4438;
+      --color-chord-bg: #1a1710;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+      --shadow-md: 0 4px 14px rgba(0,0,0,0.4);
+      --shadow-lg: 0 12px 40px rgba(0,0,0,0.5);
+    }
+
+    @media (prefers-color-scheme: light) {
+      :root:not([data-theme]) {
+        --color-bg: #f5f0e8;
+        --color-surface: #faf7f2;
+        --color-surface-2: #fff;
+        --color-surface-offset: #ede8df;
+        --color-border: #d6cfc3;
+        --color-divider: #e2dbd0;
+        --color-text: #1e1a10;
+        --color-text-muted: #6e6658;
+        --color-text-faint: #b5aa98;
+        --color-primary: #8b4513;
+        --color-primary-hover: #6b3410;
+        --color-accent: #c47a1e;
+        --color-accent-hover: #a36016;
+        --color-string: #c9a84c;
+        --color-fret: #6b5c3e;
+        --color-dot: #8b4513;
+        --color-open-dot: #c47a1e;
+        --color-muted-dot: #b0a89a;
+        --color-chord-bg: #f0ebe0;
+        --shadow-sm: 0 1px 3px rgba(30,26,16,0.08);
+        --shadow-md: 0 4px 14px rgba(30,26,16,0.1);
+        --shadow-lg: 0 12px 40px rgba(30,26,16,0.13);
+      }
+    }
+
+    /* ─── Reset ─── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; scroll-padding-top: 80px; }
+    body { font-family: var(--font-body); font-size: clamp(0.9375rem, 0.9rem + 0.2vw, 1.0625rem); color: var(--color-text); background: var(--color-bg); line-height: 1.65; }
+    img, svg { display: block; max-width: 100%; }
+    h1,h2,h3,h4,h5 { text-wrap: balance; line-height: 1.2; }
+    p, li { text-wrap: pretty; }
+    button { cursor: pointer; border: none; background: none; font: inherit; color: inherit; transition: color var(--transition), background var(--transition), opacity var(--transition); }
+
+    /* ─── Header / Nav ─── */
+    .site-header {
+      position: sticky; top: 0; z-index: 100;
+      background: var(--color-surface);
+      border-bottom: 1px solid var(--color-border);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      box-shadow: var(--shadow-sm);
+    }
+    .header-inner {
+      max-width: 1280px; margin: 0 auto;
+      padding: 0 clamp(1rem, 4vw, 2.5rem);
+      height: 64px;
+      display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+    }
+    .site-logo {
+      display: flex; align-items: center; gap: 0.625rem;
+      font-family: var(--font-display); font-size: 1.35rem; font-weight: 700;
+      color: var(--color-text); text-decoration: none;
+      flex-shrink: 0;
+    }
+    .logo-icon { color: var(--color-primary); }
+
+    .tuning-nav {
+      display: flex; align-items: center; gap: 0.25rem;
+      flex-wrap: nowrap; overflow-x: auto;
+      scrollbar-width: none; -ms-overflow-style: none;
+    }
+    .tuning-nav::-webkit-scrollbar { display: none; }
+    .nav-btn {
+      padding: 0.3rem 0.75rem;
+      border-radius: 999px;
+      font-size: clamp(0.75rem, 0.7rem + 0.2vw, 0.875rem);
+      font-weight: 500;
+      white-space: nowrap;
+      color: var(--color-text-muted);
+      transition: background var(--transition), color var(--transition);
+    }
+    .nav-btn:hover { background: var(--color-surface-offset); color: var(--color-text); }
+    .nav-btn.active { background: var(--color-primary); color: #fff; }
+
+    .header-controls { display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; }
+    .theme-toggle {
+      width: 36px; height: 36px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--color-text-muted);
+    }
+    .theme-toggle:hover { background: var(--color-surface-offset); color: var(--color-text); }
+
+    /* ─── Hero ─── */
+    .hero {
+      text-align: center;
+      padding: clamp(3rem, 8vw, 6rem) clamp(1rem, 4vw, 2.5rem) clamp(2rem, 5vw, 4rem);
+      max-width: 760px; margin: 0 auto;
+    }
+    .hero-tag {
+      display: inline-block;
+      background: color-mix(in oklab, var(--color-primary) 15%, transparent);
+      color: var(--color-primary);
+      font-size: 0.8rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+      padding: 0.3rem 0.9rem; border-radius: 999px; margin-bottom: 1.25rem;
+    }
+    .hero h1 {
+      font-family: var(--font-display);
+      font-size: clamp(2.25rem, 1.5rem + 3vw, 4rem);
+      font-weight: 700; color: var(--color-text);
+      margin-bottom: 1rem;
+    }
+    .hero h1 em { color: var(--color-accent); font-style: italic; }
+    .hero-sub {
+      font-size: clamp(1rem, 0.95rem + 0.25vw, 1.15rem);
+      color: var(--color-text-muted); max-width: 560px; margin: 0 auto 2rem;
+    }
+    .hero-quick-nav {
+      display: flex; flex-wrap: wrap; justify-content: center; gap: 0.5rem;
+    }
+    .hero-chip {
+      padding: 0.45rem 1rem; border-radius: 999px;
+      border: 1px solid var(--color-border);
+      font-size: 0.875rem; font-weight: 500;
+      color: var(--color-text-muted);
+      background: var(--color-surface);
+      text-decoration: none;
+      transition: border-color var(--transition), color var(--transition), background var(--transition);
+    }
+    .hero-chip:hover { border-color: var(--color-primary); color: var(--color-primary); background: color-mix(in oklab, var(--color-primary) 8%, var(--color-surface)); }
+
+    /* ─── Main layout ─── */
+    .main-wrap { max-width: 1280px; margin: 0 auto; padding: 0 clamp(1rem, 4vw, 2.5rem) clamp(3rem, 8vw, 6rem); }
+
+    /* ─── Tuning Section ─── */
+    .tuning-section {
+      margin-bottom: clamp(3rem, 8vw, 6rem);
+      scroll-margin-top: 80px;
+    }
+    .tuning-header {
+      display: flex; align-items: flex-start; justify-content: space-between;
+      flex-wrap: wrap; gap: 1rem;
+      margin-bottom: 2rem;
+      padding-bottom: 1.25rem;
+      border-bottom: 2px solid var(--color-border);
+    }
+    .tuning-title-group { flex: 1 1 300px; }
+    .tuning-number {
+      font-size: 0.75rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--color-primary); margin-bottom: 0.4rem;
+    }
+    .tuning-name {
+      font-family: var(--font-display);
+      font-size: clamp(1.75rem, 1.2rem + 2vw, 2.75rem);
+      font-weight: 700; color: var(--color-text);
+    }
+    .tuning-notes {
+      display: flex; gap: 0.25rem; margin-top: 0.625rem; flex-wrap: wrap;
+    }
+    .note-badge {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 36px; height: 36px; border-radius: 50%;
+      font-size: 0.85rem; font-weight: 700;
+      background: var(--color-surface-offset);
+      border: 1px solid var(--color-border);
+      color: var(--color-text);
+    }
+    .note-badge.changed { background: var(--color-primary); color: #fff; border-color: var(--color-primary); }
+    .note-badge.standard { opacity: 0.55; }
+    .note-labels {
+      display: flex; gap: 0.25rem; flex-wrap: wrap; margin-top: 0.35rem;
+    }
+    .note-label {
+      width: 36px; text-align: center;
+      font-size: 0.65rem; color: var(--color-text-faint); font-weight: 500;
+    }
+    .tuning-genre-list {
+      flex: 0 1 280px;
+    }
+    .genre-tag {
+      display: inline-block; margin: 0 0.25rem 0.35rem 0;
+      padding: 0.25rem 0.7rem; border-radius: 999px;
+      font-size: 0.8rem; font-weight: 500;
+      background: color-mix(in oklab, var(--color-accent) 12%, var(--color-surface));
+      color: var(--color-accent);
+      border: 1px solid color-mix(in oklab, var(--color-accent) 25%, transparent);
+    }
+
+    /* ─── Tuning Hack Banner ─── */
+    .tuning-hack {
+      background: linear-gradient(135deg, color-mix(in oklab, var(--color-primary) 10%, var(--color-surface)), color-mix(in oklab, var(--color-accent) 8%, var(--color-surface)));
+      border: 1px solid color-mix(in oklab, var(--color-primary) 30%, var(--color-border));
+      border-radius: var(--radius-lg);
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 2rem;
+    }
+    .hack-label {
+      font-size: 0.7rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+      color: var(--color-primary); margin-bottom: 0.6rem; display: flex; align-items: center; gap: 0.4rem;
+    }
+    .hack-steps { display: flex; flex-wrap: wrap; gap: 0.75rem; }
+    .hack-step {
+      display: flex; align-items: center; gap: 0.5rem;
+      background: var(--color-surface-2);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      padding: 0.45rem 0.875rem;
+      font-size: 0.875rem; font-weight: 500;
+    }
+    .hack-step-num {
+      width: 20px; height: 20px; border-radius: 50%;
+      background: var(--color-primary); color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.7rem; font-weight: 700; flex-shrink: 0;
+    }
+    .hack-note-from { color: var(--color-text-muted); }
+    .hack-arrow { color: var(--color-accent); font-weight: 700; }
+    .hack-note-to { color: var(--color-text); font-weight: 600; }
+    .hack-direction { font-size: 0.75rem; color: var(--color-text-faint); }
+
+    /* ─── Why it Works ─── */
+    .why-works {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 2rem;
+    }
+    .why-label {
+      font-size: 0.7rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+      color: var(--color-text-faint); margin-bottom: 0.5rem;
+    }
+    .why-text { font-size: 0.9375rem; color: var(--color-text-muted); line-height: 1.7; }
+
+    /* ─── Chord Grid ─── */
+    .section-label {
+      font-size: 0.7rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--color-text-faint); margin-bottom: 1rem;
+    }
+    .chord-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2.5rem;
+    }
+    .chord-card {
+      background: var(--color-chord-bg);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      padding: 0.875rem 0.625rem 0.75rem;
+      display: flex; flex-direction: column; align-items: center; gap: 0.5rem;
+      transition: box-shadow var(--transition), transform var(--transition), border-color var(--transition);
+    }
+    .chord-card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); border-color: var(--color-primary); }
+    .chord-card-name {
+      font-family: var(--font-display); font-size: 1rem; font-weight: 700;
+      color: var(--color-text);
+    }
+    .chord-card-sub { font-size: 0.7rem; color: var(--color-text-faint); margin-top: -0.25rem; }
+
+    /* ─── SVG Chord Diagram ─── */
+    .chord-diagram { width: 90px; height: 110px; }
+
+    /* ─── Songs Table ─── */
+    .songs-grid {
+      display: grid; gap: 0.875rem;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      margin-bottom: 1rem;
+    }
+    .song-card {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      padding: 1.125rem 1.25rem;
+      transition: box-shadow var(--transition), border-color var(--transition);
+    }
+    .song-card:hover { box-shadow: var(--shadow-md); border-color: var(--color-primary); }
+    .song-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.75rem; margin-bottom: 0.625rem; }
+    .song-title { font-weight: 600; font-size: 0.975rem; color: var(--color-text); line-height: 1.3; }
+    .song-artist { font-size: 0.8rem; color: var(--color-text-muted); margin-top: 0.1rem; }
+    .song-difficulty {
+      padding: 0.2rem 0.55rem; border-radius: 999px;
+      font-size: 0.7rem; font-weight: 600; flex-shrink: 0;
+    }
+    .diff-easy { background: color-mix(in oklab, #4a9e4f 15%, transparent); color: #4a9e4f; }
+    .diff-medium { background: color-mix(in oklab, #d4951f 15%, transparent); color: #d4951f; }
+    .diff-hard { background: color-mix(in oklab, #c8513e 15%, transparent); color: #c8513e; }
+    .song-chords {
+      display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 0.625rem;
+    }
+    .chord-pill {
+      padding: 0.2rem 0.6rem; border-radius: 999px;
+      background: color-mix(in oklab, var(--color-primary) 12%, var(--color-surface-2));
+      border: 1px solid color-mix(in oklab, var(--color-primary) 25%, transparent);
+      font-size: 0.8rem; font-weight: 600;
+      color: var(--color-primary);
+      font-family: var(--font-display);
+    }
+    .song-note { font-size: 0.8rem; color: var(--color-text-faint); font-style: italic; line-height: 1.4; }
+
+    /* ─── Divider between sections ─── */
+    .section-divider {
+      border: none; border-top: 1px solid var(--color-divider);
+      margin: clamp(2.5rem, 6vw, 4.5rem) 0;
+    }
+
+    /* ─── Footer ─── */
+    .site-footer {
+      border-top: 1px solid var(--color-divider);
+      padding: 2rem clamp(1rem, 4vw, 2.5rem);
+      text-align: center;
+      font-size: 0.825rem; color: var(--color-text-faint);
+    }
+
+    /* ─── Responsive ─── */
+    @media (max-width: 600px) {
+      .tuning-header { flex-direction: column; }
+      .tuning-genre-list { flex-basis: auto; }
+      .songs-grid { grid-template-columns: 1fr; }
+      .chord-grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 0.75rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ─── HEADER ─── -->
+<header class="site-header">
+  <div class="header-inner">
+    <a href="#top" class="site-logo">
+      <svg class="logo-icon" width="28" height="28" viewBox="0 0 28 28" fill="none" aria-label="Guitar logo">
+        <ellipse cx="10" cy="18" rx="6.5" ry="5" stroke="currentColor" stroke-width="1.8" fill="none"/>
+        <ellipse cx="10" cy="18" rx="3" ry="2.2" fill="currentColor" opacity="0.18"/>
+        <line x1="10" y1="13" x2="22" y2="4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="22" y1="4" x2="24" y2="2" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+        <circle cx="22" cy="4" r="1.5" fill="currentColor" opacity="0.5"/>
+      </svg>
+      Open Tunings
+    </a>
+    <nav class="tuning-nav" aria-label="Tunings">
+      <button class="nav-btn active" onclick="scrollTo('open-d')">Open D</button>
+      <button class="nav-btn" onclick="scrollTo('open-g')">Open G</button>
+      <button class="nav-btn" onclick="scrollTo('open-e')">Open E</button>
+      <button class="nav-btn" onclick="scrollTo('open-a')">Open A</button>
+      <button class="nav-btn" onclick="scrollTo('dadgad')">DADGAD</button>
+      <button class="nav-btn" onclick="scrollTo('open-c')">Open C</button>
+      <button class="nav-btn" onclick="scrollTo('open-dm')">Open Dm</button>
+    </nav>
+    <div class="header-controls">
+      <button class="theme-toggle" data-theme-toggle aria-label="Toggle dark mode">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- ─── HERO ─── -->
+<section class="hero" id="top">
+  <span class="hero-tag">Guitar Reference</span>
+  <h1>Master <em>Open Tunings</em></h1>
+  <p class="hero-sub">Seven essential tunings — with chord charts, stage-ready capo hacks, and songs you can play immediately.</p>
+  <div class="hero-quick-nav">
+    <a href="#open-d" class="hero-chip">Open D</a>
+    <a href="#open-g" class="hero-chip">Open G</a>
+    <a href="#open-e" class="hero-chip">Open E</a>
+    <a href="#open-a" class="hero-chip">Open A</a>
+    <a href="#dadgad" class="hero-chip">DADGAD</a>
+    <a href="#open-c" class="hero-chip">Open C</a>
+    <a href="#open-dm" class="hero-chip">Open Dm</a>
+  </div>
+</section>
+
+<main class="main-wrap">
+
+<!-- ══════════════════════════════════════════════════ -->
+<!-- 1. OPEN D -->
+<!-- ══════════════════════════════════════════════════ -->
+<section class="tuning-section" id="open-d">
+  <div class="tuning-header">
+    <div class="tuning-title-group">
+      <div class="tuning-number">Tuning 01</div>
+      <h2 class="tuning-name">Open D</h2>
+      <div class="tuning-notes">
+        <span class="note-badge changed">D</span>
+        <span class="note-badge standard">A</span>
+        <span class="note-badge changed">D</span>
+        <span class="note-badge changed">F#</span>
+        <span class="note-badge changed">A</span>
+        <span class="note-badge changed">D</span>
+      </div>
+      <div class="note-labels">
+        <span class="note-label">6th</span>
+        <span class="note-label">5th</span>
+        <span class="note-label">4th</span>
+        <span class="note-label">3rd</span>
+        <span class="note-label">2nd</span>
+        <span class="note-label">1st</span>
+      </div>
+    </div>
+    <div class="tuning-genre-list">
+      <span class="genre-tag">Delta Blues</span>
+      <span class="genre-tag">Slide Guitar</span>
+      <span class="genre-tag">Folk</span>
+      <span class="genre-tag">Acoustic Rock</span>
+      <span class="genre-tag">Bottleneck</span>
+    </div>
+  </div>
+
+  <div class="tuning-hack">
+    <div class="hack-label">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+      Stage Hack — From Standard Tuning
+    </div>
+    <div class="hack-steps">
+      <div class="hack-step"><span class="hack-step-num">1</span><span class="hack-note-from">6th E</span><span class="hack-arrow">→</span><span class="hack-note-to">D</span><span class="hack-direction">(down whole step)</span></div>
+      <div class="hack-step"><span class="hack-step-num">2</span><span class="hack-note-from">3rd G</span><span class="hack-arrow">→</span><span class="hack-note-to">F#</span><span class="hack-direction">(down half step)</span></div>
+      <div class="hack-step"><span class="hack-step-num">3</span><span class="hack-note-from">2nd B</span><span class="hack-arrow">→</span><span class="hack-note-to">A</span><span class="hack-direction">(down whole step)</span></div>
+      <div class="hack-step"><span class="hack-step-num">4</span><span class="hack-note-from">1st E</span><span class="hack-arrow">→</span><span class="hack-note-to">D</span><span class="hack-direction">(down whole step)</span></div>
+    </div>
+  </div>
+
+  <div class="why-works">
+    <div class="why-label">Why it Works</div>
+    <p class="why-text">Open D forms a D major triad across all six strings, making a bar with one finger produce any major chord up the neck. It's the quintessential slide/bottleneck tuning — the lowered bass adds resonant depth, and the F# on the 3rd string gives the tuning its characteristic warm, full voice. The unison D on strings 1 and 6 creates an octave drone that rings through any chord shape, which is why Delta bluesman like Elmore James and Robert Johnson lived in this tuning.</p>
+  </div>
+
+  <div class="section-label">Core Chords in Open D</div>
+  <div class="chord-grid" id="chords-open-d"></div>
+
+  <div class="section-label">Songs to Play Right Now</div>
+  <div class="songs-grid">
+    <div class="song-card">
+      <div class="song-header">
+        <div><div class="song-title">Street Fighting Man</div><div class="song-artist">The Rolling Stones</div></div>
+        <span class="song-difficulty diff-easy">Easy</span>
+      </div>
+      <div class="song-chords"><span class="chord-pill">D (open)</span><span class="chord-pill">C (x-fret 10)</span><span class="chord-pill">G (bar-5)</span></div>
+      <div class="song-note">Keith Richards classic — open strum = D major, bar at 5 = G, bar at 10 = C. Three chords, infinite attitude.</div>
+    </div>
+    <div class="song-card">
+      <div class="song-header">
+        <div><div class="song-title">Big Love</div><div class="song-artist">Fleetwood Mac / Lindsey Buckingham</div></div>
+        <span class="song-difficulty diff-hard">Hard</span>
+      </div>
+      <div class="song-chords"><span class="chord-pill">D (open)</span><span class="chord-pill">A (bar-7)</span><span class="chord-pill">G (bar-5)</span><span class="chord-pill">Bm (bar-9)</span></div>
+      <div class="song-note">Buckingham's fingerpicking tour de force. Percussive thumb on bass strings, arpeggios on trebles.</div>
+    </div>
+    <div class="song-card">
+      <div class="song-header">
+        <div><div class="song-title">The Spike Driver Blues</div><div class="song-artist">Mississippi John Hurt</div></div>
+        <span class="song-difficulty diff-medium">Medium</span>
+      </div>
+      <div class="song-chords"><span class="chord-pill">D (open)</span><span class="chord-pill">A (bar-7)</span><span class="chord-pill">G (bar-5)</span></div>
+      <div class="song-note">Classic Piedmont-style fingerpicking. Alternating bass thumb pattern — perfect open D study piece.</div>
+    </div>
+    <div class="song-card">
+      <div class="song-header">
+        <div><div class="song-title">Dust My Broom</div><div class="song-artist">Elmore James (Robert Johnson original)</div></div>
+        <span class="song-difficulty diff-easy">Easy</span>
+      </div>
+      <div class="song-chords"><span class="chord-pill">D slide</span><span class="chord-pill">G slide</span><span class="chord-pill">A slide</span></div>
+      <div class="song-note">The definitive slide guitar showcase. A I–IV–V blues in D with full-bar slide positions at 0, 5, 7.</div>
+    </div>
+    <div class="song-card">
+      <div class="song-header">
+        <div><div class="song-title">The Cave</div><div class="song-artist">Mumford &amp; Sons</div></div>
+        <span class="song-difficulty diff-medium">Medium</span>
+      </div>
+      <div class="song-chords"><span class="chord-pill">D (open)</span><span class="chord-pill">A (bar-7)</span><span class="chord-pill">G (bar-5)</span><span class="chord-pill">Bm (bar-9)</span></div>
+      <div class="song-note">Driving banjo-feel strum pattern. The open tuning gives it that full-bodied drone the band is known for.</div>
+    </div>
+    <div class="song-card">
+      <div class="song-header">
+        <div><div class="song-title">Even Flow</div><div class="song-artist">Pearl Jam (Stone Gossard)</div></div>
+        <span class="song-difficulty diff-medium">Medium</span>
+      </div>
+      <div class="song-chords"><span class="chord-pill">D (open)</span><span class="chord-pill">F (bar-3)</span><span class="chord-pill">G (bar-5)</span></div>
+      <div class="song-note">Gossard's rhythm part uses open D for that massive low-end chug. Strum hard, let it ring.</div>
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider" />
+
+<!-- ══════════════════════════════════════════════════ -->
+<!-- 2. OPEN G -->
+<!-- ══════════════════════════════════════════════════ -->
+<section class="tuning-section" id="open-g">
+  <div class="tuning-header">
+    <div class="tuning-title-group">
+      <div class="tuning-number">Tuning 02</div>
+      <h2 class="tuning-name">Open G</h2>
+      <div class="tuning-notes">
+        <span class="note-badge changed">D</span>
+        <span class="note-badge standard">G</span>
+        <span class="note-badge standard">D</span>
+        <span class="note-badge standard">G</span>
+        <span class="note-badge standard">B</span>
+        <span class="note-badge changed">D</span>
+      </div>
+      <div class="note-labels">
+        <span class="note-label">6th</span>
+        <span class="note-label">5th</span>
+        <span class="note-label">4th</span>
+        <span class="note-label">3rd</span>
+        <span class="note-label">2nd</span>
+        <span class="note-label">1st</span>
+      </div>
+    </div>
+    <div class="tuning-genre-list">
+      <span class="genre-tag">Blues</span>
+      <span class="genre-tag">Classic Rock</span>
+      <span class="genre-tag">Country</span>
+      <span class="genre-tag">Slide</span>
+      <span class="genre-tag">Banjo-Style</span>
+    </div>
+  </div>
+
+  <div class="tuning-hack">
+    <div class="hack-label">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+      Stage Hack — From Standard Tuning
+    </div>
+    <div class="hack-steps">
+      <div class="hack-step"><span class="hack-step-num">1</span><span class="hack-note-from">6th E</span><span class="hack-arrow">→</span><span class="hack-note-to">D</span><span class="hack-direction">(down whole step)</span></div>
+      <div class="hack-step"><span class="hack-step-num">2</span><span class="hack-note-from">2nd B</span><span class="hack-arrow">→</span><span class="hack-note-to">stays B</span><span class="hack-direction">(no change ✓)</span></div>
+      <div class="hack-step"><span class="hack-step-num">3</span><span class="hack-note-from">1st E</span><span class="hack-arrow">→</span><span class="hack-note-to">D</span><span class="hack-direction">(down whole step)</span></div>
+    </div>
+  </div>
+
+  <div class="why-works">
+    <div class="why-label">Why it Works</div>
+    <p class="why-text">Open G is the Rolling Stones' secret weapon — Keith Richards removes the 6th string entirely (or just mutes it) to play a 5-string "banjo-style" rhythm guitar. Strings 2–4 remain identical to standard tuning, so chord shapes you already know on those strings still work. The open chord's G–D drone rings beneath everything. Because most rock and blues is in G, you're instantly in the home key with zero fingers on the fretboard. Slide playing shines here too, with the major chord lining up perfectly at every 5-fret interval.</p>
+  </div>
+
+  <div class="section-label">Core Chords in Open G</div>
+  <div class="chord-grid" id="chords-open-g"></div>
+
+  <div class="section-label">Songs to Play Right Now</div>
+  <div class="songs-grid">
+    <div class="song-card">
+      <div class="song-header">
+        <div><div class="song-title">Honky Tonk Women</div><div class="song-artist">The Rolling Stones</div></div>
+        <span class="song-difficulty diff-easy">Easy</span>
+      </div>
+      <div class="song-chords"><span class="chord-pill">G (open)</span><span class="chord-pill">C (bar-5)</span><span class="chord-pill">D (bar-7)</span></div>
+      <div class="song-note">Pure Open G magic. Keith plays the iconic riff with open strings and a 5th-fret bar for C. Mute the 6th string.</div>
+    </div>
+    <div class="song-card">
+      <div class="song-header">
+        <div><div class="song-title">Brown Sugar</div><div class="song-artist">The Rolling Stones</div></div>
+        <span class="song-difficulty diff-easy">Easy</span>
+      </div>
+      <div class="song-chords"><span class="chord-pill">G (open)</span><span class="chord-pill">C (bar-5)</span><span class="chord-pill">Bb (bar-3)</span><span class="chord-pill">D (bar-7)</span></div>
+      <div class="song-note">The riff is pure pentatonic joy in Open G. Add hammer-ons from the open strings to fret 2 for the full Keith sound.</div>
+    </div>
+    <div class="song-card">
+      <div class="song-header">
+        <div><div class="song-title">Start Me Up</div><div class="song-artist">The Rolling Stones</div></div>
+        <span class="song-difficulty diff-easy">Easy</span>
+      </div>
+      <div class="song-chords"><span class="chord-pill">G (open)</span><span class="chord-pill">F (bar-3)</span><span class="chord-pill">C (bar-5)</span></div>
+      <div class="song-note">The riff lives on strings 4-6. Open G is the drone, bar at 3 = F, bar at 5 = C. Timeless three-chord groove.</div>
+    </div>
+    <div class="song-card">
+      <div class="song-header">
+        <div><div class="song-title">Little Red Rooster</div><div class="song-artist">The Rolling Stones / Howlin' Wolf</div></div>
+        <span class="song-difficulty diff-medium">Medium</span>
+      </div>
+      <div class="song-chords"><span class="chord-pill">G slide</span><span class="chord-pill">C slide (bar-5)</span><span class="chord-pill">D slide (bar-7)</span></div>
+      <div class="song-note">Slow blues slide masterpiece. Full bar slide at 5 = C7, at 7 = D7. Let the notes decay naturally.</div>
+    </div>
+    <div class="song-card">
+      <div class="song-header">
+        <div><div class="song-title">Jumpin' Jack Flash</div><div class="song-artist">The Rolling Stones</div></div>
+        <span class="song-difficulty diff-medium">Medium</span>
+      </div>
+      <div class="song-chords"><span class="chord-pill">G (open)</span><span class="chord-pill">Bb (bar-3)</span><span class="chord-pill">C (bar-5)</span><span class="chord-pill">D (bar-7)</span></div>
+      <div class="song-note">Driving rock anthem with two-note chord stabs. The iconic intro uses open G with partial bar shapes.</div>
+    </div>
+    <div class="song-card">
+      <div class="song-header">
+        <div><div class="song-title">Gimme Shelter</div><div class="song-artist">The Rolling Stones</div></div>
+        <span class="song-difficulty diff-hard">Hard</span>
+      </div>
+      <div class="song-chords"><span class="chord-pill">G (open)</span><span class="chord-pill">Em (2-string shape)</span><span class="chord-pill">C (bar-5)</span></div>
+      <div class="song-note">The most atmospheric use of Open G. The intro fingerpicking uses partial shapes to create that dark, swirling feel.</div>
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider" />
+
+<!-- ══════════════════════════════════════════════════ -->
+<!-- 3. OPEN E -->
+<!-- ══════════════════════════════════════════════════ -->
+<section class="tuning-section" id="open-e">
+  <div class="tuning-header">
+    <div class="tuning-title-group">
+      <div class="tuning-number">Tuning 03</div>
+      <h2 class="tuning-name">Open E</h2>
+      <div class="tuning-notes">
+        <span class="note-badge standard">E</span>
+        <span class="note-badge changed">B→</span>
+        <span class="note-badge changed">E</span>
+        <span class="note-badge changed">G#</span>
+        <span class="note-badge standard">B</span>
+        <span class="note-badge standard">E</span>
+      </div>
+      <div class="note-labels">
+        <span class="note-label">6th</span>
+        <span class="note-label">5th</span>
+        <span class="note-label">4th</span>
+        <span class="note-label">3rd</span>
+        <span class="note-label">2nd</span>
+        <span class="note-label">1st</span>
+      </div>
+    </div>
+    <div class="tuning-genre-list">
+      <span class="genre-tag">Blues</span>
+      <span class="genre-tag">Rock</span>
+      <span class="genre-tag">Slide</span>
+      <span class="genre-tag">Country Blues</span>
+      <span class="genre-tag">Gospel</span>
+    </div>
+  </div>
+
+  <div class="tuning-hack">
+    <div class="hack-label">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+      Stage Hack — From Standard Tuning
+    </div>
+    <div class="hack-steps">
+      <div class="hack-step"><span class="hack-step-num">1</span><span class="hack-note-from">5th A</span><span class="hack-arrow">→</span><span class="hack-note-to">B</span><span class="hack-direction">(up whole step — careful!)</span></div>
+      <div class="hack-step"><span class="hack-step-num">2</span><span class="hack-note-from">4th D</span><span class="hack-arrow">→</span><span class="hack-note-to">E</span><span class="hack-direction">(up whole step)</span></div>
+      <div class="hack-step"><span class="hack-step-num">3</span><span class="hack-note-from">3rd G</span><span class="hack-arrow">→</span><span class="hack-note-to">G#</span><span class="hack-direction">(up half step)</span></div>
+    </div>
+  </div>
+
+  <div class="why-works">
+    <div class="why-label">Why it Works</div>
+    <p class="why-text">Open E is essentially Open D with a capo at the 2nd fret — and that's exactly how many players use it. The advantage: strings 1, 2, and 6 stay at standard pitch, so you keep your familiar high-E and B string feel. The drawback is the tuning UP approach on strings 3–5, which puts more tension on the neck — be cautious with vintage guitars. Duane Allman used Open E almost exclusively for his bottleneck work, and it's the tuning behind "Layla." The open chord rings gloriously full across all registers.</p>
+  </div>
+
+  <div class="section-label">Core Chords in Open E</div>
+  <div class="chord-grid" id="chords-open-e"></div>
+
+  <div class="section-label">Songs to Play Right Now</div>
+  <div class="songs-grid">
+    <div class="song-card">
+      <div class="song-header">
+        <div><div class="song-title">Layla (Acoustic outro)</div><div class="song-artist">Derek and the Dominos / Eric Clapton</div></div>
+        <span class="song-difficulty diff-medium">Medium</span>
+      </div>
+      <div class="song-chords"><span class="chord-pill">E (open)</span><span class="chord-pill">A (bar-5)</span><span class="chord-pill">B (bar-7)</span></div>
+      <div class="song-note">The famous piano outro was arranged for slide guitar by Duane Allman. Slide at 0, 5, 7, 12 for the main melody.</div>
+    </div>
+    <div class="song-card">
+      <div class="song-header">
+        <div><div class="song-title">Statesboro Blues</div><div class="song-artist">The Allman Brothers Band</div></div>
+        <span class="song-difficulty diff-medium">Medium</span>
+      </div>
+      <div class="song-chords"><span class="chord-pill">E slide</span><span class="chord-pill">A slide</span><span class="chord-pill">B slide</span></div>
+      <div class="song-note">Duane Allman's signature piece. Blues shuffle with slide on the treble strings, Dickey Betts holding down rhythm.</div>
+    </div>
+    <div class="song-card">
+      <div class="song-header">
+        <div><div class="song-title">Come On In My Kitchen</div><div class="song-artist">Robert Johnson</div></div>
+        <span class="song-difficulty diff-medium">Medium</span>
+      </div>
+      <div class="song-chords"><span class="chord-pill">E (open)</span><span class="chord-pill">A (bar-5)</span><span class="chord-pill">B7 (bar-7 partial)</span></div>
+      <div class="song-note">Delta classic. The haunting slide melody sits on the treble strings while the thumb keeps the bass groove going.</div>
+    </div>
+    <div class="song-card">
+      <div class="song-header">
+        <div><div class="song-title">She Talks to Angels</div><div class="song-artist">The Black Crowes</div></div>
+        <span class="song-difficulty diff-medium">Medium</span>
+      </div>
+      <div class="song-chords"><span class="chord-pill">E (open)</span><span class="chord-pill">Cadd9 (x-shape)</span><span class="chord-pill">D (bar-7, partial)</span><span class="chord-pill">A/E</span></div>
+      <div class="song-note">Rich Robinson's fingerstyle intro is iconic. Uses the open E as a drone against moving chord shapes on the middle strings.</div>
+    </div>
+    <div class="song-card">
+      <div class="song-header">
+        <div><div class="song-title">Bo Diddley</div><div class="song-artist">Bo Diddley</div></div>
+        <span class="song-difficulty diff-easy">Easy</span>
+      </div>
+      <div class="song-chords"><span class="chord-pill">E (open)</span><span class="chord-pill">E7 (add-fret-3)</span></div>
+      <div class="song-note">The shave-and-a-haircut rhythm pattern on a one-chord vamp. Classic for learning the rhythmic feel of Open E.</div>
+    </div>
+    <div class="song-card">
+      <div class="song-header">
+        <div><div class="song-title">You Shook Me All Night Long</div><div class="song-artist">AC/DC (Angus Young)</div></div>
+        <span class="song-difficulty diff-easy">Easy</span>
+      </div>
+      <div class="song-chords"><span class="chord-pill">G (bar-3)</span><span class="chord-pill">D (bar-10)</span><span class="chord-pill">A (bar-5)</span><span class="chord-pill">E (open)</span></div>
+      <div class="song-note">Malcolm Young's rhythm guitar is Open E. Bar chords fall perfectly in shape — G at 3, A at 5, B at 7.</div>
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider" />
+
+<!-- ══════════════════════════════════════════════════ -->
+<!-- 4. OPEN A -->
+<!-- ══════════════════════════════════════════════════ -->
+<section class="tuning-section" id="open-a">
+  <div class="tuning-header">
+    <div class="tuning-title-group">
+      <div class="tuning-number">Tuning 04</div>
+      <h2 class="tuning-name">Open A</h2>
+      <div class="tuning-notes">
+        <span class="note-badge standard">E</span>
+        <span class="note-badge standard">A</span>
+        <span class="note-badge changed">E</span>
+        <span class="note-badge changed">A</span>
+        <span class="note-badge changed">C#</span>
+        <span class="note-badge standard">E</span>
+      </div>
+      <div class="note-labels">
+        <span class="note-label">6th</span>
+        <span class="note-label">5th</span>
+        <span class="note-label">4th</span>
+        <span class="note-label">3rd</span>
+        <span class="note-label">2nd</span>
+        <span class="note-label">1st</span>
+      </div>
+    </div>
+    <div class="tuning-genre-list">
+      <span class="genre-tag">Country Blues</span>
+      <span class="genre-tag">Piedmont</span>
+      <span class="genre-tag">Slide</span>
+      <span class="genre-tag">Ragtime</span>
+      <span class="genre-tag">Folk</span>
+    </div>
+  </div>
+
+  <div class="tuning-hack">
+    <div class="hack-label">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+      Stage Hack — From Standard Tuning
+    </div>
+    <div class="hack-steps">
+      <div class="hack-step"><span class="hack-step-num">1</span><span class="hack-note-from">4th D</span><span class="hack-arrow">→</span><span class="hack-note-to">E</span><span class="hack-direction">(up whole step)</span></div>
+      <div class="hack-step"><span class="hack-step-num">2</span><span class="hack-note-from">3rd G</span><span class="hack-arrow">→</span><span class="hack-note-to">A</span><span class="hack-direction">(up whole step)</span></div>
+      <div class="hack-step"><span class="hack-step-num">3</span><span class="hack-note-from">2nd B</span><span class="hack-arrow">→</span><span class="hack-note-to">C#</span><span class="hack-direction">(up whole step)</span></div>
+    </div>
+  </div>
+
+  <div class="why-works">
+    <div class="why-label">Why it Works</div>
+    <p class="why-text">Open A is Open G raised a whole step — meaning you can use every Open G chord shape, just two frets higher. It retains the outer E strings of standard tuning, giving a familiar feel while transforming the inner strings. Popularized by Mississippi Fred McDowell and Son House, it's perfect for Piedmont-style thumb-and-finger ragtime patterns. The major third (C#) on the 2nd string creates the brightest, most uplifting sound of all the open major tunings — it practically begs to be strummed hard.</p>
+  </div>
+
+  <div class="section-label">Core Chords in Open A</div>
+  <div class="chord-grid" id="chords-open-a"></div>
+
+  <div class="section-label">Songs to Play Right Now</div>
+  <div class="songs-grid">
+    <div class="song-card">
+      <div class="song-header">
+        <div><div class="song-title">Corinna Corinna</div><div class="song-artist">Mississippi Fred McDowell</div></div>
+        <span class="song-difficulty diff-medium">Medium</span>
+      </div>
+      <div class="song-chords"><span class="chord-pill">A (open)</span><span class="chord-pill">D (bar-5)</span><span class="chord-pill">E (bar-7)</span></div>
+      <div class="song-note">Fred McDowell's calling card. Steady bass thumb pattern in A with the slide riding the treble strings.</div>
+    </div>
+    <div class="song-card">
+      <div class="song-header">
+        <div><div class="song-title">You Got to Move</div><div class="song-artist">Mississippi Fred McDowell</div></div>
+        <span class="song-difficulty diff-easy">Easy</span>
+      </div>
+      <div class="song-chords"><span class="chord-pill">A (open)</span><span class="chord-pill">A7 (fret-3 add)</span></div>
+      <div class="song-note">Haunting one-chord gospel-blues. Slide up from the open chord to fret 12 for the main motif. Stones covered this too.</div>
+    </div>
+    <div class="song-card">
+      <div class="song-header">
+        <div><div class="song-title">Richland Woman Blues</div><div class="song-artist">Mississippi John Hurt</div></div>
+        <span class="song-difficulty diff-medium">Medium</span>
+      </div>
+      <div class="song-chords"><span class="chord-pill">A (open)</span><span class="chord-pill">D (bar-5)</span><span class="chord-pill">E (bar-7)</span></div>
+      <div class="song-note">Delicate fingerpicking with alternating bass. The C# on the 2nd string gives the chord shapes a particularly sweet character.</div>
+    </div>
+    <div class="song-card">
+      <div class="song-header">
+        <div><div class="song-title">Broken Home, Broken Hearts</div><div class="song-artist">Son House</div></div>
+        <span class="song-difficulty diff-medium">Medium</span>
+      </div>
+      <div class="song-chords"><span class="chord-pill">A (open)</span><span class="chord-pill">D (bar-5)</span><span class="chord-pill">E7 partial</span></div>
+      <div class="song-note">Son House's raw, powerful style. Heavy right-hand attack, slide bottleneck, sparse chord changes — all about feel.</div>
+    </div>
+    <div class="song-card">
+      <div class="song-header">
+        <div><div class="song-title">Travelling Riverside Blues</div><div class="song-artist">Robert Johnson / Led Zeppelin</div></div>
+        <span class="song-difficulty diff-hard">Hard</span>
+      </div>
+      <div class="song-chords"><span class="chord-pill">A (open)</span><span class="chord-pill">D (bar-5)</span><span class="chord-pill">E7</span><span class="chord-pill">slide phrases</span></div>
+      <div class="song-note">Page played this in Open A on the BBC Sessions. The turnaround runs up the neck with the slide — an essential riff to learn.</div>
+    </div>
+    <div class="song-card">
+      <div class="song-header">
+        <div><div class="song-title">Can't You Hear the Wind Howl</div><div class="song-artist">Robert Johnson style</div></div>
+        <span class="song-difficulty diff-medium">Medium</span>
+      </div>
+      <div class="song-chords"><span class="chord-pill">A (open)</span><span class="chord-pill">E (bar-7)</span><span class="chord-pill">D (bar-5)</span></div>
+      <div class="song-note">Classic blues progression I-IV-V in A, all accessible as full-bar slide or barre positions. Great for internalizing Open A geography.</div>
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider" />
+
+<!-- ══════════════════════════════════════════════════ -->
+<!-- 5. DADGAD -->
+<!-- ══════════════════════════════════════════════════ -->
+<section class="tuning-section" id="dadgad">
+  <div class="tuning-header">
+    <div class="tuning-title-group">
+      <div class="tuning-number">Tuning 05</div>
+      <h2 class="tuning-name">DADGAD</h2>
+      <div class="tuning-notes">
+        <span class="note-badge changed">D</span>
+        <span class="note-badge standard">A</span>
+        <span class="note-badge standard">D</span>
+        <span class="note-badge standard">G</span>
+        <span class="note-badge changed">A</span>
+        <span class="note-badge changed">D</span>
+      </div>
+      <div class="note-labels">
+        <span class="note-label">6th</span>
+        <span class="note-label">5th</span>
+        <span class="note-label">4th</span>
+        <span class="note-label">3rd</span>
+        <span class="note-label">2nd</span>
+        <span class="note-label">1st</span>
+      </div>
+    </div>
+    <div class="tuning-genre-list">
+      <span class="genre-tag">Celtic / Folk</span>
+      <span class="genre-tag">Fingerstyle</span>
+      <span class="genre-tag">Middle Eastern</span>
+      <span class="genre-tag">New Age</span>
+      <span class="genre-tag">Led Zeppelin</span>
+    </div>
+  </div>
+
+  <div class="tuning-hack">
+    <div class="hack-label">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+      Stage Hack — From Standard Tuning
+    </div>
+    <div class="hack-steps">
+      <div class="hack-step"><span class="hack-step-num">1</span><span class="hack-note-from">6th E</span><span class="hack-arrow">→</span><span class="hack-note-to">D</span><span class="hack-direction">(down whole step)</span></div>
+      <div class="hack-step"><span class="hack-step-num">2</span><span class="hack-note-from">2nd B</span><span class="hack-arrow">→</span><span class="hack-note-to">A</span><span class="hack-direction">(down whole step)</span></div>
+      <div class="hack-step"><span class="hack-step-num">3</span><span class="hack-note-from">1st E</span><span class="hack-arrow">→</span><span class="hack-note-to">D</span><span class="hack-direction">(down whole step)</span></div>
+    </div>
+  </div>
+
+  <div class="why-works">
+    <div class="why-label">Why it Works</div>
+    <p class="why-text">DADGAD is a suspended chord tuning — no third, so it's neither major nor minor. This ambiguity is its superpower: it sounds modal and ancient, perfect for Celtic reels, Indian-influenced fingerstyle, and anything that needs to breathe and resonate. Jimmy Page discovered it in Morocco and used it to write "Kashmir." The D–A–D octave frame creates a powerful drone, and the middle strings (A–D–G) remain standard, meaning your existing scale knowledge transfers directly. Guitarists like Pierre Bensusan built entire careers on DADGAD's unique harmonic landscape.</p>
+  </div>
+
+  <div class="section-label">Core Chords in DADGAD</div>
+  <div class="chord-grid" id="chords-dadgad"></div>
+
+  <div class="section-label">Songs to Play Right Now</div>
+  <div class="songs-grid">
+    <div class="song-card">
+      <div class="song-header">
+        <div><div class="song-title">Kashmir</div><div class="song-artist">Led Zeppelin</div></div>
+        <span class="song-difficulty diff-medium">Medium</span>
+      </div>
+      <div class="song-chords"><span class="chord-pill">Dsus4 (open)</span><span class="chord-pill">D (slide shapes)</span><span class="chord-pill">Cadd9</span><span class="chord-pill">Bb</span></div>
+      <div class="song-note">The defining DADGAD moment in rock. The main riff is a descending figure using the D drone; bar chords create the bridge sections.</div>
+    </div>
+    <div class="song-card">
+      <div class="song-header">
+        <div><div class="song-title">Black Mountain Side</div><div class="song-artist">Led Zeppelin</div></div>
+        <span class="song-difficulty diff-hard">Hard</span>
+      </div>
+      <div class="song-chords"><span class="chord-pill">Dsus2 (open)</span><span class="chord-pill">modal shapes</span><span class="chord-pill">Asus2</span></div>
+      <div class="song-note">Fingerpicked Celtic/Eastern piece. Page uses the open strings as drones throughout — inspired by Bert Jansch's Angie.</div>
+    </div>
+    <div class="song-card">
+      <div class="song-header">
+        <div><div class="song-title">The Dã</div><div class="song-artist">Pierre Bensusan</div></div>
+        <span class="song-difficulty diff-hard">Hard</span>
+      </div>
+      <div class="song-chords"><span class="chord-pill">D modal</span><span class="chord-pill">G voicings</span><span class="chord-pill">A suspended</span></div>
+      <div class="song-note">Bensusan is the master of DADGAD. This Celtic-inflected piece shows the tuning's range from delicate melody to percussive rhythm.</div>
+    </div>
+    <div class="song-card">
+      <div class="song-header">
+        <div><div class="song-title">Bron-Y-Aur Stomp</div><div class="song-artist">Led Zeppelin</div></div>
+        <span class="song-difficulty diff-medium">Medium</span>
+      </div>
+      <div class="song-chords"><span class="chord-pill">D (open)</span><span class="chord-pill">G (partial barre)</span><span class="chord-pill">A (fret shapes)</span></div>
+      <div class="song-note">Country-folk feel with a rolling bass. The open DADGAD chord rings as a D pedal beneath the bouncy melody.</div>
+    </div>
+    <div class="song-card">
+      <div class="song-header">
+        <div><div class="song-title">Angie</div><div class="song-artist">Bert Jansch</div></div>
+        <span class="song-difficulty diff-hard">Hard</span>
+      </div>
+      <div class="song-chords"><span class="chord-pill">D (open)</span><span class="chord-pill">Cadd9</span><span class="chord-pill">G</span><span class="chord-pill">F shapes</span></div>
+      <div class="song-note">The piece that inspired Page. Jansch's fingerpicking has a wandering, Celtic character that's entirely native to DADGAD.</div>
+    </div>
+    <div class="song-card">
+      <div class="song-header">
+        <div><div class="song-title">Lagan River</div><div class="song-artist">Irish Traditional / various</div></div>
+        <span class="song-difficulty diff-easy">Easy</span>
+      </div>
+      <div class="song-chords"><span class="chord-pill">D (open)</span><span class="chord-pill">G (partial)</span><span class="chord-pill">A (fret 7)</span></div>
+      <div class="song-note">A great intro to DADGAD Celtic playing. Keep the 6th string ringing as a D drone while the melody moves on strings 1–3.</div>
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider" />
+
+<!-- ══════════════════════════════════════════════════ -->
+<!-- 6. OPEN C -->
+<!-- ══════════════════════════════════════════════════ -->
+<section class="tuning-section" id="open-c">
+  <div class="tuning-header">
+    <div class="tuning-title-group">
+      <div class="tuning-number">Tuning 06</div>
+      <h2 class="tuning-name">Open C</h2>
+      <div class="tuning-notes">
+        <span class="note-badge changed">C</span>
+        <span class="note-badge standard">G</span>
+        <span class="note-badge changed">C</span>
+        <span class="note-badge standard">G</span>
+        <span class="note-badge changed">C</span>
+        <span class="note-badge standard">E</span>
+      </div>
+      <div class="note-labels">
+        <span class="note-label">6th</span>
+        <span class="note-label">5th</span>
+        <span class="note-label">4th</span>
+        <span class="note-label">3rd</span>
+        <span class="note-label">2nd</span>
+        <span class="note-label">1st</span>
+      </div>
+    </div>
+    <div class="tuning-genre-list">
+      <span class="genre-tag">Fingerstyle</span>
+      <span class="genre-tag">Alternative Rock</span>
+      <span class="genre-tag">New Age</span>
+      <span class="genre-tag">Experimental</span>
+      <span class="genre-tag">Psychedelic</span>
+    </div>
+  </div>
+
+  <div class="tuning-hack">
+    <div class="hack-label">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+      Stage Hack — From Standard Tuning
+    </div>
+    <div class="hack-steps">
+      <div class="hack-step"><span class="hack-step-num">1</span><span class="hack-note-from">6th E</span><span class="hack-arrow">→</span><span class="hack-note-to">C</span><span class="hack-direction">(down major 3rd)</span></div>
+      <div class="hack-step"><span class="hack-step-num">2</span><span class="hack-note-from">4th D</span><span class="hack-arrow">→</span><span class="hack-note-to">C</span><span class="hack-direction">(down whole step)</span></div>
+      <div class="hack-step"><span class="hack-step-num">3</span><span class="hack-note-from">2nd B</span><span class="hack-arrow">→</span><span class="hack-note-to">C</span><span class="hack-direction">(up half step)</span></div>
+    </div>
+  </div>
+
+  <div class="why-works">
+    <div class="why-label">Why it Works</div>
+    <p class="why-text">Open C is the lowest, most spacious of the major open tunings — the bass C on string 6 descends a full major third below standard E, producing an enormous resonant rumble. Joni Mitchell, Nick Drake, and John Fahey all used variants of Open C for its orchestral depth. The doubled Cs (strings 6, 4, 2) create a hollow, bell-like chord that rings for days. John Fahey turned it into a fingerpicking universe; Joni Mitchell used it for dense, jazz-informed voicings that are impossible in standard tuning. Its width — nearly two octaves from low C to high E — rewards slow, meditative fingerpicking.</p>
+  </div>
+
+  <div class="section-label">Core Chords in Open C</div>
+  <div class="chord-grid" id="chords-open-c"></div>
+
+  <div class="section-label">Songs to Play Right Now</div>
+  <div class="songs-grid">
+    <div class="song-card">
+      <div class="song-header">
+        <div><div class="song-title">Little Wing</div><div class="song-artist">Joni Mitchell (her version)</div></div>
+        <span class="song-difficulty diff-hard">Hard</span>
+      </div>
+      <div class="song-chords"><span class="chord-pill">C (open)</span><span class="chord-pill">Fadd9</span><span class="chord-pill">G</span><span class="chord-pill">Am</span></div>
+      <div class="song-note">Mitchell's dense jazz-folk voicings are only possible in Open C. Every chord shape creates suspensions that standard tuning can't produce.</div>
+    </div>
+    <div class="song-card">
+      <div class="song-header">
+        <div><div class="song-title">Bron-Y-Aur</div><div class="song-artist">Led Zeppelin (Jimmy Page)</div></div>
+        <span class="song-difficulty diff-medium">Medium</span>
+      </div>
+      <div class="song-chords"><span class="chord-pill">C (open)</span><span class="chord-pill">G (partial)</span><span class="chord-pill">Fadd9</span></div>
+      <div class="song-note">A gentle acoustic instrumental. Page's fingerpicking creates moving counterpoint between melody and bass with the open strings ringing freely.</div>
+    </div>
+    <div class="song-card">
+      <div class="song-header">
+        <div><div class="song-title">Hejira themes</div><div class="song-artist">Joni Mitchell</div></div>
+        <span class="song-difficulty diff-hard">Hard</span>
+      </div>
+      <div class="song-chords"><span class="chord-pill">C (open)</span><span class="chord-pill">Csus2</span><span class="chord-pill">F shapes</span><span class="chord-pill">Am voicings</span></div>
+      <div class="song-note">Joni's Open C excels on the Hejira album. Study any track — the tuning creates stacked 4ths and 5ths that sound like a jazz orchestra.</div>
+    </div>
+    <div class="song-card">
+      <div class="song-header">
+        <div><div class="song-title">The Transfiguration of Blind Joe Death</div><div class="song-artist">John Fahey</div></div>
+        <span class="song-difficulty diff-hard">Hard</span>
+      </div>
+      <div class="song-chords"><span class="chord-pill">C (open)</span><span class="chord-pill">G7</span><span class="chord-pill">F</span><span class="chord-pill">Am</span></div>
+      <div class="song-note">Fahey's solo acoustic work in Open C is hypnotic. The low C bass drone underpins everything while melody dances on the upper strings.</div>
+    </div>
+    <div class="song-card">
+      <div class="song-header">
+        <div><div class="song-title">Road Trippin'</div><div class="song-artist">Red Hot Chili Peppers</div></div>
+        <span class="song-difficulty diff-medium">Medium</span>
+      </div>
+      <div class="song-chords"><span class="chord-pill">C (open)</span><span class="chord-pill">Am (partial)</span><span class="chord-pill">F (barre)</span><span class="chord-pill">G</span></div>
+      <div class="song-note">Frusciante's acoustic gem. The open C tuning gives the picking a warm, hazy quality — let every note ring into the next.</div>
+    </div>
+    <div class="song-card">
+      <div class="song-header">
+        <div><div class="song-title">Clawhammer variations</div><div class="song-artist">Kaki King</div></div>
+        <span class="song-difficulty diff-hard">Hard</span>
+      </div>
+      <div class="song-chords"><span class="chord-pill">C (open)</span><span class="chord-pill">percussive taps</span><span class="chord-pill">harmonics</span></div>
+      <div class="song-note">Kaki King's percussive fingerstyle exploits Open C's range. Study her technique for tapping the body while playing melodic lines.</div>
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider" />
+
+<!-- ══════════════════════════════════════════════════ -->
+<!-- 7. OPEN Dm -->
+<!-- ══════════════════════════════════════════════════ -->
+<section class="tuning-section" id="open-dm">
+  <div class="tuning-header">
+    <div class="tuning-title-group">
+      <div class="tuning-number">Tuning 07</div>
+      <h2 class="tuning-name">Open D Minor</h2>
+      <div class="tuning-notes">
+        <span class="note-badge changed">D</span>
+        <span class="note-badge standard">A</span>
+        <span class="note-badge standard">D</span>
+        <span class="note-badge standard">F</span>
+        <span class="note-badge standard">A</span>
+        <span class="note-badge changed">D</span>
+      </div>
+      <div class="note-labels">
+        <span class="note-label">6th</span>
+        <span class="note-label">5th</span>
+        <span class="note-label">4th</span>
+        <span class="note-label">3rd</span>
+        <span class="note-label">2nd</span>
+        <span class="note-label">1st</span>
+      </div>
+    </div>
+    <div class="tuning-genre-list">
+      <span class="genre-tag">Folk</span>
+      <span class="genre-tag">Psychedelic</span>
+      <span class="genre-tag">Dark Fingerstyle</span>
+      <span class="genre-tag">Ambient</span>
+      <span class="genre-tag">Classical-influenced</span>
+    </div>
+  </div>
+
+  <div class="tuning-hack">
+    <div class="hack-label">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+      Stage Hack — From Standard Tuning
+    </div>
+    <div class="hack-steps">
+      <div class="hack-step"><span class="hack-step-num">1</span><span class="hack-note-from">6th E</span><span class="hack-arrow">→</span><span class="hack-note-to">D</span><span class="hack-direction">(down whole step)</span></div>
+      <div class="hack-step"><span class="hack-step-num">2</span><span class="hack-note-from">3rd G</span><span class="hack-arrow">→</span><span class="hack-note-to">F</span><span class="hack-direction">(down whole step)</span></div>
+      <div class="hack-step"><span class="hack-step-num">3</span><span class="hack-note-from">1st E</span><span class="hack-arrow">→</span><span class="hack-note-to">D</span><span class="hack-direction">(down whole step)</span></div>
+    </div>
+  </div>
+
+  <div class="why-works">
+    <div class="why-label">Why it Works</div>
+    <p class="why-text">Open Dm is identical to Open D but with the 3rd string tuned to F instead of F# — swapping the major third for a minor third changes the entire emotional character. This single-semitone shift transforms bright and country-esque into dark, melancholic, and ancient. Joni Mitchell used this tuning extensively (she called it "Joni's tuning"), and it's central to Nick Drake's work. The Dm chord as the open voice means every slide position produces a minor chord — perfect for Spanish-influenced or Moorish-sounding music. The tuning is also just two changes from Open D, making it an easy on-stage pivot.</p>
+  </div>
+
+  <div class="section-label">Core Chords in Open D Minor</div>
+  <div class="chord-grid" id="chords-open-dm"></div>
+
+  <div class="section-label">Songs to Play Right Now</div>
+  <div class="songs-grid">
+    <div class="song-card">
+      <div class="song-header">
+        <div><div class="song-title">Pink Moon</div><div class="song-artist">Nick Drake</div></div>
+        <span class="song-difficulty diff-easy">Easy</span>
+      </div>
+      <div class="song-chords"><span class="chord-pill">Dm (open)</span><span class="chord-pill">Gm (bar-5)</span><span class="chord-pill">Am (bar-7)</span></div>
+      <div class="song-note">One of the most beautiful acoustic recordings ever. The open chord rings as Dm — strum it and add a capo at fret 2 to match the record.</div>
+    </div>
+    <div class="song-card">
+      <div class="song-header">
+        <div><div class="song-title">River Man</div><div class="song-artist">Nick Drake</div></div>
+        <span class="song-difficulty diff-hard">Hard</span>
+      </div>
+      <div class="song-chords"><span class="chord-pill">Dm (open)</span><span class="chord-pill">Am</span><span class="chord-pill">Bb</span><span class="chord-pill">C</span></div>
+      <div class="song-note">Drake's fingerpicking creates a rolling, hypnotic pattern. The Dm tuning gives the arpeggio a deep, liquid quality.</div>
+    </div>
+    <div class="song-card">
+      <div class="song-header">
+        <div><div class="song-title">Been Smoking Too Long</div><div class="song-artist">Nick Drake</div></div>
+        <span class="song-difficulty diff-medium">Medium</span>
+      </div>
+      <div class="song-chords"><span class="chord-pill">Dm (open)</span><span class="chord-pill">Am</span><span class="chord-pill">Gm (bar-5)</span></div>
+      <div class="song-note">An early Drake recording showcasing how the open minor tuning supports melancholic songwriting with minimal chord changes.</div>
+    </div>
+    <div class="song-card">
+      <div class="song-header">
+        <div><div class="song-title">The Fiddle and the Drum</div><div class="song-artist">Joni Mitchell</div></div>
+        <span class="song-difficulty diff-medium">Medium</span>
+      </div>
+      <div class="song-chords"><span class="chord-pill">Dm (open)</span><span class="chord-pill">Am</span><span class="chord-pill">F voicings</span></div>
+      <div class="song-note">Mitchell's DADGAD-adjacent Open Dm work. The minor drone creates a folk/protest gravity beneath every phrase.</div>
+    </div>
+    <div class="song-card">
+      <div class="song-header">
+        <div><div class="song-title">Strange Fruit</div><div class="song-artist">Gary Lucas arrangement</div></div>
+        <span class="song-difficulty diff-hard">Hard</span>
+      </div>
+      <div class="song-chords"><span class="chord-pill">Dm (open)</span><span class="chord-pill">Gm</span><span class="chord-pill">A7</span><span class="chord-pill">Bb voicings</span></div>
+      <div class="song-note">Lucas' arrangement of the Billie Holiday classic exploits Open Dm's inherent darkness. Haunting without a single note out of place.</div>
+    </div>
+    <div class="song-card">
+      <div class="song-header">
+        <div><div class="song-title">Shiva / free drone work</div><div class="song-artist">Various (Experimental)</div></div>
+        <span class="song-difficulty diff-easy">Easy</span>
+      </div>
+      <div class="song-chords"><span class="chord-pill">Dm (open)</span><span class="chord-pill">Dm7 (fret-shapes)</span><span class="chord-pill">slide phrases</span></div>
+      <div class="song-note">Just strum the open chord and let it sustain — it's instant atmosphere. Add a slide for Eastern-inflected phrases. Open Dm rewards exploration.</div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer class="site-footer">
+  <p>Open Tunings Guitar Reference &middot; 7 Tunings &middot; All chord diagrams in standard notation (low string = left)</p>
+</footer>
+
+<script>
+// ─── Theme Toggle ───────────────────────────────────────
+(function() {
+  const t = document.querySelector('[data-theme-toggle]'),
+        r = document.documentElement;
+  let d = 'dark';
+  r.setAttribute('data-theme', d);
+  if (t) {
+    t.addEventListener('click', () => {
+      d = d === 'dark' ? 'light' : 'dark';
+      r.setAttribute('data-theme', d);
+      t.innerHTML = d === 'dark'
+        ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>'
+        : '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>';
+    });
+  }
+})();
+
+// ─── Smooth scroll helper ────────────────────────────────
+function scrollTo(id) {
+  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+}
+
+// ─── Nav active on scroll ────────────────────────────────
+const sections = ['open-d','open-g','open-e','open-a','dadgad','open-c','open-dm'];
+const navBtns = document.querySelectorAll('.nav-btn');
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      const idx = sections.indexOf(entry.target.id);
+      navBtns.forEach(b => b.classList.remove('active'));
+      if (idx >= 0) navBtns[idx].classList.add('active');
+    }
+  });
+}, { rootMargin: '-20% 0px -70% 0px' });
+sections.forEach(id => {
+  const el = document.getElementById(id);
+  if (el) observer.observe(el);
+});
+
+// ─── SVG Chord Diagram Generator ────────────────────────────
+// Format: { name, sub, strings: [fret or 'x' or 0], barre: {fret, from, to} optional, startFret: optional }
+// strings array: [6th string (low E), 5th, 4th, 3rd, 2nd, 1st (high)]
+
+function drawChord(container, chords) {
+  chords.forEach(chord => {
+    const card = document.createElement('div');
+    card.className = 'chord-card';
+    const nameEl = document.createElement('div');
+    nameEl.className = 'chord-card-name';
+    nameEl.textContent = chord.name;
+    const subEl = document.createElement('div');
+    subEl.className = 'chord-card-sub';
+    subEl.textContent = chord.sub || '';
+    card.appendChild(nameEl);
+    card.appendChild(createChordSVG(chord));
+    card.appendChild(subEl);
+    container.appendChild(card);
+  });
+}
+
+function createChordSVG(chord) {
+  const W = 90, H = 110;
+  const marginLeft = 12, marginTop = 18, marginRight = 8, marginBottom = 18;
+  const numStrings = 6, numFrets = 4;
+  const gridW = W - marginLeft - marginRight;
+  const gridH = H - marginTop - marginBottom;
+  const stringSpacing = gridW / (numStrings - 1);
+  const fretSpacing = gridH / numFrets;
+  const r = 5.5;
+
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.setAttribute('class', 'chord-diagram');
+  svg.setAttribute('role', 'img');
+  svg.setAttribute('aria-label', chord.name + ' chord diagram');
+
+  const style = getComputedStyle(document.documentElement);
+  const colorString = 'var(--color-string)';
+  const colorFret = 'var(--color-fret)';
+  const colorDot = 'var(--color-dot)';
+  const colorOpen = 'var(--color-open-dot)';
+  const colorMuted = 'var(--color-muted-dot)';
+  const colorText = 'var(--color-text)';
+  const colorTextMuted = 'var(--color-text-faint)';
+  const colorBg = 'var(--color-chord-bg)';
+
+  // Start fret number
+  const startFret = chord.startFret || 1;
+  if (startFret > 1) {
+    const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    t.setAttribute('x', W - marginRight + 2);
+    t.setAttribute('y', marginTop + fretSpacing * 0.5 + 4);
+    t.setAttribute('font-size', '8');
+    t.setAttribute('fill', colorTextMuted);
+    t.setAttribute('font-family', 'var(--font-body, sans-serif)');
+    t.setAttribute('text-anchor', 'start');
+    t.textContent = startFret + 'fr';
+    svg.appendChild(t);
+  }
+
+  // Nut (if starting at fret 1)
+  if (startFret === 1) {
+    const nut = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    nut.setAttribute('x', marginLeft);
+    nut.setAttribute('y', marginTop - 3);
+    nut.setAttribute('width', gridW);
+    nut.setAttribute('height', 3);
+    nut.setAttribute('rx', '1');
+    nut.setAttribute('fill', colorFret);
+    svg.appendChild(nut);
+  }
+
+  // Fret lines
+  for (let f = 0; f <= numFrets; f++) {
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', marginLeft);
+    line.setAttribute('x2', marginLeft + gridW);
+    line.setAttribute('y1', marginTop + f * fretSpacing);
+    line.setAttribute('y2', marginTop + f * fretSpacing);
+    line.setAttribute('stroke', colorFret);
+    line.setAttribute('stroke-width', f === 0 ? '1.5' : '1');
+    line.setAttribute('opacity', '0.5');
+    svg.appendChild(line);
+  }
+
+  // String lines
+  for (let s = 0; s < numStrings; s++) {
+    const x = marginLeft + s * stringSpacing;
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', x); line.setAttribute('x2', x);
+    line.setAttribute('y1', marginTop); line.setAttribute('y2', marginTop + gridH);
+    line.setAttribute('stroke', colorString);
+    line.setAttribute('stroke-width', (numStrings - s) * 0.3 + 0.6 + '');
+    line.setAttribute('opacity', '0.7');
+    svg.appendChild(line);
+  }
+
+  // Barre
+  if (chord.barre) {
+    const bFret = chord.barre.fret - startFret + 1;
+    const bFromX = marginLeft + chord.barre.from * stringSpacing;
+    const bToX = marginLeft + chord.barre.to * stringSpacing;
+    const bY = marginTop + (bFret - 0.5) * fretSpacing;
+    const bar = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    bar.setAttribute('x', bFromX);
+    bar.setAttribute('y', bY - r);
+    bar.setAttribute('width', bToX - bFromX);
+    bar.setAttribute('height', r * 2);
+    bar.setAttribute('rx', r);
+    bar.setAttribute('fill', colorDot);
+    svg.appendChild(bar);
+  }
+
+  // Finger dots
+  chord.strings.forEach((fret, si) => {
+    const x = marginLeft + si * stringSpacing;
+    if (fret === 'x') {
+      // muted
+      const t1 = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      t1.setAttribute('x', x); t1.setAttribute('y', marginTop - 6);
+      t1.setAttribute('text-anchor', 'middle'); t1.setAttribute('font-size', '9');
+      t1.setAttribute('fill', colorMuted); t1.setAttribute('font-weight', '600');
+      t1.setAttribute('font-family', 'var(--font-body, sans-serif)');
+      t1.textContent = '×';
+      svg.appendChild(t1);
+    } else if (fret === 0) {
+      // open
+      const circ = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      circ.setAttribute('cx', x); circ.setAttribute('cy', marginTop - 7);
+      circ.setAttribute('r', r - 1);
+      circ.setAttribute('fill', 'none'); circ.setAttribute('stroke', colorOpen);
+      circ.setAttribute('stroke-width', '1.5');
+      svg.appendChild(circ);
+    } else if (typeof fret === 'number' && fret > 0) {
+      const relFret = fret - startFret + 1;
+      if (relFret >= 1 && relFret <= numFrets) {
+        const y = marginTop + (relFret - 0.5) * fretSpacing;
+        const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        dot.setAttribute('cx', x); dot.setAttribute('cy', y);
+        dot.setAttribute('r', r);
+        dot.setAttribute('fill', colorDot);
+        svg.appendChild(dot);
+      }
+    }
+  });
+
+  // String labels at bottom
+  ['E','A','D','G','B','E'].forEach((n, si) => {
+    const x = marginLeft + si * stringSpacing;
+    const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    t.setAttribute('x', x); t.setAttribute('y', H - 3);
+    t.setAttribute('text-anchor', 'middle'); t.setAttribute('font-size', '7');
+    t.setAttribute('fill', colorTextMuted);
+    t.setAttribute('font-family', 'var(--font-body, sans-serif)');
+    t.textContent = n;
+    svg.appendChild(t);
+  });
+
+  return svg;
+}
+
+// ─── Chord Data ─────────────────────────────────────────
+// Note: strings array = [6th(low), 5th, 4th, 3rd, 2nd, 1st(high)]
+// In Open D: D A D F# A D
+
+const chordData = {
+  'open-d': [
+    { name: 'D', sub: 'open', strings: [0, 0, 0, 0, 0, 0] },
+    { name: 'G', sub: 'bar 5', strings: [5, 5, 5, 5, 5, 5], barre: {fret:5, from:0, to:5}, startFret: 4 },
+    { name: 'A', sub: 'bar 7', strings: [7, 7, 7, 7, 7, 7], barre: {fret:7, from:0, to:5}, startFret: 6 },
+    { name: 'D7', sub: 'fret 2+', strings: [0, 0, 0, 2, 0, 0] },
+    { name: 'Bm', sub: 'partial', strings: ['x', 'x', 0, 4, 3, 0] },
+    { name: 'Em', sub: 'shape', strings: [0, 0, 2, 2, 0, 0] },
+    { name: 'F', sub: 'bar 3', strings: [3, 3, 3, 3, 3, 3], barre: {fret:3, from:0, to:5}, startFret: 2 },
+    { name: 'C', sub: 'bar 10', strings: [10,10,10,10,10,10], barre: {fret:10,from:0,to:5}, startFret: 9 },
+  ],
+  'open-g': [
+    // Open G: D G D G B D
+    { name: 'G', sub: 'open', strings: [0, 0, 0, 0, 0, 0] },
+    { name: 'C', sub: 'bar 5', strings: [5, 5, 5, 5, 5, 5], barre: {fret:5, from:0, to:5}, startFret: 4 },
+    { name: 'D', sub: 'bar 7', strings: [7, 7, 7, 7, 7, 7], barre: {fret:7, from:0, to:5}, startFret: 6 },
+    { name: 'G7', sub: 'add b7', strings: [0, 0, 0, 0, 1, 0] },
+    { name: 'Em', sub: '2-string', strings: ['x', 2, 2, 0, 0, 0] },
+    { name: 'Bb', sub: 'bar 3', strings: [3, 3, 3, 3, 3, 3], barre: {fret:3, from:0, to:5}, startFret: 2 },
+    { name: 'F', sub: 'alt', strings: ['x', 'x', 3, 2, 1, 1] },
+    { name: 'Am', sub: 'shape', strings: ['x', 0, 2, 2, 1, 0] },
+  ],
+  'open-e': [
+    // Open E: E B E G# B E
+    { name: 'E', sub: 'open', strings: [0, 0, 0, 0, 0, 0] },
+    { name: 'A', sub: 'bar 5', strings: [5, 5, 5, 5, 5, 5], barre: {fret:5, from:0, to:5}, startFret: 4 },
+    { name: 'B', sub: 'bar 7', strings: [7, 7, 7, 7, 7, 7], barre: {fret:7, from:0, to:5}, startFret: 6 },
+    { name: 'E7', sub: 'add b7', strings: [0, 0, 0, 1, 0, 0] },
+    { name: 'C#m', sub: 'bar 9', strings: [9, 9, 9, 9, 9, 9], barre: {fret:9, from:0, to:5}, startFret: 8 },
+    { name: 'F#', sub: 'bar 2', strings: [2, 2, 2, 2, 2, 2], barre: {fret:2, from:0, to:5}, startFret: 1 },
+    { name: 'G', sub: 'bar 3', strings: [3, 3, 3, 3, 3, 3], barre: {fret:3, from:0, to:5}, startFret: 2 },
+    { name: 'D', sub: 'partial', strings: ['x', 'x', 0, 2, 3, 2] },
+  ],
+  'open-a': [
+    // Open A: E A E A C# E
+    { name: 'A', sub: 'open', strings: [0, 0, 0, 0, 0, 0] },
+    { name: 'D', sub: 'bar 5', strings: [5, 5, 5, 5, 5, 5], barre: {fret:5, from:0, to:5}, startFret: 4 },
+    { name: 'E', sub: 'bar 7', strings: [7, 7, 7, 7, 7, 7], barre: {fret:7, from:0, to:5}, startFret: 6 },
+    { name: 'A7', sub: 'add b7', strings: [0, 0, 0, 0, 2, 0] },
+    { name: 'F#m', sub: 'bar 9', strings: [9, 9, 9, 9, 9, 9], barre: {fret:9, from:0, to:5}, startFret: 8 },
+    { name: 'B', sub: 'bar 2', strings: [2, 2, 2, 2, 2, 2], barre: {fret:2, from:0, to:5}, startFret: 1 },
+    { name: 'G', sub: 'bar 10', strings: [10,10,10,10,10,10], barre: {fret:10,from:0,to:5}, startFret: 9 },
+    { name: 'C#m', sub: 'partial', strings: ['x', 4, 4, 4, 4, 'x'], barre: {fret:4, from:1, to:4}, startFret: 3 },
+  ],
+  'dadgad': [
+    // DADGAD: D A D G A D
+    { name: 'D', sub: 'open', strings: [0, 0, 0, 0, 0, 0] },
+    { name: 'Dsus2', sub: 'open', strings: [0, 0, 0, 0, 0, 0] },
+    { name: 'G', sub: 'partial', strings: ['x', 0, 0, 0, 3, 3] },
+    { name: 'A', sub: '2-finger', strings: ['x', 0, 0, 2, 0, 0] },
+    { name: 'Cadd9', sub: 'shape', strings: ['x', 0, 0, 0, 1, 3] },
+    { name: 'Em7', sub: 'open', strings: [0, 2, 2, 0, 0, 0] },
+    { name: 'F', sub: 'bar 3', strings: [3, 3, 3, 3, 3, 3], barre: {fret:3, from:0, to:5}, startFret: 2 },
+    { name: 'Bm7', sub: 'shape', strings: ['x', 2, 4, 2, 3, 'x'] },
+  ],
+  'open-c': [
+    // Open C: C G C G C E
+    { name: 'C', sub: 'open', strings: [0, 0, 0, 0, 0, 0] },
+    { name: 'F', sub: 'bar 5', strings: [5, 5, 5, 5, 5, 5], barre: {fret:5, from:0, to:5}, startFret: 4 },
+    { name: 'G', sub: 'bar 7', strings: [7, 7, 7, 7, 7, 7], barre: {fret:7, from:0, to:5}, startFret: 6 },
+    { name: 'C7', sub: 'add b7', strings: [0, 0, 0, 0, 1, 0] },
+    { name: 'Am', sub: 'shape', strings: ['x', 2, 2, 0, 0, 'x'] },
+    { name: 'Dm', sub: 'partial', strings: ['x', 3, 3, 1, 1, 'x'], barre: {fret:3, from:1, to:2}, startFret: 2 },
+    { name: 'Em', sub: 'open', strings: [4, 2, 4, 0, 0, 0] },
+    { name: 'Fadd9', sub: 'lush', strings: [5, 5, 5, 5, 5, 7], startFret: 4 },
+  ],
+  'open-dm': [
+    // Open Dm: D A D F A D
+    { name: 'Dm', sub: 'open', strings: [0, 0, 0, 0, 0, 0] },
+    { name: 'Gm', sub: 'bar 5', strings: [5, 5, 5, 5, 5, 5], barre: {fret:5, from:0, to:5}, startFret: 4 },
+    { name: 'Am', sub: 'bar 7', strings: [7, 7, 7, 7, 7, 7], barre: {fret:7, from:0, to:5}, startFret: 6 },
+    { name: 'Dm7', sub: 'add b7', strings: [0, 0, 0, 0, 1, 0] },
+    { name: 'F', sub: 'bar 3', strings: [3, 3, 3, 3, 3, 3], barre: {fret:3, from:0, to:5}, startFret: 2 },
+    { name: 'C', sub: 'partial', strings: ['x', 3, 2, 0, 3, 0] },
+    { name: 'Bb', sub: 'bar 8', strings: [8, 8, 8, 8, 8, 8], barre: {fret:8, from:0, to:5}, startFret: 7 },
+    { name: 'A', sub: 'shape', strings: ['x', 0, 2, 2, 2, 0] },
+  ],
+};
+
+// ─── Render all chord grids ──────────────────────────────
+Object.keys(chordData).forEach(tuningId => {
+  const container = document.getElementById('chords-' + tuningId);
+  if (container) drawChord(container, chordData[tuningId]);
+});
+</script>
+<script data-pplx-inline-edit>
+(function () {
+  if (window === window.top) return;
+
+  const allowedParentOrigins = ["https://www.perplexity.ai","https://perplexity.ai","https://testing.perplexity.ai","https://staging.perplexity.ai","https://*.preview.i.perplexity.ai","http://localhost:3000","http://127.0.0.1:3000","http://localhost:5173","http://127.0.0.1:5173"];
+  const MAX_FONT_BYTES = 500 * 1024;
+  const MAX_TOTAL_FONT_BYTES = 2 * 1024 * 1024;
+  let scrollForwarding = false;
+  let scrollRaf = 0;
+  let trustedTopOrigin = null;
+
+  // Allow entries like "https://*.preview.i.perplexity.ai" — the wildcard
+  // matches a single DNS label (no dots), so "https://*.foo" cannot stretch
+  // across multiple labels.
+  function matchesAllowedOrigin(origin) {
+    if (!origin) return false;
+    for (const entry of allowedParentOrigins) {
+      if (!entry.includes("*")) {
+        if (entry === origin) return true;
+        continue;
+      }
+      const pattern = new RegExp(
+        "^" +
+          entry.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, "[^.]+") +
+          "$",
+      );
+      if (pattern.test(origin)) return true;
+    }
+    return false;
+  }
+
+  // Trust decision: when the sender is same-origin-visible (event.origin is a
+  // real origin like https://www.perplexity.ai) we trust event.origin directly.
+  // When event.origin is "null" (opaque broker srcdoc), we fall back to the
+  // broker's stamped `parentOrigin` to identify the top window. The fallback
+  // is claim-only — we rely on the browser's native `targetOrigin` enforcement
+  // on the response path (see postToTrustedTop) to ensure replies can't be
+  // delivered to anyone but the actual top window of that claimed origin.
+  function getTrustedParentOrigin(event) {
+    const forwardedParentOrigin =
+      typeof event.data.parentOrigin === "string" ? event.data.parentOrigin : null;
+    const parentOrigin = event.origin === "null" ? forwardedParentOrigin : event.origin;
+    return matchesAllowedOrigin(parentOrigin) ? parentOrigin : null;
+  }
+
+  // All responses go to window.top with targetOrigin = the allowlisted origin.
+  // An attacker that iframes us inside their own null-origin broker can claim
+  // any parentOrigin they like, but the browser will drop the reply whenever
+  // the real top's origin doesn't match — so the screenshot never leaves.
+  function postToTrustedTop(message) {
+    if (!trustedTopOrigin) return;
+    try {
+      window.top.postMessage(message, trustedTopOrigin);
+    } catch (_error) {}
+  }
+
+  function inlineAll(original, clone) {
+    if (original.nodeType !== 1 || clone.nodeType !== 1) return;
+
+    try {
+      const computedStyle = getComputedStyle(original);
+      // cssText on a computed style is the serialized declaration in modern
+      // Chromium/Safari — a single read beats enumerating ~400 longhand
+      // properties. Firefox returns "" here, so we fall back on empty.
+      const serialized = computedStyle.cssText;
+      if (serialized) {
+        clone.style.cssText = serialized;
+      } else {
+        const parts = new Array(computedStyle.length);
+        for (let index = 0; index < computedStyle.length; index += 1) {
+          const property = computedStyle[index];
+          parts[index] = `${property}:${computedStyle.getPropertyValue(property)};`;
+        }
+        clone.style.cssText = parts.join("");
+      }
+    } catch (_error) {}
+
+    const originalChildren = original.children;
+    const clonedChildren = clone.children;
+    for (
+      let index = 0;
+      index < originalChildren.length && index < clonedChildren.length;
+      index += 1
+    ) {
+      inlineAll(originalChildren[index], clonedChildren[index]);
+    }
+  }
+
+  function extractFontUrl(srcValue) {
+    const matches = [
+      ...srcValue.matchAll(
+        /url\(["']?([^"')]+)["']?\)(?:\s*format\(["']?([^"')]+)["']?\))?/gi,
+      ),
+    ];
+    if (matches.length === 0) return null;
+    const woff2 = matches.find((m) => m[2] && m[2].toLowerCase().includes("woff2"));
+    if (woff2) return woff2[1];
+    const woff = matches.find((m) => m[2] && m[2].toLowerCase().includes("woff"));
+    if (woff) return woff[1];
+    return matches[0][1];
+  }
+
+  // Cache resolved font URL -> data URI across captures. Fonts on a page
+  // essentially never change, and a batch run emits multiple captures back to
+  // back — without this we'd refetch + re-base64 every time.
+  const fontDataUriCache = new Map();
+  const SRC_DECLARATION_RE = /src\s*:\s*[^;}]+/i;
+
+  async function fetchAsDataUri(url) {
+    if (fontDataUriCache.has(url)) return fontDataUriCache.get(url);
+    let dataUri = null;
+    try {
+      const response = await fetch(url, { mode: "cors", credentials: "omit" });
+      if (response.ok) {
+        const blob = await response.blob();
+        if (blob.size <= MAX_FONT_BYTES) {
+          dataUri = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () =>
+              resolve(typeof reader.result === "string" ? reader.result : null);
+            reader.onerror = () => resolve(null);
+            reader.readAsDataURL(blob);
+          });
+        }
+      }
+    } catch (_error) {
+      dataUri = null;
+    }
+    fontDataUriCache.set(url, dataUri);
+    return dataUri;
+  }
+
+  function collectFontFaceRuleTexts() {
+    const rules = [];
+    for (const sheet of document.styleSheets) {
+      let cssRules;
+      try {
+        cssRules = sheet.cssRules;
+      } catch (_error) {
+        continue;
+      }
+      if (!cssRules) continue;
+      for (const rule of cssRules) {
+        const cssText = rule.cssText || "";
+        if (cssText.startsWith("@font-face")) rules.push(cssText);
+      }
+    }
+    return rules;
+  }
+
+  async function buildInlinedFontCss() {
+    const ruleTexts = collectFontFaceRuleTexts();
+    if (ruleTexts.length === 0) return null;
+
+    const resolved = ruleTexts.map((cssText) => {
+      if (!SRC_DECLARATION_RE.test(cssText)) return null;
+      const srcMatch = cssText.match(/src\s*:\s*([^;}]+)[;}]/i);
+      if (!srcMatch) return null;
+      const url = extractFontUrl(srcMatch[1]);
+      if (!url) return null;
+      try {
+        return { cssText, url: new URL(url, document.baseURI).href };
+      } catch (_error) {
+        return null;
+      }
+    });
+
+    const dataUris = await Promise.all(
+      resolved.map((entry) => (entry ? fetchAsDataUri(entry.url) : Promise.resolve(null))),
+    );
+
+    const inlined = [];
+    let totalBytes = 0;
+    for (let index = 0; index < resolved.length; index += 1) {
+      const entry = resolved[index];
+      const dataUri = dataUris[index];
+      if (!entry || !dataUri) continue;
+      const approxBytes = dataUri.length * 0.75;
+      if (totalBytes + approxBytes > MAX_TOTAL_FONT_BYTES) break;
+      totalBytes += approxBytes;
+      inlined.push(entry.cssText.replace(SRC_DECLARATION_RE, `src: url("${dataUri}")`));
+    }
+    return inlined.length > 0 ? inlined.join("\n") : null;
+  }
+
+  function stripExternal(clone) {
+    const images = clone.querySelectorAll("img");
+    for (let index = 0; index < images.length; index += 1) {
+      const src = images[index].getAttribute("src");
+      if (src && !src.startsWith("data:")) images[index].removeAttribute("src");
+    }
+
+    const elements = clone.querySelectorAll("*");
+    for (let index = 0; index < elements.length; index += 1) {
+      const style = elements[index].style.cssText;
+      if (style && style.includes("url(")) {
+        elements[index].style.cssText = style.replace(
+          /url\(["']?(?!data:)[^)"']*["']?\)/gi,
+          "none",
+        );
+      }
+    }
+  }
+
+  function emitScroll() {
+    scrollRaf = 0;
+    if (!scrollForwarding) return;
+    postToTrustedTop({
+      type: "INLINE_EDIT_SCROLL",
+      scrollX: window.scrollX,
+      scrollY: window.scrollY,
+    });
+  }
+
+  window.addEventListener(
+    "scroll",
+    function () {
+      if (!scrollForwarding || scrollRaf) return;
+      scrollRaf = requestAnimationFrame(emitScroll);
+    },
+    { passive: true, capture: true },
+  );
+
+  async function handleCaptureRequest(event) {
+    const requestId = event.data.requestId;
+    const scrollX = window.scrollX;
+    const scrollY = window.scrollY;
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+
+    function postResult(dataUrl) {
+      postToTrustedTop({
+        type: "INLINE_EDIT_SCREENSHOT_RESULT",
+        requestId,
+        dataUrl,
+        scrollX,
+        scrollY,
+      });
+    }
+
+    try {
+      // Wait for any pending web fonts to resolve so both inline metrics and
+      // the @font-face inlining below see the same loaded faces.
+      if (document.fonts && document.fonts.ready) {
+        try {
+          await document.fonts.ready;
+        } catch (_error) {}
+      }
+
+      const clone = document.documentElement.cloneNode(true);
+      inlineAll(document.documentElement, clone);
+
+      const removedNodes = clone.querySelectorAll("script,link[rel=\"stylesheet\"],style");
+      for (let index = 0; index < removedNodes.length; index += 1) {
+        removedNodes[index].remove();
+      }
+
+      stripExternal(clone);
+
+      // Re-embed web fonts as data-URI @font-face rules so the SVG rasterizer
+      // can resolve them — external font URLs aren't fetched during
+      // foreignObject rendering, which would otherwise force a fallback face
+      // and change text metrics.
+      const inlinedFontCss = await buildInlinedFontCss();
+      if (inlinedFontCss) {
+        const styleEl = document.createElement("style");
+        styleEl.textContent = inlinedFontCss;
+        const head = clone.querySelector("head");
+        if (head) head.appendChild(styleEl);
+        else clone.insertBefore(styleEl, clone.firstChild);
+      }
+
+      const html = new XMLSerializer().serializeToString(clone);
+      const svg =
+        `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">` +
+        '<foreignObject width="100%" height="100%">' +
+        `<div xmlns="http://www.w3.org/1999/xhtml" style="width:${width}px;height:${height}px;overflow:hidden">` +
+        `<div style="position:relative;left:-${scrollX}px;top:-${scrollY}px">` +
+        html +
+        "</div></div></foreignObject></svg>";
+      const svgUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+      const image = new Image();
+      image.onload = function () {
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext("2d").drawImage(image, 0, 0);
+        postResult(canvas.toDataURL("image/png"));
+      };
+      image.onerror = function () {
+        postResult(null);
+      };
+      image.src = svgUrl;
+    } catch (_error) {
+      postResult(null);
+    }
+  }
+
+  window.addEventListener("message", function (event) {
+    if (!event.data) return;
+    // Only accept messages from the direct parent frame. Blocks sibling /
+    // unrelated-window postMessage senders that could otherwise reach us.
+    if (event.source !== window.parent) return;
+
+    const trustedParentOrigin = getTrustedParentOrigin(event);
+    if (!trustedParentOrigin) return;
+    trustedTopOrigin = trustedParentOrigin;
+
+    if (event.data.type === "INLINE_EDIT_SCROLL_START") {
+      scrollForwarding = true;
+      emitScroll();
+      return;
+    }
+
+    if (event.data.type === "INLINE_EDIT_SCROLL_STOP") {
+      scrollForwarding = false;
+      if (scrollRaf) cancelAnimationFrame(scrollRaf);
+      scrollRaf = 0;
+      return;
+    }
+
+    if (event.data.type !== "INLINE_EDIT_CAPTURE_REQUEST") return;
+
+    handleCaptureRequest(event);
+  });
+})();
+
+
+</script></body>
+</html>

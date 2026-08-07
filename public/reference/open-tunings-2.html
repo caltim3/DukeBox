@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OPEN: A Working Guitarist's Field Guide to Seven Open Tunings</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300..800&family=Spline+Sans+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --stage:#161a21;
+  --panel:#1e2430;
+  --panel2:#242c3a;
+  --line:#303a4a;
+  --chalk:#eae5d7;
+  --dim:#95a0af;
+  --brass:#d8ab3c;      /* down-tune, dots, accents */
+  --coral:#e26e5a;      /* up-tune warning */
+  --denim:#82a8cc;      /* neutral info */
+  --wood:#b58455;
+  --mono:'Spline Sans Mono', ui-monospace, monospace;
+  --disp:'Bricolage Grotesque', system-ui, sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--stage);color:var(--chalk);font-family:var(--disp);font-weight:340;line-height:1.55;font-size:16px}
+::selection{background:var(--brass);color:#161a21}
+
+/* ---------- header ---------- */
+header{padding:56px 24px 30px;max-width:1060px;margin:0 auto}
+.kicker{font-family:var(--mono);font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:var(--brass)}
+h1{font-size:clamp(52px,9vw,104px);font-weight:780;line-height:.95;letter-spacing:-.02em;margin:10px 0 6px}
+h1 .tunes{color:var(--dim);font-weight:300;font-style:italic}
+.lede{max-width:620px;color:var(--dim);font-size:17px}
+.lede b{color:var(--chalk);font-weight:560}
+
+/* ---------- nav ---------- */
+nav{position:sticky;top:0;z-index:50;background:rgba(22,26,33,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+nav .row{max-width:1060px;margin:0 auto;display:flex;gap:6px;overflow-x:auto;padding:10px 24px;scrollbar-width:none}
+nav .row::-webkit-scrollbar{display:none}
+nav a{flex:0 0 auto;font-family:var(--mono);font-size:12.5px;color:var(--dim);text-decoration:none;padding:6px 12px;border:1px solid var(--line);border-radius:99px;transition:all .15s}
+nav a:hover,nav a:focus-visible{color:var(--stage);background:var(--brass);border-color:var(--brass)}
+nav a.stage-link{color:var(--coral);border-color:#4a3530}
+nav a.stage-link:hover{background:var(--coral);color:var(--stage)}
+
+main{max-width:1060px;margin:0 auto;padding:0 24px 90px}
+section{margin-top:64px}
+h2{font-size:clamp(30px,4.4vw,44px);font-weight:720;letter-spacing:-.015em;line-height:1.05}
+h3{font-size:15px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.18em;color:var(--brass);font-weight:500;margin:30px 0 12px}
+p{margin:10px 0;max-width:70ch}
+p,li{color:#cfd5dc}
+p b,li b{color:var(--chalk);font-weight:600}
+.mono{font-family:var(--mono)}
+
+/* ---------- peg strips (signature element) ---------- */
+.peg-strip{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 4px}
+.peg{display:flex;flex-direction:column;align-items:center;gap:3px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 0 6px;width:72px}
+.peg .str{font-family:var(--mono);font-size:10px;color:var(--dim);letter-spacing:.08em}
+.peg .move{font-family:var(--mono);font-size:15px;font-weight:700;color:var(--chalk)}
+.peg .move .arrow{margin:0 2px;font-weight:400}
+.peg .delta{font-family:var(--mono);font-size:10.5px;padding:1px 8px;border-radius:99px}
+.peg.down{border-color:#4a3f22}.peg.down .delta{background:rgba(216,171,60,.16);color:var(--brass)}
+.peg.down .move .to{color:var(--brass)}
+.peg.up{border-color:#4a3028}.peg.up .delta{background:rgba(226,110,90,.16);color:var(--coral)}
+.peg.up .move .to{color:var(--coral)}
+.peg.same{opacity:.45}.peg.same .delta{background:rgba(149,160,175,.14);color:var(--dim)}
+
+/* ---------- stage moves cards ---------- */
+.moves-grid{display:grid;grid-template-columns:1fr;gap:14px;margin-top:18px}
+.move-card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px 20px 14px}
+.move-card .top{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.move-card .rank{font-family:var(--mono);color:var(--dim);font-size:12px}
+.move-card h4{font-size:21px;font-weight:680}
+.move-card h4 a{color:inherit;text-decoration:none;border-bottom:1px dashed var(--line)}
+.move-card .notes{font-family:var(--mono);color:var(--denim);font-size:13.5px;letter-spacing:.14em}
+.badge{font-family:var(--mono);font-size:11px;padding:2px 10px;border-radius:99px;letter-spacing:.05em}
+.badge.easy{background:rgba(216,171,60,.14);color:var(--brass)}
+.badge.warn{background:rgba(226,110,90,.16);color:var(--coral)}
+.badge.info{background:rgba(130,168,204,.14);color:var(--denim)}
+.move-card .tip{color:var(--dim);font-size:14px;margin-top:8px}
+.move-card .tip b{color:var(--chalk)}
+
+.pivots{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin-top:14px}
+.pivot{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.pivot .route{font-family:var(--mono);font-size:14px;color:var(--chalk);font-weight:700}
+.pivot .route span{color:var(--brass)}
+.pivot p{font-size:13.5px;color:var(--dim);margin:6px 0 0}
+
+.protips{margin-top:14px;padding-left:0;list-style:none;max-width:76ch}
+.protips li{padding:10px 0 10px 30px;position:relative;border-bottom:1px dashed var(--line);font-size:15px}
+.protips li:before{content:"◈";position:absolute;left:4px;color:var(--brass)}
+
+/* ---------- tuning sections ---------- */
+.tuning{border-top:1px solid var(--line);padding-top:34px}
+.tuning-head{display:flex;align-items:baseline;gap:16px;flex-wrap:wrap}
+.tuning-head .letters{font-family:var(--mono);font-size:clamp(17px,2.6vw,22px);color:var(--brass);letter-spacing:.3em;font-weight:700}
+.tuning .why{margin-top:12px}
+.charts{display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:14px;margin-top:6px}
+figure.chord{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 8px 8px;text-align:center}
+figure.chord figcaption{font-weight:680;font-size:17px;margin-bottom:2px}
+figure.chord figcaption small{display:block;font-family:var(--mono);font-weight:400;font-size:10.5px;color:var(--dim);letter-spacing:.04em;margin-top:1px;min-height:14px}
+figure.chord svg{width:100%;max-width:128px;height:auto;display:block;margin:0 auto}
+
+/* ---------- songs table ---------- */
+table{width:100%;border-collapse:collapse;margin-top:6px;font-size:14.5px}
+th{font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.16em;color:var(--dim);text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);font-weight:500}
+td{padding:11px 10px;border-bottom:1px solid #262e3b;vertical-align:top}
+td.song{font-weight:640;color:var(--chalk);white-space:nowrap}
+td.song small{display:block;font-weight:340;color:var(--dim);font-size:12.5px}
+td .ch{font-family:var(--mono);font-size:12.5px;background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:1px 7px;margin:0 3px 3px 0;display:inline-block;color:var(--brass);white-space:nowrap}
+td.how{color:#c4cbd4}
+@media(max-width:640px){
+  td.song{white-space:normal}
+  th:nth-child(2),td:nth-child(2){display:none}
+}
+footer{max-width:1060px;margin:0 auto;padding:30px 24px 60px;color:var(--dim);font-size:13px;border-top:1px solid var(--line)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="kicker">A field guide for the gigging guitarist</div>
+  <h1>OPEN <span class="tunes">tunings</span></h1>
+  <p class="lede">Seven tunings, the chord grips that unlock each one, why each sounds the way it does, and songs you can play tonight. <b>Stage moves first:</b> the fastest peg routes from standard, ranked by how few strings you have to touch between songs.</p>
+</header>
+
+<nav><div class="row">
+  <a class="stage-link" href="#stage-moves">⚡ Stage Moves</a>
+  <a href="#open-g">Open G</a>
+  <a href="#open-d">Open D</a>
+  <a href="#dadgad">DADGAD</a>
+  <a href="#open-e">Open E</a>
+  <a href="#open-a">Open A</a>
+  <a href="#open-c">Open C</a>
+  <a href="#open-dm">Open Dm</a>
+</div></nav>
+
+<main>
+
+<!-- ============ STAGE MOVES ============ -->
+<section id="stage-moves">
+  <h2>Stage moves: getting there from standard</h2>
+  <p>Every card shows the six pegs, low string on the left. <b style="color:var(--brass)">Gold means tune down</b>, <b style="color:var(--coral)">coral means tune up</b>, greyed pegs stay put. Ranked from quickest onstage move to "do this at the set break."</p>
+
+  <div class="moves-grid">
+
+    <div class="move-card">
+      <div class="top"><span class="rank">01</span><h4><a href="#dadgad">DADGAD</a></h4><span class="notes">D A D G A D</span><span class="badge easy">3 pegs · all down a whole step</span></div>
+      <div class="peg-strip" data-tuning="D,A,D,G,A,D"></div>
+      <p class="tip"><b>The move:</b> strings 6, 2, and 1 each drop exactly one whole step. Same interval three times, so your ear locks in fast: drop the low E to D, then match strings 2 and 1 to it by octaves.</p>
+    </div>
+
+    <div class="move-card">
+      <div class="top"><span class="rank">02</span><h4><a href="#open-g">Open G</a></h4><span class="notes">D G D G B D</span><span class="badge easy">3 pegs · all down a whole step</span></div>
+      <div class="peg-strip" data-tuning="D,G,D,G,B,D"></div>
+      <p class="tip"><b>The move:</b> strings 6, 5, and 1 down a whole step. The middle four strings of standard never move, so partial chord shapes you already know survive. Keith Richards removes the 6th string entirely and treats string 5 as the root.</p>
+    </div>
+
+    <div class="move-card">
+      <div class="top"><span class="rank">03</span><h4><a href="#open-d">Open D</a></h4><span class="notes">D A D F# A D</span><span class="badge easy">4 pegs · all down</span></div>
+      <div class="peg-strip" data-tuning="D,A,D,F#,A,D"></div>
+      <p class="tip"><b>The move:</b> three whole steps and one half step (G drops just a fret's worth to F#). Fastest route: get to DADGAD first with the three-peg move above, then nudge the 3rd string down one more half step. <b>Open D is the hub tuning:</b> one peg away from DADGAD, one peg from Open Dm, and a capo away from Open E.</p>
+    </div>
+
+    <div class="move-card">
+      <div class="top"><span class="rank">04</span><h4><a href="#open-dm">Open D minor</a></h4><span class="notes">D A D F A D</span><span class="badge easy">4 pegs · all down</span></div>
+      <div class="peg-strip" data-tuning="D,A,D,F,A,D"></div>
+      <p class="tip"><b>The move:</b> identical to Open D except the 3rd string falls a full whole step, G to F. If you are already in Open D, this is a single half-step nudge on one peg.</p>
+    </div>
+
+    <div class="move-card">
+      <div class="top"><span class="rank">05</span><h4><a href="#open-e">Open E</a></h4><span class="notes">E B E G# B E</span><span class="badge warn">3 pegs · UP · extra tension</span></div>
+      <div class="peg-strip" data-tuning="E,B,E,G#,B,E"></div>
+      <p class="tip"><b>The move:</b> strings 5 and 4 up a whole step, string 3 up a half step. Tuning up adds real tension: fine on a modern electric with 9s or 10s, risky on a vintage flat-top. <b>The pro dodge: tune Open D and capo at fret 2.</b> Identical pitches, zero added stress, and you keep the D-family shapes.</p>
+    </div>
+
+    <div class="move-card">
+      <div class="top"><span class="rank">06</span><h4><a href="#open-a">Open A</a></h4><span class="notes">E A E A C# E</span><span class="badge warn">3 pegs · UP · extra tension</span></div>
+      <div class="peg-strip" data-tuning="E,A,E,A,C#,E"></div>
+      <p class="tip"><b>The move:</b> strings 4, 3, 2 climb (two whole steps and a half). Same tension caveat as Open E, and the same dodge: <b>Open G with a capo at fret 2 is Open A</b> for all practical purposes. Everything you learn on the Open G page works here, up a whole step.</p>
+    </div>
+
+    <div class="move-card">
+      <div class="top"><span class="rank">07</span><h4><a href="#open-c">Open C</a></h4><span class="notes">C G C G C E</span><span class="badge info">5 pegs · big drops · set-break tuning</span></div>
+      <div class="peg-strip" data-tuning="C,G,C,G,C,E"></div>
+      <p class="tip"><b>The move:</b> the low E falls two whole steps to C, strings 5 and 4 down a whole step, and string 2 actually rises a half step to C. Too much drama for a between-song switch. Do it at the break, or bring a second guitar living in C. Heavier strings on the bottom (a 56 or a light baritone set) keep the low C from flapping.</p>
+    </div>
+
+  </div>
+
+  <h3>One-peg pivots between open tunings</h3>
+  <div class="pivots">
+    <div class="pivot"><div class="route">Open D <span>→</span> DADGAD</div><p>3rd string up a half step, F# to G. One peg, two worlds.</p></div>
+    <div class="pivot"><div class="route">Open D <span>→</span> Open Dm</div><p>3rd string down a half step, F# to F. Major turns minor with one twist.</p></div>
+    <div class="pivot"><div class="route">DADGAD <span>→</span> Open Dm</div><p>3rd string down a whole step, G to F. Still one peg.</p></div>
+    <div class="pivot"><div class="route">Open C <span>→</span> Open C6</div><p>5th string up a whole step, G to A. C6 (C A C G C E) is the actual Zeppelin tuning for Friends and Bron-Yr-Aur.</p></div>
+    <div class="pivot"><div class="route">Open D + capo 2 <span>=</span> Open E</div><p>Same pitches, no extra string tension. This is how most slide players "play in Open E."</p></div>
+    <div class="pivot"><div class="route">Open G + capo 2 <span>=</span> Open A</div><p>The classic Delta blues dodge. Robert Johnson keys move with the capo.</p></div>
+  </div>
+
+  <h3>Setlist and hardware tips</h3>
+  <ul class="protips">
+    <li><b>Order the set by tuning family.</b> D family runs Open D → DADGAD → Open Dm on single-peg pivots. G family covers Open G and, via capo, Open A. Cross between families only once or twice a night.</li>
+    <li><b>Tune down between songs, never up.</b> Strings settle into lower tension almost immediately; tuned-up strings drift flat for a couple of minutes. Another argument for the capo dodges on E and A.</li>
+    <li><b>Detune, overshoot, come back up.</b> When you do have to raise a string, drop it below target and tune up to pitch. The string winds seat under tension and hold better.</li>
+    <li><b>Clip-on tuner lives on the headstock all night.</b> Mute with your palm, turn pegs with your fret hand, and you can make the three-peg DADGAD move in under 20 seconds while you talk to the room.</li>
+    <li><b>Stretch new strings hard before an open-tuning gig.</b> Retuning cycles expose any string that has not fully settled.</li>
+    <li><b>Two-guitar luxury:</b> keep one guitar in standard/D-family, one in G-family or Open C. Heavier gauge (11s or 12s) on the low-tuning guitar.</li>
+  </ul>
+</section>
+
+<!-- ============ OPEN G ============ -->
+<section id="open-g" class="tuning">
+  <div class="tuning-head"><h2>Open G</h2><span class="letters">D G D G B D</span></div>
+  <div class="peg-strip" data-tuning="D,G,D,G,B,D"></div>
+  <div class="why">
+    <p><b>Why it works.</b> Strum everything open and you get a fat G major with the 5th on the bottom. Because the middle four strings are untouched from standard, this is the friendliest open tuning to visit: the root sits on string 5, and one straight barre finger gives you a full major chord anywhere on the neck. That one-finger-per-chord economy is why it became the engine of both Delta blues slide (the bar replaces the finger) and the Rolling Stones' entire second act: Keith's style is the open barre plus two fingers hammering the sus4 and 6th on top, that snapping "Start Me Up" flick.</p>
+    <p>Great for: slide blues, Stones-style riff rock, country blues fingerpicking, banjo-flavored folk (it is literally banjo tuning, strings 5 to 1).</p>
+  </div>
+
+  <h3>The grips</h3>
+  <div class="charts" data-tuning="D,G,D,G,B,D">
+    <span data-name="G" data-sub="the tuning itself" data-frets="0,0,0,0,0,0"></span>
+    <span data-name="Cadd9" data-sub="the Keef chord" data-frets="-1,0,2,0,1,0"></span>
+    <span data-name="C" data-sub="one-finger barre" data-frets="5,5,5,5,5,5"></span>
+    <span data-name="D" data-sub="one-finger barre" data-frets="7,7,7,7,7,7"></span>
+    <span data-name="F" data-sub="one-finger barre" data-frets="3,3,3,3,3,3"></span>
+    <span data-name="G7" data-sub="add the b7 on top" data-frets="0,0,0,0,0,3"></span>
+  </div>
+
+  <h3>Play these tonight</h3>
+  <table>
+    <tr><th>Song</th><th>Artist</th><th>Chords / shapes</th><th>How it goes</th></tr>
+    <tr><td class="song">Start Me Up<small>1981</small></td><td>The Rolling Stones</td><td><span class="ch">G open</span><span class="ch">Cadd9 x02010</span><span class="ch">F barre 3</span></td><td class="how">The riff is just G open snapping to the Cadd9 grip and back. Chorus drops to F at the 3rd-fret barre. Mute string 6 or skip it, Keith-style.</td></tr>
+    <tr><td class="song">Honky Tonk Women<small>1969</small></td><td>The Rolling Stones</td><td><span class="ch">G open</span><span class="ch">Cadd9</span><span class="ch">D barre 7</span></td><td class="how">Verse rides G with Cadd9 flicks; the turnaround climbs to the D barre at 7. Loose wrist, behind the beat.</td></tr>
+    <tr><td class="song">Brown Sugar<small>1971</small></td><td>The Rolling Stones</td><td><span class="ch">C barre 5</span><span class="ch">G open</span><span class="ch">F barre 3</span></td><td class="how">The famous riff lives around the 5th-fret barre with the two-finger add-on rocking on top, resolving home to open G.</td></tr>
+    <tr><td class="song">Death Letter<small>1965 recording</small></td><td>Son House</td><td><span class="ch">G drone</span><span class="ch">slide 3 · 5 · 12</span></td><td class="how">Pure Delta: thumb hammers the low strings, slide barks at frets 3, 5, and 12. No chord changes to speak of, all rhythm and menace.</td></tr>
+    <tr><td class="song">Fearless<small>1971</small></td><td>Pink Floyd</td><td><span class="ch">G open</span><span class="ch">C barre 5</span><span class="ch">walking bass on 6 &amp; 5</span></td><td class="how">Gilmour walks a bass line up into the open G chord, drifting to the C barre. Gentle proof the tuning is not only for blues.</td></tr>
+  </table>
+</section>
+
+<!-- ============ OPEN D ============ -->
+<section id="open-d" class="tuning">
+  <div class="tuning-head"><h2>Open D</h2><span class="letters">D A D F# A D</span></div>
+  <div class="peg-strip" data-tuning="D,A,D,F#,A,D"></div>
+  <div class="why">
+    <p><b>Why it works.</b> Root on the bottom this time, so the low string is the tonic and the whole guitar rings like one giant D chord with three octaves of D in it. That bottom-heavy voicing is why it owns slide blues (Elmore James) and gospel slide (Blind Willie Johnson), and why folk players from Richie Havens to Joni Mitchell built on it: thumb the low D, and melody and chords float on top of an endless drone. The barre logic is the same one-finger-anywhere deal as Open G, just with the root under your finger instead of the 5th.</p>
+    <p>Great for: slide in D, gospel blues, open-string folk strumming (Havens strummed almost everything with a thumb barre), and as the hub of the whole D family of tunings.</p>
+  </div>
+
+  <h3>The grips</h3>
+  <div class="charts" data-tuning="D,A,D,F#,A,D">
+    <span data-name="D" data-sub="the tuning itself" data-frets="0,0,0,0,0,0"></span>
+    <span data-name="G" data-sub="one-finger barre" data-frets="5,5,5,5,5,5"></span>
+    <span data-name="A" data-sub="one-finger barre" data-frets="7,7,7,7,7,7"></span>
+    <span data-name="G/D" data-sub="IV over the drone" data-frets="0,2,0,1,0,0"></span>
+    <span data-name="D7" data-sub="b7 on string 2" data-frets="0,0,0,0,3,0"></span>
+    <span data-name="Bm7" data-sub="one finger, string 5" data-frets="-1,2,0,0,0,0"></span>
+    <span data-name="Em9" data-sub="two-finger ii chord" data-frets="2,2,0,0,0,0"></span>
+  </div>
+
+  <h3>Play these tonight</h3>
+  <table>
+    <tr><th>Song</th><th>Artist</th><th>Chords / shapes</th><th>How it goes</th></tr>
+    <tr><td class="song">Dust My Broom<small>1951</small></td><td>Elmore James</td><td><span class="ch">D slide 12</span><span class="ch">G barre 5</span><span class="ch">A barre 7</span></td><td class="how">The whole slide vocabulary in one 12-bar: the stinging triplet lick at fret 12, IV and V as straight barres at 5 and 7. Elmore played it in D and E interchangeably; capo 2 for E.</td></tr>
+    <tr><td class="song">Dark Was the Night, Cold Was the Ground<small>1927</small></td><td>Blind Willie Johnson</td><td><span class="ch">D drone</span><span class="ch">slide melody, strings 1–2</span></td><td class="how">No changes at all. Thumb keeps the low D alive while the slide moans the melody up high. A masterclass in how much one chord can hold.</td></tr>
+    <tr><td class="song">Freedom (Motherless Child)<small>Woodstock, 1969</small></td><td>Richie Havens</td><td><span class="ch">D open</span><span class="ch">G barre 5</span><span class="ch">A barre 7</span></td><td class="how">Havens barred with his thumb over the top of the neck and strummed like a drummer. Hammer the barre on and off the open strings for that heaving pulse.</td></tr>
+    <tr><td class="song">Big Yellow Taxi<small>1970 · capo 2</small></td><td>Joni Mitchell</td><td><span class="ch">capo 2</span><span class="ch">A shape: barre 5</span><span class="ch">B shape: barre 7</span><span class="ch">E: open</span></td><td class="how">Joni played it in Open E; capo 2 in Open D gets you there safely. Verse rocks between the two barres, chorus lands on the ringing open chord.</td></tr>
+  </table>
+</section>
+
+<!-- ============ DADGAD ============ -->
+<section id="dadgad" class="tuning">
+  <div class="tuning-head"><h2>DADGAD</h2><span class="letters">D A D G A D</span></div>
+  <div class="peg-strip" data-tuning="D,A,D,G,A,D"></div>
+  <div class="why">
+    <p><b>Why it works.</b> Strictly speaking not an "open" tuning: strummed open it gives Dsus4, a chord that is neither major nor minor. That ambiguity is the entire point. With no 3rd committing you to a mode, DADGAD floats between D major, D minor, D Mixolydian, and D Dorian, which is exactly the modal territory of Irish, Scottish, and Middle Eastern music. Davey Graham devised it in the early 60s after hearing oud players in Morocco; Bert Jansch and Jimmy Page ran with it. Melodies sit on the top two strings (tuned a 4th apart, easy fingering) while the bottom drones like a set of pipes.</p>
+    <p>Great for: Celtic fingerstyle, drop-thumb drone folk, modern fingerstyle percussion players, and the mighty Zeppelin drone-riff.</p>
+  </div>
+
+  <h3>The grips</h3>
+  <div class="charts" data-tuning="D,A,D,G,A,D">
+    <span data-name="Dsus4" data-sub="the tuning itself" data-frets="0,0,0,0,0,0"></span>
+    <span data-name="D" data-sub="resolve the sus" data-frets="0,0,4,2,0,0"></span>
+    <span data-name="G" data-sub="full major IV" data-frets="5,5,0,0,2,0"></span>
+    <span data-name="Asus4" data-sub="the V, still floating" data-frets="-1,0,2,2,0,0"></span>
+    <span data-name="G/B" data-sub="one-finger walkdown" data-frets="-1,2,0,0,0,0"></span>
+    <span data-name="Em7" data-sub="two-finger ii" data-frets="2,2,0,0,0,0"></span>
+  </div>
+
+  <h3>Play these tonight</h3>
+  <table>
+    <tr><th>Song</th><th>Artist</th><th>Chords / shapes</th><th>How it goes</th></tr>
+    <tr><td class="song">Kashmir<small>1975</small></td><td>Led Zeppelin</td><td><span class="ch">D drone</span><span class="ch">ascending riff over open strings</span></td><td class="how">Keep the open Ds ringing and march a fretted line up the neck one fret at a time; the clash between the rising notes and the immovable drone is the whole menace of the track. The bridge sits on sus-chord slides.</td></tr>
+    <tr><td class="song">Black Mountain Side<small>1969</small></td><td>Led Zeppelin</td><td><span class="ch">Dsus4 drone</span><span class="ch">hammered ornaments on strings 2–3</span><span class="ch">G 5-5-0-0-2-0</span></td><td class="how">Page's instrumental, closely modeled on Bert Jansch's arrangement of Blackwaterside. Drop-thumb bass, ornaments rolled fast like uilleann-pipe cuts. Learn the Jansch original too.</td></tr>
+    <tr><td class="song">She Moved Through the Fair<small>trad.</small></td><td>Irish traditional</td><td><span class="ch">Dsus4</span><span class="ch">G/B</span><span class="ch">Asus4</span><span class="ch">Em7</span></td><td class="how">The classic DADGAD proving ground. Melody on the top two strings, everything else left ringing. Never resolve the sus fully and the tune keeps its Mixolydian shimmer.</td></tr>
+  </table>
+</section>
+
+<!-- ============ OPEN E ============ -->
+<section id="open-e" class="tuning">
+  <div class="tuning-head"><h2>Open E</h2><span class="letters">E B E G# B E</span></div>
+  <div class="peg-strip" data-tuning="E,B,E,G#,B,E"></div>
+  <div class="why">
+    <p><b>Why it works.</b> Open D's voicing shifted up a whole step, with the extra string tension giving a brighter, harder snap that electric slide players love: this is Duane Allman's home tuning, and the jangly sparkle under Joni Mitchell's early records. The low E root means you keep the same bottom string as standard, so riffs that pedal off the low string feel natural. Interior sus4 and 6th embellishments fall under one hammering finger, which is the entire harmonic engine of She Talks to Angels.</p>
+    <p>Great for: electric slide (Allman, Derek Trucks), open-chord rock balladry, Delta-to-Chicago blues in E. On acoustics or vintage guitars, reach it as Open D capo 2.</p>
+  </div>
+
+  <h3>The grips</h3>
+  <div class="charts" data-tuning="E,B,E,G#,B,E">
+    <span data-name="E" data-sub="the tuning itself" data-frets="0,0,0,0,0,0"></span>
+    <span data-name="Esus4" data-sub="the hammer-on chord" data-frets="0,0,0,1,0,0"></span>
+    <span data-name="E7" data-sub="b7 on string 2" data-frets="0,0,0,0,3,0"></span>
+    <span data-name="A" data-sub="one-finger barre" data-frets="5,5,5,5,5,5"></span>
+    <span data-name="B" data-sub="one-finger barre" data-frets="7,7,7,7,7,7"></span>
+    <span data-name="G" data-sub="one-finger barre" data-frets="3,3,3,3,3,3"></span>
+  </div>
+
+  <h3>Play these tonight</h3>
+  <table>
+    <tr><th>Song</th><th>Artist</th><th>Chords / shapes</th><th>How it goes</th></tr>
+    <tr><td class="song">She Talks to Angels<small>1990</small></td><td>The Black Crowes</td><td><span class="ch">E open</span><span class="ch">Esus4 hammer</span><span class="ch">A barre 5</span><span class="ch">B barre 7</span></td><td class="how">The intro is the open chord decorated with hammered sus figures on strings 3 and 4. Chorus swings up to the 5th and 7th fret barres. One of the great first open-tuning songs.</td></tr>
+    <tr><td class="song">Statesboro Blues<small>Fillmore East, 1971</small></td><td>The Allman Brothers Band</td><td><span class="ch">E slide 12</span><span class="ch">A barre 5</span><span class="ch">B barre 7</span></td><td class="how">Duane's Coricidin-bottle showcase. The 12-bar lives at frets 12, 5, and 7; slide sits directly over the fret wire, vibrato from the wrist.</td></tr>
+    <tr><td class="song">Big Yellow Taxi<small>1970</small></td><td>Joni Mitchell</td><td><span class="ch">E open</span><span class="ch">A barre 5</span><span class="ch">B barre 7</span></td><td class="how">The original is here in Open E: bright percussive strums, barres at 5 and 7 with the chorus falling home to the ringing open E.</td></tr>
+    <tr><td class="song">Bo Diddley<small>1955</small></td><td>Bo Diddley</td><td><span class="ch">E vamp</span><span class="ch">rhythm: shave-and-a-haircut clave</span></td><td class="how">Bo tuned open and played the guitar like a drum. One chord, maracas feel, tremolo if you have it. The point is the rhythm, not the harmony.</td></tr>
+  </table>
+</section>
+
+<!-- ============ OPEN A ============ -->
+<section id="open-a" class="tuning">
+  <div class="tuning-head"><h2>Open A</h2><span class="letters">E A E A C# E</span></div>
+  <div class="peg-strip" data-tuning="E,A,E,A,C#,E"></div>
+  <div class="why">
+    <p><b>Why it works.</b> Open G's twin, one whole step up: the 5th sits on the bottom, root on string 5, and every Open G grip transfers directly. The higher tension gives it bark, and having low E and A both available makes it a natural for droning blues in A, the guitarist's favorite blues key. This is prime Robert Johnson territory (his A-position songs) and where Zeppelin went for their heaviest slide moments. Most players in practice reach it as Open G capo 2, but electrics with light strings wear the real tuning fine.</p>
+    <p>Great for: Delta and hill-country blues in A, heavy slide, one-chord trance boogie.</p>
+  </div>
+
+  <h3>The grips</h3>
+  <div class="charts" data-tuning="E,A,E,A,C#,E">
+    <span data-name="A" data-sub="the tuning itself" data-frets="0,0,0,0,0,0"></span>
+    <span data-name="Asus4" data-sub="one-finger color" data-frets="0,0,0,0,1,0"></span>
+    <span data-name="A7" data-sub="b7 on top" data-frets="0,0,0,0,0,3"></span>
+    <span data-name="C" data-sub="one-finger barre" data-frets="3,3,3,3,3,3"></span>
+    <span data-name="D" data-sub="one-finger barre" data-frets="5,5,5,5,5,5"></span>
+    <span data-name="E" data-sub="one-finger barre" data-frets="7,7,7,7,7,7"></span>
+  </div>
+
+  <h3>Play these tonight</h3>
+  <table>
+    <tr><th>Song</th><th>Artist</th><th>Chords / shapes</th><th>How it goes</th></tr>
+    <tr><td class="song">In My Time of Dying<small>1975</small></td><td>Led Zeppelin</td><td><span class="ch">A drone</span><span class="ch">slide riff, low strings</span><span class="ch">D barre 5</span></td><td class="how">Page's eleven-minute slide epic. The main riff crawls on the bottom strings against the open A; the slide answers up at fret 12. Mostly one chord, all attitude.</td></tr>
+    <tr><td class="song">Come On in My Kitchen<small>1936</small></td><td>Robert Johnson</td><td><span class="ch">A open</span><span class="ch">slide fills at 12</span><span class="ch">D barre 5</span></td><td class="how">Johnson's spookiest. Thumb alternates on the low strings, slide whispers the vocal line back at fret 12. Brief nods to the IV at the 5th fret barre.</td></tr>
+    <tr><td class="song">Everything from the Open G page<small>capo logic</small></td><td>you</td><td><span class="ch">same grips, up a step</span></td><td class="how">Death Letter, the Stones grips, the Cadd9 flick: all of it works identically here, sounding a whole step higher. Two tunings for the price of one.</td></tr>
+  </table>
+</section>
+
+<!-- ============ OPEN C ============ -->
+<section id="open-c" class="tuning">
+  <div class="tuning-head"><h2>Open C</h2><span class="letters">C G C G C E</span></div>
+  <div class="peg-strip" data-tuning="C,G,C,G,C,E"></div>
+  <div class="why">
+    <p><b>Why it works.</b> The deep one. Dropping the 6th string two whole steps to C puts you in near-baritone territory, and with three Cs and two Gs ringing, the guitar turns into a small orchestra: huge fundamentals below, a lone major 3rd on top carrying all the color. Fingerstyle players love it because bass, harmony, and melody separate cleanly into registers; percussive modern players love how much it moves air. John Fahey built American Primitive guitar partly on C tunings, and one peg turn (5th string G up to A) converts it to the C6 tuning Jimmy Page used for Friends and Bron-Yr-Aur.</p>
+    <p>Great for: solo fingerstyle, percussive acoustic (John Butler, Ben Howard territory), low-and-huge accompaniment, writing when you are tired of every chord you know.</p>
+  </div>
+
+  <h3>The grips</h3>
+  <div class="charts" data-tuning="C,G,C,G,C,E">
+    <span data-name="C" data-sub="the tuning itself" data-frets="0,0,0,0,0,0"></span>
+    <span data-name="Cmaj7" data-sub="one finger, string 3" data-frets="0,0,0,4,0,0"></span>
+    <span data-name="Am7/C" data-sub="one finger, relative minor" data-frets="0,0,0,2,0,0"></span>
+    <span data-name="F" data-sub="one-finger barre" data-frets="5,5,5,5,5,5"></span>
+    <span data-name="G" data-sub="one-finger barre" data-frets="7,7,7,7,7,7"></span>
+  </div>
+
+  <h3>Play these tonight</h3>
+  <table>
+    <tr><th>Song</th><th>Artist</th><th>Chords / shapes</th><th>How it goes</th></tr>
+    <tr><td class="song">Ocean<small>1998 / 2012</small></td><td>John Butler</td><td><span class="ch">C drone</span><span class="ch">F barre 5</span><span class="ch">G barre 7</span><span class="ch">percussive hits</span></td><td class="how">His 12-string epic, but it translates to six. Rolling fingerpicking over the drone, builds by moving the barres while the top E string rings against everything.</td></tr>
+    <tr><td class="song">Bron-Yr-Aur<small>1975 · one peg to C6</small></td><td>Led Zeppelin</td><td><span class="ch">tune 5th string G→A</span><span class="ch">C6: C A C G C E</span></td><td class="how">Page's two-minute acoustic gem, and Friends from III lives in the same tuning. Turn one peg from Open C and you are there: thumb-and-fingers arpeggios, let every string ring.</td></tr>
+    <tr><td class="song">Old Pine<small>2011</small></td><td>Ben Howard</td><td><span class="ch">C open</span><span class="ch">Am7/C</span><span class="ch">F barre 5</span><span class="ch">G barre 7</span></td><td class="how">Howard's percussive C-tuning style: thumb slaps on the low C, hammered figures inside the open chord, choruses on the 5th and 7th fret barres.</td></tr>
+    <tr><td class="song">Sunflower River Blues<small>1963</small></td><td>John Fahey</td><td><span class="ch">C open</span><span class="ch">F barre 5</span><span class="ch">alternating thumb</span></td><td class="how">American Primitive 101: steady alternating bass on the Cs, syncopated melody above. Fahey's C tunings are a rabbit hole worth falling into.</td></tr>
+  </table>
+</section>
+
+<!-- ============ OPEN D MINOR ============ -->
+<section id="open-dm" class="tuning">
+  <div class="tuning-head"><h2>Open D minor</h2><span class="letters">D A D F A D</span></div>
+  <div class="peg-strip" data-tuning="D,A,D,F,A,D"></div>
+  <div class="why">
+    <p><b>Why it works.</b> The old players called it cross-note tuning. Take Open D and let the 3rd fall from F# to F, and the whole guitar turns mournful: strummed open it is a pure D minor chord, and because the minor 3rd sits on a fretted-string away from major, one finger at the first fret of string 3 flips the entire instrument from minor to major. That flicker between the two, neither fully settled, is the sound of Skip James and the eeriest corner of the Delta. It also barres like the others: one finger gives you a minor chord anywhere.</p>
+    <p>Great for: haunted Delta blues, minor-key fingerstyle, drones with a shadow over them. The cheapest ticket to sounding like nobody else at the open mic.</p>
+  </div>
+
+  <h3>The grips</h3>
+  <div class="charts" data-tuning="D,A,D,F,A,D">
+    <span data-name="Dm" data-sub="the tuning itself" data-frets="0,0,0,0,0,0"></span>
+    <span data-name="D" data-sub="one finger = major" data-frets="0,0,0,1,0,0"></span>
+    <span data-name="Dm7" data-sub="b7 on string 2" data-frets="0,0,0,0,3,0"></span>
+    <span data-name="F" data-sub="one-finger barre" data-frets="3,3,3,3,3,3"></span>
+    <span data-name="Gm" data-sub="one-finger barre" data-frets="5,5,5,5,5,5"></span>
+    <span data-name="Am" data-sub="one-finger barre" data-frets="7,7,7,7,7,7"></span>
+  </div>
+
+  <h3>Play these tonight</h3>
+  <table>
+    <tr><th>Song</th><th>Artist</th><th>Chords / shapes</th><th>How it goes</th></tr>
+    <tr><td class="song">Devil Got My Woman<small>1931</small></td><td>Skip James</td><td><span class="ch">Dm drone</span><span class="ch">hammer F→F# on string 3</span></td><td class="how">Barely any chord changes: fingerpicked minor drone with the major 3rd hammered in and pulled away like a bad thought. Falsetto optional, chills guaranteed.</td></tr>
+    <tr><td class="song">Hard Time Killing Floor Blues<small>1931</small></td><td>Skip James</td><td><span class="ch">Dm open</span><span class="ch">F barre 3</span><span class="ch">Dm7 fills</span></td><td class="how">The Depression's bleakest masterpiece (revived in O Brother, Where Art Thou?). Verse hangs on the open minor with brief lifts to the F barre. Slow, sparse, let it breathe.</td></tr>
+    <tr><td class="song">Write your own<small>tonight</small></td><td>you</td><td><span class="ch">Dm · D · Gm · Am</span></td><td class="how">The minor-to-major one-finger flip plus three barres is a complete songwriting kit. Nobody hears this tuning coming.</td></tr>
+  </table>
+</section>
+
+</main>
+
+<footer>
+  Chord grids read low string (left) to high string (right); numbers are frets, ○ open, × muted, a bar across all strings is a one-finger barre with its fret marked. Peg strips show the change from standard tuning, string 6 to string 1.
+</footer>
+
+<script>
+/* ---------- shared note math ---------- */
+const NOTES = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+const pc = n => NOTES.indexOf(n.replace("Db","C#").replace("Eb","D#").replace("Gb","F#").replace("Ab","G#").replace("Bb","A#"));
+const STANDARD = ["E","A","D","G","B","E"];
+
+/* nearest signed semitone delta (-6..+6) */
+function delta(from,to){
+  let d = (pc(to)-pc(from))%12; if(d>6)d-=12; if(d<-6)d+=12; return d;
+}
+
+/* ---------- peg strips ---------- */
+document.querySelectorAll(".peg-strip").forEach(strip=>{
+  const target = strip.dataset.tuning.split(",");
+  strip.innerHTML = target.map((note,i)=>{
+    const d = delta(STANDARD[i],note);
+    const cls = d<0 ? "down" : d>0 ? "up" : "same";
+    const badge = d===0 ? "stays" : (d>0?"+":"")+d+" st";
+    const arrow = d===0 ? "" : `<span class="arrow">${d<0?"↓":"↑"}</span>`;
+    const move = d===0
+      ? `<span class="to">${note}</span>`
+      : `${STANDARD[i]}${arrow}<span class="to">${note}</span>`;
+    return `<div class="peg ${cls}">
+      <span class="str">STR ${6-i}</span>
+      <span class="move">${move}</span>
+      <span class="delta">${badge}</span>
+    </div>`;
+  }).join("");
+});
+
+/* ---------- chord chart renderer ---------- */
+function chordSVG(tuning, frets){
+  const fretted = frets.filter(f=>f>0);
+  const maxF = fretted.length?Math.max(...fretted):0;
+  const base = maxF>4 ? Math.min(...fretted) : 1;
+  const nFrets = 5;
+  const isBarre = frets.every(f=>f===frets[0]) && frets[0]>0;
+
+  const W=128,H=176, x0=26, x5=112, top=20, gridH=118;
+  const sx = i => x0 + i*(x5-x0)/5;
+  const fy = f => top + f*gridH/nFrets;      /* line y for fret f */
+  const dy = f => top + (f-0.5)*gridH/nFrets; /* dot y within fret f */
+
+  let s = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" role="img">`;
+
+  /* frets */
+  for(let f=0;f<=nFrets;f++){
+    const heavy = (f===0 && base===1);
+    s += `<line x1="${x0}" y1="${fy(f)}" x2="${x5}" y2="${fy(f)}" stroke="${heavy?'#eae5d7':'#3a4556'}" stroke-width="${heavy?4:1.4}"/>`;
+  }
+  /* strings */
+  for(let i=0;i<6;i++){
+    s += `<line x1="${sx(i)}" y1="${fy(0)}" x2="${sx(i)}" y2="${fy(nFrets)}" stroke="#4a5668" stroke-width="${1+ (5-i)*0.25}"/>`;
+  }
+  /* base fret label */
+  if(base>1){
+    s += `<text x="${x0-7}" y="${dy(1)+4}" font-family="Spline Sans Mono,monospace" font-size="11" fill="#95a0af" text-anchor="end">${base}fr</text>`;
+  }
+  /* barre bar */
+  if(isBarre){
+    const rel = frets[0]-base+1;
+    s += `<rect x="${sx(0)-7}" y="${dy(rel)-6.5}" width="${sx(5)-sx(0)+14}" height="13" rx="6.5" fill="#d8ab3c"/>`;
+  }
+  /* dots / opens / mutes */
+  frets.forEach((f,i)=>{
+    if(f===-1){
+      s += `<text x="${sx(i)}" y="${fy(0)-6}" font-size="11" fill="#95a0af" text-anchor="middle">×</text>`;
+    } else if(f===0){
+      s += `<circle cx="${sx(i)}" cy="${fy(0)-9.5}" r="4" fill="none" stroke="#eae5d7" stroke-width="1.5"/>`;
+    } else if(!isBarre){
+      const rel = f-base+1;
+      s += `<circle cx="${sx(i)}" cy="${dy(rel)}" r="6.4" fill="#d8ab3c"/>`;
+      s += `<text x="${sx(i)}" y="${dy(rel)+3.4}" font-family="Spline Sans Mono,monospace" font-size="9" font-weight="700" fill="#161a21" text-anchor="middle">${f}</text>`;
+    }
+  });
+  if(isBarre){
+    s += `<text x="${(sx(0)+sx(5))/2}" y="${dy(frets[0]-base+1)+3.6}" font-family="Spline Sans Mono,monospace" font-size="9.5" font-weight="700" fill="#161a21" text-anchor="middle">fret ${frets[0]}</text>`;
+  }
+  /* resulting note names */
+  frets.forEach((f,i)=>{
+    const label = f===-1 ? "·" : NOTES[(pc(tuning[i])+f)%12];
+    s += `<text x="${sx(i)}" y="${H-8}" font-family="Spline Sans Mono,monospace" font-size="10" fill="${f===-1?'#4a5668':'#95a0af'}" text-anchor="middle">${label}</text>`;
+  });
+  return s+"</svg>";
+}
+
+document.querySelectorAll(".charts").forEach(grid=>{
+  const tuning = grid.dataset.tuning.split(",");
+  grid.querySelectorAll("span[data-frets]").forEach(el=>{
+    const frets = el.dataset.frets.split(",").map(Number);
+    const fig = document.createElement("figure");
+    fig.className = "chord";
+    fig.innerHTML = `<figcaption>${el.dataset.name}<small>${el.dataset.sub||""}</small></figcaption>` + chordSVG(tuning,frets);
+    el.replaceWith(fig);
+  });
+});
+</script>
+</body>
+</html>
