@@ -18,10 +18,10 @@ export const metadata = {
 export default function RootLayout({ children }) {
   const themeBootScript = `
     (() => {
-      const palettes = ['bluenote','brass','console','loft','ecm','hotclub','chalk','tape'];
+      const palettes = ['regatta','ember','kiln','harbor'];
       const savedPalette = localStorage.getItem('dukebox-palette');
       const savedMode = localStorage.getItem('dukebox-mode');
-      const palette = palettes.includes(savedPalette) ? savedPalette : 'bluenote';
+      const palette = palettes.includes(savedPalette) ? savedPalette : 'regatta';
       const mode = savedMode === 'light' || savedMode === 'dark'
         ? savedMode
         : (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
@@ -32,7 +32,7 @@ export default function RootLayout({ children }) {
   `;
 
   return (
-    <html lang="en" data-palette="bluenote" data-mode="dark" suppressHydrationWarning>
+    <html lang="en" data-palette="regatta" data-mode="dark" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
         <style>{`
