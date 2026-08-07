@@ -51,14 +51,10 @@ async function loadAudio() {
 }
 
 const PALETTES = [
-  { id: "bluenote", name: "Bluenote", emoji: "🎷" },
-  { id: "brass", name: "Smoke & Brass", emoji: "🎺" },
-  { id: "console", name: "Console", emoji: "🎛️" },
-  { id: "loft", name: "Neon Loft", emoji: "💡" },
-  { id: "ecm", name: "ECM", emoji: "🧊" },
-  { id: "hotclub", name: "Hot Club", emoji: "🔥" },
-  { id: "chalk", name: "Chalkboard", emoji: "✏️" },
-  { id: "tape", name: "Tape & Ferrite", emoji: "📼" },
+  { id: "regatta", name: "Regatta", emoji: "⛵" },
+  { id: "ember", name: "Ember", emoji: "🔥" },
+  { id: "kiln", name: "Kiln", emoji: "🏺" },
+  { id: "harbor", name: "Harbor", emoji: "⚓" },
 ]
 
 const INITIAL_BARS = [
