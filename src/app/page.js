@@ -40,6 +40,7 @@ import MelodyPaths from "@/components/MelodyPaths"
 import CreateWorkspace from "@/components/CreateWorkspace"
 import ReferenceGuides from "@/components/ReferenceGuides"
 import { useAuth, useCloudLibrary } from "@/lib/cloud"
+import { logActivity } from "@/lib/recentActivity"
 import SessionStrip from "@/components/practice/SessionStrip"
 import ChartRibbon from "@/components/practice/ChartRibbon"
 import AnticipationStrip from "@/components/practice/AnticipationStrip"
@@ -181,6 +182,12 @@ export default function Home() {
   function chooseMode(id) {
     setMode(id)
     setLibrary(lib => ({ ...lib, prefs: { ...lib.prefs, mode: id } }))
+    // "Practice" is home base, not a destination worth resurfacing in
+    // "Jump back in" — only log the other workspaces.
+    if (id !== "practice") {
+      const m = MODES.find((entry) => entry.id === id)
+      if (m) logActivity({ label: m.label, subtitle: m.blurb, art: id, action: { type: "workspace", value: id } })
+    }
   }
   const [fretboardView, setFretboardView] = useState("scale")
   const [fretboardTuning, setFretboardTuning] = useState("Standard")
@@ -629,6 +636,7 @@ export default function Home() {
   // The first two are names loadForm already resolves; the third has to be
   // converted from its stage chart into playable bars.
   function loadSearchPick(name, row) {
+    logActivity({ label: name, subtitle: row?.gig ? "Gig Book" : "Songbook", art: "changes", action: { type: "songbook" } })
     if (row?.gig) {
       const bars = gigSongToBars(row.gig)
       if (!bars.length) { showToast(`No changes stored for "${row.name}"`); return }
@@ -958,7 +966,9 @@ export default function Home() {
     // Trigger auto-play after React commits the new bars to state
     pendingStartRef.current = true
     setActiveGigSongId(null)
-    setActiveSongTitle(STARTER_PRESETS.find((preset) => preset.id === starterId)?.label ?? null)
+    const starterLabel = STARTER_PRESETS.find((preset) => preset.id === starterId)?.label ?? null
+    setActiveSongTitle(starterLabel)
+    if (starterLabel) logActivity({ label: starterLabel, subtitle: "Starter chart", art: "changes", action: { type: "starter", value: starterLabel } })
   }
 
   // Double-click a bar → loop just that chord for isolated practice.
@@ -1649,7 +1659,11 @@ export default function Home() {
             userLibrary={userLibrary}
             gigSongs={GIGBOOK_SONGS}
             selectedForm={selectedForm}
-            onLoadForm={(name) => { loadForm(name, { exitPractice: true }); setSongbookOpen(false) }}
+            onLoadForm={(name) => {
+              loadForm(name, { exitPractice: true })
+              setSongbookOpen(false)
+              if (name !== "Custom") logActivity({ label: name, subtitle: "Songbook", art: "changes", action: { type: "songbook" } })
+            }}
             onPickSong={(name, row) => { loadSearchPick(name, row); setSongbookOpen(false) }}
             onRemoveFromLibrary={removeFromLibrary}
             onExportPdf={() => exportLeadSheet({ bars, title: selectedForm, tempo: originalTempo }).catch(console.error)}

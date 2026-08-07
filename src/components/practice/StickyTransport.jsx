@@ -19,6 +19,20 @@ const arrowBtn = {
   color: "var(--muted)", borderRadius: "5px", font: "700 10px monospace", cursor: "pointer",
 }
 
+const BRAND_ICON = "/dukebox-jazzmaster.png"
+
+// Same "go home" behavior as AppHomeButton/GigBarStrip.
+function goHome() {
+  const existingReturnButton = document.querySelector(".db-pickup-return-home")
+  if (existingReturnButton) {
+    existingReturnButton.click()
+    return
+  }
+  const practiceTab = [...document.querySelectorAll('[role="tab"]')]
+    .find((tab) => tab.textContent?.replace(/\s+/g, " ").trim().toLowerCase().includes("practice"))
+  practiceTab?.click()
+}
+
 export default function StickyTransport({
   isPlaying,
   onTogglePlay,
@@ -44,6 +58,15 @@ export default function StickyTransport({
       backdropFilter: "blur(12px)", boxShadow: "0 8px 32px rgba(0,0,0,.25)",
       maxWidth: "calc(100vw - 24px)", overflowX: "auto",
     }}>
+      <button
+        type="button"
+        onClick={goHome}
+        title="Back to DukeBox home"
+        aria-label="Back to DukeBox home"
+        style={{ width: "34px", height: "34px", flexShrink: 0, padding: 0, border: 0, borderRadius: "50%", background: "transparent", cursor: "pointer" }}
+      >
+        <img src={BRAND_ICON} alt="" aria-hidden="true" style={{ display: "block", width: "100%", height: "100%", objectFit: "contain" }} />
+      </button>
       <button
         onClick={onTogglePlay}
         aria-label={isPlaying ? "Stop playback" : "Start playback"}
