@@ -1,6 +1,8 @@
 "use client"
 
-const GUIDES = [
+// Exported so PickupPracticeHome's "Core curriculum" row can link directly
+// to these same guides instead of keeping its own separate list.
+export const GUIDES = [
   {
     title: "Likas: Pivots, Surrounds, Peterson & Evans",
     subtitle: "Interactive guitar reference",

@@ -6,6 +6,7 @@
 // container. The song data (FORM_CATEGORIES, userLibrary, GIGBOOK_SONGS)
 // is not restructured, only browsed differently.
 
+import { useEffect, useRef } from "react"
 import Drawer, { DrawerScrim } from "./Drawer"
 import SongSearch from "@/components/SongSearch"
 
@@ -37,6 +38,18 @@ export default function SongbookDrawer({
   onImportClick,
   importModal,
 }) {
+  const searchWrapRef = useRef(null)
+
+  // Cursor lands in the search box as soon as the drawer opens — from the
+  // Practice Home "Practice a Song" card, from the 📚 icon, anywhere.
+  useEffect(() => {
+    if (!open) return
+    const timer = window.setTimeout(() => {
+      searchWrapRef.current?.querySelector("input")?.focus()
+    }, 320)
+    return () => window.clearTimeout(timer)
+  }, [open])
+
   return (
     <>
       <DrawerScrim open={open} onClose={onClose} />
@@ -55,7 +68,7 @@ export default function SongbookDrawer({
           </>
         )}
       >
-        <div style={{ marginBottom: "14px" }}>
+        <div ref={searchWrapRef} style={{ marginBottom: "14px" }}>
           <SongSearch
             formCategories={formCategories}
             userLibrary={userLibrary}

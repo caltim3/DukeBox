@@ -1,6 +1,10 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
+import { GUIDES } from "./ReferenceGuides"
+import { getRecentActivity } from "@/lib/recentActivity"
+
+const BRAND_ICON = "/dukebox-jazzmaster.png"
 
 const WORKSPACE_LABELS = {
   practice: "Practice",
@@ -10,30 +14,30 @@ const WORKSPACE_LABELS = {
   tonal: "Tonal",
 }
 
-const IN_PROGRESS = [
+// Replaces the old "In progress" row. Those completion bars didn't track
+// anything real, so rather than fake progress this is three ways to start —
+// each backed by the app's actual practice/create/gig entry points.
+const GET_STARTED = [
   {
-    eyebrow: "Practice Pathway",
-    title: "Make the Changes",
-    subtitle: "Jazz Blues in Bb",
-    progress: 38,
+    eyebrow: "Practice",
+    title: "Practice a Song",
+    subtitle: "Open the songbook and start playing",
     art: "changes",
-    action: { type: "starter", value: "Jazz Blues in Bb" },
+    action: { type: "songbook" },
   },
   {
-    eyebrow: "Language Study",
-    title: "Licktionary: Ways In",
-    subtitle: "Bebop vocabulary",
-    progress: 14,
+    eyebrow: "Compose",
+    title: "Write a Song",
+    subtitle: "Build a chart, generate changes, or start from scratch",
     art: "licks",
-    action: { type: "section", value: "LICKTIONARY" },
+    action: { type: "workspace", value: "create" },
   },
   {
-    eyebrow: "Voice Leading",
-    title: "Melody Paths",
-    subtitle: "Guide-tone movement",
-    progress: 7,
+    eyebrow: "Perform",
+    title: "Play a Gig",
+    subtitle: "Stage charts and setlists",
     art: "paths",
-    action: { type: "section", value: "MELODY PATHS" },
+    action: { type: "workspace", value: "gig" },
   },
 ]
 
@@ -68,26 +72,14 @@ const LEARNING_PLAN = [
   },
 ]
 
-const CORE_CURRICULUM = [
-  {
-    number: "01",
-    title: "FretFlow",
-    copy: "Map scales and chord tones across the neck.",
-    action: { type: "section", value: "FRETFLOW" },
-  },
-  {
-    number: "02",
-    title: "Drop-2 Mastery",
-    copy: "Build compact voicings and connect inversions.",
-    action: { type: "section", value: "DROP-2" },
-  },
-  {
-    number: "03",
-    title: "Rhythm Changes",
-    copy: "Practice the form, targets, substitutions, and tempo.",
-    action: { type: "starter", value: "Rhythm Changes" },
-  },
-]
+// Direct links to the actual reference guides (public/reference/*.html),
+// the same list the Reference tab embeds — not placeholder cards.
+const CORE_CURRICULUM = GUIDES.map((guide, index) => ({
+  number: String(index + 1).padStart(2, "0"),
+  title: guide.title,
+  copy: guide.subtitle,
+  href: guide.src,
+}))
 
 function textOf(element) {
   return element?.textContent?.replace(/\s+/g, " ").trim().toLowerCase() ?? ""
@@ -119,6 +111,26 @@ function findSectionByText(label) {
     if (!text || text.length > 80) return false
     return text === target || text.includes(target)
   })
+}
+
+// Recent-activity entries carry an action.type + optional workspace id;
+// map that to one of Icon's existing glyphs rather than inventing new art
+// for every possible thing a user might have just done.
+function recentIconName(entry) {
+  if (entry.action?.type === "workspace") return entry.action.value || "practice"
+  if (entry.action?.type === "songbook") return "songbook"
+  return "practice"
+}
+
+function timeAgo(at) {
+  const seconds = Math.max(0, Math.floor((Date.now() - at) / 1000))
+  if (seconds < 60) return "just now"
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes}m ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  return days === 1 ? "yesterday" : `${days}d ago`
 }
 
 function Icon({ name }) {
@@ -191,6 +203,19 @@ export default function PickupPracticeHome() {
     return () => document.body.classList.remove("db-pickup-home-open")
   }, [homeOpen])
 
+  // "Jump back in" reads whatever page.js has logged to localStorage.
+  // Re-read every time the home screen is about to show, since it's a plain
+  // module (not shared React state) written from the real action sites.
+  // Adjusted during render (React's documented pattern for "reset/refresh
+  // state when a value changes") rather than in an effect, so there's no
+  // extra render pass just to sync it.
+  const [recent, setRecent] = useState([])
+  const [recentSyncedFor, setRecentSyncedFor] = useState(false)
+  if (homeOpen !== recentSyncedFor) {
+    setRecentSyncedFor(homeOpen)
+    if (homeOpen) setRecent(getRecentActivity())
+  }
+
   function openWorkspace(id) {
     if (id === "practice") {
       findWorkspaceTab("Practice")?.click()
@@ -217,8 +242,25 @@ export default function PickupPracticeHome() {
     }
   }
 
+  // Opens the Songbook drawer with the cursor already in its search box —
+  // the drawer focuses its own search input as soon as it opens.
+  function openSongbookSearch() {
+    openPracticeCenter()
+    window.setTimeout(() => {
+      document.querySelector('[aria-label="Open Songbook"]')?.click()
+    }, 180)
+  }
+
   function runAction(action) {
     if (!action) return
+    if (action.type === "workspace") {
+      openWorkspace(action.value)
+      return
+    }
+    if (action.type === "songbook") {
+      openSongbookSearch()
+      return
+    }
     if (action.type === "section") {
       openPracticeCenter(action.value)
       return
@@ -239,7 +281,7 @@ export default function PickupPracticeHome() {
         onClick={() => setPracticeSurface("home")}
         title="Return to the Practice home page"
       >
-        <Icon name="home" />
+        <img src={BRAND_ICON} alt="" aria-hidden="true" className="db-pickup-return-home-mark" />
         Practice Home
       </button>
     )
@@ -675,6 +717,7 @@ export default function PickupPracticeHome() {
         }
 
         .db-pickup-core-card {
+          display: block;
           min-height: 155px;
           padding: 20px;
           border: 1px solid var(--pickup-line);
@@ -682,6 +725,7 @@ export default function PickupPracticeHome() {
           background: #fff;
           color: inherit;
           text-align: left;
+          text-decoration: none;
           cursor: pointer;
           transition: border-color 140ms ease, transform 140ms ease, box-shadow 140ms ease;
         }
@@ -695,6 +739,63 @@ export default function PickupPracticeHome() {
         .db-pickup-core-card small { color: var(--pickup-purple); font-weight: 800; letter-spacing: .08em; }
         .db-pickup-core-card strong { display: block; margin-top: 20px; font-size: 19px; }
         .db-pickup-core-card p { margin: 8px 0 0; color: var(--pickup-muted); font-size: 13px; line-height: 1.45; }
+
+        .db-pickup-recent-grid {
+          display: grid;
+          grid-template-columns: repeat(4, minmax(180px, 1fr));
+          gap: 14px;
+        }
+
+        .db-pickup-recent-card {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          min-width: 0;
+          padding: 14px;
+          border: 1px solid var(--pickup-line);
+          border-radius: 10px;
+          background: #fff;
+          color: inherit;
+          text-align: left;
+          cursor: pointer;
+          transition: border-color 140ms ease, transform 140ms ease, box-shadow 140ms ease;
+        }
+
+        .db-pickup-recent-card:hover {
+          border-color: rgba(76,32,232,.38);
+          transform: translateY(-2px);
+          box-shadow: 0 10px 24px rgba(17,12,70,.08);
+        }
+
+        .db-pickup-recent-card.is-empty {
+          cursor: default;
+          color: var(--pickup-muted);
+          border-style: dashed;
+        }
+        .db-pickup-recent-card.is-empty:hover { transform: none; box-shadow: none; border-color: var(--pickup-line); }
+
+        .db-pickup-recent-icon {
+          flex: 0 0 38px;
+          width: 38px;
+          height: 38px;
+          border-radius: 9px;
+          background: #f0eff5;
+          color: var(--pickup-purple);
+          display: grid;
+          place-items: center;
+        }
+        .db-pickup-recent-icon svg { width: 19px; height: 19px; }
+
+        .db-pickup-recent-copy { min-width: 0; }
+        .db-pickup-recent-copy strong { display: block; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .db-pickup-recent-copy span { display: block; margin-top: 3px; color: var(--pickup-muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+        @media (max-width: 1180px) {
+          .db-pickup-recent-grid { grid-template-columns: repeat(2, minmax(180px, 1fr)); }
+        }
+        @media (max-width: 540px) {
+          .db-pickup-recent-grid { grid-template-columns: 1fr; }
+        }
 
         .db-pickup-return-home {
           position: fixed;
@@ -716,6 +817,7 @@ export default function PickupPracticeHome() {
         }
 
         .db-pickup-return-home svg { width: 18px; height: 18px; color: var(--db-accent, #4c20e8); }
+        .db-pickup-return-home-mark { width: 20px; height: 20px; object-fit: contain; display: block; }
 
         @media (max-width: 1180px) {
           .db-pickup-progress-grid { grid-template-columns: 1fr; }
@@ -834,22 +936,19 @@ export default function PickupPracticeHome() {
           <section className="db-pickup-section">
             <div className="db-pickup-section-heading">
               <div>
-                <h2>In progress</h2>
+                <h2>Get started</h2>
               </div>
               <button type="button" className="db-pickup-text-button" onClick={() => openPracticeCenter()}>Open practice center</button>
             </div>
 
             <div className="db-pickup-progress-grid">
-              {IN_PROGRESS.map((item) => (
+              {GET_STARTED.map((item) => (
                 <button type="button" key={item.title} className="db-pickup-progress-card" onClick={() => runAction(item.action)}>
                   <div className={`db-pickup-progress-art db-art-${item.art}`} />
                   <div className="db-pickup-progress-copy">
                     <small>{item.eyebrow}</small>
                     <strong>{item.title}</strong>
                     <span>{item.subtitle}</span>
-                    <div className="db-pickup-progress-track" aria-label={`${item.progress}% complete`}>
-                      <i style={{ width: `${item.progress}%` }} />
-                    </div>
                   </div>
                 </button>
               ))}
@@ -881,18 +980,49 @@ export default function PickupPracticeHome() {
           <section className="db-pickup-section">
             <div className="db-pickup-section-heading">
               <div>
+                <h2>Jump back in</h2>
+                <p>The last things you were working on.</p>
+              </div>
+            </div>
+
+            <div className="db-pickup-recent-grid">
+              {Array.from({ length: 4 }, (_, i) => recent[i]).map((item, i) => (
+                item ? (
+                  <button type="button" key={item.label + item.at} className="db-pickup-recent-card" onClick={() => runAction(item.action)}>
+                    <span className="db-pickup-recent-icon"><Icon name={recentIconName(item)} /></span>
+                    <span className="db-pickup-recent-copy">
+                      <strong title={item.label}>{item.label}</strong>
+                      <span>{item.subtitle}{item.subtitle ? " · " : ""}{timeAgo(item.at)}</span>
+                    </span>
+                  </button>
+                ) : (
+                  <div key={`empty-${i}`} className="db-pickup-recent-card is-empty">
+                    <span className="db-pickup-recent-icon" style={{ background: "transparent", color: "var(--pickup-muted)" }}><Icon name="practice" /></span>
+                    <span className="db-pickup-recent-copy">
+                      <strong style={{ color: "var(--pickup-muted)", fontWeight: 600 }}>Not visited yet</strong>
+                      <span>Start practicing to fill this in</span>
+                    </span>
+                  </div>
+                )
+              ))}
+            </div>
+          </section>
+
+          <section className="db-pickup-section">
+            <div className="db-pickup-section-heading">
+              <div>
                 <h2>Core curriculum <Icon name="chevron" /></h2>
-                <p>Build the fretboard, harmonic, and rhythmic skills behind the app.</p>
+                <p>The interactive reference guides, straight from the Reference tab.</p>
               </div>
             </div>
 
             <div className="db-pickup-core-grid">
               {CORE_CURRICULUM.map((item) => (
-                <button type="button" key={item.title} className="db-pickup-core-card" onClick={() => runAction(item.action)}>
+                <a key={item.title} className="db-pickup-core-card" href={item.href} target="_blank" rel="noopener noreferrer">
                   <small>{item.number}</small>
                   <strong>{item.title}</strong>
                   <p>{item.copy}</p>
-                </button>
+                </a>
               ))}
             </div>
           </section>
