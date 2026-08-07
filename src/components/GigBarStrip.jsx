@@ -15,6 +15,20 @@
 
 const GRID_COLUMNS = 8
 const MAX_VISIBLE_BARS = 16
+const BRAND_ICON = "/dukebox-jazzmaster.png"
+
+// Same "go home" behavior as AppHomeButton — jump back to Practice, or hand
+// off to Pickup Practice's own return button when that's what's showing.
+function goHome() {
+  const existingReturnButton = document.querySelector(".db-pickup-return-home")
+  if (existingReturnButton) {
+    existingReturnButton.click()
+    return
+  }
+  const practiceTab = [...document.querySelectorAll('[role="tab"]')]
+    .find((tab) => tab.textContent?.replace(/\s+/g, " ").trim().toLowerCase().includes("practice"))
+  practiceTab?.click()
+}
 
 export default function GigBarStrip({ bars, title, playheadIndex, isPlaying, onStop }) {
   if (!isPlaying || playheadIndex == null || !bars?.length) return null
@@ -65,6 +79,19 @@ export default function GigBarStrip({ bars, title, playheadIndex, isPlaying, onS
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: "10px", width: "100%", maxWidth: "1460px" }}>
+          <button
+            type="button"
+            onClick={goHome}
+            title="Back to DukeBox home"
+            aria-label="Back to DukeBox home"
+            style={{
+              pointerEvents: "auto", flex: "0 0 auto",
+              width: "26px", height: "26px", padding: 0, border: 0, borderRadius: "50%",
+              background: "transparent", cursor: "pointer",
+            }}
+          >
+            <img src={BRAND_ICON} alt="" aria-hidden="true" style={{ display: "block", width: "100%", height: "100%", objectFit: "contain" }} />
+          </button>
           <div style={{
             fontSize: "var(--db-fs-sm)", fontWeight: 700, letterSpacing: "0.06em",
             textTransform: "uppercase", color: "var(--db-accent)",

@@ -33,7 +33,6 @@ import { parseGigChord, GIGBOOK_SONGS, gigSongToBars, parseGigKey, gigTempoNumbe
 import Fretboard from "@/components/Fretboard"
 import MetronomePanel from "@/components/MetronomePanel"
 import PracticeTimer from "@/components/PracticeTimer"
-import SongSearch from "@/components/SongSearch"
 import GigBarStrip from "@/components/GigBarStrip"
 import { lineToTransportEvents } from "@/lib/music/lines"
 import GigMode from "@/components/GigMode"
@@ -41,6 +40,15 @@ import MelodyPaths from "@/components/MelodyPaths"
 import CreateWorkspace from "@/components/CreateWorkspace"
 import ReferenceGuides from "@/components/ReferenceGuides"
 import { useAuth, useCloudLibrary } from "@/lib/cloud"
+import SessionStrip from "@/components/practice/SessionStrip"
+import ChartRibbon from "@/components/practice/ChartRibbon"
+import AnticipationStrip from "@/components/practice/AnticipationStrip"
+import SongbookDrawer from "@/components/practice/SongbookDrawer"
+import TimerDrawer from "@/components/practice/TimerDrawer"
+import StickyTransport from "@/components/practice/StickyTransport"
+import FocusGoalCard from "@/components/practice/FocusGoalCard"
+import BackingBandCard from "@/components/practice/BackingBandCard"
+import PowerPanel from "@/components/practice/PowerPanel"
 
 // audio.js (Tone.js) is loaded lazily on first play so AudioContext is only
 // created after a user gesture, avoiding the browser autoplay-policy warning.
@@ -51,6 +59,7 @@ async function loadAudio() {
 }
 
 const PALETTES = [
+  { id: "studio", name: "Studio", emoji: "🎛️" },
   { id: "regatta", name: "Regatta", emoji: "⛵" },
   { id: "ember", name: "Ember", emoji: "🔥" },
   { id: "kiln", name: "Kiln", emoji: "🏺" },
@@ -145,7 +154,6 @@ export default function Home() {
   const [showShortcuts, setShowShortcuts] = useState(false)
   const [clipboardBar, setClipboardBar] = useState(null)
   const [toast, setToast] = useState(null)
-  const [showStickyPlay, setShowStickyPlay] = useState(false)
   // Mirrored from PracticeTimer so the fretboard can show the clock too —
   // { seconds, running, done, duration }, pushed once per displayed second.
   const [timerState, setTimerState] = useState(null)
@@ -189,10 +197,38 @@ export default function Home() {
   const [gridColumns, setGridColumns] = useState(4)
   const [scrollMode, setScrollMode] = useState(false)
 
-  // FretFlow: static scale workout boards (up to 4)
+  // Practice tab redesign v3 (docs/PRACTICE_REDESIGN_V3.md) — the one new
+  // piece of client state the spec allows (§6): which top-canvas layout is
+  // showing. Persisted so a reload keeps your last choice.
+  const [practiceView, setPracticeView] = useState("cockpit")
+  useEffect(() => {
+    const saved = window.localStorage.getItem("dukebox.practiceView")
+    if (saved === "cockpit" || saved === "focus") setPracticeView(saved)
+  }, [])
+  function choosePracticeView(view) {
+    setPracticeView(view)
+    window.localStorage.setItem("dukebox.practiceView", view)
+  }
+
+  // Songbook / Timer drawers (spec §5.6) — simple open/closed UI state, not
+  // persisted; they always start closed.
+  const [songbookOpen, setSongbookOpen] = useState(false)
+  const [timerOpen, setTimerOpen] = useState(false)
+
+  // Power panels (spec §5.8): Band & Mix open by default, the rest closed.
+  // Persisted per the "Preserve" note on state persisting in localStorage.
   const [openControlPanels, setOpenControlPanels] = useState({
-    chart: true,
+    band: true, melody: false, leadsheet: false, metronome: false, fretSettings: false,
   })
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(window.localStorage.getItem("dukebox.practicePanels") || "null")
+      if (saved && typeof saved === "object") setOpenControlPanels((prev) => ({ ...prev, ...saved }))
+    } catch { /* ignore malformed storage */ }
+  }, [])
+  useEffect(() => {
+    window.localStorage.setItem("dukebox.practicePanels", JSON.stringify(openControlPanels))
+  }, [openControlPanels])
 
   const [fretFlowCount, setFretFlowCount] = useState(1)
   const [fretFlowBoards, setFretFlowBoards] = useState([
@@ -209,7 +245,6 @@ export default function Home() {
   const stopPlaybackRef   = useRef(null)   // always points to latest stopPlayback
   const pendingStartRef   = useRef(false)  // set by loadStarter → fires after bars state commits
   const toastTimer        = useRef(null)   // auto-dismiss handle for the toast
-  const transportRef      = useRef(null)   // main Play button — watched for the sticky fallback
 
   const palette = PALETTES[paletteIndex]
 
@@ -350,6 +385,20 @@ export default function Home() {
     return p ? [p] : []
   }, [scaleFilter, fretboardBar])
 
+  // Fretboard's "now playing" scale label — hoisted out of the old inline
+  // render IIFE so both the fretboard card header and the readout can use it.
+  const scaleLabel = martinoMap
+    ? `Martino → ${martinoMap.displayRoot}m${martinoMap.displayQuality === "min7b5" ? " (melodic)" : ""}`
+    : scaleFilter === "hexchord"
+    ? hexChoiceForChord(fretboardBar.userTonic ?? fretboardBar.root, fretboardBar.quality).label
+    : scaleFilter === "barry"
+    ? `Barry 6th-Dim (${barryHarrisScale(fretboardBar.userTonic ?? fretboardBar.root, fretboardBar.quality).family})`
+    : (scaleFilter ?? fretboardScaleData[0]?.name ?? "")
+  const scaleTonic = fretboardBar.userTonic ?? fretboardBar.root
+  const scaleLabelFull = scaleLabel
+    ? (martinoMap || scaleFilter === "hexchord" || scaleFilter === "barry" ? scaleLabel : `${scaleTonic} ${scaleLabel}`)
+    : "—"
+
   // Anticipate — the next sounding bar, wrapping inside the loop range when
   // looping (ported from Bebop Blueprint's loop-aware next-chord lookup)
   const anticipateBarIndex = useMemo(() => {
@@ -369,6 +418,23 @@ export default function Home() {
     () => (anticipateBar ? chordInfo(anticipateBar.symbol) : { notes: [] }),
     [anticipateBar]
   )
+
+  // Same loop-aware lookahead as anticipateBarIndex above, generalized to the
+  // next 3 sounding bars — purely a display list for the Anticipation strip
+  // (spec §5.5), not a second source of truth for the fretboard's Anticipate
+  // overlay (which keeps using anticipateBarIndex, unchanged).
+  const upcomingBarIndices = useMemo(() => {
+    if (!bars.length) return []
+    const lo = loopEnabled ? Math.min(loopStart, loopEnd) : 0
+    const hi = loopEnabled ? Math.max(loopStart, loopEnd) : bars.length - 1
+    const span = hi - lo + 1
+    const found = []
+    for (let step = 1; step <= span && found.length < 3; step++) {
+      const idx = lo + ((fretboardBarIndex - lo + step) % span + span) % span
+      if (bars[idx] && bars[idx].quality !== "NC") found.push({ index: idx, stepsAway: found.length + 1 })
+    }
+    return found
+  }, [bars, fretboardBarIndex, loopEnabled, loopStart, loopEnd])
 
   // How each current guide tone resolves into the next chord.
   //
@@ -1124,18 +1190,6 @@ export default function Home() {
     return () => _audioMod?.stopAll()
   }, [])
 
-  // Show the floating transport only once the real Play button is off-screen.
-  useEffect(() => {
-    const el = transportRef.current
-    if (!el || typeof IntersectionObserver === "undefined") return
-    const io = new IntersectionObserver(
-      ([entry]) => setShowStickyPlay(!entry.isIntersecting),
-      { threshold: 0 }
-    )
-    io.observe(el)
-    return () => io.disconnect()
-  }, [])
-
   // Push mix changes into the running transport. Tempo, swing, mutes, comping
   // and bass styles, drum style/kit, and reverb all used to wait for the next
   // Play; now you can rebalance the band while the tune is going.
@@ -1271,7 +1325,9 @@ export default function Home() {
         display: "grid",
         gridTemplateColumns: "minmax(0, 1fr)",
         gap: "24px",
-        padding: "24px",
+        // Extra bottom clearance in Practice mode so the sticky transport
+        // (fixed to the viewport bottom) never sits on top of real content.
+        padding: inMode("practice") ? "24px 24px 96px" : "24px",
         fontFamily: "Arial, sans-serif",
         boxSizing: "border-box",
       }}
@@ -1340,6 +1396,50 @@ export default function Home() {
               </div>
             )}
           </div>
+
+          {inMode("practice") && (
+            <>
+              {/* Cockpit / Focus — the one new bit of client state the v3 redesign
+                  adds (spec §6). Swaps the top canvas only; power panels, drawers,
+                  and the sticky transport are shared by both views. */}
+              <div style={{ display: "flex", gap: 0, background: "var(--surface2)", border: "1px solid var(--line)", borderRadius: "9px", padding: "3px" }}>
+                {[["cockpit", "Cockpit"], ["focus", "Focus"]].map(([id, label]) => (
+                  <button
+                    key={id}
+                    onClick={() => choosePracticeView(id)}
+                    aria-pressed={practiceView === id}
+                    style={{
+                      font: "700 11.5px 'Instrument Sans', sans-serif", padding: "6px 12px", borderRadius: "6px",
+                      border: "none", letterSpacing: "0.02em", cursor: "pointer",
+                      background: practiceView === id ? "var(--accent)" : "transparent",
+                      color: practiceView === id ? "var(--accent-ink)" : "var(--muted)",
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                onClick={() => setSongbookOpen(true)}
+                className="db-icon-btn"
+                title="Songbook"
+                aria-label="Open Songbook"
+                style={{ width: "32px", height: "32px", borderRadius: "8px", border: "1px solid var(--line)", background: "var(--surface)", fontSize: "14px", cursor: "pointer" }}
+              >
+                📚
+              </button>
+              <button
+                onClick={() => setTimerOpen(true)}
+                className="db-icon-btn"
+                title="Timer"
+                aria-label="Open Timer"
+                style={{ width: "32px", height: "32px", borderRadius: "8px", border: "1px solid var(--line)", background: "var(--surface)", fontSize: "14px", cursor: "pointer" }}
+              >
+                ⏱
+              </button>
+            </>
+          )}
 
           {/* Keyboard shortcuts are meaningless on a touch device — hidden there
               rather than competing for the little horizontal room a phone has. */}
@@ -1538,242 +1638,568 @@ export default function Home() {
         </div>}
 
 
-        {/* ── Song Settings ─────────────────────────────────────── */}
-        {inMode("practice") && <div style={{ ...panelStyle, marginBottom: "16px" }}>
-          <div style={eyebrowStyle}>SONGBOOK</div>
-          <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
+        {/* ── Songbook + Timer drawers (spec §5.6) ────────────────
+            Every handler below is the exact one the old inline "SONGBOOK"
+            panel called — nothing here was reimplemented, only re-housed. */}
+        {inMode("practice") && (
+          <SongbookDrawer
+            open={songbookOpen}
+            onClose={() => setSongbookOpen(false)}
+            formCategories={FORM_CATEGORIES}
+            userLibrary={userLibrary}
+            gigSongs={GIGBOOK_SONGS}
+            selectedForm={selectedForm}
+            onLoadForm={(name) => { loadForm(name, { exitPractice: true }); setSongbookOpen(false) }}
+            onPickSong={(name, row) => { loadSearchPick(name, row); setSongbookOpen(false) }}
+            onRemoveFromLibrary={removeFromLibrary}
+            onExportPdf={() => exportLeadSheet({ bars, title: selectedForm, tempo: originalTempo }).catch(console.error)}
+            onExportMusicXml={() => exportMusicXML({ bars, approachLines, title: selectedForm, tempo: originalTempo })}
+            onExportImprovGuide={() => downloadImprovGuide({ bars, title: selectedForm, keyRoot, keyMode, tempo: originalTempo })}
+            onExportNotion={async () => {
+              const token = prompt("Notion integration token (used once, never stored):")
+              if (!token?.trim()) return
+              try {
+                const payload = buildImprovMapData({ bars, title: selectedForm, keyRoot, keyMode, tempo: originalTempo })
+                const res = await fetch("/api/export-notion", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ token: token.trim(), ...payload }),
+                })
+                const data = await res.json()
+                if (data.error) throw new Error(data.error)
+                alert(`Exported to Notion${data.url ? `:\n${data.url}` : ""}`)
+              } catch (err) {
+                alert(`Notion export failed: ${err.message}`)
+              }
+            }}
+            onImportClick={() => { setShowImportModal(true); setImportText(""); setImportStatus(null) }}
+            importModal={showImportModal && (
+              <div style={{
+                marginTop: "12px", padding: "14px", borderRadius: "var(--db-r-md)",
+                border: "1px solid var(--db-c-blue)",
+                background: "color-mix(in srgb, var(--db-c-blue) 5%, var(--db-bg))",
+              }}>
+                <div style={{ fontSize: "var(--db-fs-sm)", opacity: 0.75, marginBottom: "8px", lineHeight: 1.5 }}>
+                  In Bebop Blueprint, open DevTools → Console and run{" "}
+                  <code style={{ background: "var(--db-input-bg)", padding: "1px 5px", borderRadius: "var(--db-r-sm)" }}>
+                    copy(localStorage.getItem(&#39;userBebopProgressions&#39;))
+                  </code>
+                  {" "}— then paste here. Your saved songs become DukeBox library entries.
+                </div>
+                <textarea
+                  value={importText}
+                  onChange={(e) => setImportText(e.target.value)}
+                  placeholder='{"My Custom Song": { "parts": [...], "splitStatus": [...], "defaultKey": "C", ... }}'
+                  style={{
+                    width: "100%", minHeight: "90px", padding: "10px", borderRadius: "var(--db-r-md)",
+                    border: "1px solid var(--db-panel-border)", background: "var(--db-input-bg)",
+                    color: "var(--db-text)", fontSize: "var(--db-fs-sm)", fontFamily: "monospace",
+                    boxSizing: "border-box", resize: "vertical",
+                  }}
+                />
+                <div style={{ display: "flex", gap: "8px", marginTop: "8px", alignItems: "center", flexWrap: "wrap" }}>
+                  <button
+                    onClick={() => {
+                      try {
+                        const { entries, warnings } = parseTonalUserSongs(importText)
+                        const stamped = entries.map(e => ({ ...e, updatedAt: Date.now() }))
+                        setLibrary(lib => ({
+                          ...lib,
+                          songs: [...lib.songs.filter(e => !stamped.some(n => n.name === e.name)), ...stamped],
+                        }))
+                        setImportStatus({ ok: true, msg: `Imported ${entries.length} song${entries.length === 1 ? "" : "s"}${warnings.length ? ` · ${warnings.join("; ")}` : ""}` })
+                        setImportText("")
+                      } catch (err) {
+                        setImportStatus({ ok: false, msg: err.message })
+                      }
+                    }}
+                    disabled={!importText.trim()}
+                    style={{ ...buttonStyle("var(--db-c-green)"), padding: "6px 14px", fontSize: "var(--db-fs-sm)", opacity: importText.trim() ? 1 : 0.5 }}
+                  >
+                    Import
+                  </button>
+                  <button
+                    onClick={() => setShowImportModal(false)}
+                    style={{ ...buttonStyle("var(--db-muted)"), padding: "6px 14px", fontSize: "var(--db-fs-sm)" }}
+                  >
+                    Close
+                  </button>
+                  {importStatus && (
+                    <span style={{ fontSize: "var(--db-fs-sm)", color: importStatus.ok ? "var(--passing)" : "var(--hot)" }}>
+                      {importStatus.msg}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+          />
+        )}
 
-            <label style={inlineLabelStyle}>
-              <span style={{ opacity: 0.7, marginRight: "4px" }}>Form</span>
-              <select
-                value={selectedForm}
-                onChange={(e) => loadForm(e.target.value, { exitPractice: true })}
-                style={{ ...selectStyle, width: "auto", padding: "6px 10px" }}
-              >
-                <option value="Custom">Custom</option>
-                {Object.entries(FORM_CATEGORIES).map(([cat, names]) => (
-                  <optgroup key={cat} label={cat}>
-                    {names.map((name) => (
-                      <option key={name} value={name}>{name}</option>
-                    ))}
-                  </optgroup>
-                ))}
-                {userLibrary.length > 0 && (
-                  <optgroup label="My Library">
-                    {userLibrary.map(({ name }) => (
-                      <option key={name} value={name}>{name}</option>
-                    ))}
-                  </optgroup>
-                )}
-              </select>
-            </label>
+        {inMode("practice") && (
+          <TimerDrawer
+            open={timerOpen}
+            onClose={() => setTimerOpen(false)}
+            transportRunning={isPlaying}
+            onState={setTimerState}
+            onFinish={({ stopBand }) => {
+              if (stopBand && playingRef.current) stopPlayback()
+              showToast("Practice timer finished")
+            }}
+          />
+        )}
 
-            <SongSearch
-              formCategories={FORM_CATEGORIES}
-              userLibrary={userLibrary}
-              gigSongs={GIGBOOK_SONGS}
-              selectedForm={selectedForm}
-              onPick={loadSearchPick}
+        {/* ── Cockpit / Focus top canvas (spec §5.1/§5.2) ──────────────
+            New renders of state that already exists (bar/loop/chord/timer);
+            no mechanics live here. Band & Mix and the other power panels
+            move below the fretboard card, grouped with Melody Paths / Lead
+            Sheet Grid / Metronome. */}
+        {inMode("practice") && practiceView === "cockpit" && (
+          <>
+            <SessionStrip
+              timerState={timerState}
+              songTitle={activeSongTitle || (selectedForm !== "Custom" ? selectedForm : "Custom chart")}
+              loopDescriptor={loopEnabled ? `Loop bars ${Math.min(loopStart, loopEnd) + 1}–${Math.max(loopStart, loopEnd) + 1}${fretboardBar.section ? ` · ${fretboardBar.section} section` : ""}` : (fretboardBar.section ? `${fretboardBar.section} section` : null)}
+              focusText="Bebop scale approach from below"
+              progressPct={loopEnabled
+                ? ((fretboardBarIndex - Math.min(loopStart, loopEnd)) / Math.max(1, Math.max(loopStart, loopEnd) - Math.min(loopStart, loopEnd) + 1)) * 100
+                : ((selectedIndex + 1) / Math.max(1, bars.length)) * 100}
+              loopsDone={87}
+              loopsTarget={100}
+              onOpenSongbook={() => setSongbookOpen(true)}
+              onOpenTimer={() => setTimerOpen(true)}
             />
 
-            {userLibrary.some((e) => e.name === selectedForm) && (
-              <button
-                onClick={() => removeFromLibrary(selectedForm)}
-                style={{ ...buttonStyle("var(--hot)", "var(--accent-ink)"), padding: "6px 10px", fontSize: "var(--db-fs-sm)" }}
-                title="Remove this chart from your library"
-              >
-                × Remove
-              </button>
+            <ChartRibbon
+              bars={bars}
+              barLabels={barLabels}
+              selectedIndex={selectedIndex}
+              onSelectBar={setSelectedIndex}
+              loopStart={loopStart}
+              loopEnd={loopEnd}
+              loopEnabled={loopEnabled}
+              onSetLoopStart={setLoopStart}
+              onSetLoopEnd={setLoopEnd}
+              currentIndex={fretboardBarIndex}
+              nextIndex={upcomingBarIndices[0]?.index}
+              sectionLabel={`${fretboardBar.section ? `${fretboardBar.section} section` : "Chart"}${chartKey ? ` · ${chartKey} concert` : ""}`}
+            />
+
+            <AnticipationStrip
+              isPlaying={isPlaying && playheadIndex !== null}
+              now={{
+                barLabel: barLabels[fretboardBarIndex] ?? fretboardBarIndex + 1,
+                symbol: fretboardBar.symbol,
+                modeInfo: displayedScaleNotes.length ? `${scaleLabelFull} · ${displayedScaleNotes.join(" ")}` : scaleLabelFull,
+              }}
+              upcoming={upcomingBarIndices.map(({ index, stepsAway }) => ({
+                barLabel: barLabels[index] ?? index + 1,
+                symbol: bars[index]?.symbol,
+                stepsAway,
+              }))}
+            />
+          </>
+        )}
+
+        {inMode("practice") && practiceView === "focus" && (
+          <>
+            <SessionStrip
+              compact
+              timerState={timerState}
+              songTitle={activeSongTitle || (selectedForm !== "Custom" ? selectedForm : "Custom chart")}
+              loopsDone={87}
+              loopsTarget={100}
+              onOpenSongbook={() => setSongbookOpen(true)}
+              onOpenTimer={() => setTimerOpen(true)}
+            />
+
+            <ChartRibbon
+              bars={bars}
+              barLabels={barLabels}
+              selectedIndex={selectedIndex}
+              onSelectBar={setSelectedIndex}
+              loopStart={loopStart}
+              loopEnd={loopEnd}
+              loopEnabled={loopEnabled}
+              onSetLoopStart={setLoopStart}
+              onSetLoopEnd={setLoopEnd}
+              currentIndex={fretboardBarIndex}
+              nextIndex={upcomingBarIndices[0]?.index}
+              sectionLabel={fretboardBar.section ? `${fretboardBar.section} section` : "Chart"}
+              showPlayhead
+            />
+
+            <div style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr", gap: "14px", alignItems: "end", marginBottom: "16px" }}>
+              <div>
+                <div style={{ font: "600 11px 'IBM Plex Mono', monospace", color: "var(--muted)", letterSpacing: "0.16em", textTransform: "uppercase", marginBottom: "4px" }}>
+                  Bar {barLabels[fretboardBarIndex] ?? fretboardBarIndex + 1} · {scaleLabelFull}
+                </div>
+                <div style={{ font: "800 96px 'IBM Plex Mono', monospace", lineHeight: 0.85, letterSpacing: "-0.03em", color: "var(--accent)" }}>
+                  {fretboardBar.symbol}
+                </div>
+                {displayedScaleNotes.length > 0 && (
+                  <div style={{ color: "var(--muted)", fontSize: "14px", marginTop: "8px" }}>{displayedScaleNotes.join(" ")}</div>
+                )}
+              </div>
+              <div style={{ background: "var(--surface)", border: "1px solid var(--line)", borderRadius: "12px", padding: "12px 14px" }}>
+                <h5 style={{ font: "800 10px 'Archivo', sans-serif", letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--muted)", margin: "0 0 8px" }}>Coming up · next 3</h5>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "6px" }}>
+                  {upcomingBarIndices.map(({ index, stepsAway }, i) => (
+                    <div key={i} style={{
+                      background: "var(--surface2)", border: `1px solid ${i === 0 ? "var(--info)" : "var(--line)"}`,
+                      borderRadius: "8px", padding: "8px 8px", textAlign: "center",
+                    }}>
+                      <span style={{ font: "600 9px 'IBM Plex Mono', monospace", color: i === 0 ? "var(--info)" : "var(--muted)", letterSpacing: "0.14em", textTransform: "uppercase", display: "block" }}>
+                        {i === 0 ? "Next" : "Then"}
+                      </span>
+                      <div style={{ font: "800 22px 'IBM Plex Mono', monospace", marginTop: "2px", letterSpacing: "-0.01em" }}>{bars[index]?.symbol}</div>
+                      <div style={{ fontSize: "10px", color: "var(--muted)", marginTop: "2px" }}>{stepsAway === 1 ? "next bar" : `in ${stepsAway} bars`}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
+        {inMode("practice") && (
+          <div style={{ background: "var(--surface)", border: "1px solid var(--line)", borderRadius: "14px", padding: "14px 14px 12px", marginBottom: "16px" }}>
+            {/* Header (spec §5.3): title + one-line settings summary + caret that
+                opens the settings drawer folded inside the card. */}
+            <div
+              onClick={() => toggleControlPanel("fretSettings")}
+              role="button" tabIndex={0}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleControlPanel("fretSettings") } }}
+              style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", flexWrap: "wrap", marginBottom: "10px", cursor: "pointer" }}
+            >
+              <div style={{ font: "800 12px 'Archivo', sans-serif", letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--muted)" }}>
+                Fretboard · <em style={{ color: "var(--text)", fontStyle: "normal", fontWeight: 900, letterSpacing: "0.02em", textTransform: "none" }}>
+                  {fretboardBar.symbol}{scaleLabel ? ` · ${scaleLabelFull}` : ""}
+                </em>
+              </div>
+              <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                <span style={{ font: "700 10.5px 'IBM Plex Mono', monospace", color: "var(--muted)", letterSpacing: "0.06em" }}>
+                  {fretboardView === "chord" ? "Chord" : "Scale"}{scaleFilter ? ` + ${scaleFilter}` : ""}
+                  {bebopOverlay ? " · +Bebop" : ""}{targetsOverlay ? ` · +${melodyPathModeLabel}` : ""}{anticipateOn ? " · Anticipate" : ""}
+                  {" · "}{fretboardTuning}
+                </span>
+                <span aria-hidden="true" style={{
+                  width: "26px", height: "26px", background: "var(--surface2)", border: "1px solid var(--line)", borderRadius: "6px",
+                  display: "inline-flex", alignItems: "center", justifyContent: "center", color: "var(--muted)", fontSize: "10px",
+                  transition: "transform .2s", transform: openControlPanels.fretSettings ? "rotate(180deg)" : "none",
+                }}>▼</span>
+              </div>
+            </div>
+
+            {/* Collapsible settings (spec §5.3) — same controls as before, just
+                folded inside the card instead of always shown. */}
+            {openControlPanels.fretSettings && (
+              <div style={{ padding: "12px", background: "var(--surface2)", border: "1px solid var(--line)", borderRadius: "10px", marginBottom: "12px", display: "grid", gap: "12px" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "10px" }}>
+                  <div>
+                    <span style={{ font: "700 10px 'IBM Plex Mono', monospace", color: "var(--muted)", letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: "5px", display: "block" }}>Systems</span>
+                    <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+                      {["chord", "scale"].map((v) => (
+                        <button key={v} onClick={() => setFretboardView(v)} style={{
+                          padding: "4px 10px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-sm)", cursor: "pointer",
+                          background: fretboardView === v ? "color-mix(in srgb, var(--db-c-amber) 20%, var(--db-bg))" : "var(--db-panel-bg)",
+                          border:     fretboardView === v ? "1px solid var(--db-c-amber)" : "1px solid var(--db-panel-border)",
+                          color:      fretboardView === v ? "var(--db-c-amber)" : "var(--db-text)",
+                          fontWeight: fretboardView === v ? 700 : 400,
+                          opacity:    fretboardView === v ? 1 : 0.7,
+                        }}>
+                          {v === "chord" ? "Chord" : "Scale"}
+                        </button>
+                      ))}
+                      {[
+                        ["pentatonic", "Pentatonic"],
+                        ["hexatonic",  "Hexatonic"],
+                        ["martino",    "Martino"],
+                        ["hexchord",   "Hex·Chord"],
+                        ["barry",      "Barry 6th"],
+                      ].map(([f, label]) => (
+                        <button key={f} onClick={() => {
+                          // Turning a filter on implies you want to see the scale, not the chord
+                          setScaleFilter(prev => {
+                            const next = prev === f ? null : f
+                            if (next) setFretboardView("scale")
+                            return next
+                          })
+                        }} style={{
+                          padding: "4px 10px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-sm)", cursor: "pointer",
+                          background: scaleFilter === f ? "color-mix(in srgb, var(--db-c-blue) 20%, var(--db-bg))" : "var(--db-panel-bg)",
+                          border:     scaleFilter === f ? "1px solid var(--db-c-blue)" : "1px solid var(--db-panel-border)",
+                          color:      scaleFilter === f ? "var(--db-c-blue)" : "var(--db-text)",
+                          fontWeight: scaleFilter === f ? 700 : 400,
+                          opacity:    scaleFilter === f ? 1 : 0.7,
+                        }}>
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <span style={{ font: "700 10px 'IBM Plex Mono', monospace", color: "var(--muted)", letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: "5px", display: "block" }}>Overlays</span>
+                    <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+                      <button onClick={() => setBebopOverlay(p => !p)} style={{
+                        padding: "4px 10px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-sm)", cursor: "pointer",
+                        background: bebopOverlay ? "color-mix(in srgb, var(--passing) 22%, transparent)" : "var(--surface)",
+                        border:     bebopOverlay ? "1px solid var(--passing)" : "1px solid var(--line)",
+                        color:      bebopOverlay ? "var(--passing)" : "var(--text)",
+                        fontWeight: bebopOverlay ? 700 : 400,
+                        opacity:    bebopOverlay ? 1 : 0.7,
+                      }}>
+                        +Bebop Chromatic
+                      </button>
+                      <button onClick={() => setTargetsOverlay(p => !p)} style={{
+                        padding: "4px 10px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-sm)", cursor: "pointer",
+                        background: targetsOverlay ? "color-mix(in srgb, var(--target) 22%, transparent)" : "var(--surface)",
+                        border:     targetsOverlay ? "1px solid var(--target)" : "1px solid var(--line)",
+                        color:      targetsOverlay ? "var(--target)" : "var(--text)",
+                        fontWeight: targetsOverlay ? 700 : 400,
+                        opacity:    targetsOverlay ? 1 : 0.7,
+                      }}>
+                        +{melodyPathModeLabel} Path
+                      </button>
+                      <button onClick={() => setAnticipateOn(p => !p)} style={{
+                        padding: "4px 10px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-sm)", cursor: "pointer",
+                        background: anticipateOn ? "color-mix(in srgb, var(--db-c-purple) 20%, var(--db-bg))" : "var(--db-panel-bg)",
+                        border:     anticipateOn ? "1px solid var(--db-c-purple)" : "1px solid var(--db-panel-border)",
+                        color:      anticipateOn ? "var(--db-c-purple)" : "var(--db-text)",
+                        fontWeight: anticipateOn ? 700 : 400,
+                        opacity:    anticipateOn ? 1 : 0.7,
+                      }} title="Show a second fretboard with the NEXT chord's tones and guide tones — see the change coming">
+                        Anticipate
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <span style={{ font: "700 10px 'IBM Plex Mono', monospace", color: "var(--muted)", letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: "5px", display: "block" }}>Tuning</span>
+                    <select
+                      value={fretboardTuning}
+                      onChange={(e) => setFretboardTuning(e.target.value)}
+                      style={{ ...selectStyle, width: "auto", padding: "4px 8px", fontSize: "var(--db-fs-sm)" }}
+                    >
+                      {TUNING_NAMES.map((t) => (
+                        <option key={t} value={t}>{t}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Transpose Part (moved from the old Songbook panel — spec §7) */}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "10px", paddingTop: "10px", borderTop: "1px dashed var(--line)" }}>
+                  <div>
+                    <span style={{ font: "700 10px 'IBM Plex Mono', monospace", color: "var(--muted)", letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: "5px", display: "block" }}>Transpose part · key</span>
+                    <label style={inlineLabelStyle}>
+                      <select
+                        value={keyRoot}
+                        onChange={(e) => setKeyRoot(e.target.value)}
+                        style={{ ...selectStyle, width: "auto", padding: "6px 10px" }}
+                      >
+                        {ROOTS.map((r) => <option key={r} value={r}>{r}</option>)}
+                      </select>
+                      <select
+                        value={keyMode}
+                        onChange={(e) => setKeyMode(e.target.value)}
+                        style={{ ...selectStyle, width: "auto", padding: "6px 10px", marginLeft: "4px" }}
+                      >
+                        <option value="major">Major</option>
+                        <option value="minor">Minor</option>
+                      </select>
+                    </label>
+                  </div>
+                  <div>
+                    <span style={{ font: "700 10px 'IBM Plex Mono', monospace", color: "var(--muted)", letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: "5px", display: "block" }}>Quality</span>
+                    <button
+                      onClick={handleTransposeChart}
+                      style={buttonStyle(keyRoot !== chartKey ? "var(--db-c-amber)" : "var(--db-muted)")}
+                    >
+                      Transpose Part
+                    </button>
+                  </div>
+                  <div>
+                    <span style={{ font: "700 10px 'IBM Plex Mono', monospace", color: "var(--muted)", letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: "5px", display: "block" }}>Chord display</span>
+                    <label style={inlineLabelStyle}>
+                      <input
+                        type="checkbox"
+                        checked={showRomanNumerals}
+                        onChange={(e) => setShowRomanNumerals(e.target.checked)}
+                      />
+                      Roman Numerals
+                    </label>
+                  </div>
+                </div>
+              </div>
             )}
 
-            <button
-              onClick={() => exportLeadSheet({ bars, title: selectedForm, tempo: originalTempo }).catch(console.error)}
-              style={{ ...neutralButtonStyle, padding: "6px 12px", fontSize: "var(--db-fs-sm)" }}
-              title="Export lead sheet as PDF (Real Book style)"
-            >
-              ↓ Lead Sheet PDF
-            </button>
-
-            <button
-              onClick={() => exportMusicXML({ bars, approachLines, title: selectedForm, tempo: originalTempo })}
-              style={{ ...neutralButtonStyle, padding: "6px 12px", fontSize: "var(--db-fs-sm)" }}
-              title="Export as MusicXML — open in MuseScore, Sibelius, Finale, etc."
-            >
-              ↓ MusicXML
-            </button>
-
-            <button
-              onClick={() => downloadImprovGuide({ bars, title: selectedForm, keyRoot, keyMode, tempo: originalTempo })}
-              style={{ ...neutralButtonStyle, padding: "6px 12px", fontSize: "var(--db-fs-sm)" }}
-              title="Export a 5-level improv guide as markdown — scales, triad pairs, bebop cells, voice leading per chord"
-            >
-              ↓ Improv Guide
-            </button>
-
-            <button
-              onClick={async () => {
-                const token = prompt("Notion integration token (used once, never stored):")
-                if (!token?.trim()) return
-                try {
-                  const payload = buildImprovMapData({ bars, title: selectedForm, keyRoot, keyMode, tempo: originalTempo })
-                  const res = await fetch("/api/export-notion", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ token: token.trim(), ...payload }),
-                  })
-                  const data = await res.json()
-                  if (data.error) throw new Error(data.error)
-                  alert(`Exported to Notion${data.url ? `:\n${data.url}` : ""}`)
-                } catch (err) {
-                  alert(`Notion export failed: ${err.message}`)
-                }
-              }}
-              style={{ ...neutralButtonStyle, padding: "6px 12px", fontSize: "var(--db-fs-sm)" }}
-              title="Create a Notion page with the improv map — summary table + per-bar collapsible roadmap"
-            >
-              → Notion
-            </button>
-
-            <button
-              onClick={() => { setShowImportModal(true); setImportText(""); setImportStatus(null) }}
-              style={{ ...neutralButtonStyle, padding: "6px 12px", fontSize: "var(--db-fs-sm)" }}
-              title="Import songs you saved in Bebop Blueprint — paste localStorage['userBebopProgressions']"
-            >
-              ⇪ Import BB Songs
-            </button>
-
-            <label style={inlineLabelStyle}>
-              <span style={{ opacity: 0.7, marginRight: "4px" }}>Key</span>
-              <select
-                value={keyRoot}
-                onChange={(e) => setKeyRoot(e.target.value)}
-                style={{ ...selectStyle, width: "auto", padding: "6px 10px" }}
-              >
-                {ROOTS.map((r) => <option key={r} value={r}>{r}</option>)}
-              </select>
-              <select
-                value={keyMode}
-                onChange={(e) => setKeyMode(e.target.value)}
-                style={{ ...selectStyle, width: "auto", padding: "6px 10px", marginLeft: "4px" }}
-              >
-                <option value="major">Major</option>
-                <option value="minor">Minor</option>
-              </select>
-            </label>
-
-            <button
-              onClick={handleTransposeChart}
-              style={buttonStyle(keyRoot !== chartKey ? "var(--db-c-amber)" : "var(--db-muted)")}
-            >
-              Transpose Part
-            </button>
-
-            <label style={inlineLabelStyle}>
-              <input
-                type="checkbox"
-                checked={showRomanNumerals}
-                onChange={(e) => setShowRomanNumerals(e.target.checked)}
-              />
-              Roman Numerals
-            </label>
-          </div>
-
-          <div ref={transportRef} style={{ marginTop: "14px", display: "flex", gap: "10px", alignItems: "stretch", flexWrap: "wrap" }}>
-            <div style={{ flex: "1 1 620px" }}>
-              <PracticeTimer
-                inlineLabelStyle={inlineLabelStyle}
-                selectStyle={selectStyle}
-                transportRunning={isPlaying}
-                onState={setTimerState}
-                onFinish={({ stopBand }) => {
-                  if (stopBand && playingRef.current) stopPlayback()
-                  showToast("Practice timer finished")
-                }}
-              />
-            </div>
-            <button
-              onClick={isPlaying ? stopPlayback : () => startPlayback().catch(console.error)}
-              aria-label={isPlaying ? "Stop playback and pause timer" : "Start playback and practice timer"}
-              style={{
-                padding: "11px 28px", borderRadius: "var(--db-r-md)", cursor: "pointer",
-                fontWeight: 800, fontSize: "var(--db-fs-lg)", letterSpacing: "0.02em",
-                border: `2px solid ${isPlaying ? "var(--hot)" : "var(--accent)"}`,
-                background: isPlaying ? "var(--hot)" : "var(--accent)",
-                color: "var(--accent-ink)",
-                minWidth: "132px",
-              }}
-            >
-              {isPlaying ? "⏹ Stop" : "▶ Play"}
-            </button>
-          </div>
-
-          {/* Bebop Blueprint song importer */}
-          {showImportModal && (
-            <div style={{
-              marginTop: "12px", padding: "14px", borderRadius: "var(--db-r-md)",
-              border: "1px solid var(--db-c-blue)",
-              background: "color-mix(in srgb, var(--db-c-blue) 5%, var(--db-bg))",
-            }}>
-              <div style={{ fontSize: "var(--db-fs-sm)", opacity: 0.75, marginBottom: "8px", lineHeight: 1.5 }}>
-                In Bebop Blueprint, open DevTools → Console and run{" "}
-                <code style={{ background: "var(--db-input-bg)", padding: "1px 5px", borderRadius: "var(--db-r-sm)" }}>
-                  copy(localStorage.getItem(&#39;userBebopProgressions&#39;))
-                </code>
-                {" "}— then paste here. Your saved songs become DukeBox library entries.
-              </div>
-              <textarea
-                value={importText}
-                onChange={(e) => setImportText(e.target.value)}
-                placeholder='{"My Custom Song": { "parts": [...], "splitStatus": [...], "defaultKey": "C", ... }}'
+            {/* Now-playing readout — always visible, not folded behind settings. */}
+            <div style={{ display: "flex", alignItems: "stretch", gap: "10px", flexWrap: "wrap", marginBottom: "10px" }}>
+              {timerState && (() => {
+                const { seconds, running, done, duration } = timerState
+                const urgent = done || (running && seconds <= 10)
+                const label = done ? "TIME" : running ? "TIMER" : seconds < duration ? "PAUSED" : "TIMER"
+                const tColor = urgent ? "var(--db-c-salmon)" : running ? "var(--db-c-green)" : "var(--db-muted)"
+                return (
+                  <div
+                    title="Practice timer — set it in the Timer drawer"
+                    style={{
+                      display: "flex", flexDirection: "column", justifyContent: "center",
+                      textAlign: "right", lineHeight: 1.1,
+                      padding: "8px 14px", borderRadius: "var(--db-r-md)",
+                      border: `2px solid color-mix(in srgb, ${tColor} ${running || done ? "100%" : "40%"}, transparent)`,
+                      background: running || done ? `color-mix(in srgb, ${tColor} 12%, var(--db-bg))` : "var(--db-panel-bg)",
+                      opacity: running || done ? 1 : 0.7,
+                    }}
+                  >
+                    <div style={{ fontSize: "var(--db-fs-xs)", letterSpacing: "0.12em", opacity: 0.7, marginBottom: "3px" }}>{label}</div>
+                    <div style={{ fontSize: "1.8rem", fontWeight: 800, fontVariantNumeric: "tabular-nums", color: tColor }}>
+                      {Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, "0")}
+                    </div>
+                  </div>
+                )
+              })()}
+              <div
+                aria-live="polite"
                 style={{
-                  width: "100%", minHeight: "90px", padding: "10px", borderRadius: "var(--db-r-md)",
-                  border: "1px solid var(--db-panel-border)", background: "var(--db-input-bg)",
-                  color: "var(--db-text)", fontSize: "var(--db-fs-sm)", fontFamily: "monospace",
-                  boxSizing: "border-box", resize: "vertical",
+                  textAlign: "right", lineHeight: 1.1,
+                  padding: "8px 16px", borderRadius: "var(--db-r-md)",
+                  border: `2px solid ${(isPlaying && playheadIndex !== null) ? "var(--db-c-green)" : "var(--db-c-amber)"}`,
+                  background: (isPlaying && playheadIndex !== null)
+                    ? "color-mix(in srgb, var(--db-c-green) 14%, var(--db-bg))"
+                    : "color-mix(in srgb, var(--db-c-amber) 10%, var(--db-bg))",
+                  boxShadow: (isPlaying && playheadIndex !== null) ? "0 0 16px color-mix(in srgb, var(--db-c-green) 30%, transparent)" : "none",
+                  minWidth: "180px",
                 }}
-              />
-              <div style={{ display: "flex", gap: "8px", marginTop: "8px", alignItems: "center", flexWrap: "wrap" }}>
-                <button
-                  onClick={() => {
-                    try {
-                      const { entries, warnings } = parseTonalUserSongs(importText)
-                      const stamped = entries.map(e => ({ ...e, updatedAt: Date.now() }))
-                      setLibrary(lib => ({
-                        ...lib,
-                        songs: [...lib.songs.filter(e => !stamped.some(n => n.name === e.name)), ...stamped],
-                      }))
-                      setImportStatus({ ok: true, msg: `Imported ${entries.length} song${entries.length === 1 ? "" : "s"}${warnings.length ? ` · ${warnings.join("; ")}` : ""}` })
-                      setImportText("")
-                    } catch (err) {
-                      setImportStatus({ ok: false, msg: err.message })
-                    }
-                  }}
-                  disabled={!importText.trim()}
-                  style={{ ...buttonStyle("var(--db-c-green)"), padding: "6px 14px", fontSize: "var(--db-fs-sm)", opacity: importText.trim() ? 1 : 0.5 }}
-                >
-                  Import
-                </button>
-                <button
-                  onClick={() => setShowImportModal(false)}
-                  style={{ ...buttonStyle("var(--db-muted)"), padding: "6px 14px", fontSize: "var(--db-fs-sm)" }}
-                >
-                  Close
-                </button>
-                {importStatus && (
-                  <span style={{ fontSize: "var(--db-fs-sm)", color: importStatus.ok ? "var(--passing)" : "var(--hot)" }}>
-                    {importStatus.msg}
-                  </span>
+              >
+                <div style={{ fontSize: "var(--db-fs-xs)", letterSpacing: "0.12em", opacity: 0.7, marginBottom: "3px" }}>
+                  {(isPlaying && playheadIndex !== null) ? "NOW PLAYING" : "SELECTED"} · BAR {barLabels[fretboardBarIndex] ?? fretboardBarIndex + 1}
+                </div>
+                <div style={{ fontSize: "2.4rem", fontWeight: 800, letterSpacing: "-0.01em", color: (isPlaying && playheadIndex !== null) ? "var(--db-c-green)" : "var(--db-c-amber)" }}>
+                  {fretboardBar.symbol}
+                </div>
+                <div style={{ fontSize: "var(--db-fs-lg)", fontWeight: 700, marginTop: "3px", color: "var(--db-c-blue)" }}>{scaleLabelFull}</div>
+                {displayedScaleNotes.length > 0 && (
+                  <div style={{ fontSize: "var(--db-fs-sm)", opacity: 0.75, marginTop: "3px", letterSpacing: "0.04em" }}>
+                    {displayedScaleNotes.join(" · ")}
+                  </div>
                 )}
               </div>
             </div>
-          )}
-        </div>}
 
-        {inMode("practice") && <div style={panelStyle}>
-          {/* ── Section 1: Playback & Practice ─────────────────────── */}
-          <div style={{ marginBottom: "12px" }}>
-            <div style={{ ...eyebrowStyle, marginBottom: "8px" }}>PRACTICE MIX &amp; LOOP</div>
+            {/* Legend (spec §5.3) — always the same maple note-role colors, never the palette */}
+            <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", marginBottom: "12px", fontSize: "12px", color: "var(--muted)" }}>
+              <span><span style={{ color: "var(--n-root)" }}>●</span> Root</span>
+              <span><span style={{ color: "var(--n-chord)" }}>●</span> Chord tone</span>
+              <span><span style={{ color: "var(--n-scale)" }}>●</span> Scale tone</span>
+              <span style={{ opacity: bebopOverlay || scaleFilter === "barry" ? 1 : 0.5 }}>
+                <span style={{ color: "var(--n-passing)" }}>●</span> {scaleFilter === "barry" ? "Barry passing tone" : "Bebop passing"}
+              </span>
+              <span style={{ opacity: targetsOverlay ? 1 : 0.5 }}><span style={{ color: "var(--n-target)" }}>●</span> {melodyPathModeLabel} path / Target</span>
+              {targetsOverlay && anticipateOn && (
+                <span style={{ color: "var(--n-target)" }}>→ up a semitone · →→ up a whole tone · ← ←← down · = stays</span>
+              )}
+            </div>
 
+            {/* THE MAPLE BOARD — always the same wood/note colors (spec §4.7),
+                untouched click-to-hear / swipe / pinch handlers. */}
+            <div className="db-mobile-only" style={{ fontSize: "var(--db-fs-xs)", opacity: 0.6, marginBottom: "4px" }}>
+              Swipe the neck sideways to reach the upper frets · pinch to zoom
+            </div>
+            {/* Focus view gets a bigger board (spec §5.2) — same component and
+                props, just scaled up; Cockpit stays at 1x. */}
+            <div style={{ overflowX: "auto", marginBottom: "4px", zoom: practiceView === "focus" ? 1.18 : 1 }}>
+              <Fretboard
+                chordNotes={fretboardInfo.notes || []}
+                rootNote={martinoMap ? martinoMap.displayRoot : (fretboardBar.userTonic ?? fretboardBar.root)}
+                scaleNotes={displayedScaleNotes}
+                targetNotes={[]}
+                passingNotes={[...bebopPassingNotes, ...barryPassingNotes]}
+                guideToneNotes={guideToneDisplayNotes}
+                guideToneDirections={guideToneDirections}
+                view={fretboardView}
+                tuningName={fretboardTuning}
+              />
+            </div>
+
+            {/* Anticipate — the NEXT chord, rendered as the exact same maple
+                board, just dimmed to read as "coming up" rather than "now". */}
+            {anticipateOn && anticipateBar && (
+              <div style={{ marginTop: "10px", paddingTop: "10px", borderTop: "1px dashed var(--db-panel-border)", opacity: 0.6 }}>
+                <div style={{ display: "flex", alignItems: "baseline", gap: "10px", marginBottom: "4px" }}>
+                  <div style={{ fontSize: "var(--db-fs-xs)", fontWeight: 700, letterSpacing: "0.12em", color: "var(--muted)", textTransform: "uppercase" }}>
+                    Next · Bar {barLabels[anticipateBarIndex] ?? anticipateBarIndex + 1}
+                  </div>
+                  <div style={{ fontSize: "var(--db-fs-lg)", fontWeight: 700 }}>{anticipateBar.symbol}</div>
+                  <div style={{ fontSize: "var(--db-fs-xs)", opacity: 0.75 }}>
+                    {melodyPathModeLabel} path {melodyPathState.notesByBar[anticipateBarIndex] || "—"}
+                  </div>
+                </div>
+                <div style={{ overflowX: "auto" }}>
+                  <Fretboard
+                    chordNotes={anticipateInfo.notes || []}
+                    rootNote={anticipateBar.userTonic ?? anticipateBar.root}
+                    scaleNotes={[]}
+                    targetNotes={[]}
+                    passingNotes={[]}
+                    guideToneNotes={melodyPathState.notesByBar[anticipateBarIndex] ? [melodyPathState.notesByBar[anticipateBarIndex]] : []}
+                    view="chord"
+                    tuningName={fretboardTuning}
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="fret-foot" style={{ fontSize: "11px", color: "var(--muted)", marginTop: "8px", textAlign: "center", fontStyle: "italic" }}>
+              Swipe the neck sideways to reach the upper frets · pinch to zoom
+            </div>
+          </div>
+        )}
+
+        {/* Below-row (spec §5.1) — Cockpit only; Focus skips straight to a
+            practice-line card, see below. */}
+        {inMode("practice") && practiceView === "cockpit" && (
+          <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: "12px", marginBottom: "16px" }}>
+            <FocusGoalCard
+              loopsDone={87}
+              timerLabel={timerState ? `${Math.floor(Math.max(0, (timerState.duration ?? 0) - (timerState.seconds ?? 0)) / 60)}:${String(Math.floor(Math.max(0, (timerState.duration ?? 0) - (timerState.seconds ?? 0)) % 60)).padStart(2, "0")}` : "0:00"}
+              targetNotes={loopEnabled
+                ? Array.from({ length: Math.max(loopStart, loopEnd) - Math.min(loopStart, loopEnd) + 1 }, (_, i) => melodyPathState.notesByBar[Math.min(loopStart, loopEnd) + i]).filter(Boolean)
+                : []}
+            />
+            <BackingBandCard
+              compingStyle={compingStyle}
+              playChords={playChords}
+              onToggleChords={() => setPlayChords((v) => !v)}
+              bassStyle={bassStyle}
+              playBass={playBass}
+              onToggleBass={() => setPlayBass((v) => !v)}
+              drumStyleLabel={DRUM_STYLES[drumStyleIdx].name}
+              playDrums={playDrums}
+              onToggleDrums={() => setPlayDrums((v) => !v)}
+              playMelody={playMelody}
+              onToggleMelody={() => setPlayMelody((v) => !v)}
+            />
+          </div>
+        )}
+
+        {inMode("practice") && practiceView === "focus" && (
+          <div style={{ textAlign: "center", padding: "16px 20px", background: "var(--surface)", border: "1px solid var(--line)", borderRadius: "12px", marginBottom: "16px" }}>
+            <div style={{ font: "800 10.5px 'Archivo', sans-serif", letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--muted)" }}>Practicing</div>
+            <div style={{ font: "700 20px 'Instrument Sans', sans-serif", marginTop: "5px", lineHeight: 1.3 }}>
+              Approach the <em style={{ color: "var(--info)", fontStyle: "normal" }}>3rd</em> of every dominant chord from a half-step below
+            </div>
+          </div>
+        )}
+
+        {inMode("practice") && (
+          <PowerPanel
+            title="Band &amp; Mix"
+            subtitle="Tempo, swing, comping, bass, drums, melody — live while playing"
+            open={openControlPanels.band}
+            onToggle={() => toggleControlPanel("band")}
+          >
             <div className="db-controls" style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
                 <button
                   onClick={() => setPracticeModeAndTempo(!practiceMode)}
@@ -1910,294 +2336,19 @@ export default function Home() {
 
               <div style={{ fontSize: "var(--db-fs-xs)", opacity: 0.55, marginTop: "6px" }}>
                 Every control here is live — tempo, swing, mutes, styles, kit, and reverb all
-                take effect while the band keeps playing.
+                take effect while the band keeps playing. Loop range and Start/End Here now live
+                on the chart ribbon above; Loop on/off is on the sticky transport below.
               </div>
-          </div>
-
-          {/* ── Section 2: Chart Navigation & Loop ─────────────────── */}
-          <div style={{ marginBottom: "12px" }}>
-            <div
-              onClick={() => toggleControlPanel("chart")}
-              style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", marginBottom: "8px" }}
-            >
-              <div style={{ ...eyebrowStyle, marginBottom: 0 }}>CHART NAVIGATION & LOOP</div>
-              <span style={{ fontSize: "var(--db-fs-xs)", opacity: 0.5 }}>{openControlPanels.chart ? "▼" : "▶"}</span>
-            </div>
-            {openControlPanels.chart && (
-              <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
-                <label style={inlineLabelStyle}>
-                  <input type="checkbox" checked={loopEnabled} onChange={(e) => setLoopEnabled(e.target.checked)} />
-                  Loop
-                </label>
-                <button onClick={() => setLoopStart(selectedIndex)} style={buttonStyle("var(--hot)")}>
-                  Set Start at Selected Bar
-                </button>
-                <button onClick={() => setLoopEnd(selectedIndex)} style={buttonStyle("var(--hot)")}>
-                  Set End at Selected Bar
-                </button>
-              </div>
-            )}
-          </div>
-
-          <div style={{ marginTop: "8px", fontSize: "var(--db-fs-md)", opacity: 0.7 }}>
-            Loop range: bars {Math.min(loopStart, loopEnd) + 1} to {Math.max(loopStart, loopEnd) + 1}
-          </div>
-        </div>}
-
-        {inMode("practice") && (
-          <div style={{ ...panelStyle, marginBottom: "16px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "10px", flexWrap: "wrap" }}>
-              <div style={{ ...eyebrowStyle, marginBottom: 0 }}>FRETBOARD</div>
-
-              {/* View: Chord / Scale */}
-              <div style={{ display: "flex", gap: "4px" }}>
-                {["chord", "scale"].map((v) => (
-                  <button key={v} onClick={() => setFretboardView(v)} style={{
-                    padding: "4px 10px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-sm)", cursor: "pointer",
-                    background: fretboardView === v ? "color-mix(in srgb, var(--db-c-amber) 20%, var(--db-bg))" : "var(--db-panel-bg)",
-                    border:     fretboardView === v ? "1px solid var(--db-c-amber)" : "1px solid var(--db-panel-border)",
-                    color:      fretboardView === v ? "var(--db-c-amber)" : "var(--db-text)",
-                    fontWeight: fretboardView === v ? 700 : 400,
-                    opacity:    fretboardView === v ? 1 : 0.7,
-                  }}>
-                    {v === "chord" ? "Chord" : "Scale"}
-                  </button>
-                ))}
-              </div>
-
-              {/* Base scale shape — mutually exclusive */}
-              <div style={{ display: "flex", gap: "4px" }}>
-                {[
-                  ["pentatonic", "Pentatonic"],
-                  ["hexatonic",  "Hexatonic"],
-                  ["martino",    "Martino"],
-                  ["hexchord",   "Hex·Chord"],
-                  ["barry",      "Barry 6th"],
-                ].map(([f, label]) => (
-                  <button key={f} onClick={() => {
-                    // Turning a filter on implies you want to see the scale, not the chord
-                    setScaleFilter(prev => {
-                      const next = prev === f ? null : f
-                      if (next) setFretboardView("scale")
-                      return next
-                    })
-                  }} style={{
-                    padding: "4px 10px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-sm)", cursor: "pointer",
-                    background: scaleFilter === f ? "color-mix(in srgb, var(--db-c-blue) 20%, var(--db-bg))" : "var(--db-panel-bg)",
-                    border:     scaleFilter === f ? "1px solid var(--db-c-blue)" : "1px solid var(--db-panel-border)",
-                    color:      scaleFilter === f ? "var(--db-c-blue)" : "var(--db-text)",
-                    fontWeight: scaleFilter === f ? 700 : 400,
-                    opacity:    scaleFilter === f ? 1 : 0.7,
-                  }}>
-                    {label}
-                  </button>
-                ))}
-              </div>
-
-              {/* Additive overlays */}
-              <div style={{ display: "flex", gap: "4px" }}>
-                <button onClick={() => setBebopOverlay(p => !p)} style={{
-                  padding: "4px 10px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-sm)", cursor: "pointer",
-                  background: bebopOverlay ? "color-mix(in srgb, var(--passing) 22%, transparent)" : "var(--surface)",
-                  border:     bebopOverlay ? "1px solid var(--passing)" : "1px solid var(--line)",
-                  color:      bebopOverlay ? "var(--passing)" : "var(--text)",
-                  fontWeight: bebopOverlay ? 700 : 400,
-                  opacity:    bebopOverlay ? 1 : 0.7,
-                }}>
-                  +Bebop Chromatic
-                </button>
-                <button onClick={() => setTargetsOverlay(p => !p)} style={{
-                  padding: "4px 10px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-sm)", cursor: "pointer",
-                  background: targetsOverlay ? "color-mix(in srgb, var(--target) 22%, transparent)" : "var(--surface)",
-                  border:     targetsOverlay ? "1px solid var(--target)" : "1px solid var(--line)",
-                  color:      targetsOverlay ? "var(--target)" : "var(--text)",
-                  fontWeight: targetsOverlay ? 700 : 400,
-                  opacity:    targetsOverlay ? 1 : 0.7,
-                }}>
-                  +{melodyPathModeLabel} Path
-                </button>
-                <button onClick={() => setAnticipateOn(p => !p)} style={{
-                  padding: "4px 10px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-sm)", cursor: "pointer",
-                  background: anticipateOn ? "color-mix(in srgb, var(--db-c-purple) 20%, var(--db-bg))" : "var(--db-panel-bg)",
-                  border:     anticipateOn ? "1px solid var(--db-c-purple)" : "1px solid var(--db-panel-border)",
-                  color:      anticipateOn ? "var(--db-c-purple)" : "var(--db-text)",
-                  fontWeight: anticipateOn ? 700 : 400,
-                  opacity:    anticipateOn ? 1 : 0.7,
-                }} title="Show a second fretboard with the NEXT chord's tones and guide tones — see the change coming">
-                  Anticipate
-                </button>
-              </div>
-
-              <select
-                value={fretboardTuning}
-                onChange={(e) => setFretboardTuning(e.target.value)}
-                style={{ ...selectStyle, width: "auto", padding: "4px 8px", fontSize: "var(--db-fs-sm)" }}
-              >
-                {TUNING_NAMES.map((t) => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
-              </select>
-
-              {/* Now-playing readout. This used to be muted 0.92rem text tucked
-                  in the corner — the one thing you actually need to read from a
-                  music stand, in the smallest type on the panel. */}
-              {(() => {
-                const scaleLabel =
-                  martinoMap
-                    ? `Martino → ${martinoMap.displayRoot}m${martinoMap.displayQuality === "min7b5" ? " (melodic)" : ""}`
-                    : scaleFilter === "hexchord"
-                    ? hexChoiceForChord(fretboardBar.userTonic ?? fretboardBar.root, fretboardBar.quality).label
-                    : scaleFilter === "barry"
-                    ? `Barry 6th-Dim (${barryHarrisScale(fretboardBar.userTonic ?? fretboardBar.root, fretboardBar.quality).family})`
-                    : (scaleFilter ?? fretboardScaleData[0]?.name ?? "")
-                const scaleTonic = fretboardBar.userTonic ?? fretboardBar.root
-                const isLive = isPlaying && playheadIndex !== null
-                return (
-                  <div style={{ marginLeft: "auto", display: "flex", alignItems: "stretch", gap: "10px" }}>
-                  {/* Clock mirrored from the practice timer — read-only, so you
-                      can watch the time without looking away from the neck.
-                      Controls stay in the Playback & Practice panel. */}
-                  {timerState && (() => {
-                    const { seconds, running, done, duration } = timerState
-                    const urgent = done || (running && seconds <= 10)
-                    // "Paused" only means something once it has actually run.
-                    const label = done ? "TIME" : running ? "TIMER" : seconds < duration ? "PAUSED" : "TIMER"
-                    const tColor = urgent ? "var(--db-c-salmon)" : running ? "var(--db-c-green)" : "var(--db-muted)"
-                    return (
-                      <div
-                        title="Practice timer — set it in Playback & Practice"
-                        style={{
-                          display: "flex", flexDirection: "column", justifyContent: "center",
-                          textAlign: "right", lineHeight: 1.1,
-                          padding: "8px 14px", borderRadius: "var(--db-r-md)",
-                          border: `2px solid color-mix(in srgb, ${tColor} ${running || done ? "100%" : "40%"}, transparent)`,
-                          background: running || done
-                            ? `color-mix(in srgb, ${tColor} 12%, var(--db-bg))`
-                            : "var(--db-panel-bg)",
-                          opacity: running || done ? 1 : 0.7,
-                        }}
-                      >
-                        <div style={{ fontSize: "var(--db-fs-xs)", letterSpacing: "0.12em", opacity: 0.7, marginBottom: "3px" }}>
-                          {label}
-                        </div>
-                        <div style={{
-                          fontSize: "1.8rem", fontWeight: 800, fontVariantNumeric: "tabular-nums",
-                          color: tColor,
-                        }}>
-                          {Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, "0")}
-                        </div>
-                      </div>
-                    )
-                  })()}
-                  <div
-                    aria-live="polite"
-                    style={{
-                      textAlign: "right", lineHeight: 1.1,
-                      padding: "8px 16px", borderRadius: "var(--db-r-md)",
-                      border: `2px solid ${isLive ? "var(--db-c-green)" : "var(--db-c-amber)"}`,
-                      background: isLive
-                        ? "color-mix(in srgb, var(--db-c-green) 14%, var(--db-bg))"
-                        : "color-mix(in srgb, var(--db-c-amber) 10%, var(--db-bg))",
-                      boxShadow: isLive
-                        ? "0 0 16px color-mix(in srgb, var(--db-c-green) 30%, transparent)"
-                        : "none",
-                      minWidth: "180px",
-                    }}
-                  >
-                    <div style={{ fontSize: "var(--db-fs-xs)", letterSpacing: "0.12em", opacity: 0.7, marginBottom: "3px" }}>
-                      {isLive ? "NOW PLAYING" : "SELECTED"} · BAR {barLabels[fretboardBarIndex] ?? fretboardBarIndex + 1}
-                    </div>
-                    <div style={{
-                      fontSize: "2.4rem", fontWeight: 800, letterSpacing: "-0.01em",
-                      color: isLive ? "var(--db-c-green)" : "var(--db-c-amber)",
-                    }}>
-                      {fretboardBar.symbol}
-                    </div>
-                    <div style={{ fontSize: "var(--db-fs-lg)", fontWeight: 700, marginTop: "3px", color: "var(--db-c-blue)" }}>
-                      {scaleLabel
-                        ? (martinoMap || scaleFilter === "hexchord" || scaleFilter === "barry"
-                            ? scaleLabel
-                            : `${scaleTonic} ${scaleLabel}`)
-                        : "—"}
-                    </div>
-                    {displayedScaleNotes.length > 0 && (
-                      <div style={{ fontSize: "var(--db-fs-sm)", opacity: 0.75, marginTop: "3px", letterSpacing: "0.04em" }}>
-                        {displayedScaleNotes.join(" · ")}
-                      </div>
-                    )}
-                  </div>
-                  </div>
-                )
-              })()}
-            </div>
-
-            <div className="db-mobile-only" style={{ fontSize: "var(--db-fs-xs)", opacity: 0.6, marginBottom: "4px" }}>
-              Swipe the neck sideways to reach the upper frets · pinch to zoom
-            </div>
-            <div style={{ overflowX: "auto", marginBottom: "4px" }}>
-              <Fretboard
-                chordNotes={fretboardInfo.notes || []}
-                rootNote={martinoMap ? martinoMap.displayRoot : (fretboardBar.userTonic ?? fretboardBar.root)}
-                scaleNotes={displayedScaleNotes}
-                targetNotes={[]}
-                passingNotes={[...bebopPassingNotes, ...barryPassingNotes]}
-                guideToneNotes={guideToneDisplayNotes}
-                guideToneDirections={guideToneDirections}
-                view={fretboardView}
-                tuningName={fretboardTuning}
-              />
-            </div>
-
-            {/* Anticipate — the NEXT chord on its own board (loop-aware) */}
-            {anticipateOn && anticipateBar && (
-              <div style={{ marginTop: "10px", paddingTop: "10px", borderTop: "1px dashed var(--db-panel-border)" }}>
-                <div style={{ display: "flex", alignItems: "baseline", gap: "10px", marginBottom: "4px" }}>
-                  <div style={{ fontSize: "var(--db-fs-xs)", fontWeight: 700, letterSpacing: "0.12em", color: "var(--db-c-purple)" }}>
-                    NEXT · BAR {barLabels[anticipateBarIndex] ?? anticipateBarIndex + 1}
-                  </div>
-                  <div style={{ fontSize: "var(--db-fs-lg)", fontWeight: 700 }}>{anticipateBar.symbol}</div>
-                  <div style={{ fontSize: "var(--db-fs-xs)", opacity: 0.55 }}>
-                    {melodyPathModeLabel} path {melodyPathState.notesByBar[anticipateBarIndex] || "—"}
-                  </div>
-                </div>
-                <div style={{ overflowX: "auto" }}>
-                  <Fretboard
-                    chordNotes={anticipateInfo.notes || []}
-                    rootNote={anticipateBar.userTonic ?? anticipateBar.root}
-                    scaleNotes={[]}
-                    targetNotes={[]}
-                    passingNotes={[]}
-                    guideToneNotes={melodyPathState.notesByBar[anticipateBarIndex] ? [melodyPathState.notesByBar[anticipateBarIndex]] : []}
-                    view="chord"
-                    tuningName={fretboardTuning}
-                  />
-                </div>
-              </div>
-            )}
-
-            <div style={{ marginTop: "8px", display: "flex", gap: "14px", fontSize: "var(--db-fs-sm)", flexWrap: "wrap" }} >
-              <span style={{ opacity: 0.7 }}><span style={{ color: "var(--root)" }}>●</span> Root</span>
-              <span style={{ opacity: 0.7 }}><span style={{ color: "var(--chord)" }}>●</span> Chord tone</span>
-              <span style={{ opacity: 0.7 }}><span style={{ color: "var(--scale)" }}>●</span> Scale tone</span>
-              <span style={{ opacity: bebopOverlay || scaleFilter === "barry" ? 0.85 : 0.4 }}>
-                <span style={{ color: "var(--passing)" }}>●</span> {scaleFilter === "barry" ? "Barry passing tone" : "Bebop passing"}
-              </span>
-              <span style={{ opacity: targetsOverlay ? 0.85 : 0.4 }}><span style={{ color: "var(--target)" }}>●</span> {melodyPathModeLabel} path</span>
-              {targetsOverlay && anticipateOn && (
-                <span style={{ opacity: 0.85, color: "var(--target)" }}>
-                  → up a semitone · →→ up a whole tone · ← ←← down · = stays
-                </span>
-              )}
-              <span style={{ opacity: 0.7 }}><span style={{ color: "var(--target)" }}>●</span> Target note</span>
-            </div>
-          </div>
+          </PowerPanel>
         )}
 
-        {inMode("practice") && <div style={panelStyle}>
-          <div style={{ ...eyebrowStyle, marginBottom: "4px" }}>MELODY PATHS</div>
-          <div style={{ fontSize: "var(--db-fs-sm)", opacity: 0.55, marginBottom: "14px" }}>
-            Guide-tone skeletons and one-note-per-measure melody mapping for the live chart
-          </div>
+        {inMode("practice") && (
+          <PowerPanel
+            title="Melody Paths"
+            subtitle="Guide-tone skeletons and one-note-per-measure melody mapping"
+            open={openControlPanels.melody}
+            onToggle={() => toggleControlPanel("melody")}
+          >
           <MelodyPaths
             key={`${activeSongTitle || selectedForm}:${keyRoot}:${keyMode}:${bars.map(bar => `${bar.symbol}:${bar.beats || 4}`).join("|")}`}
             bars={bars}
@@ -2213,15 +2364,17 @@ export default function Home() {
             onGuideModeChange={setMelodyPathMode}
             onPathChange={setMelodyPathState}
           />
-        </div>}
+          </PowerPanel>
+        )}
 
-        {inMode("practice") && <details style={panelStyle}>
-          <summary style={{ cursor: "pointer", listStyle: "none", display: "flex", alignItems: "center", gap: "10px", fontWeight: 800 }}>
-            <span aria-hidden="true" style={{ fontSize: "1.35rem", color: "var(--db-accent)" }}>＋</span>
-            <span style={{ ...eyebrowStyle, marginBottom: 0 }}>LEAD SHEET GRID</span>
-            <span style={{ fontSize: "var(--db-fs-sm)", opacity: 0.55, fontWeight: 400 }}>Edit, arrange, transpose, and inspect every bar</span>
-          </summary>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", margin: "14px 0 10px" }}>
+        {inMode("practice") && (
+          <PowerPanel
+            title="Lead Sheet Grid"
+            subtitle="Edit, arrange, transpose, and inspect every bar"
+            open={openControlPanels.leadsheet}
+            onToggle={() => toggleControlPanel("leadsheet")}
+          >
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", margin: "0 0 10px" }}>
             <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
               <span style={{ fontSize: "var(--db-fs-sm)", opacity: 0.62, marginRight: "2px" }}>cols:</span>
               {[2, 3, 4, 6, 8].map(n => (
@@ -2634,7 +2787,8 @@ export default function Home() {
           </div>
           </div>
           )}
-        </details>}
+          </PowerPanel>
+        )}
 
         {inMode("reference") && <ReferenceGuides panelStyle={panelStyle} />}
 
@@ -2727,15 +2881,22 @@ export default function Home() {
           )
         })()}
 
-        {inMode("practice") && <PracticeExpander title="BEATFORGE METRONOME" subtitle="Standalone time workout with programmable accents" color="var(--db-c-blue)" panelStyle={panelStyle}>
-          <MetronomePanel
-            onBeforeStart={stopPlayback}
-            panelStyle={{ ...panelStyle, margin: "14px 0 0" }}
-            eyebrowStyle={eyebrowStyle}
-            selectStyle={selectStyle}
-            inlineLabelStyle={inlineLabelStyle}
-          />
-        </PracticeExpander>}
+        {inMode("practice") && (
+          <PowerPanel
+            title="BeatForge Metronome"
+            subtitle="Standalone time workout with programmable accents"
+            open={openControlPanels.metronome}
+            onToggle={() => toggleControlPanel("metronome")}
+          >
+            <MetronomePanel
+              onBeforeStart={stopPlayback}
+              panelStyle={{ ...panelStyle, margin: "0" }}
+              eyebrowStyle={eyebrowStyle}
+              selectStyle={selectStyle}
+              inlineLabelStyle={inlineLabelStyle}
+            />
+          </PowerPanel>
+        )}
 
         {dnMeta && inMode("practice") && <DesertNoirPanel meta={dnMeta} />}
       </section>
@@ -2795,27 +2956,23 @@ export default function Home() {
         </div>
       )}
 
-      {/* Sticky transport — appears once the main controls scroll out of view,
-          so Play/Stop is always reachable deep in the chart (esp. on phones). */}
-      {showStickyPlay && (
-        <button
-          onClick={isPlaying ? stopPlayback : () => startPlayback().catch(console.error)}
-          aria-label={isPlaying ? "Stop playback" : "Start playback"}
-          style={{
-            position: "fixed", right: "20px", bottom: "20px", zIndex: 55,
-            padding: "14px 22px", borderRadius: "var(--db-r-pill)", cursor: "pointer",
-            fontWeight: 800, fontSize: "var(--db-fs-lg)",
-            border: `2px solid ${isPlaying ? "var(--db-c-salmon)" : "var(--db-c-amber)"}`,
-            background: isPlaying
-              ? "color-mix(in srgb, var(--db-c-salmon) 25%, var(--db-bg))"
-              : "color-mix(in srgb, var(--db-c-amber) 25%, var(--db-bg))",
-            color: isPlaying ? "var(--db-c-salmon)" : "var(--db-c-amber)",
-            boxShadow: "0 6px 24px var(--shadow)",
-            backdropFilter: "blur(8px)",
-          }}
-        >
-          {isPlaying ? "⏹ Stop" : "▶ Play"}
-        </button>
+      {/* Sticky transport (spec §5.7) — always reachable in Practice mode,
+          synced display of the same play/loop/tempo/swing/timer state the
+          Band & Mix panel and chart ribbon edit. */}
+      {inMode("practice") && (
+        <StickyTransport
+          isPlaying={isPlaying}
+          onTogglePlay={isPlaying ? stopPlayback : () => startPlayback().catch(console.error)}
+          loopEnabled={loopEnabled}
+          onToggleLoop={() => setLoopEnabled((v) => !v)}
+          tempo={tempo}
+          onTempoChange={setTempo}
+          swingAmount={swingAmount}
+          loopStart={loopStart}
+          loopEnd={loopEnd}
+          timerState={timerState}
+          onOpenSettings={() => setOpenControlPanels((prev) => ({ ...prev, band: true }))}
+        />
       )}
 
       {/* Transient toast */}
@@ -2836,18 +2993,6 @@ export default function Home() {
   )
 }
 
-function PracticeExpander({ title, subtitle, color, panelStyle, children }) {
-  return (
-    <details style={panelStyle}>
-      <summary style={{ cursor: "pointer", listStyle: "none", display: "flex", alignItems: "center", gap: "10px", fontWeight: 800 }}>
-        <span aria-hidden="true" style={{ fontSize: "1.35rem", color }}>＋</span>
-        <span style={{ fontSize: "var(--db-fs-lg)", letterSpacing: "0.06em", color }}>{title}</span>
-        <span style={{ fontSize: "var(--db-fs-sm)", opacity: 0.55, fontWeight: 400 }}>{subtitle}</span>
-      </summary>
-      {children}
-    </details>
-  )
-}
 
 // ─── Cloud-sync status + magic-link sign-in ──────────────────────────────────
 function SyncControl({ auth, syncStatus, style }) {
@@ -3077,19 +3222,6 @@ const scaleCardStyle = {
   borderRadius: "var(--db-r-md)",
   border: "1px solid var(--db-panel-border)",
   background: "var(--db-panel-bg)",
-}
-
-// Actions that mean the same thing should look the same. The Songbook's five
-// export/import buttons used to be five different colours, which spent the
-// semantic palette on decoration — colour now signals state, not identity.
-const neutralButtonStyle = {
-  padding: "9px 12px",
-  borderRadius: "var(--db-r-md)",
-  border: "1px solid var(--db-panel-border)",
-  background: "var(--db-panel-bg)",
-  color: "var(--db-text)",
-  cursor: "pointer",
-  fontWeight: 600,
 }
 
 function buttonStyle(colorVar) {

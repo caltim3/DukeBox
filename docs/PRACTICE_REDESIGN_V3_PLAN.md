@@ -216,3 +216,41 @@ class/container changes §5.4 and §5.3 explicitly call for.
 ---
 
 *Plan complete. Awaiting go-ahead to start D1 (tokens).*
+
+---
+
+## 11 · Implementation notes (post-build)
+
+Shipped in full. Decisions made along the way, per user direction:
+
+- **GigBarStrip kept as-is**, with a small jazzmaster-icon home button added to
+  its header row (calls the same "go home" logic as `AppHomeButton`). It
+  remains the fixed, cross-tab, play-only strip; the new in-flow `ChartRibbon`
+  is the always-visible Cockpit/Focus ribbon from the spec. Two bar strips
+  exist app-wide, each doing a different job — as flagged in §5.
+- **Session memory**: the Timer drawer's "Auto-log session to memory" toggle
+  ships as a visual-only, unwired placeholder labeled "Coming soon" — no
+  backing state, per "session memory later."
+- **Loop counter**: hardcoded `87 / 100`, per §8.2 step 6.
+- **Anticipate fretboard**: renders the exact same `<Fretboard>` component and
+  styling as the primary board (no more purple "NEXT" strip look), wrapped at
+  `opacity: 0.6` so it reads as "coming up" rather than "now."
+- **Desert Noir panel**: left untouched, outside the power-panel stack, still
+  gated on `dnMeta`.
+- **Scope note**: `Fretboard.js` is shared with the Reference tab's Fret Flow
+  feature. Recoloring it to the constant maple/`--n-*` tokens (spec §4.7)
+  therefore also makes Fret Flow's boards always-maple, not just Practice's —
+  a disclosed, deliberate side effect rather than a forked component.
+- **Focus fretboard sizing**: reused the same `<Fretboard>` component per
+  spec ("only the wrapping card sizing differs"); the "bigger than Cockpit"
+  requirement is approximated with a CSS `zoom` on the Focus board's
+  container rather than per-element pixel overrides, since the component is
+  SVG/viewBox-based rather than the mock's fixed-pixel CSS grid.
+- Verified: `npm run build` and `npm run lint` clean (one pre-existing,
+  unrelated lint error in `CreateWorkspace.jsx`, not touched by this PR).
+  Visually verified in a headless browser: Cockpit view, Focus view,
+  Songbook drawer, Timer drawer, Melody Paths panel (tight navy circles,
+  unaffected by palette), Lead Sheet Grid panel, BeatForge Metronome panel,
+  and a full palette+mode switch to Regatta/Dark confirming the maple
+  fretboard and Melody Paths panel stay pixel-identical while everything
+  else re-themes. No console/page errors in any of these passes.

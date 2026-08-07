@@ -61,12 +61,14 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
       const isPassing = !isRoot && !isTarget && inPassing
       const isGuide   = !isRoot && !isTarget && !isPassing && inGuide
       // Color priority: root > resolution target > bebop passing > guide tone > scale/chord
-      const color = isRoot    ? "var(--root)"
-                  : isTarget  ? "var(--target)"
-                  : isPassing ? "var(--passing)"
-                  : isGuide   ? "var(--target)"
-                  : view === "scale" ? "var(--scale)"
-                  : "var(--chord)"
+      // Fixed maple-note-role tokens (--n-*), never palette tokens — the board reads
+      // the same on every palette (see docs/PRACTICE_REDESIGN_V3.md §4.7).
+      const color = isRoot    ? "var(--n-root)"
+                  : isTarget  ? "var(--n-target)"
+                  : isPassing ? "var(--n-passing)"
+                  : isGuide   ? "var(--n-target)"
+                  : view === "scale" ? "var(--n-scale)"
+                  : "var(--n-chord)"
       dots.push({
         key:  `${si}-${f}`,
         cx:   dotX(f),
@@ -88,15 +90,27 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
 
   return (
     <svg viewBox={`0 0 ${W} ${H + 24}`} style={{ width: "100%", display: "block" }}>
+      {/* Maple wood + note-role colors below all read from the constant --fb- and --n-
+          tokens (globals.css :root), never from the active palette — the board looks
+          identical no matter which of the six palettes is selected (spec §4.7). */}
+      <defs>
+        <linearGradient id="fb-maple" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="var(--fb-wood-1)" />
+          <stop offset="100%" stopColor="var(--fb-wood-2)" />
+        </linearGradient>
+        <filter id="fb-target-glow" x="-80%" y="-80%" width="260%" height="260%">
+          <feGaussianBlur stdDeviation="3.2" />
+        </filter>
+      </defs>
 
       {/* Fretboard wood background */}
-      <rect x={NUT_X} y={0} width={FRET_AREA} height={H} rx={3} fill="var(--fretboard)" />
+      <rect x={NUT_X} y={0} width={FRET_AREA} height={H} rx={3} fill="url(#fb-maple)" stroke="var(--fb-nut)" strokeWidth={1} />
 
       {/* String lines (thicker for lower strings) */}
       {strings.map((_, si) => (
         <line key={`s${si}`}
           x1={NUT_X - 2} y1={strY(si)} x2={W} y2={strY(si)}
-          stroke="var(--muted)" strokeWidth={0.6 + si * 0.22}
+          stroke="var(--fb-string)" strokeWidth={0.6 + si * 0.22}
         />
       ))}
 
@@ -105,7 +119,7 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
         <line key={`f${f}`}
           x1={fretLineX(f)} y1={Y_TOP - 5}
           x2={fretLineX(f)} y2={Y_TOP + STR_SPAN + 5}
-          stroke={f === 0 ? "var(--text)" : "var(--fretwire)"} strokeWidth={f === 0 ? 5 : 1.2}
+          stroke={f === 0 ? "var(--fb-nut)" : "var(--fb-fret)"} strokeWidth={f === 0 ? 5 : 1.2}
         />
       ))}
 
@@ -113,17 +127,17 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
       {MARKER_FRETS.flatMap(f => {
         const x = NUT_X + (f - 0.5) * FRET_W
         if (f === 12) return [
-          <circle key={`m${f}a`} cx={x} cy={midY - STR_SPAN * 0.22} r={4.5} fill="var(--marker)" />,
-          <circle key={`m${f}b`} cx={x} cy={midY + STR_SPAN * 0.22} r={4.5} fill="var(--marker)" />,
+          <circle key={`m${f}a`} cx={x} cy={midY - STR_SPAN * 0.22} r={4.5} fill="var(--fb-inlay)" opacity={0.35} />,
+          <circle key={`m${f}b`} cx={x} cy={midY + STR_SPAN * 0.22} r={4.5} fill="var(--fb-inlay)" opacity={0.35} />,
         ]
-        return [<circle key={`m${f}`} cx={x} cy={midY} r={4.5} fill="var(--marker)" />]
+        return [<circle key={`m${f}`} cx={x} cy={midY} r={4.5} fill="var(--fb-inlay)" opacity={0.35} />]
       })}
 
       {/* Fret number labels */}
       {NUM_FRET_LABELS.map(f => (
         <text key={`n${f}`}
           x={NUT_X + (f - 0.5) * FRET_W} y={LABEL_Y}
-          textAnchor="middle" fill="var(--muted)" fontSize={10} fontFamily="Arial, sans-serif"
+          textAnchor="middle" fill="var(--fb-labels)" fontSize={10} fontFamily="Arial, sans-serif"
         >{f}</text>
       ))}
 
@@ -131,7 +145,7 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
       {strings.map((note, si) => (
         <text key={`sl${si}`}
           x={16} y={strY(si) + 4}
-          textAnchor="middle" fill="var(--muted)" fontSize={10} fontFamily="Arial, sans-serif"
+          textAnchor="middle" fill="var(--fb-labels)" fontSize={10} fontFamily="Arial, sans-serif"
         >{note}</text>
       ))}
 
@@ -156,19 +170,25 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
         const motionWord = semis == null ? ""
           : semis === 0 ? "stays"
           : `${Math.abs(semis) === 1 ? "a semitone" : "a whole tone"} ${semis > 0 ? "up" : "down"}`
+        // Target/guide-tone dots pulse with a soft glow, same as every palette —
+        // the glow color is a constant token too (--n-target-glow).
+        const glows = d.isTarget || d.isGuide
         return (
           <g key={d.key}>
-            <circle cx={d.cx} cy={d.cy} r={d.r} fill={d.color} />
+            {glows && (
+              <circle cx={d.cx} cy={d.cy} r={d.r + 4} fill="var(--n-target-glow)" filter="url(#fb-target-glow)" />
+            )}
+            <circle cx={d.cx} cy={d.cy} r={d.r} fill={d.color} stroke="#3D2A12" strokeWidth={d.isRoot ? 1.2 : 0.6} />
             {glyph && <title>{`${d.label} → ${goesTo ?? "?"} · ${motionWord}`}</title>}
             <text x={d.cx} y={d.cy + 3.5}
-              textAnchor="middle" fill="var(--bg)"
+              textAnchor="middle" fill="#FFFFFF"
               fontSize={d.isRoot ? 9 : 8} fontWeight="bold" fontFamily="Arial, sans-serif"
             >{d.label}</text>
             {glyph && (
               <text x={d.cx} y={d.cy - d.r - 2.5}
                 textAnchor="middle" fontSize={12.5} fontWeight="bold"
                 fontFamily="Arial, sans-serif" letterSpacing="-1.5"
-                fill="var(--target)" stroke="var(--bg)" strokeWidth="0.9" paintOrder="stroke"
+                fill="var(--n-target)" stroke="var(--fb-wood-1)" strokeWidth="0.9" paintOrder="stroke"
               >{glyph}</text>
             )}
           </g>
