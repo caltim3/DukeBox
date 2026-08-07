@@ -7,14 +7,17 @@ import SongSearch from "@/components/SongSearch"
 const NOTES_SHARP = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 const NOTES_FLAT = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"]
 
+// Melody Paths is always dark navy — these read the constant --mp-* tokens
+// (globals.css :root), never the active palette, so the panel looks identical
+// no matter which of the six palettes is selected (spec §4.8).
 const DEFAULT_COLOR_TOKENS = {
-  root: "--root",
-  third: "--chord",
-  fifth: "--scale",
-  seventh: "--target",
-  alter: "--hot",
-  guide: "--chord",
-  melody: "--accent",
+  root: "--mp-root",
+  third: "--mp-third",
+  fifth: "--mp-fifth",
+  seventh: "--mp-seventh",
+  alter: "--mp-alt",
+  guide: "--mp-line-color",
+  melody: "--mp-melody",
 }
 
 const COLOR_LABELS = {
@@ -254,64 +257,75 @@ export default function MelodyPaths({
 
   return (
     <div className="mp-root" style={{
-      "--mp-root": colors?.root || "var(--root)",
-      "--mp-third": colors?.third || "var(--chord)",
-      "--mp-fifth": colors?.fifth || "var(--scale)",
-      "--mp-seventh": colors?.seventh || "var(--target)",
-      "--mp-alter": colors?.alter || "var(--hot)",
-      "--mp-guide": colors?.guide || "var(--chord)",
-      "--mp-melody": colors?.melody || "var(--accent)",
+      "--mp-root": colors?.root || "var(--mp-root)",
+      "--mp-third": colors?.third || "var(--mp-third)",
+      "--mp-fifth": colors?.fifth || "var(--mp-fifth)",
+      "--mp-seventh": colors?.seventh || "var(--mp-seventh)",
+      "--mp-alter": colors?.alter || "var(--mp-alt)",
+      "--mp-guide": colors?.guide || "var(--mp-line-color)",
+      "--mp-melody": colors?.melody || "var(--mp-melody)",
+      background: "var(--mp-bg)", color: "var(--mp-text)",
+      border: "1px solid var(--mp-line)", borderRadius: "var(--db-r-md)", padding: "14px 16px",
     }}>
       <style>{`
         .mp-root * { box-sizing: border-box; }
         .mp-top { display:grid; grid-template-columns:minmax(240px, 1.5fr) minmax(190px, 1fr) auto; gap:12px; align-items:end; }
-        .mp-label { display:block; margin-bottom:5px; color:var(--db-muted); font-size:var(--db-fs-xs); font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
+        .mp-label { display:block; margin-bottom:5px; color:var(--mp-muted); font-size:var(--db-fs-xs); font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
         .mp-mode { display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; }
-        .mp-button { padding:7px 12px; border:1px solid var(--db-card-border); border-radius:var(--db-r-md); background:var(--db-card-bg); color:var(--db-text); font-weight:700; cursor:pointer; }
-        .mp-button.active { border-color:var(--db-accent); background:color-mix(in srgb, var(--db-accent) 16%, var(--db-bg)); color:var(--db-accent); }
-        .mp-legend { display:flex; flex-wrap:wrap; gap:6px 12px; margin-top:14px; padding-top:12px; border-top:1px solid var(--db-card-border); }
-        .mp-legend-item { display:flex; align-items:center; gap:6px; color:var(--db-muted); font-size:var(--db-fs-xs); }
-        .mp-swatch { position:relative; width:19px; height:19px; overflow:hidden; border:1px solid color-mix(in srgb, var(--db-text) 28%, transparent); border-radius:5px; }
+        .mp-button { padding:7px 12px; border:1px solid var(--mp-line); border-radius:var(--db-r-md); background:var(--mp-surface); color:var(--mp-text); font-weight:700; cursor:pointer; }
+        .mp-button.active { border-color:var(--mp-melody); background:color-mix(in srgb, var(--mp-melody) 20%, var(--mp-surface)); color:var(--mp-hdr-accent); }
+        .mp-legend { display:flex; flex-wrap:wrap; gap:6px; margin-top:14px; padding-top:12px; border-top:1px solid var(--mp-line); }
+        .mp-legend-item { display:inline-flex; align-items:center; gap:5px; background:var(--mp-surface); border:1px solid var(--mp-line); border-radius:20px; padding:3px 8px 3px 4px; color:var(--mp-muted); font-size:11px; }
+        .mp-swatch { position:relative; width:14px; height:14px; overflow:hidden; border-radius:50%; }
         .mp-swatch input { position:absolute; inset:0; width:100%; height:100%; opacity:0; cursor:pointer; }
-        .mp-scroll { overflow:auto; margin-top:14px; border:1px solid var(--db-card-border); border-radius:var(--db-r-lg); background:var(--db-card-bg); }
-        .mp-workspace { display:grid; grid-template-columns:72px 1fr; min-width:max-content; }
-        .mp-pitches { position:sticky; left:0; z-index:5; padding:46px 7px 56px; background:var(--db-card-bg); border-right:1px solid var(--db-card-border); box-shadow:5px 0 12px color-mix(in srgb, var(--db-bg) 55%, transparent); }
-        .mp-pitch-stack, .mp-degree-stack { display:grid; grid-template-rows:repeat(7, 58px); align-items:center; justify-items:center; }
-        .mp-pitch { font-size:20px; font-weight:900; color:var(--db-text); }
-        .mp-chart { position:relative; display:grid; align-items:stretch; min-height:508px; }
-        .mp-column { position:relative; min-width:112px; padding:46px 10px 56px; border-right:1px dashed var(--db-card-border); }
-        .mp-column.playing { background:color-mix(in srgb, var(--db-c-green) 16%, var(--db-bg)); box-shadow:inset 0 3px 0 var(--db-c-green), inset 0 -3px 0 var(--db-c-green); }
-        .mp-column.playing .mp-chord { color:var(--db-c-green); }
-        .mp-chord { position:absolute; top:12px; left:50%; transform:translateX(-50%); color:var(--db-text); font-size:var(--db-fs-md); font-weight:800; white-space:nowrap; }
-        .mp-degree { position:relative; z-index:2; display:grid; place-items:center; width:44px; height:44px; border:2px solid var(--db-text); border-radius:50%; background:var(--db-bg); color:var(--db-text); font-size:var(--db-fs-sm); font-weight:900; cursor:pointer; transition:transform .12s ease; }
+        .mp-scroll { overflow:auto; margin-top:12px; border:1px solid var(--mp-line); border-radius:10px; background:var(--mp-bg); }
+        .mp-workspace { display:grid; grid-template-columns:38px 1fr; min-width:max-content; }
+        .mp-pitches { position:sticky; left:0; z-index:5; padding:38px 4px 30px; background:var(--mp-bg); border-right:1px solid var(--mp-line); }
+        .mp-pitch-stack, .mp-degree-stack { display:grid; grid-template-rows:repeat(7, 46px); align-items:center; justify-items:center; }
+        .mp-pitch { font-size:12px; font-weight:800; color:var(--mp-hdr-accent); font-family:'IBM Plex Mono', monospace; }
+        .mp-chart { position:relative; display:grid; align-items:stretch; min-height:392px; }
+        .mp-column { position:relative; min-width:94px; padding:38px 8px 30px; border-right:1px dashed var(--mp-line); }
+        .mp-column.playing { background:color-mix(in srgb, var(--mp-melody) 14%, var(--mp-bg)); box-shadow:inset 0 3px 0 var(--mp-melody), inset 0 -3px 0 var(--mp-melody); }
+        .mp-column.playing .mp-chord { color:var(--mp-melody); }
+        .mp-chord { position:absolute; top:8px; left:50%; transform:translateX(-50%); color:var(--mp-hdr-accent); font-size:12px; font-weight:800; white-space:nowrap; font-family:'IBM Plex Mono', monospace; }
+        .mp-degree { position:relative; z-index:2; display:grid; place-items:center; width:38px; height:38px; max-width:38px; border:2px solid var(--mp-cell-border); border-radius:50%; background:var(--mp-cell); color:var(--mp-muted); font-size:11px; font-weight:700; cursor:pointer; transition:transform .12s ease; font-family:'IBM Plex Mono', monospace; }
         .mp-degree:hover { transform:scale(1.08); }
-        .mp-degree.root { background:var(--mp-root); }
-        .mp-degree.third { background:var(--mp-third); }
-        .mp-degree.fifth { background:var(--mp-fifth); }
-        .mp-degree.seventh { background:var(--mp-seventh); color:white; }
-        .mp-degree.melody { box-shadow:0 0 0 5px color-mix(in srgb, var(--mp-melody) 30%, transparent), inset 0 0 0 3px var(--mp-melody); }
-        .mp-alter { position:absolute; left:-44px; top:6px; display:grid; place-items:center; width:37px; height:28px; border-radius:7px; background:var(--mp-alter); color:white; font-size:10px; font-weight:900; }
-        .mp-alter::after { content:""; position:absolute; right:-7px; top:10px; border-left:7px solid var(--mp-alter); border-top:4px solid transparent; border-bottom:4px solid transparent; }
+        .mp-degree.root { background:var(--mp-root); border-color:#EA580C; color:#1F1204; }
+        .mp-degree.third { background:var(--mp-third); border-color:#3B82F6; color:#0B1930; }
+        .mp-degree.fifth { background:var(--mp-fifth); border-color:#64748B; color:#0F172A; }
+        .mp-degree.seventh { background:var(--mp-seventh); border-color:#FBBF24; color:#2A1A02; }
+        .mp-degree.melody { box-shadow:0 0 0 4px color-mix(in srgb, var(--mp-melody) 40%, transparent), inset 0 0 0 2px var(--mp-melody); }
+        .mp-alter { position:absolute; left:-34px; top:2px; display:grid; place-items:center; width:30px; height:22px; border-radius:6px; background:var(--mp-alter); color:#1F0708; font-size:9px; font-weight:900; }
+        .mp-alter::after { content:""; position:absolute; right:-6px; top:8px; border-left:6px solid var(--mp-alter); border-top:3px solid transparent; border-bottom:3px solid transparent; }
         .mp-lines { position:absolute; inset:0; z-index:1; width:100%; height:100%; overflow:visible; pointer-events:none; }
-        .mp-guide-line { fill:none; stroke:var(--mp-guide); stroke-width:4; stroke-linecap:round; stroke-linejoin:round; }
-        .mp-melody-line { fill:none; stroke:var(--mp-melody); stroke-width:4; stroke-linecap:round; stroke-linejoin:round; stroke-dasharray:9 7; }
-        .mp-bracket { position:absolute; bottom:30px; height:17px; border-left:2px solid var(--db-muted); border-right:2px solid var(--db-muted); border-bottom:2px solid var(--db-muted); border-radius:0 0 6px 6px; }
-        .mp-bracket span { position:absolute; top:19px; width:100%; color:var(--db-muted); font-size:10px; text-align:center; white-space:nowrap; }
+        .mp-guide-line { fill:none; stroke:var(--mp-guide); stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+        .mp-melody-line { fill:none; stroke:var(--mp-melody); stroke-width:2; stroke-linecap:round; stroke-linejoin:round; stroke-dasharray:9 7; }
+        .mp-bracket { position:absolute; bottom:14px; height:14px; border-left:2px solid var(--mp-line); border-right:2px solid var(--mp-line); border-bottom:2px solid var(--mp-line); border-radius:0 0 6px 6px; }
+        .mp-bracket span { position:absolute; top:16px; width:100%; color:var(--mp-muted); font-size:10px; text-align:center; white-space:nowrap; font-family:'IBM Plex Mono', monospace; }
         @media (max-width:760px) { .mp-top { grid-template-columns:1fr; } .mp-clear { justify-self:start; } }
       `}</style>
 
       <div className="mp-top">
         <div>
           <span className="mp-label">Live song</span>
-          <div style={{ fontSize: "var(--db-fs-lg)", fontWeight: 850, marginBottom: "6px", color: "var(--db-accent)" }}>{title}</div>
-          <SongSearch
-            formCategories={formCategories}
-            userLibrary={userLibrary}
-            gigSongs={gigSongs}
-            selectedForm={title}
-            onPick={onPickSong}
-            placeholder="Choose a different live song…"
-          />
+          <div style={{ fontSize: "var(--db-fs-lg)", fontWeight: 850, marginBottom: "6px", color: "var(--mp-hdr-accent)" }}>{title}</div>
+          {/* SongSearch reads the app's --db-* custom properties for its own styling;
+              scoping them to the navy melody-paths tokens here keeps the search box
+              from flashing palette-colored inside an always-navy panel. */}
+          <div style={{
+            "--db-input-bg": "var(--mp-surface)", "--db-panel-bg": "var(--mp-surface)",
+            "--db-panel-border": "var(--mp-line)", "--db-text": "var(--mp-text)",
+            "--db-accent": "var(--mp-melody)", "--shadow": "rgba(0,0,0,.45)",
+          }}>
+            <SongSearch
+              formCategories={formCategories}
+              userLibrary={userLibrary}
+              gigSongs={gigSongs}
+              selectedForm={title}
+              onPick={onPickSong}
+              placeholder="Choose a different live song…"
+            />
+          </div>
         </div>
         <div>
           <span className="mp-label">Guide-tone path</span>
@@ -320,7 +334,7 @@ export default function MelodyPaths({
             <button className={`mp-button ${guideMode === "smooth" ? "active" : ""}`} onClick={() => onGuideModeChange?.("smooth")}>Smooth</button>
             <button className={`mp-button ${guideMode === "melody" ? "active" : ""}`} onClick={() => onGuideModeChange?.("melody")}>Melody</button>
           </div>
-          <div style={{ marginTop: "6px", color: "var(--db-muted)", fontSize: "var(--db-fs-xs)" }}>
+          <div style={{ marginTop: "6px", color: "var(--mp-muted)", fontSize: "var(--db-fs-xs)" }}>
             Key center: {tonic} {keyMode === "minor" ? "minor" : "major"}
           </div>
         </div>
@@ -338,7 +352,7 @@ export default function MelodyPaths({
         ))}
       </div>
 
-      <div style={{ marginTop: "10px", color: "var(--db-muted)", fontSize: "var(--db-fs-sm)" }}>
+      <div style={{ marginTop: "10px", color: "var(--mp-muted)", fontSize: "var(--db-fs-sm)" }}>
         The fretboard follows the selected path. Click one circle per measure to draw and select your Melody path.
       </div>
 
@@ -349,8 +363,8 @@ export default function MelodyPaths({
               {[...scalePcs].reverse().map((pc) => <div className="mp-pitch" key={pc}>{displayNote(pc, tonic)}</div>)}
             </div>
           </div>
-          <div ref={chartRef} className="mp-chart" style={{ gridTemplateColumns: `repeat(${Math.max(columns.length, 1)}, 112px)` }}>
-            {columns.length === 0 && <div style={{ padding: "80px 30px", color: "var(--db-muted)" }}>Load a song with chord changes to build its melody path.</div>}
+          <div ref={chartRef} className="mp-chart" style={{ gridTemplateColumns: `repeat(${Math.max(columns.length, 1)}, 94px)` }}>
+            {columns.length === 0 && <div style={{ padding: "80px 30px", color: "var(--mp-muted)" }}>Load a song with chord changes to build its melody path.</div>}
             {columns.map((column, columnIndex) => (
               <div className={`mp-column ${playheadIndex === column.barIndex ? "playing" : ""}`} key={`${column.barIndex}:${column.chord?.symbol || "NC"}`}>
                 <div className="mp-chord">{column.chord?.symbol || "N.C."}</div>
@@ -401,7 +415,7 @@ export default function MelodyPaths({
                 <div
                   className="mp-bracket"
                   key={measureIndex}
-                  style={{ left: `${firstColumn * 112}px`, width: `${measure.length * 112}px` }}
+                  style={{ left: `${firstColumn * 94}px`, width: `${measure.length * 94}px` }}
                 >
                   <span>measure {measureIndex + 1}</span>
                 </div>
