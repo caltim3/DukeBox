@@ -4,7 +4,7 @@
 // to these same guides instead of keeping its own separate list.
 export const GUIDES = [
   {
-    title: "Likas: Pivots, Surrounds, Peterson & Evans",
+    title: "Barry Harris Practice Regimen & Pivots",
     subtitle: "Interactive guitar reference",
     src: "/reference/likas-page-2-guitar.html",
     height: "1200px",
@@ -44,6 +44,13 @@ export const GUIDES = [
     src: "/reference/martin-000-buying-guide.html",
     height: "1300px",
     color: "var(--db-c-salmon)",
+  },
+  {
+    title: "Mesa Boogie",
+    subtitle: "Mesa/Boogie & F-30 deep dive — history, tubes, controls, presets",
+    src: "/reference/mesaboogie.html",
+    height: "1400px",
+    color: "var(--db-c-blue)",
   },
 ]
 
