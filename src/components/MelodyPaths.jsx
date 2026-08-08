@@ -113,6 +113,45 @@ function groupMeasures(bars) {
   return measures
 }
 
+function semitoneDistance(a, b) {
+  const diff = Math.abs(a - b) % 12
+  return Math.min(diff, 12 - diff)
+}
+
+// 3rd Hunter — the target is always the 3rd of the FOLLOWING chord. Prefer the
+// current chord's 7th if it already resolves there by half step (the classic
+// ii-V-I 7→3 motion); otherwise take whichever chord tone sits a half step
+// away; and if nothing in the current chord approaches by half step at all,
+// bracket the target from both whole tones on either side (shown on the
+// fretboard as a double arrow pointing at the target).
+function computeHunter3(columns, scalePcs) {
+  return columns.map((column, index) => {
+    const next = columns[(index + 1) % columns.length]
+    const targetPc = next?.chord?.tones?.third
+    if (targetPc == null || !column.chord) return null
+    const tones = column.chord.tones
+    const withDegree = (role, pc) => ({ role, pc, targetPc, kind: "single", ...nearestScaleDegree(pc, scalePcs) })
+
+    if (tones.seventh != null && semitoneDistance(tones.seventh, targetPc) === 1) {
+      return withDegree("seventh", tones.seventh)
+    }
+    for (const role of ["root", "third", "fifth", "seventh"]) {
+      const pc = tones[role]
+      if (pc != null && semitoneDistance(pc, targetPc) === 1) return withDegree(role, pc)
+    }
+
+    const above = (targetPc + 2) % 12
+    const below = (targetPc + 10) % 12
+    return {
+      role: "bracket", targetPc, kind: "double",
+      dual: [
+        { pc: above, ...nearestScaleDegree(above, scalePcs) },
+        { pc: below, ...nearestScaleDegree(below, scalePcs) },
+      ],
+    }
+  })
+}
+
 function computeGuide(columns, mode, scalePcs) {
   const choices = columns.map((column) => {
     if (!column.chord) return []
@@ -186,26 +225,39 @@ export default function MelodyPaths({
   const columns = useMemo(() => measures.flatMap((measure, measureIndex) =>
     measure.map(({ bar, barIndex }) => ({ measureIndex, barIndex, chord: analyzeChord(bar) }))
   ), [measures])
-  const guide = useMemo(
-    () => guideMode === "melody" ? new Array(columns.length).fill(null) : computeGuide(columns, guideMode, scalePcs),
-    [columns, guideMode, scalePcs]
-  )
+  const guide = useMemo(() => {
+    if (guideMode === "melody") return new Array(columns.length).fill(null)
+    if (guideMode === "hunter3") return computeHunter3(columns, scalePcs)
+    return computeGuide(columns, guideMode, scalePcs)
+  }, [columns, guideMode, scalePcs])
 
+  // notesByBar values are always arrays — one note normally, two for a 3rd
+  // Hunter bracket (whole tone above + below the target with no half-step
+  // approach available). targetsByBar is only populated by 3rd Hunter, so the
+  // fretboard can draw its own resolution arrows into the real target instead
+  // of guessing from one bar's note to the next.
   const activePath = useMemo(() => {
     const notesByBar = {}
+    const targetsByBar = {}
     if (guideMode === "melody") {
       Object.values(melodyByMeasure).forEach((selection) => {
         const column = columns[selection.columnIndex]
         const pc = scalePcs[selection.degree - 1]
-        if (column && pc != null) notesByBar[column.barIndex] = displayNote(pc, tonic)
+        if (column && pc != null) notesByBar[column.barIndex] = [displayNote(pc, tonic)]
       })
     } else {
       guide.forEach((item, columnIndex) => {
         const column = columns[columnIndex]
-        if (item && column) notesByBar[column.barIndex] = displayNote(item.pc, tonic)
+        if (!item || !column) return
+        if (item.kind === "double") {
+          notesByBar[column.barIndex] = item.dual.map((d) => displayNote(d.pc, tonic))
+        } else {
+          notesByBar[column.barIndex] = [displayNote(item.pc, tonic)]
+        }
+        if (item.targetPc != null) targetsByBar[column.barIndex] = displayNote(item.targetPc, tonic)
       })
     }
-    return { mode: guideMode, notesByBar }
+    return { mode: guideMode, notesByBar, targetsByBar }
   }, [columns, guide, guideMode, melodyByMeasure, scalePcs, tonic])
 
   useEffect(() => {
@@ -224,7 +276,11 @@ export default function MelodyPaths({
         const rect = node.getBoundingClientRect()
         return `${rect.left - chartRect.left + rect.width / 2},${rect.top - chartRect.top + rect.height / 2}`
       }
-      const guidePoints = guide.map((item, index) => item ? point(index, item.degree) : null).filter(Boolean).join(" ")
+      const guidePoints = guide.flatMap((item, index) => {
+        if (!item) return []
+        if (item.kind === "double") return item.dual.map((d) => point(index, d.degree))
+        return [point(index, item.degree)]
+      }).filter(Boolean).join(" ")
       const melodyPoints = Object.values(melodyByMeasure)
         .sort((a, b) => a.measureIndex - b.measureIndex)
         .map((item) => point(item.columnIndex, item.degree))
@@ -271,7 +327,7 @@ export default function MelodyPaths({
         .mp-root * { box-sizing: border-box; }
         .mp-top { display:grid; grid-template-columns:minmax(240px, 1.5fr) minmax(190px, 1fr) auto; gap:12px; align-items:end; }
         .mp-label { display:block; margin-bottom:5px; color:var(--mp-muted); font-size:var(--db-fs-xs); font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
-        .mp-mode { display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; }
+        .mp-mode { display:grid; grid-template-columns:repeat(4, 1fr); gap:6px; }
         .mp-button { padding:7px 12px; border:1px solid var(--mp-line); border-radius:var(--db-r-md); background:var(--mp-surface); color:var(--mp-text); font-weight:700; cursor:pointer; }
         .mp-button.active { border-color:var(--mp-melody); background:color-mix(in srgb, var(--mp-melody) 20%, var(--mp-surface)); color:var(--mp-hdr-accent); }
         .mp-legend { display:flex; flex-wrap:wrap; gap:6px; margin-top:14px; padding-top:12px; border-top:1px solid var(--mp-line); }
@@ -302,7 +358,7 @@ export default function MelodyPaths({
         .mp-melody-line { fill:none; stroke:var(--mp-melody); stroke-width:2; stroke-linecap:round; stroke-linejoin:round; stroke-dasharray:9 7; }
         .mp-bracket { position:absolute; bottom:14px; height:14px; border-left:2px solid var(--mp-line); border-right:2px solid var(--mp-line); border-bottom:2px solid var(--mp-line); border-radius:0 0 6px 6px; }
         .mp-bracket span { position:absolute; top:16px; width:100%; color:var(--mp-muted); font-size:10px; text-align:center; white-space:nowrap; font-family:'IBM Plex Mono', monospace; }
-        @media (max-width:760px) { .mp-top { grid-template-columns:1fr; } .mp-clear { justify-self:start; } }
+        @media (max-width:760px) { .mp-top { grid-template-columns:1fr; } .mp-clear { justify-self:start; } .mp-mode { grid-template-columns:repeat(2, 1fr); } }
       `}</style>
 
       <div className="mp-top">
@@ -333,6 +389,7 @@ export default function MelodyPaths({
             <button className={`mp-button ${guideMode === "73" ? "active" : ""}`} onClick={() => onGuideModeChange?.("73")}>7 → 3</button>
             <button className={`mp-button ${guideMode === "smooth" ? "active" : ""}`} onClick={() => onGuideModeChange?.("smooth")}>Smooth</button>
             <button className={`mp-button ${guideMode === "melody" ? "active" : ""}`} onClick={() => onGuideModeChange?.("melody")}>Melody</button>
+            <button className={`mp-button ${guideMode === "hunter3" ? "active" : ""}`} onClick={() => onGuideModeChange?.("hunter3")} title="Target the 3rd of the next chord — half-step approach when there is one, or bracket it from both whole tones">3rd Hunter</button>
           </div>
           <div style={{ marginTop: "6px", color: "var(--mp-muted)", fontSize: "var(--db-fs-xs)" }}>
             Key center: {tonic} {keyMode === "minor" ? "minor" : "major"}
