@@ -32,6 +32,7 @@ const DEVICES = [
   "Chromatics", "Bebop scale", "Enclosures", "Altered",
   "Melodic cells", "Triads", "Triad pairs", "Scale choice",
   "Pivot arpeggios", "Rest-stroke triplets", "Minor conversion (Martino)",
+  "Peña method",
 ]
 
 // Devices whose meaning isn't obvious from the chip alone.
@@ -44,6 +45,10 @@ const DEVICE_HINTS = {
     "rather than restarting from its root.",
   "Minor conversion (Martino)":
     "Play the ii minor over both the ii and the V, then flip one note on the I.",
+  "Peña method":
+    "Richard Peña's bebop-intuition formula — arpeggio with chord tones on strong " +
+    "beats, a chromatic enclosure that starts the line or meets the target, and a " +
+    "guide-tone landing on the 3rd of the next chord, on beat 1.",
 }
 
 // The route has a dedicated rule for rest-strokes and for minor conversion;

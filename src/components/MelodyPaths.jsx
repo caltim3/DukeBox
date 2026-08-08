@@ -199,6 +199,8 @@ export default function MelodyPaths({
   guideMode,
   onGuideModeChange,
   onPathChange,
+  showEnclosure = false,
+  onShowEnclosureChange,
 }) {
   const [melodyByMeasure, setMelodyByMeasure] = useState({})
   const [colors, setColors] = useState(null)
@@ -237,6 +239,17 @@ export default function MelodyPaths({
     return computeGuide(columns, guideMode, scalePcs)
   }, [columns, guideMode, scalePcs])
 
+  // Peña enclosure pitches per column — the chromatic cage (half step below
+  // and above) around each 3rd Hunter target. Only computed when the toggle
+  // is on, in hunter3 mode; empty arrays otherwise.
+  const enclosurePcsByColumn = useMemo(() => {
+    if (!showEnclosure || guideMode !== "hunter3") return rawGuide.map(() => [])
+    return rawGuide.map((item) => {
+      const t = item?.targetPc
+      return t == null ? [] : [(t + 11) % 12, (t + 1) % 12]
+    })
+  }, [rawGuide, guideMode, showEnclosure])
+
   // A guide mode can want a pitch that isn't one of the key's 7 diatonic
   // notes (a dominant's b7 that doesn't belong to the key, say). Snapping it
   // onto the nearest existing row used to misrepresent it by up to a whole
@@ -250,8 +263,9 @@ export default function MelodyPaths({
       if (item.kind === "double") item.dual.forEach((d) => { if (!scalePcs.includes(d.pc)) found.add(d.pc) })
       else if (!scalePcs.includes(item.pc)) found.add(item.pc)
     })
+    enclosurePcsByColumn.forEach((pcs) => pcs.forEach((pc) => { if (!scalePcs.includes(pc)) found.add(pc) }))
     return Array.from(found).sort((a, b) => a - b)
-  }, [rawGuide, guideMode, scalePcs])
+  }, [rawGuide, guideMode, scalePcs, enclosurePcsByColumn])
 
   const allPcs = useMemo(() => [...scalePcs, ...extraPcs], [scalePcs, extraPcs])
   // Row render order, top to bottom: extras first (highest extra on top),
@@ -402,6 +416,9 @@ export default function MelodyPaths({
         /* A row added for a pitch outside the key (see extraPcs) — dashed so
            it visually reads as "not one of the normal 7", even with no fill. */
         .mp-degree.extra { border-style:dashed; }
+        /* Peña enclosure pitches — the chromatic cage around this column's
+           3rd Hunter target, marked with a dashed alteration-colored outline. */
+        .mp-degree.enc-hit { outline:2px dashed var(--mp-alter); outline-offset:2px; }
         .mp-pitch { transition: color .12s ease; }
         .mp-alter { position:absolute; left:-34px; top:2px; display:grid; place-items:center; width:30px; height:22px; border-radius:6px; background:var(--mp-alter); color:#1F0708; font-size:9px; font-weight:900; }
         .mp-alter::after { content:""; position:absolute; right:-6px; top:8px; border-left:6px solid var(--mp-alter); border-top:3px solid transparent; border-bottom:3px solid transparent; }
@@ -443,8 +460,18 @@ export default function MelodyPaths({
             <button className={`mp-button ${guideMode === "melody" ? "active" : ""}`} onClick={() => onGuideModeChange?.("melody")}>Melody</button>
             <button className={`mp-button ${guideMode === "hunter3" ? "active" : ""}`} onClick={() => onGuideModeChange?.("hunter3")} title="Target the 3rd of the next chord — half-step approach when there is one, or bracket it from both whole tones">3rd Hunter</button>
           </div>
-          <div style={{ marginTop: "6px", color: "var(--mp-muted)", fontSize: "var(--db-fs-xs)" }}>
-            Key center: {tonic} {keyMode === "minor" ? "minor" : "major"}
+          <div style={{ marginTop: "6px", color: "var(--mp-muted)", fontSize: "var(--db-fs-xs)", display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+            <span>Key center: {tonic} {keyMode === "minor" ? "minor" : "major"}</span>
+            {guideMode === "hunter3" && (
+              <label style={{ display: "inline-flex", alignItems: "center", gap: "5px", cursor: "pointer" }}>
+                <input
+                  type="checkbox"
+                  checked={showEnclosure}
+                  onChange={(event) => onShowEnclosureChange?.(event.target.checked)}
+                />
+                Show enclosures
+              </label>
+            )}
           </div>
         </div>
         <button className="mp-button mp-clear" onClick={() => setMelodyByMeasure({})}>Clear melody</button>
@@ -485,6 +512,7 @@ export default function MelodyPaths({
             {columns.map((column, columnIndex) => {
               const guideItem = guide[columnIndex]
               const guideHitPcs = !guideItem ? [] : guideItem.kind === "double" ? guideItem.dual.map((d) => d.pc) : [guideItem.pc]
+              const encPcs = enclosurePcsByColumn[columnIndex] || []
               return (
               <div className={`mp-column ${playheadIndex === column.barIndex ? "playing" : ""}`} key={`${column.barIndex}:${column.chord?.symbol || "NC"}`}>
                 <div className="mp-chord">{column.chord?.symbol || "N.C."}</div>
@@ -505,6 +533,7 @@ export default function MelodyPaths({
                     // so it stays visible even when it lands on a role that isn't
                     // colorful (or, for 3rd Hunter's bracket, on two notes at once).
                     const isGuideHit = guideHitPcs.includes(pc)
+                    const isEncHit = !isGuideHit && encPcs.includes(pc)
                     const alteration = column.chord?.alterations.find((item) => nearestScaleDegree(item.pc, scalePcs).degree === degree)
                     return (
                       <button
@@ -515,7 +544,7 @@ export default function MelodyPaths({
                           if (node) nodeRefs.current.set(refKey, node)
                           else nodeRefs.current.delete(refKey)
                         }}
-                        className={`mp-degree ${role} ${isSelected ? "melody" : ""} ${isGuideHit ? "guide-hit" : ""} ${isExtra ? "extra" : ""}`}
+                        className={`mp-degree ${role} ${isSelected ? "melody" : ""} ${isGuideHit ? "guide-hit" : ""} ${isEncHit ? "enc-hit" : ""} ${isExtra ? "extra" : ""}`}
                         onClick={() => chooseMelody(column.measureIndex, columnIndex, degree)}
                         aria-label={`${displayNote(pc, tonic)}, ${column.chord ? intervalName(column.chord.root, pc) : "no chord"}, measure ${column.measureIndex + 1}${isExtra ? " (not in the key)" : ""}`}
                       >
