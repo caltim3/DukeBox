@@ -18,7 +18,7 @@ const FRET_COUNT   = 12
 const MARKER_FRETS = [3, 5, 7, 9, 12]
 const NUM_FRET_LABELS = [1, 3, 5, 7, 9, 12]
 
-export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes = null, view = "chord", tuningName = "Standard", targetNotes = [], passingNotes = [], guideToneNotes = [], guideToneDirections = null, chordLabel = null }) {
+export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes = null, view = "chord", tuningName = "Standard", targetNotes = [], passingNotes = [], guideToneNotes = [], guideToneDirections = null }) {
   const displayNotes = view === "scale" && scaleNotes?.length ? scaleNotes : chordNotes
   const noteSet    = new Set(displayNotes.map(n => norm(n)))
   const targetSet  = new Set((targetNotes  ?? []).map(n => norm(n)))
@@ -148,20 +148,6 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
           textAnchor="middle" fill="var(--fb-labels)" fontSize={10} fontFamily="Arial, sans-serif"
         >{note}</text>
       ))}
-
-      {/* Chord name over the middle of the neck — where the eye naturally
-          lands while playing. Sits behind the note dots (painted first) so
-          fingerings on top always stay legible; the root-red color matches
-          the root-note dots exactly, using the same constant token. */}
-      {chordLabel && (
-        <text
-          x={NUT_X + FRET_AREA / 2} y={midY + 8}
-          textAnchor="middle" fontSize={32} fontWeight="800"
-          fontFamily="Arial, sans-serif" letterSpacing="-0.01em"
-          fill="var(--n-root)" opacity={0.9}
-          stroke="var(--fb-wood-1)" strokeWidth={3} paintOrder="stroke"
-        >{chordLabel}</text>
-      )}
 
       {/* Note dots */}
       {dots.map(d => {
