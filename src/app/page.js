@@ -30,6 +30,7 @@ import { downloadImprovGuide, buildImprovMapData } from "@/lib/music/improvGuide
 import { DRUM_KIT_NAMES, DEFAULT_DRUM_KIT } from "@/lib/music/samples"
 import { parseTonalUserSongs } from "@/lib/music/importTonal"
 import { parseGigChord, GIGBOOK_SONGS, gigSongToBars, parseGigKey, gigTempoNumber } from "@/lib/music/gigbook"
+import { guidedPrescription, drillStage, nextKeyInCycle, DRILL_LOOPS_PER_STAGE, PENA_DRILLS } from "@/lib/music/penaDrills"
 import Fretboard from "@/components/Fretboard"
 import MetronomePanel from "@/components/MetronomePanel"
 import PracticeTimer from "@/components/PracticeTimer"
@@ -197,6 +198,7 @@ export default function Home() {
   const [melodyPathMode, setMelodyPathMode] = useState("73")
   const [melodyPathState, setMelodyPathState] = useState({ mode: "73", notesByBar: {}, targetsByBar: {} })
   const [anticipateOn, setAnticipateOn] = useState(false)   // second fretboard showing the next chord
+  const [enclosureOn, setEnclosureOn] = useState(false)     // chromatic cage around the 3rd Hunter target
   const [practiceMode, setPracticeMode] = useState(false)
   const [paletteIndex, setPaletteIndex] = useState(0)
   const [colorMode, setColorMode] = useState("dark")
@@ -221,6 +223,14 @@ export default function Home() {
   // persisted; they always start closed.
   const [songbookOpen, setSongbookOpen] = useState(false)
   const [timerOpen, setTimerOpen] = useState(false)
+
+  // Peña Bebop Gym — the Free/Guided/Drill picker on the focus card, now real.
+  // Guided rotates the drill deck as loops accumulate; Drill adds the ladder
+  // (key cycle + tempo bumps) on top. loopsDone counts actual playhead wraps.
+  const [drillMode, setDrillMode] = useState("free")
+  const [loopsDone, setLoopsDone] = useState(0)
+  const prevPlayheadRef = useRef(null)
+  const drillKeyCyclesRef = useRef(0)
 
   // Power panels (spec §5.8): Band & Mix open by default, the rest closed.
   // Persisted per the "Preserve" note on state persisting in localStorage.
@@ -404,6 +414,23 @@ export default function Home() {
     if (!targetsOverlay) return []
     return melodyPathState.notesByBar[fretboardBarIndex] || []
   }, [targetsOverlay, melodyPathState, fretboardBarIndex])
+
+  // Peña enclosure overlay — the chromatic cage (half step below and above)
+  // around the 3rd Hunter target, plus the target itself, both shown on the
+  // CURRENT bar's board so the cage is visible before the chord arrives.
+  const enclosureDisplay = useMemo(() => {
+    if (!enclosureOn || !targetsOverlay) return { notes: [], target: [] }
+    const target = melodyPathState.targetsByBar?.[fretboardBarIndex]
+    if (!target) return { notes: [], target: [] }
+    const NOTES = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"]
+    const SHARP = { "C#": "Db", "D#": "Eb", "F#": "Gb", "G#": "Ab", "A#": "Bb" }
+    const pc = NOTES.indexOf(SHARP[target] || target)
+    if (pc < 0) return { notes: [], target: [] }
+    return {
+      notes: [NOTES[(pc + 11) % 12], NOTES[(pc + 1) % 12]],
+      target: [target],
+    }
+  }, [enclosureOn, targetsOverlay, melodyPathState, fretboardBarIndex])
 
   // Barry Harris 6th-dim passing tone — shown green when the Barry filter is on
   const barryPassingNotes = useMemo(() => {
@@ -1292,6 +1319,70 @@ export default function Home() {
     }
   }, [bars])
 
+  // Count real loops: the playhead wrapping backwards means a pass finished.
+  // Counts both loop-range wraps and full-form wraps; resets with the chart.
+  useEffect(() => {
+    const prev = prevPlayheadRef.current
+    prevPlayheadRef.current = playheadIndex
+    if (prev != null && playheadIndex != null && playheadIndex < prev) {
+      setLoopsDone((count) => count + 1)
+    }
+  }, [playheadIndex])
+  useEffect(() => {
+    setLoopsDone(0)
+    drillKeyCyclesRef.current = 0
+  }, [activeSongTitle, selectedForm])
+
+  // The Bebop Gym ladder. In Drill mode, every full pass through the drill
+  // deck earns a key change: transpose the whole chart up a 4th (the jazz
+  // cycle), nudge the tempo, and — because playback snapshots bars when it
+  // starts — restart the band via the same pendingStartRef handshake the
+  // starters use. Guided mode rotates prescriptions only; no key changes.
+  useEffect(() => {
+    if (drillMode !== "drill" || loopsDone === 0) return
+    const { keyCycles } = drillStage(loopsDone)
+    if (keyCycles <= drillKeyCyclesRef.current) return
+    drillKeyCyclesRef.current = keyCycles
+    const toKey = nextKeyInCycle(chartKey)
+    const wasPlaying = playingRef.current
+    if (wasPlaying) stopPlayback()
+    setBars((prev) => transposeChart(prev, chartKey, toKey))
+    setChartKey(toKey)
+    setKeyRoot(toKey)
+    setTempo((current) => Math.min(current + 4, 240))
+    showToast(`Bebop Gym: new key — ${toKey}`)
+    if (wasPlaying) pendingStartRef.current = true
+  }, [loopsDone]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Entering Guided or Drill arms the overlays the method needs: 3rd Hunter
+  // targets plus the enclosure cage. Leaving for Free turns nothing off —
+  // the player keeps whatever view they had.
+  const chooseDrillMode = useCallback((mode) => {
+    setDrillMode(mode)
+    if (mode === "guided" || mode === "drill") {
+      setMelodyPathMode("hunter3")
+      setTargetsOverlay(true)
+      setEnclosureOn(true)
+    }
+  }, [])
+
+  // What the focus card preaches right now, per mode.
+  const drillFocus = useMemo(() => {
+    if (drillMode === "guided") {
+      const rx = guidedPrescription(loopsDone)
+      return { title: rx.title, detail: rx.detail, stageLabel: null }
+    }
+    if (drillMode === "drill") {
+      const { stage, prescription, loopsIntoStage } = drillStage(loopsDone)
+      return {
+        title: prescription.title,
+        detail: prescription.detail,
+        stageLabel: `Stage ${stage + 1} · drill ${(stage % PENA_DRILLS.length) + 1}/${PENA_DRILLS.length} · loop ${loopsIntoStage + 1}/${DRILL_LOOPS_PER_STAGE} · key ${chartKey}`,
+      }
+    }
+    return null
+  }, [drillMode, loopsDone, chartKey])
+
   return (
     <>
     <style>{`
@@ -1837,11 +1928,11 @@ export default function Home() {
               timerState={timerState}
               songTitle={activeSongTitle || (selectedForm !== "Custom" ? selectedForm : "Custom chart")}
               loopDescriptor={loopEnabled ? `Loop bars ${Math.min(loopStart, loopEnd) + 1}–${Math.max(loopStart, loopEnd) + 1}${fretboardBar.section ? ` · ${fretboardBar.section} section` : ""}` : (fretboardBar.section ? `${fretboardBar.section} section` : null)}
-              focusText="Bebop scale approach from below"
+              focusText={drillFocus ? drillFocus.title : "Bebop scale approach from below"}
               progressPct={loopEnabled
                 ? ((fretboardBarIndex - Math.min(loopStart, loopEnd)) / Math.max(1, Math.max(loopStart, loopEnd) - Math.min(loopStart, loopEnd) + 1)) * 100
                 : ((selectedIndex + 1) / Math.max(1, bars.length)) * 100}
-              loopsDone={87}
+              loopsDone={loopsDone}
               loopsTarget={100}
               onOpenSongbook={() => setSongbookOpen(true)}
               onOpenTimer={() => setTimerOpen(true)}
@@ -1884,7 +1975,7 @@ export default function Home() {
               compact
               timerState={timerState}
               songTitle={activeSongTitle || (selectedForm !== "Custom" ? selectedForm : "Custom chart")}
-              loopsDone={87}
+              loopsDone={loopsDone}
               loopsTarget={100}
               onOpenSongbook={() => setSongbookOpen(true)}
               onOpenTimer={() => setTimerOpen(true)}
@@ -2049,6 +2140,23 @@ export default function Home() {
                       }} title="Target the 3rd of the NEXT chord — half-step approach when there is one, or bracket it from both whole tones">
                         +3rd Hunter
                       </button>
+                      <button onClick={() => {
+                        setEnclosureOn((p) => {
+                          const next = !p
+                          // The cage needs a target — turning it on implies 3rd Hunter.
+                          if (next) { setMelodyPathMode("hunter3"); setTargetsOverlay(true) }
+                          return next
+                        })
+                      }} style={{
+                        padding: "4px 10px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-sm)", cursor: "pointer",
+                        background: enclosureOn ? "color-mix(in srgb, var(--n-enclosure) 22%, transparent)" : "var(--surface)",
+                        border:     enclosureOn ? "1px solid var(--n-enclosure)" : "1px solid var(--line)",
+                        color:      enclosureOn ? "var(--n-enclosure)" : "var(--text)",
+                        fontWeight: enclosureOn ? 700 : 400,
+                        opacity:    enclosureOn ? 1 : 0.7,
+                      }} title="Peña enclosure — show the chromatic cage (half step below and above) around the 3rd Hunter target, plus the target itself, before the chord arrives">
+                        +Enclosure
+                      </button>
                       <button onClick={() => setAnticipateOn(p => !p)} style={{
                         padding: "4px 10px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-sm)", cursor: "pointer",
                         background: anticipateOn ? "color-mix(in srgb, var(--db-c-purple) 20%, var(--db-bg))" : "var(--db-panel-bg)",
@@ -2196,6 +2304,9 @@ export default function Home() {
                 <span style={{ color: "var(--n-passing)" }}>●</span> {scaleFilter === "barry" ? "Barry passing tone" : "Bebop passing"}
               </span>
               <span style={{ opacity: targetsOverlay ? 1 : 0.5 }}><span style={{ color: "var(--n-target)" }}>●</span> {melodyPathModeLabel} path / Target</span>
+              {enclosureOn && (
+                <span><span style={{ color: "var(--n-enclosure)" }}>◌</span> Enclosure (½ step around next target)</span>
+              )}
               {targetsOverlay && anticipateOn && (
                 <span style={{ color: "var(--n-target)" }}>→ up a semitone · →→ up a whole tone · ← ←← down · = stays</span>
               )}
@@ -2213,10 +2324,11 @@ export default function Home() {
                 chordNotes={fretboardInfo.notes || []}
                 rootNote={martinoMap ? martinoMap.displayRoot : (fretboardBar.userTonic ?? fretboardBar.root)}
                 scaleNotes={displayedScaleNotes}
-                targetNotes={[]}
+                targetNotes={enclosureDisplay.target}
                 passingNotes={[...bebopPassingNotes, ...barryPassingNotes]}
                 guideToneNotes={guideToneDisplayNotes}
                 guideToneDirections={guideToneDirections}
+                enclosureNotes={enclosureDisplay.notes}
                 view={fretboardView}
                 tuningName={fretboardTuning}
               />
@@ -2261,7 +2373,13 @@ export default function Home() {
         {inMode("practice") && practiceView === "cockpit" && (
           <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: "12px", marginBottom: "16px" }}>
             <FocusGoalCard
-              loopsDone={87}
+              mode={drillMode}
+              onModeChange={chooseDrillMode}
+              focusTitle={drillFocus?.title}
+              focusDetail={drillFocus?.detail}
+              stageLabel={drillFocus?.stageLabel}
+              chartKey={chartKey}
+              loopsDone={loopsDone}
               timerLabel={timerState ? `${Math.floor(Math.max(0, (timerState.duration ?? 0) - (timerState.seconds ?? 0)) / 60)}:${String(Math.floor(Math.max(0, (timerState.duration ?? 0) - (timerState.seconds ?? 0)) % 60)).padStart(2, "0")}` : "0:00"}
               targetNotes={loopEnabled
                 ? Array.from({ length: Math.max(loopStart, loopEnd) - Math.min(loopStart, loopEnd) + 1 }, (_, i) => melodyPathState.notesByBar[Math.min(loopStart, loopEnd) + i]).filter(Boolean).flat()
@@ -2463,6 +2581,8 @@ export default function Home() {
             guideMode={melodyPathMode}
             onGuideModeChange={setMelodyPathMode}
             onPathChange={setMelodyPathState}
+            showEnclosure={enclosureOn}
+            onShowEnclosureChange={setEnclosureOn}
           />
           </PowerPanel>
         )}

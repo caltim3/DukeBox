@@ -18,12 +18,13 @@ const FRET_COUNT   = 12
 const MARKER_FRETS = [3, 5, 7, 9, 12]
 const NUM_FRET_LABELS = [1, 3, 5, 7, 9, 12]
 
-export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes = null, view = "chord", tuningName = "Standard", targetNotes = [], passingNotes = [], guideToneNotes = [], guideToneDirections = null }) {
+export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes = null, view = "chord", tuningName = "Standard", targetNotes = [], passingNotes = [], guideToneNotes = [], guideToneDirections = null, enclosureNotes = [] }) {
   const displayNotes = view === "scale" && scaleNotes?.length ? scaleNotes : chordNotes
   const noteSet    = new Set(displayNotes.map(n => norm(n)))
   const targetSet  = new Set((targetNotes  ?? []).map(n => norm(n)))
   const passingSet = new Set((passingNotes ?? []).map(n => norm(n)))
   const guideSet   = new Set((guideToneNotes ?? []).map(n => norm(n)))
+  const enclosureSet = new Set((enclosureNotes ?? []).map(n => norm(n)))
   const root       = norm(rootNote)
 
   const strings     = TUNINGS[tuningName] || TUNINGS.Standard
@@ -55,34 +56,37 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
       const inTarget  = targetSet.has(noteName)
       const inPassing = passingSet.has(noteName)
       const inGuide   = guideSet.has(noteName)
-      if (!inChord && !inTarget && !inPassing && !inGuide) continue
+      const inEnclosure = enclosureSet.has(noteName)
+      if (!inChord && !inTarget && !inPassing && !inGuide && !inEnclosure) continue
       const isRoot    = noteName === root
       const isTarget  = !isRoot && inTarget
       const isPassing = !isRoot && !isTarget && inPassing
       const isGuide   = !isRoot && !isTarget && !isPassing && inGuide
-      // Color priority: root > resolution target > bebop passing > guide tone > scale/chord
+      const isEnclosure = !isRoot && !isTarget && !isPassing && !isGuide && inEnclosure
+      // Color priority: root > resolution target > bebop passing > guide tone > enclosure > scale/chord
       // Fixed maple-note-role tokens (--n-*), never palette tokens — the board reads
       // the same on every palette (see docs/PRACTICE_REDESIGN_V3.md §4.7).
       const color = isRoot    ? "var(--n-root)"
                   : isTarget  ? "var(--n-target)"
                   : isPassing ? "var(--n-passing)"
                   : isGuide   ? "var(--n-target)"
+                  : isEnclosure ? "var(--n-enclosure)"
                   : view === "scale" ? "var(--n-scale)"
                   : "var(--n-chord)"
       dots.push({
         key:  `${si}-${f}`,
         cx:   dotX(f),
         cy:   strY(si),
-        r:    isRoot ? 10 : 9,
+        r:    isRoot ? 10 : isEnclosure ? 8 : 9,
         color,
         label: noteName,
-        isRoot, isTarget, isPassing, isGuide,
+        isRoot, isTarget, isPassing, isGuide, isEnclosure,
       })
     }
   })
-  // Render overlays last (guide → passing → target) so they always paint over scale dots
+  // Render overlays last (enclosure → guide → passing → target) so they always paint over scale dots
   dots.sort((a, b) => {
-    const rank = d => d.isTarget ? 3 : d.isPassing ? 2 : d.isGuide ? 1 : 0
+    const rank = d => d.isTarget ? 4 : d.isPassing ? 3 : d.isGuide ? 2 : d.isEnclosure ? 1 : 0
     return rank(a) - rank(b)
   })
 
@@ -185,6 +189,9 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
               <circle cx={d.cx} cy={d.cy} r={d.r + 4} fill="var(--n-target-glow)" filter="url(#fb-target-glow)" />
             )}
             <circle cx={d.cx} cy={d.cy} r={d.r} fill={d.color} stroke="#3D2A12" strokeWidth={d.isRoot ? 1.2 : 0.6} />
+            {d.isEnclosure && (
+              <circle cx={d.cx} cy={d.cy} r={d.r + 3} fill="none" stroke="var(--n-enclosure)" strokeWidth={1.4} strokeDasharray="3 2.5" />
+            )}
             {glyph && <title>{`${d.label} → ${goesTo ?? "?"} · ${motionWord}`}</title>}
             <text x={d.cx} y={d.cy + 3.5}
               textAnchor="middle" fill="#FFFFFF"

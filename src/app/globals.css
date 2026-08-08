@@ -121,6 +121,7 @@
   /* Note roles on the maple, constant regardless of palette */
   --n-root:#DC2626; --n-chord:#16A34A; --n-scale:#047857;
   --n-passing:#57534E; --n-target:#2563EB; --n-target-glow:rgba(37,99,235,.45);
+  --n-enclosure:#9333EA;
 
   /* Melody Paths — always dark navy */
   --mp-bg:#0F172A; --mp-surface:#1E293B; --mp-line:#334155;

@@ -676,6 +676,106 @@ export const PLAYBOOK_GUIDES = [
       "major": "\"Dm7\"F,A,CE DCB,A, |\"G7\"B,DFA _AGFD |\"Cmaj7\"z4 E4 |]",
       "minor": "\"Dm7b5\"F,_E,D,C, \"G7alt\"_E,D,C,=B,, A,,G,,F,,D,, |\"Cm6\"z4 _E,4 |]"
     }
+  },
+  {
+    "n": 25,
+    "name": "Nail the One",
+    "credit": "after Richard Peña",
+    "style": "Medium Swing · device: arpeggio into a four-note enclosure",
+    "shape": "▲ arpeggio from the 3rd · beats 3–4: four-eighth enclosure · ▼ the ROOT of the next chord on beat 1",
+    "steps": [
+      "Start on the 3rd, on beat one. Run the arpeggio up from there — 3, 5, 7, 9 — so every strong beat carries a chord tone.",
+      "Spend beats 3 and 4 of the V on the enclosure. Four eighth notes that cage the next root: below, chromatic above, double chromatic from below.",
+      "Beat one is the door. The root of the I lands exactly on the downbeat. If it lands anywhere else, count the enclosure again."
+    ],
+    "notes": {
+      "major": [
+        "Dm7: F A C E up, D C B A down. G7: B D F A♭ up, then the cage:",
+        "B · D♭ · B♭ · B → C",
+        "The four-note cell surrounds C from a half step on both sides before it resolves."
+      ],
+      "minor": [
+        "Same machine, minor colors: F A♭ C E♭ up (3-5-7-9 of the ii), D C B♭ A♭ down.",
+        "B · D♭ · B♭ · B → C",
+        "Over G7alt the D♭ and A♭ are the alt notes doing their job — pulling into C minor."
+      ]
+    },
+    "cue": "Start on the 3rd. Four eighth notes cage the root. Beat one is the door."
+  },
+  {
+    "n": 26,
+    "name": "Nail the Third",
+    "credit": "after Richard Peña",
+    "style": "Medium Swing · device: root launch into a guide-tone landing",
+    "shape": "▲ arpeggio from the ROOT · ↓ descend into the cage · ▼ the 3rd of the next chord on beat 1",
+    "steps": [
+      "Start on the one. Root of the V, beat one, no pickup — the plainest possible launch.",
+      "Climb the arpeggio: 1, 3, 5, ♭7. Strong notes on strong beats the whole way up.",
+      "Descend into the enclosure and land the 3rd of the I on beat one. The 3rd is the note that names the chord — nailing it IS outlining the change."
+    ],
+    "notes": {
+      "major": [
+        "G7: G B D F up, then G F D D♯ → E.",
+        "The D♯ is the chromatic doorman — a half step below the target, last eighth of the bar.",
+        "E on beat 1 announces Cmaj7 all by itself."
+      ],
+      "minor": [
+        "G7alt: same climb, then G F D E → E♭.",
+        "This time the approach comes from above: E natural falling a half step onto the ♭3.",
+        "E♭ on beat 1 is the whole color of C minor in one note."
+      ]
+    },
+    "cue": "Start on the one. The 3rd of the next chord is where the line was always going."
+  },
+  {
+    "n": 27,
+    "name": "The Peña Ladder",
+    "credit": "after Richard Peña",
+    "style": "Medium Up Swing · device: all three tools in sequence",
+    "shape": "▲ arpeggio (ii) · enclosure into the V's 3rd · ▲ arpeggio (V) · enclosure into the I's root",
+    "steps": [
+      "Tool one, arpeggio: up the ii from its 3rd — F A C E. Structural notes only, strong beats owned.",
+      "Tool two, enclosure: D C A B♭ caging the V's 3rd. It lands B exactly on the next downbeat — that half-step arrival is the guide tone doing the heavy lifting.",
+      "Tool three, repeat the pair on the V: up the arpeggio from B, then A♭ F D D♭ caging the root of the I. Two chords, two arrivals, zero guesswork."
+    ],
+    "notes": {
+      "major": [
+        "Dm7: F A C E · D C A B♭ | G7: B(hold) D F · A♭ F D D♭ | C",
+        "Each bar is arpeggio-then-enclosure; each barline is a guide-tone arrival.",
+        "This is the complete method in eight beats — loop it until it plays itself."
+      ],
+      "minor": [
+        "Dm7♭5: F A♭ C E♭ · D C A♭ B♭ | G7alt: B(hold) D F · A♭ F D D♭ | C",
+        "The minor ii darkens the arpeggio; the V bar is identical — alt tension resolving home.",
+        "Same fingers, both key colors. That is the point."
+      ]
+    },
+    "cue": "Arpeggio up, enclosure down, guide tone through the door. All three tools in one line."
+  },
+  {
+    "n": 28,
+    "name": "The Fast Lane",
+    "credit": "after Richard Peña",
+    "style": "Up Tempo · device: the method at two chords per bar",
+    "shape": "2 chords per measure · 4 eighths each · arpeggio (ii) · mini-enclosure (V) · ▼ 3rd on beat 1",
+    "steps": [
+      "Halve the room. Two beats per chord means four eighth notes each — one tool per chord, no elaboration.",
+      "ii gets the arpeggio: F A C E, 3rd on the strong beat. V gets the compressed enclosure: B D F then the chromatic doorman.",
+      "Land the 3rd of the I on beat one. When the changes go by twice as fast, the tools don't change — only the portion size."
+    ],
+    "notes": {
+      "major": [
+        "Dm7: F A C E | G7: B D F D♯ → E",
+        "Four notes per chord. The D♯ replaces the full four-note cage — one chromatic is enough at speed.",
+        "Practice this against the slow version (No. 27) until switching harmonic rhythm feels like nothing."
+      ],
+      "minor": [
+        "Dm7♭5: F A♭ C E♭ | G7alt: B D F D → E♭",
+        "The D natural under E♭ is the same doorman, minor door.",
+        "Fast changes are where bebop intuition is proven. This is the drill."
+      ]
+    },
+    "cue": "Half the room, same tools. One arpeggio, one enclosure, no waiting."
   }
 ]
 

@@ -147,6 +147,34 @@ export const LICK_CHARTS = [
     cue:'Half speed in the head, long line in the hands, land late.',
     major: '"Dm7"F,A,CE DCB,A, |"G7"B,DFA _AGFD |"Cmaj7"z4 E4 |]',
     minor: '"Dm7b5"F,_E,D,C, =B,,A,,G,,F,, |"G7alt"_E,D,C,=B,, A,,G,,F,,D,, |"Cm6"z4 _E,4 |]'
+  },
+
+  // THE PEÑA SET — Richard Peña's bebop-intuition method: arpeggio or scale
+  // line, chromatic enclosure, guide-tone landing. Strong notes on strong
+  // beats; the enclosure either starts the line or meets the target.
+  {
+    n:25, name:'Nail the One', dev:'Peña: enclosure into the 1',
+    cue:'Start on the 3rd. Four eighth notes cage the root. Beat one is the door.',
+    major: '"Dm7"F,A,CE DCB,A, |"G7"=B,DF_A =B,_D_B,=B, |"Cmaj7"C4 z4 |]',
+    minor: '"Dm7b5"F,_A,C_E DC_B,_A, |"G7alt"=B,DF_A =B,_D_B,=B, |"Cm6"C4 z4 |]'
+  },
+  {
+    n:26, name:'Nail the Third', dev:'Peña: enclosure into the 3rd',
+    cue:'Start on the one. The 3rd of the next chord is where the line was always going.',
+    major: '"G7"G,=B,DF GFD^D |"Cmaj7"E4 z4 |]',
+    minor: '"G7alt"G,=B,DF GFD=E |"Cm6"_E4 z4 |]'
+  },
+  {
+    n:27, name:'The Peña Ladder', dev:'Peña: arpeggio + enclosure + guide tone',
+    cue:'Arpeggio up, enclosure down, guide tone through the door. All three tools in one line.',
+    major: '"Dm7"F,A,CE DCA,_B, |"G7"=B,2DF _A=FD_D |"Cmaj7"C8 |]',
+    minor: '"Dm7b5"F,_A,C_E DC_A,_B, |"G7alt"=B,2DF _A=FD_D |"Cm6"C8 |]'
+  },
+  {
+    n:28, name:'The Fast Lane', dev:'Peña: two chords per bar',
+    cue:'Half the room, same tools. One arpeggio, one enclosure, no waiting.',
+    major: '"Dm7"F,A,CE "G7"=B,DF^D |"Cmaj7"E8 |]',
+    minor: '"Dm7b5"F,_A,C_E "G7alt"=B,DF=D |"Cm6"_E8 |]'
   }
 ];
 

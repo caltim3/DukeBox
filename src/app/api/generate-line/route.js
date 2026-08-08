@@ -58,6 +58,21 @@ const DEVICE_RULES = {
     "can fall onto the adjacent lower string, and change strings on the first note of " +
     "a triplet rather than mid-group. Use a quarter or half note at phrase ends to " +
     "breathe, and mention the triplet grouping in the per-bar reasoning.",
+  "Peña method":
+    "PEÑA METHOD (enclosure → arpeggio → guide tone), after Richard Peña: build " +
+    "every phrase from exactly three tools. (1) Arpeggio or scale line outlining the " +
+    "chord's structural notes, chord tones on strong beats — beats 1 and 3 always carry " +
+    "a chord tone, preferably the 3rd or 7th. (2) Chromatic enclosure, either STARTING " +
+    "the phrase or MEETING the target: cage the target from a half step below and " +
+    "above, or four eighth notes (below, chromatic above, double chromatic from below) " +
+    "filling the last two beats before a chord change. (3) Guide-tone landing: the " +
+    "target of every enclosure is the 3rd of the NEXT chord (or the root when the 3rd " +
+    "is awkward), landed exactly on beat 1 of that chord. Two signature cells to use " +
+    "and vary: start on the 3rd of the current chord with a four-eighth-note enclosure " +
+    "to nail the ONE of the next chord, or start on the root to nail its THIRD. When " +
+    "the harmonic rhythm is fast (two chords per bar) compress to one tool per chord: " +
+    "arpeggio on the first, short enclosure on the second. Name the tool and the " +
+    "target in each bar's reasoning (e.g. 'arp from 3rd, enclosure nails E, 3rd of C').",
 }
 
 const MAX_BARS = 8

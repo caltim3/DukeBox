@@ -189,7 +189,7 @@ export default function Licktionary({ licks, selectedLickId, onOpenLick, selectS
         paddingBottom: "14px", marginBottom: "16px", borderBottom: "1px solid var(--db-panel-border)",
       }}>
         <div style={{ flex: "1 1 360px" }}>
-          <div style={{ fontSize: "var(--db-fs-lg)", fontWeight: 800 }}>Twenty-Four Ways In</div>
+          <div style={{ fontSize: "var(--db-fs-lg)", fontWeight: 800 }}>Twenty-Eight Ways In</div>
           <div style={{ fontSize: "var(--db-fs-sm)", color: "var(--db-muted)", marginTop: "3px" }}>
             The full bebop line playbook: plan the line, see standard notation + TAB, hear it in time, transpose it, then open it in Line Lab.
           </div>
