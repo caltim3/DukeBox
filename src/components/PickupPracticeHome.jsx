@@ -22,21 +22,21 @@ const GET_STARTED = [
     eyebrow: "Practice",
     title: "Practice a Song",
     subtitle: "Open the songbook and start playing",
-    art: "changes",
+    image: "/practice.png",
     action: { type: "songbook" },
   },
   {
     eyebrow: "Compose",
     title: "Write a Song",
     subtitle: "Build a chart, generate changes, or start from scratch",
-    art: "licks",
+    image: "/compose.png",
     action: { type: "workspace", value: "create" },
   },
   {
     eyebrow: "Perform",
     title: "Play a Gig",
     subtitle: "Stage charts and setlists",
-    art: "paths",
+    image: "/gig.png",
     action: { type: "workspace", value: "gig" },
   },
 ]
@@ -527,46 +527,20 @@ export default function PickupPracticeHome() {
           isolation: isolate;
         }
 
-        .db-pickup-progress-art { border-radius: 6px; }
+        .db-pickup-progress-art { border-radius: 6px; background: #0b1220; }
 
-        .db-pickup-progress-art::before,
-        .db-pickup-progress-art::after,
+        .db-pickup-progress-art img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          display: block;
+        }
+
         .db-pickup-plan-art::before,
         .db-pickup-plan-art::after {
           content: "";
           position: absolute;
           pointer-events: none;
-        }
-
-        .db-art-changes { background: linear-gradient(145deg, #0c1626, #725523); }
-        .db-art-changes::before {
-          width: 74px; height: 74px; border-radius: 50%; left: 28px; top: 24px;
-          border: 10px solid rgba(255,255,255,.78); box-shadow: inset 0 0 0 5px #d0a54a;
-        }
-        .db-art-changes::after {
-          width: 90px; height: 5px; left: 22px; bottom: 24px; border-radius: 9px;
-          background: #f2d786; box-shadow: 0 -12px 0 rgba(242,215,134,.55), 0 -24px 0 rgba(242,215,134,.3);
-          transform: rotate(-8deg);
-        }
-
-        .db-art-licks { background: linear-gradient(135deg, #4c20e8, #19056d); }
-        .db-art-licks::before {
-          inset: 18px; border-radius: 50%; border: 2px solid rgba(255,255,255,.8);
-          box-shadow: 0 0 0 10px rgba(255,255,255,.09), 0 0 0 22px rgba(255,255,255,.06);
-        }
-        .db-art-licks::after {
-          width: 8px; height: 82px; left: 62px; top: 22px; border-radius: 8px;
-          background: #f7d04e; transform: rotate(34deg);
-        }
-
-        .db-art-paths { background: linear-gradient(145deg, #172d42, #0c6a77); }
-        .db-art-paths::before {
-          width: 115px; height: 70px; left: 10px; top: 36px;
-          background: repeating-linear-gradient(0deg, transparent 0 12px, rgba(255,255,255,.35) 13px 14px);
-        }
-        .db-art-paths::after {
-          width: 16px; height: 16px; left: 24px; top: 68px; border-radius: 50%; background: #ffe769;
-          box-shadow: 28px -18px 0 #f79a70, 56px 7px 0 #8bffcf, 83px -23px 0 #ffffff;
         }
 
         .db-pickup-progress-copy {
@@ -944,7 +918,9 @@ export default function PickupPracticeHome() {
             <div className="db-pickup-progress-grid">
               {GET_STARTED.map((item) => (
                 <button type="button" key={item.title} className="db-pickup-progress-card" onClick={() => runAction(item.action)}>
-                  <div className={`db-pickup-progress-art db-art-${item.art}`} />
+                  <div className="db-pickup-progress-art">
+                    <img src={item.image} alt="" />
+                  </div>
                   <div className="db-pickup-progress-copy">
                     <small>{item.eyebrow}</small>
                     <strong>{item.title}</strong>
