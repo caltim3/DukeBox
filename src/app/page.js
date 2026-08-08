@@ -212,10 +212,10 @@ export default function Home() {
     const saved = window.localStorage.getItem("dukebox.practiceView")
     if (saved === "cockpit" || saved === "focus") setPracticeView(saved)
   }, [])
-  function choosePracticeView(view) {
+  const choosePracticeView = useCallback((view) => {
     setPracticeView(view)
     window.localStorage.setItem("dukebox.practiceView", view)
-  }
+  }, [])
 
   // Songbook / Timer drawers (spec §5.6) — simple open/closed UI state, not
   // persisted; they always start closed.
@@ -1220,6 +1220,11 @@ export default function Home() {
         toggleColorMode()
         return
       }
+      if (!meta && !e.altKey && (e.key === "o" || e.key === "O") && mode === "practice") {
+        e.preventDefault()
+        choosePracticeView(practiceView === "focus" ? "cockpit" : "focus")
+        return
+      }
 
       if (meta && (e.key === "c" || e.key === "C")) {
         const b = bars[selectedIndex]
@@ -1251,7 +1256,7 @@ export default function Home() {
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [bars, selectedIndex, clipboardBar, updateBar, cyclePalette, toggleColorMode])
+  }, [bars, selectedIndex, clipboardBar, updateBar, cyclePalette, toggleColorMode, mode, practiceView, choosePracticeView])
 
   // Library hydration + cloud sync is handled by useCloudLibrary; here we only
   // ensure audio stops if the component unmounts mid-playback.
@@ -2212,7 +2217,6 @@ export default function Home() {
                 passingNotes={[...bebopPassingNotes, ...barryPassingNotes]}
                 guideToneNotes={guideToneDisplayNotes}
                 guideToneDirections={guideToneDirections}
-                chordLabel={fretboardBar.symbol}
                 view={fretboardView}
                 tuningName={fretboardTuning}
               />
@@ -3035,6 +3039,7 @@ export default function Home() {
                   ["Type in a bar's chord box", "Quick-entry, e.g. Dm7 or Am7/G — then Enter"],
                   [";", "Cycle palette"],
                   ["'", "Toggle dark / light"],
+                  ["o", "Toggle Cockpit / Focus (Practice tab)"],
                   ["?", "Show / hide this list"],
                   ["Esc", "Close this list"],
                 ].map(([k, v]) => (

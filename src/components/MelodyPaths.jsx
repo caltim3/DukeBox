@@ -225,11 +225,53 @@ export default function MelodyPaths({
   const columns = useMemo(() => measures.flatMap((measure, measureIndex) =>
     measure.map(({ bar, barIndex }) => ({ measureIndex, barIndex, chord: analyzeChord(bar) }))
   ), [measures])
-  const guide = useMemo(() => {
+
+  // Candidate notes before we know which pitches need an extra row. The
+  // .degree/.distance on each item here is only a rough heuristic scalePcs
+  // distance (computeGuide's "smooth" mode uses it to judge how close two
+  // consecutive picks are) — NOT the final row placement. Rendering degree
+  // is resolved below, once every out-of-key pitch has a real row.
+  const rawGuide = useMemo(() => {
     if (guideMode === "melody") return new Array(columns.length).fill(null)
     if (guideMode === "hunter3") return computeHunter3(columns, scalePcs)
     return computeGuide(columns, guideMode, scalePcs)
   }, [columns, guideMode, scalePcs])
+
+  // A guide mode can want a pitch that isn't one of the key's 7 diatonic
+  // notes (a dominant's b7 that doesn't belong to the key, say). Snapping it
+  // onto the nearest existing row used to misrepresent it by up to a whole
+  // step. Instead, give every such pitch its own row, appended above the 7
+  // diatonic ones so existing rows never move.
+  const extraPcs = useMemo(() => {
+    if (guideMode === "melody") return []
+    const found = new Set()
+    rawGuide.forEach((item) => {
+      if (!item) return
+      if (item.kind === "double") item.dual.forEach((d) => { if (!scalePcs.includes(d.pc)) found.add(d.pc) })
+      else if (!scalePcs.includes(item.pc)) found.add(item.pc)
+    })
+    return Array.from(found).sort((a, b) => a - b)
+  }, [rawGuide, guideMode, scalePcs])
+
+  const allPcs = useMemo(() => [...scalePcs, ...extraPcs], [scalePcs, extraPcs])
+  // Row render order, top to bottom: extras first (highest extra on top),
+  // then the original 7 diatonic rows in their usual 7→1 order.
+  const rowOrder = useMemo(() => {
+    const extraDegrees = extraPcs.map((_, i) => scalePcs.length + i + 1).reverse()
+    return [...extraDegrees, 7, 6, 5, 4, 3, 2, 1]
+  }, [extraPcs, scalePcs.length])
+
+  // Final guide with each note's degree resolved against allPcs — exact now,
+  // not the nearest-diatonic approximation rawGuide's degree carried.
+  const guide = useMemo(() => {
+    if (guideMode === "melody") return rawGuide
+    const degreeFor = (pc) => allPcs.indexOf(pc) + 1
+    return rawGuide.map((item) => {
+      if (!item) return null
+      if (item.kind === "double") return { ...item, dual: item.dual.map((d) => ({ ...d, degree: degreeFor(d.pc) })) }
+      return { ...item, degree: degreeFor(item.pc) }
+    })
+  }, [rawGuide, guideMode, allPcs])
 
   // notesByBar values are always arrays — one note normally, two for a 3rd
   // Hunter bracket (whole tone above + below the target with no half-step
@@ -351,6 +393,16 @@ export default function MelodyPaths({
         .mp-degree.fifth { background:var(--mp-fifth); border-color:#64748B; color:#0F172A; }
         .mp-degree.seventh { background:var(--mp-seventh); border-color:#FBBF24; color:#2A1A02; }
         .mp-degree.melody { box-shadow:0 0 0 4px color-mix(in srgb, var(--mp-melody) 40%, transparent), inset 0 0 0 2px var(--mp-melody); }
+        /* The note a computed guide mode (7→3 / Smooth / 3rd Hunter) actually
+           picked — a ring independent of the root/3rd/5th/7th role fill, so
+           it's visible whether or not the pick happens to land on one of
+           those roles, and on both circles at once for a 3rd Hunter bracket. */
+        .mp-degree.guide-hit { box-shadow:0 0 0 3px color-mix(in srgb, var(--mp-guide) 65%, transparent), inset 0 0 0 2px var(--mp-guide); }
+        .mp-degree.guide-hit.melody { box-shadow:0 0 0 4px color-mix(in srgb, var(--mp-melody) 40%, transparent), inset 0 0 0 2px var(--mp-guide); }
+        /* A row added for a pitch outside the key (see extraPcs) — dashed so
+           it visually reads as "not one of the normal 7", even with no fill. */
+        .mp-degree.extra { border-style:dashed; }
+        .mp-pitch { transition: color .12s ease; }
         .mp-alter { position:absolute; left:-34px; top:2px; display:grid; place-items:center; width:30px; height:22px; border-radius:6px; background:var(--mp-alter); color:#1F0708; font-size:9px; font-weight:900; }
         .mp-alter::after { content:""; position:absolute; right:-6px; top:8px; border-left:6px solid var(--mp-alter); border-top:3px solid transparent; border-bottom:3px solid transparent; }
         .mp-lines { position:absolute; inset:0; z-index:1; width:100%; height:100%; overflow:visible; pointer-events:none; }
@@ -416,18 +468,30 @@ export default function MelodyPaths({
       <div className="mp-scroll">
         <div className="mp-workspace">
           <div className="mp-pitches">
-            <div className="mp-pitch-stack">
-              {[...scalePcs].reverse().map((pc) => <div className="mp-pitch" key={pc}>{displayNote(pc, tonic)}</div>)}
+            <div className="mp-pitch-stack" style={{ gridTemplateRows: `repeat(${rowOrder.length}, 46px)` }}>
+              {rowOrder.map((degree) => {
+                const pc = allPcs[degree - 1]
+                const isExtra = degree > scalePcs.length
+                return (
+                  <div className="mp-pitch" key={degree} style={isExtra ? { color: "var(--mp-alter)" } : undefined} title={isExtra ? "Not in the key — added for this guide-tone path" : undefined}>
+                    {displayNote(pc, tonic)}
+                  </div>
+                )
+              })}
             </div>
           </div>
           <div ref={chartRef} className="mp-chart" style={{ gridTemplateColumns: `repeat(${Math.max(columns.length, 1)}, 94px)` }}>
             {columns.length === 0 && <div style={{ padding: "80px 30px", color: "var(--mp-muted)" }}>Load a song with chord changes to build its melody path.</div>}
-            {columns.map((column, columnIndex) => (
+            {columns.map((column, columnIndex) => {
+              const guideItem = guide[columnIndex]
+              const guideHitPcs = !guideItem ? [] : guideItem.kind === "double" ? guideItem.dual.map((d) => d.pc) : [guideItem.pc]
+              return (
               <div className={`mp-column ${playheadIndex === column.barIndex ? "playing" : ""}`} key={`${column.barIndex}:${column.chord?.symbol || "NC"}`}>
                 <div className="mp-chord">{column.chord?.symbol || "N.C."}</div>
-                <div className="mp-degree-stack">
-                  {[7, 6, 5, 4, 3, 2, 1].map((degree) => {
-                    const pc = scalePcs[degree - 1]
+                <div className="mp-degree-stack" style={{ gridTemplateRows: `repeat(${rowOrder.length}, 46px)` }}>
+                  {rowOrder.map((degree) => {
+                    const pc = allPcs[degree - 1]
+                    const isExtra = degree > scalePcs.length
                     const tones = column.chord?.tones
                     let role = ""
                     if (pc === tones?.root) role = "root"
@@ -436,6 +500,11 @@ export default function MelodyPaths({
                     else if (pc === tones?.seventh) role = "seventh"
                     const selected = melodyByMeasure[column.measureIndex]
                     const isSelected = selected?.columnIndex === columnIndex && selected?.degree === degree
+                    // The note this guide mode actually picked for this column —
+                    // a ring that's independent of the root/3rd/5th/7th role fill,
+                    // so it stays visible even when it lands on a role that isn't
+                    // colorful (or, for 3rd Hunter's bracket, on two notes at once).
+                    const isGuideHit = guideHitPcs.includes(pc)
                     const alteration = column.chord?.alterations.find((item) => nearestScaleDegree(item.pc, scalePcs).degree === degree)
                     return (
                       <button
@@ -446,9 +515,9 @@ export default function MelodyPaths({
                           if (node) nodeRefs.current.set(refKey, node)
                           else nodeRefs.current.delete(refKey)
                         }}
-                        className={`mp-degree ${role} ${isSelected ? "melody" : ""}`}
+                        className={`mp-degree ${role} ${isSelected ? "melody" : ""} ${isGuideHit ? "guide-hit" : ""} ${isExtra ? "extra" : ""}`}
                         onClick={() => chooseMelody(column.measureIndex, columnIndex, degree)}
-                        aria-label={`${displayNote(pc, tonic)}, ${column.chord ? intervalName(column.chord.root, pc) : "no chord"}, measure ${column.measureIndex + 1}`}
+                        aria-label={`${displayNote(pc, tonic)}, ${column.chord ? intervalName(column.chord.root, pc) : "no chord"}, measure ${column.measureIndex + 1}${isExtra ? " (not in the key)" : ""}`}
                       >
                         {column.chord ? intervalName(column.chord.root, pc) : "·"}
                         {alteration && <span className="mp-alter">{alteration.label}</span>}
@@ -457,7 +526,8 @@ export default function MelodyPaths({
                   })}
                 </div>
               </div>
-            ))}
+              )
+            })}
 
             {columns.length > 0 && (
               <svg className="mp-lines" aria-hidden="true">
