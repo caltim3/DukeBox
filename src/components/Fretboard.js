@@ -18,7 +18,7 @@ const FRET_COUNT   = 12
 const MARKER_FRETS = [3, 5, 7, 9, 12]
 const NUM_FRET_LABELS = [1, 3, 5, 7, 9, 12]
 
-export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes = null, view = "chord", tuningName = "Standard", targetNotes = [], passingNotes = [], guideToneNotes = [], guideToneDirections = null }) {
+export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes = null, view = "chord", tuningName = "Standard", targetNotes = [], passingNotes = [], guideToneNotes = [], guideToneDirections = null, chordLabel = null }) {
   const displayNotes = view === "scale" && scaleNotes?.length ? scaleNotes : chordNotes
   const noteSet    = new Set(displayNotes.map(n => norm(n)))
   const targetSet  = new Set((targetNotes  ?? []).map(n => norm(n)))
@@ -149,6 +149,20 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
         >{note}</text>
       ))}
 
+      {/* Chord name over the middle of the neck — where the eye naturally
+          lands while playing. Sits behind the note dots (painted first) so
+          fingerings on top always stay legible; the root-red color matches
+          the root-note dots exactly, using the same constant token. */}
+      {chordLabel && (
+        <text
+          x={NUT_X + FRET_AREA / 2} y={midY + 8}
+          textAnchor="middle" fontSize={32} fontWeight="800"
+          fontFamily="Arial, sans-serif" letterSpacing="-0.01em"
+          fill="var(--n-root)" opacity={0.9}
+          stroke="var(--fb-wood-1)" strokeWidth={3} paintOrder="stroke"
+        >{chordLabel}</text>
+      )}
+
       {/* Note dots */}
       {dots.map(d => {
         // How this guide tone resolves into the next chord.
@@ -160,14 +174,20 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
         //     =   common tone (stays put)
         // Nothing further than a whole tone is marked at all; a bigger leap
         // isn't a resolution, so labelling it was worse than staying quiet.
+        // 3rd Hunter's "bracket" case (no half-step approach available) marks
+        // both whole-tone neighbors with a double arrow pointing at the target
+        // instead of the usual per-semitone repeated single arrow.
         const semis = d.isGuide && guideToneDirections ? guideToneDirections[d.label] : null
         const goesTo = d.isGuide && guideToneDirections ? guideToneDirections[`${d.label}:to`] : null
         let glyph = null
-        if (semis != null) {
+        if (semis === "bracket") {
+          glyph = "⇔"
+        } else if (semis != null) {
           const n = Math.abs(semis)
           glyph = n === 0 ? "=" : (semis > 0 ? "→" : "←").repeat(n)
         }
-        const motionWord = semis == null ? ""
+        const motionWord = semis === "bracket" ? "brackets the target"
+          : semis == null ? ""
           : semis === 0 ? "stays"
           : `${Math.abs(semis) === 1 ? "a semitone" : "a whole tone"} ${semis > 0 ? "up" : "down"}`
         // Target/guide-tone dots pulse with a soft glow, same as every palette —

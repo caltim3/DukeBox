@@ -195,7 +195,7 @@ export default function Home() {
   const [bebopOverlay, setBebopOverlay] = useState(false)   // adds chromatic passing tone on top
   const [targetsOverlay, setTargetsOverlay] = useState(true) // guide tones are the default practice view
   const [melodyPathMode, setMelodyPathMode] = useState("73")
-  const [melodyPathState, setMelodyPathState] = useState({ mode: "73", notesByBar: {} })
+  const [melodyPathState, setMelodyPathState] = useState({ mode: "73", notesByBar: {}, targetsByBar: {} })
   const [anticipateOn, setAnticipateOn] = useState(false)   // second fretboard showing the next chord
   const [practiceMode, setPracticeMode] = useState(false)
   const [paletteIndex, setPaletteIndex] = useState(0)
@@ -252,6 +252,7 @@ export default function Home() {
   const stopPlaybackRef   = useRef(null)   // always points to latest stopPlayback
   const pendingStartRef   = useRef(false)  // set by loadStarter → fires after bars state commits
   const toastTimer        = useRef(null)   // auto-dismiss handle for the toast
+  const themePickerRef    = useRef(null)   // wraps the palette/mode dropdown, for click-outside close
 
   const palette = PALETTES[paletteIndex]
 
@@ -286,6 +287,23 @@ export default function Home() {
   useEffect(() => {
     setTheme(palette.id, null)
   }, [palette.id, setTheme])
+
+  const toggleColorMode = useCallback(() => {
+    setTheme(null, colorMode === "dark" ? "light" : "dark")
+  }, [colorMode, setTheme])
+
+  // Close the palette/mode dropdown on an outside click — it used to stay
+  // open until a control inside it was clicked, which read as stuck.
+  useEffect(() => {
+    if (!themePickerOpen) return
+    function onOutsideClick(e) {
+      if (themePickerRef.current && !themePickerRef.current.contains(e.target)) {
+        setThemePickerOpen(false)
+      }
+    }
+    document.addEventListener("mousedown", onOutsideClick)
+    return () => document.removeEventListener("mousedown", onOutsideClick)
+  }, [themePickerOpen])
 
   const selectedBar = bars[selectedIndex]
 
@@ -373,15 +391,18 @@ export default function Home() {
       ? "Smooth"
       : melodyPathMode === "melody"
         ? "Melody"
-        : melodyPathMode
+        : melodyPathMode === "hunter3"
+          ? "3rd Hunter"
+          : melodyPathMode
 
   // The fretboard consumes Melody Paths' selected line directly. This keeps
   // every present and future path mode in sync without reimplementing its
-  // note-selection rules here.
+  // note-selection rules here. notesByBar entries are always arrays — one
+  // note normally, two for a 3rd Hunter bracket (no half-step approach, so
+  // both whole tones around the target get shown).
   const guideToneDisplayNotes = useMemo(() => {
     if (!targetsOverlay) return []
-    const note = melodyPathState.notesByBar[fretboardBarIndex]
-    return note ? [note] : []
+    return melodyPathState.notesByBar[fretboardBarIndex] || []
   }, [targetsOverlay, melodyPathState, fretboardBarIndex])
 
   // Barry Harris 6th-dim passing tone — shown green when the Barry filter is on
@@ -454,12 +475,45 @@ export default function Home() {
   // arrow per semitone, pointing right for higher and left for lower — which
   // matches the direction you actually move on the neck.
   const guideToneDirections = useMemo(() => {
-    if (!targetsOverlay || anticipateBarIndex == null) return null
+    if (!targetsOverlay) return null
     const chroma = (n) => ({ C: 0, "C#": 1, Db: 1, D: 2, "D#": 3, Eb: 3, E: 4, F: 5, "F#": 6, Gb: 6, G: 7, "G#": 8, Ab: 8, A: 9, "A#": 10, Bb: 10, B: 11 })[n]
-    const currentPathNote = melodyPathState.notesByBar[fretboardBarIndex]
-    const nextPathNote = melodyPathState.notesByBar[anticipateBarIndex]
-    const cur = currentPathNote ? [currentPathNote] : []
-    const nxt = nextPathNote ? [nextPathNote] : []
+
+    // 3rd Hunter's target is the 3rd of the NEXT chord — computed straight
+    // from targetsByBar, not from the next bar's own approach note(s), which
+    // point somewhere else entirely (that bar's own next chord). A bracket
+    // (two notes, no half-step approach in this chord) gets a "bracket"
+    // marker so the fretboard draws a double arrow into the target instead
+    // of the usual single-arrow-repeated-per-semitone glyph.
+    if (melodyPathMode === "hunter3") {
+      const notes = melodyPathState.notesByBar[fretboardBarIndex]
+      const target = melodyPathState.targetsByBar?.[fretboardBarIndex]
+      if (!notes?.length || !target) return null
+      const tc = chroma(target)
+      if (tc == null) return null
+      const dirs = {}
+      if (notes.length > 1) {
+        notes.forEach((n) => { dirs[n] = "bracket"; dirs[`${n}:to`] = target })
+      } else {
+        const gc = chroma(notes[0])
+        if (gc != null) {
+          const signed = ((tc - gc + 6 + 12) % 12) - 6
+          if (Math.abs(signed) <= 2) { dirs[notes[0]] = signed; dirs[`${notes[0]}:to`] = target }
+        }
+      }
+      return dirs
+    }
+
+    // Only motion of a semitone or a whole tone counts as a target. The previous
+    // version took the cyclically nearest guide tone, which can be up to six
+    // semitones away — so it would confidently mark a fourth as a "resolution".
+    // A leap that size isn't voice leading, so it now yields no target at all.
+    //
+    // The value is the signed semitone distance (-2..+2); the fretboard draws one
+    // arrow per semitone, pointing right for higher and left for lower — which
+    // matches the direction you actually move on the neck.
+    if (anticipateBarIndex == null) return null
+    const cur = melodyPathState.notesByBar[fretboardBarIndex] || []
+    const nxt = melodyPathState.notesByBar[anticipateBarIndex] || []
     if (!cur.length || !nxt.length) return null
     const dirs = {}
     for (const g of cur) {
@@ -479,7 +533,7 @@ export default function Home() {
       if (best !== null) dirs[g] = best
     }
     return dirs
-  }, [targetsOverlay, melodyPathState, fretboardBarIndex, anticipateBarIndex])
+  }, [targetsOverlay, melodyPathMode, melodyPathState, fretboardBarIndex, anticipateBarIndex])
 
   const romanNumerals = useMemo(() => {
     return bars.map((bar) => chordToRoman(bar.root, bar.quality, keyRoot, keyMode))
@@ -1154,11 +1208,16 @@ export default function Home() {
       const meta = e.metaKey || e.ctrlKey
 
       if (e.key === "?") { e.preventDefault(); setShowShortcuts(s => !s); return }
-      if (e.key === "Escape") { setShowShortcuts(false); return }
+      if (e.key === "Escape") { setShowShortcuts(false); setThemePickerOpen(false); return }
 
       if (!meta && !e.altKey && e.key === ";") {
         e.preventDefault()
         cyclePalette()
+        return
+      }
+      if (!meta && !e.altKey && e.key === "'") {
+        e.preventDefault()
+        toggleColorMode()
         return
       }
 
@@ -1192,7 +1251,7 @@ export default function Home() {
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [bars, selectedIndex, clipboardBar, updateBar, cyclePalette])
+  }, [bars, selectedIndex, clipboardBar, updateBar, cyclePalette, toggleColorMode])
 
   // Library hydration + cloud sync is handled by useCloudLibrary; here we only
   // ensure audio stops if the component unmounts mid-playback.
@@ -1363,7 +1422,7 @@ export default function Home() {
           }}>
             The DukeBox
           </h1>
-          <div style={{ position: "relative", flexShrink: 0 }}>
+          <div ref={themePickerRef} style={{ position: "relative", flexShrink: 0 }}>
             <button
               onClick={() => setThemePickerOpen((open) => !open)}
               aria-expanded={themePickerOpen}
@@ -1372,7 +1431,7 @@ export default function Home() {
                 padding: "6px 14px", borderRadius: "var(--db-r-md)", cursor: "pointer", fontWeight: 600, fontSize: "var(--db-fs-md)",
                 border: "1px solid var(--line)", background: "var(--surface)", color: "var(--accent)",
               }}
-              title="Choose palette and light or dark mode (; cycles palettes)"
+              title="Choose palette and light or dark mode (; cycles palettes, ' toggles dark/light)"
             >
               {palette.emoji} {palette.name} · {colorMode === "dark" ? "Dark" : "Light"}
             </button>
@@ -1402,7 +1461,7 @@ export default function Home() {
                     }}>{modeName}</button>
                   ))}
                 </div>
-                <div style={{ color: "var(--muted)", fontSize: "var(--db-fs-xs)" }}>Press ; to cycle palettes</div>
+                <div style={{ color: "var(--muted)", fontSize: "var(--db-fs-xs)" }}>Press ; to cycle palettes · &apos; to toggle dark/light</div>
               </div>
             )}
           </div>
@@ -1975,6 +2034,16 @@ export default function Home() {
                       }}>
                         +{melodyPathModeLabel} Path
                       </button>
+                      <button onClick={() => { setMelodyPathMode("hunter3"); setTargetsOverlay(true) }} style={{
+                        padding: "4px 10px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-sm)", cursor: "pointer",
+                        background: (targetsOverlay && melodyPathMode === "hunter3") ? "color-mix(in srgb, var(--target) 22%, transparent)" : "var(--surface)",
+                        border:     (targetsOverlay && melodyPathMode === "hunter3") ? "1px solid var(--target)" : "1px solid var(--line)",
+                        color:      (targetsOverlay && melodyPathMode === "hunter3") ? "var(--target)" : "var(--text)",
+                        fontWeight: (targetsOverlay && melodyPathMode === "hunter3") ? 700 : 400,
+                        opacity:    (targetsOverlay && melodyPathMode === "hunter3") ? 1 : 0.7,
+                      }} title="Target the 3rd of the NEXT chord — half-step approach when there is one, or bracket it from both whole tones">
+                        +3rd Hunter
+                      </button>
                       <button onClick={() => setAnticipateOn(p => !p)} style={{
                         padding: "4px 10px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-sm)", cursor: "pointer",
                         background: anticipateOn ? "color-mix(in srgb, var(--db-c-purple) 20%, var(--db-bg))" : "var(--db-panel-bg)",
@@ -2002,10 +2071,15 @@ export default function Home() {
                   </div>
                 </div>
 
-                {/* Transpose Part (moved from the old Songbook panel — spec §7) */}
+                {/* Transpose Song (moved from the old Songbook panel — spec §7).
+                    Transposes every bar in the chart (bars), not just one part —
+                    "part" here was a legacy label, not a scope limit. */}
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "10px", paddingTop: "10px", borderTop: "1px dashed var(--line)" }}>
                   <div>
-                    <span style={{ font: "700 10px 'IBM Plex Mono', monospace", color: "var(--muted)", letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: "5px", display: "block" }}>Transpose part · key</span>
+                    <span style={{ font: "700 10px 'IBM Plex Mono', monospace", color: "var(--muted)", letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: "5px", display: "block" }}>
+                      Current key: {chartKey} {keyMode === "minor" ? "minor" : "major"}
+                    </span>
+                    <span style={{ font: "700 10px 'IBM Plex Mono', monospace", color: "var(--muted)", letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: "5px", display: "block" }}>Transpose song to</span>
                     <label style={inlineLabelStyle}>
                       <select
                         value={keyRoot}
@@ -2025,13 +2099,19 @@ export default function Home() {
                     </label>
                   </div>
                   <div>
-                    <span style={{ font: "700 10px 'IBM Plex Mono', monospace", color: "var(--muted)", letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: "5px", display: "block" }}>Quality</span>
+                    <span style={{ font: "700 10px 'IBM Plex Mono', monospace", color: "var(--muted)", letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: "5px", display: "block" }}>Apply</span>
                     <button
                       onClick={handleTransposeChart}
                       style={buttonStyle(keyRoot !== chartKey ? "var(--db-c-amber)" : "var(--db-muted)")}
+                      title="Shifts every chord in the chart from the current key to the key picked above"
                     >
-                      Transpose Part
+                      Transpose Song
                     </button>
+                    <div style={{ fontSize: "var(--db-fs-xs)", opacity: 0.6, marginTop: "4px" }}>
+                      {keyRoot === chartKey
+                        ? "Chart is already in this key."
+                        : `Shifts every chord from ${chartKey} to ${keyRoot}.`}
+                    </div>
                   </div>
                   <div>
                     <span style={{ font: "700 10px 'IBM Plex Mono', monospace", color: "var(--muted)", letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: "5px", display: "block" }}>Chord display</span>
@@ -2132,6 +2212,7 @@ export default function Home() {
                 passingNotes={[...bebopPassingNotes, ...barryPassingNotes]}
                 guideToneNotes={guideToneDisplayNotes}
                 guideToneDirections={guideToneDirections}
+                chordLabel={fretboardBar.symbol}
                 view={fretboardView}
                 tuningName={fretboardTuning}
               />
@@ -2147,7 +2228,7 @@ export default function Home() {
                   </div>
                   <div style={{ fontSize: "var(--db-fs-lg)", fontWeight: 700 }}>{anticipateBar.symbol}</div>
                   <div style={{ fontSize: "var(--db-fs-xs)", opacity: 0.75 }}>
-                    {melodyPathModeLabel} path {melodyPathState.notesByBar[anticipateBarIndex] || "—"}
+                    {melodyPathModeLabel} path {(melodyPathState.notesByBar[anticipateBarIndex] || []).join(" / ") || "—"}
                   </div>
                 </div>
                 <div style={{ overflowX: "auto" }}>
@@ -2157,7 +2238,7 @@ export default function Home() {
                     scaleNotes={[]}
                     targetNotes={[]}
                     passingNotes={[]}
-                    guideToneNotes={melodyPathState.notesByBar[anticipateBarIndex] ? [melodyPathState.notesByBar[anticipateBarIndex]] : []}
+                    guideToneNotes={melodyPathState.notesByBar[anticipateBarIndex] || []}
                     view="chord"
                     tuningName={fretboardTuning}
                   />
@@ -2179,7 +2260,7 @@ export default function Home() {
               loopsDone={87}
               timerLabel={timerState ? `${Math.floor(Math.max(0, (timerState.duration ?? 0) - (timerState.seconds ?? 0)) / 60)}:${String(Math.floor(Math.max(0, (timerState.duration ?? 0) - (timerState.seconds ?? 0)) % 60)).padStart(2, "0")}` : "0:00"}
               targetNotes={loopEnabled
-                ? Array.from({ length: Math.max(loopStart, loopEnd) - Math.min(loopStart, loopEnd) + 1 }, (_, i) => melodyPathState.notesByBar[Math.min(loopStart, loopEnd) + i]).filter(Boolean)
+                ? Array.from({ length: Math.max(loopStart, loopEnd) - Math.min(loopStart, loopEnd) + 1 }, (_, i) => melodyPathState.notesByBar[Math.min(loopStart, loopEnd) + i]).filter(Boolean).flat()
                 : []}
             />
             <BackingBandCard
@@ -2362,6 +2443,7 @@ export default function Home() {
             subtitle="Guide-tone skeletons and one-note-per-measure melody mapping"
             open={openControlPanels.melody}
             onToggle={() => toggleControlPanel("melody")}
+            keepMounted
           >
           <MelodyPaths
             key={`${activeSongTitle || selectedForm}:${keyRoot}:${keyMode}:${bars.map(bar => `${bar.symbol}:${bar.beats || 4}`).join("|")}`}
@@ -2951,6 +3033,8 @@ export default function Home() {
                   ["⌘/Ctrl + V", "Paste onto the selected bar"],
                   ["Double-click a bar", "Loop just that chord"],
                   ["Type in a bar's chord box", "Quick-entry, e.g. Dm7 or Am7/G — then Enter"],
+                  [";", "Cycle palette"],
+                  ["'", "Toggle dark / light"],
                   ["?", "Show / hide this list"],
                   ["Esc", "Close this list"],
                 ].map(([k, v]) => (
