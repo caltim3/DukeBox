@@ -9,9 +9,14 @@
 
 // keepMounted: for panels whose computation feeds something else while
 // collapsed (Melody Paths broadcasts its guide notes to the fretboard
-// overlay even when this panel itself is closed) — render children into a
-// hidden div instead of unmounting them, so that broadcast keeps running.
-// Every other panel defaults to the original mount-gated behavior.
+// overlay even when this panel itself is closed; BeatForge Metronome keeps
+// running/keeps its Rhythm Shed engine reachable so a sibling panel can load
+// a pattern into it) — render children into ONE div whose visibility toggles
+// via style, not unmounted. Using two separately-conditioned divs here (one
+// for open, one for hidden) looks equivalent but isn't: switching which one
+// renders remounts children with fresh state, which is exactly what
+// keepMounted is supposed to prevent. Every other panel defaults to the
+// original mount-gated behavior.
 export default function PowerPanel({ title, subtitle, open, onToggle, children, keepMounted = false }) {
   return (
     <div style={{ background: "var(--surface)", border: "1px solid var(--line)", borderRadius: "12px", overflow: "hidden" }}>
@@ -34,8 +39,9 @@ export default function PowerPanel({ title, subtitle, open, onToggle, children, 
         <span style={{ font: "800 12px 'Archivo', sans-serif", letterSpacing: "0.12em", textTransform: "uppercase", flex: 1 }}>{title}</span>
         {subtitle && <span style={{ fontSize: "11.5px", color: "var(--muted)" }}>{subtitle}</span>}
       </div>
-      {open && <div style={{ padding: "14px 16px 16px" }}>{children}</div>}
-      {!open && keepMounted && <div style={{ display: "none" }}>{children}</div>}
+      {(open || keepMounted) && (
+        <div style={open ? { padding: "14px 16px 16px" } : { display: "none" }}>{children}</div>
+      )}
     </div>
   )
 }

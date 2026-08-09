@@ -274,16 +274,33 @@ export default function PickupPracticeHome() {
 
   if (!homeOpen) {
     if (workspace !== "practice") return null
+    // The full .db-pickup-return-home styling lives in the <style> block
+    // below, which only mounts in the homeOpen branch — this early return
+    // needs its own copy or the button (and its 1024px source image) render
+    // completely unstyled, in normal document flow, at the bottom of the page.
     return (
-      <button
-        type="button"
-        className="db-pickup-return-home"
-        onClick={() => setPracticeSurface("home")}
-        title="Return to the Practice home page"
-      >
-        <img src={BRAND_ICON} alt="" aria-hidden="true" className="db-pickup-return-home-mark" />
-        Practice Home
-      </button>
+      <>
+        <style>{`
+          .db-pickup-return-home {
+            position: fixed; right: 18px; top: 18px; z-index: 9500;
+            min-height: 40px; padding: 9px 14px;
+            border: 1px solid var(--db-panel-border, #d9d9e1);
+            border-radius: 999px; background: var(--db-panel-bg, #fff); color: var(--db-text, #080b2e);
+            display: flex; align-items: center; gap: 8px;
+            box-shadow: 0 8px 22px rgba(0,0,0,.13); cursor: pointer; font-weight: 750;
+          }
+          .db-pickup-return-home-mark { width: 20px; height: 20px; object-fit: contain; display: block; }
+        `}</style>
+        <button
+          type="button"
+          className="db-pickup-return-home"
+          onClick={() => setPracticeSurface("home")}
+          title="Return to the Practice home page"
+        >
+          <img src={BRAND_ICON} alt="" aria-hidden="true" className="db-pickup-return-home-mark" />
+          Practice Home
+        </button>
+      </>
     )
   }
 
