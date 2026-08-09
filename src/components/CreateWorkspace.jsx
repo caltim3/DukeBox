@@ -191,7 +191,7 @@ export default function CreateWorkspace({
         />
       </Section>
 
-      <Section title="LICKTIONARY" subtitle="28 bebop approaches in major and minor — including the Peña set — plus your saved Line Lab licks" color="var(--db-c-pink, var(--db-c-purple))" panelStyle={panelStyle}>
+      <Section id="db-licktionary" title="LICKTIONARY" subtitle="28 bebop approaches in major and minor — including the Peña set — plus your saved Line Lab licks" color="var(--db-c-pink, var(--db-c-purple))" panelStyle={panelStyle}>
         <Licktionary
           licks={licks}
           selectedLickId={selectedLickId}

@@ -205,6 +205,7 @@ export default function GigMode({
 
           {!currentSetlist && (
             <input
+              data-db-shortcut="gig-search"
               value={query}
               onChange={e => setQuery(e.target.value)}
               placeholder="Search title or artist…"

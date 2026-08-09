@@ -17,7 +17,9 @@
 // renders remounts children with fresh state, which is exactly what
 // keepMounted is supposed to prevent. Every other panel defaults to the
 // original mount-gated behavior.
-export default function PowerPanel({ title, subtitle, open, onToggle, children, keepMounted = false }) {
+// shortcutId: stamps data-db-shortcut on the header so KeyboardShortcuts can
+// find and open this panel by a stable hook instead of matching its label text.
+export default function PowerPanel({ title, subtitle, open, onToggle, children, keepMounted = false, shortcutId }) {
   return (
     <div style={{ background: "var(--surface)", border: "1px solid var(--line)", borderRadius: "12px", overflow: "hidden" }}>
       <div
@@ -25,6 +27,7 @@ export default function PowerPanel({ title, subtitle, open, onToggle, children, 
         role="button"
         tabIndex={0}
         aria-expanded={open}
+        data-db-shortcut={shortcutId}
         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onToggle() } }}
         style={{
           display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px", cursor: "pointer", userSelect: "none",

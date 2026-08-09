@@ -186,6 +186,7 @@ export default function PracticeTimer({ onFinish, onState, inlineLabelStyle, sel
       <label style={inlineLabelStyle}>
         <span style={{ opacity: 0.7 }}>Length</span>
         <select
+          data-db-shortcut="timer-length"
           value={duration}
           onChange={(e) => pickDuration(Number(e.target.value))}
           style={{ ...selectStyle, width: "auto", padding: "5px 8px", fontSize: "var(--db-fs-sm)" }}
