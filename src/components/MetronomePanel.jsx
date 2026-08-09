@@ -30,7 +30,7 @@ function defaultCells(beats, eighths) {
   )
 }
 
-export default function MetronomePanel({ onBeforeStart, panelStyle, eyebrowStyle, selectStyle, inlineLabelStyle }) {
+export default function MetronomePanel({ onBeforeStart, panelStyle, eyebrowStyle, selectStyle, inlineLabelStyle, apiRef, onUserGenerate }) {
   const [running, setRunning] = useState(false)
   const [tempo, setTempo] = useState(120)
   const [beats, setBeats] = useState(4)
@@ -101,6 +101,20 @@ export default function MetronomePanel({ onBeforeStart, panelStyle, eyebrowStyle
     else if (preset === "all") setCells([2, 0, 1, 0, 1, 0, 1, 0])
     else if (preset === "24") setCells([0, 0, 2, 0, 0, 0, 2, 0])
   }
+
+  // Exposed to the parent so the sibling BeatForge Library panel — which
+  // isn't nested under this one, so it can't reach shedApiRef directly —
+  // can load a pattern into the Rhythm Shed engine and play it.
+  useEffect(() => {
+    if (!apiRef) return
+    apiRef.current = {
+      loadPattern(pattern) {
+        onBeforeStart?.()
+        shedApiRef.current?.loadPattern?.(pattern)
+      },
+    }
+    return () => { if (apiRef) apiRef.current = null }
+  }, [apiRef]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function tapTempo() {
     const now = performance.now()
@@ -210,6 +224,7 @@ export default function MetronomePanel({ onBeforeStart, panelStyle, eyebrowStyle
         onStop={stop}
         onRestart={restart}
         onMetPreset={applyMetPreset}
+        onUserGenerate={onUserGenerate}
         inlineLabelStyle={inlineLabelStyle}
         selectStyle={selectStyle}
       />

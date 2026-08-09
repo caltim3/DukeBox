@@ -33,6 +33,7 @@ import { parseGigChord, GIGBOOK_SONGS, gigSongToBars, parseGigKey, gigTempoNumbe
 import { guidedPrescription, drillStage, nextKeyInCycle, DRILL_LOOPS_PER_STAGE, PENA_DRILLS } from "@/lib/music/penaDrills"
 import Fretboard from "@/components/Fretboard"
 import MetronomePanel from "@/components/MetronomePanel"
+import BeatForgeLibrary from "@/components/BeatForgeLibrary"
 import PracticeTimer from "@/components/PracticeTimer"
 import GigBarStrip from "@/components/GigBarStrip"
 import { lineToTransportEvents } from "@/lib/music/lines"
@@ -199,6 +200,7 @@ export default function Home() {
   const [melodyPathState, setMelodyPathState] = useState({ mode: "73", notesByBar: {}, targetsByBar: {} })
   const [anticipateOn, setAnticipateOn] = useState(false)   // second fretboard showing the next chord
   const [enclosureOn, setEnclosureOn] = useState(false)     // chromatic cage around the 3rd Hunter target
+  const [loadedLibraryNum, setLoadedLibraryNum] = useState(null)  // which BeatForge Library card is loaded, if any
   const [practiceMode, setPracticeMode] = useState(false)
   const [paletteIndex, setPaletteIndex] = useState(0)
   const [colorMode, setColorMode] = useState("dark")
@@ -235,7 +237,7 @@ export default function Home() {
   // Power panels (spec §5.8): Band & Mix open by default, the rest closed.
   // Persisted per the "Preserve" note on state persisting in localStorage.
   const [openControlPanels, setOpenControlPanels] = useState({
-    band: true, melody: false, leadsheet: false, metronome: false, fretSettings: false,
+    band: true, melody: false, leadsheet: false, metronome: false, fretSettings: false, beatforgeLibrary: false,
   })
   useEffect(() => {
     try {
@@ -263,6 +265,7 @@ export default function Home() {
   const pendingStartRef   = useRef(false)  // set by loadStarter → fires after bars state commits
   const toastTimer        = useRef(null)   // auto-dismiss handle for the toast
   const themePickerRef    = useRef(null)   // wraps the palette/mode dropdown, for click-outside close
+  const beatforgeRef      = useRef(null)   // BeatForge Metronome's loadPattern — bridges the sibling Library panel
 
   const palette = PALETTES[paletteIndex]
 
@@ -3107,13 +3110,36 @@ export default function Home() {
             subtitle="Standalone time workout with programmable accents"
             open={openControlPanels.metronome}
             onToggle={() => toggleControlPanel("metronome")}
+            keepMounted
           >
             <MetronomePanel
+              apiRef={beatforgeRef}
               onBeforeStart={stopPlayback}
+              onUserGenerate={() => setLoadedLibraryNum(null)}
               panelStyle={{ ...panelStyle, margin: "0" }}
               eyebrowStyle={eyebrowStyle}
               selectStyle={selectStyle}
               inlineLabelStyle={inlineLabelStyle}
+            />
+          </PowerPanel>
+        )}
+
+        {inMode("practice") && (
+          <PowerPanel
+            title="BeatForge Library"
+            subtitle="30 bebop rhythm patterns — tap to load and play"
+            open={openControlPanels.beatforgeLibrary}
+            onToggle={() => toggleControlPanel("beatforgeLibrary")}
+          >
+            <BeatForgeLibrary
+              loadedNum={loadedLibraryNum}
+              onLoad={(pattern) => {
+                setLoadedLibraryNum(pattern.num)
+                // Reveal the Metronome panel too — that's where the loaded
+                // sheet and Start/Stop live.
+                setOpenControlPanels((prev) => ({ ...prev, metronome: true }))
+                beatforgeRef.current?.loadPattern?.(pattern)
+              }}
             />
           </PowerPanel>
         )}
