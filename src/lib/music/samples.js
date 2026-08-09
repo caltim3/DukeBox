@@ -19,16 +19,21 @@ const PIANO_URLS = {
 // Drum kits — files live at public/samples/drums/. Kit lineup ported from
 // Bebop Blueprint (Drums / Makaya / PhillyJoe); "Standard" keeps DukeBox's
 // original voices. Player keys are "<kit>:<instrument>".
+// Every kit also carries a dedicated snare voice — the Rhythm Shed taps its
+// generated bebop rhythms on it (Standard borrows Classic's snare since its
+// own lineup never had one).
 export const DRUM_KITS = {
   Standard: {
     kick:  "/samples/drums/jazzkick.mp3",
     ride:  "/samples/drums/jazzhat.mp3",
     hihat: "/samples/drums/HiHat.mp3",
+    snare: "/samples/drums/Snare.mp3",
   },
   Classic: {
     kick:  "/samples/drums/Kick.mp3",
     ride:  "/samples/drums/Snare.mp3",   // snare carries the accent voice
     hihat: "/samples/drums/HiHat.mp3",
+    snare: "/samples/drums/Snare.mp3",
   },
   // Second kit — sourced from the read-only tonal repo's original WAVs. The
   // mp3s previously here were placeholders byte-identical to other samples
@@ -37,11 +42,13 @@ export const DRUM_KITS = {
     kick:  "/samples/drums/Kick2.wav",
     ride:  "/samples/drums/Snare2.wav",
     hihat: "/samples/drums/HiHat2.wav",
+    snare: "/samples/drums/Snare2.wav",
   },
   PhillyJoe: {
     kick:  "/samples/drums/jazzkick.mp3",
     ride:  "/samples/drums/jazzsnare.mp3",
     hihat: "/samples/drums/jazzhat.mp3",
+    snare: "/samples/drums/jazzsnare.mp3",
   },
 }
 
