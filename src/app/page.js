@@ -154,7 +154,6 @@ export default function Home() {
   const [activeSongTitle, setActiveSongTitle] = useState(null)  // named on the floating bar strip
   // Panels declare which workspaces they belong to; several appear in more than one.
   const inMode = (...ids) => ids.includes(mode)
-  const [showShortcuts, setShowShortcuts] = useState(false)
   const [clipboardBar, setClipboardBar] = useState(null)
   const [toast, setToast] = useState(null)
   // Mirrored from PracticeTimer so the fretboard can show the clock too —
@@ -1237,8 +1236,9 @@ export default function Home() {
       if (activeElement?.isContentEditable || activeElement?.closest?.("[contenteditable='true']")) return
       const meta = e.metaKey || e.ctrlKey
 
-      if (e.key === "?") { e.preventDefault(); setShowShortcuts(s => !s); return }
-      if (e.key === "Escape") { setShowShortcuts(false); setThemePickerOpen(false); return }
+      // `?` belongs to KeyboardShortcuts (the single legend) — it handles the
+      // key in the capture phase, so this page never sees it.
+      if (e.key === "Escape") { setThemePickerOpen(false); return }
 
       if (!meta && !e.altKey && e.key === ";") {
         e.preventDefault()
@@ -1610,9 +1610,9 @@ export default function Home() {
           )}
 
           {/* Keyboard shortcuts are meaningless on a touch device — hidden there
-              rather than competing for the little horizontal room a phone has. */}
+              rather than competing for the little horizontal room a phone has.
+              KeyboardShortcuts opens the legend off this button's title. */}
           <button
-            onClick={() => setShowShortcuts(true)}
             className="db-pointer-fine-only"
             style={{
               padding: "6px 12px", borderRadius: "var(--db-r-md)", cursor: "pointer", fontWeight: 700, fontSize: "var(--db-fs-sm)",
@@ -2034,7 +2034,7 @@ export default function Home() {
         )}
 
         {inMode("practice") && (
-          <div style={{ background: "var(--surface)", border: "1px solid var(--line)", borderRadius: "14px", padding: "14px 14px 12px", marginBottom: "16px" }}>
+          <div data-db-shortcut="fretboard" style={{ background: "var(--surface)", border: "1px solid var(--line)", borderRadius: "14px", padding: "14px 14px 12px", marginBottom: "16px" }}>
             {/* Header (spec §5.3): title + one-line settings summary + caret that
                 opens the settings drawer folded inside the card. */}
             <div
@@ -3130,6 +3130,7 @@ export default function Home() {
             subtitle="30 bebop rhythm patterns — tap to load and play"
             open={openControlPanels.beatforgeLibrary}
             onToggle={() => toggleControlPanel("beatforgeLibrary")}
+            shortcutId="beatforge-library"
           >
             <BeatForgeLibrary
               loadedNum={loadedLibraryNum}
@@ -3146,64 +3147,6 @@ export default function Home() {
 
         {dnMeta && inMode("practice") && <DesertNoirPanel meta={dnMeta} />}
       </section>
-
-      {/* Keyboard shortcut cheatsheet — toggled with ? */}
-      {showShortcuts && (
-        <div
-          onClick={() => setShowShortcuts(false)}
-          style={{
-            position: "fixed", inset: 0, zIndex: 50,
-            background: "var(--overlay)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              background: "var(--db-bg)", color: "var(--db-text)",
-              border: "1px solid var(--db-accent)", borderRadius: "var(--db-r-md)",
-              padding: "24px 28px", minWidth: "min(440px, 92vw)", maxWidth: "92vw",
-              boxShadow: "0 20px 60px var(--shadow)",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", marginBottom: "14px" }}>
-              <div style={{ ...eyebrowStyle, marginBottom: 0, color: "var(--db-accent)" }}>KEYBOARD SHORTCUTS</div>
-              <button
-                onClick={() => setShowShortcuts(false)}
-                style={{ marginLeft: "auto", background: "none", border: "none", color: "var(--db-muted)", cursor: "pointer", fontSize: "var(--db-fs-lg)" }}
-              >×</button>
-            </div>
-            <table style={{ width: "100%", fontSize: "var(--db-fs-md)", borderCollapse: "collapse" }}>
-              <tbody>
-                {[
-                  ["Space", "Play / stop"],
-                  ["← →", "Previous / next bar"],
-                  ["↑ ↓", "Cycle the selected bar's chord quality"],
-                  ["⌘/Ctrl + C", "Copy the selected bar"],
-                  ["⌘/Ctrl + V", "Paste onto the selected bar"],
-                  ["Double-click a bar", "Loop just that chord"],
-                  ["Type in a bar's chord box", "Quick-entry, e.g. Dm7 or Am7/G — then Enter"],
-                  [";", "Cycle palette"],
-                  ["'", "Toggle dark / light"],
-                  ["o", "Toggle Cockpit / Focus (Practice tab)"],
-                  ["?", "Show / hide this list"],
-                  ["Esc", "Close this list"],
-                ].map(([k, v]) => (
-                  <tr key={k}>
-                    <td style={{ padding: "5px 14px 5px 0", whiteSpace: "nowrap" }}>
-                      <code style={{
-                        background: "var(--db-input-bg)", border: "1px solid var(--db-panel-border)",
-                        borderRadius: "var(--db-r-sm)", padding: "2px 7px", fontSize: "var(--db-fs-sm)", color: "var(--db-accent)",
-                      }}>{k}</code>
-                    </td>
-                    <td style={{ padding: "5px 0", opacity: 0.85 }}>{v}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
 
       {/* Sticky transport (spec §5.7) — always reachable in Practice mode,
           synced display of the same play/loop/tempo/swing/timer state the

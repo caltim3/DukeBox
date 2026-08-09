@@ -1,32 +1,50 @@
 "use client"
 
+// The one keyboard-shortcut legend and the handler for everything it lists
+// that isn't already owned by the Practice page.
+//
+// Two things used to make this unreliable, both fixed here:
+//   · There were TWO `?` cheatsheets (this overlay and a second modal inside
+//     page.js). This one listens in the capture phase and stops propagation,
+//     so page.js's copy could never open — it was dead code showing a stale
+//     list. page.js's modal is gone; this is the single source of truth.
+//   · Jump shortcuts found their target by matching button *label text*, so
+//     they broke silently every time a control was renamed. Targets now carry
+//     stable `data-db-shortcut` hooks instead.
+//
+// Chart/playback keys (Space, arrows, copy/paste) and the two theme keys
+// (; and ') are handled inside page.js, where that state lives — they are
+// listed here so the legend stays complete.
+
 import { useEffect, useState } from "react"
 
 const GROUPS = [
   {
-    title: "Navigation",
+    title: "Workspaces",
     items: [
-      ["1", "Practice workspace"],
-      ["2", "Gig workspace"],
-      ["3", "Create workspace"],
-      ["4", "Reference workspace"],
-      ["5", "Tonal workspace"],
-      ["/", "Search songs and charts"],
-      ["C", "Open categories"],
-      ["P", "Open projects and charts"],
+      ["0", "Home"],
+      ["1", "Practice"],
+      ["2", "Gig"],
+      ["3", "Create"],
+      ["4", "Reference"],
+      ["5", "Tonal"],
     ],
   },
   {
-    title: "Playback",
+    title: "Jump to",
+    items: [
+      ["/", "Song library in Practice"],
+      ["\\", "Song library in Gig"],
+      ["F", "Fretboard"],
+      ["L", "Licktionary"],
+      ["B", "BeatForge Library"],
+      ["Y", "5 minute practice timer"],
+    ],
+  },
+  {
+    title: "Chart & playback",
     items: [
       ["Space", "Play or stop"],
-      ["K", "Open metronome"],
-      ["Y", "Open practice timer"],
-    ],
-  },
-  {
-    title: "Chart",
-    items: [
       ["←  →", "Previous or next bar"],
       ["↑  ↓", "Cycle chord quality"],
       ["⌘/Ctrl C", "Copy selected bar"],
@@ -38,9 +56,8 @@ const GROUPS = [
     title: "Views",
     items: [
       [";", "Cycle color palette"],
-      ["F", "Jump to fretboard"],
-      ["I", "Toggle Roman numerals"],
-      ["T", "Toggle guide-tone targets"],
+      ["'", "Light / dark toggle"],
+      ["O", "Cockpit / Focus view"],
       ["?", "Show or hide shortcuts"],
       ["Esc", "Close the current overlay"],
     ],
@@ -52,16 +69,14 @@ function isTyping() {
   return el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable)
 }
 
-function buttons() {
-  return Array.from(document.querySelectorAll("button"))
+function hook(name) {
+  return document.querySelector(`[data-db-shortcut="${name}"]`)
 }
 
-function clickButton(label) {
-  const needle = label.toLowerCase()
-  const button = buttons().find((el) => (el.textContent || "").trim().toLowerCase().includes(needle))
-  if (!button) return false
-  button.click()
-  button.scrollIntoView({ behavior: "smooth", block: "center" })
+function reveal(el, { focus = false } = {}) {
+  if (!el) return false
+  el.scrollIntoView({ behavior: "smooth", block: "center" })
+  if (focus) el.focus?.({ preventScroll: true })
   return true
 }
 
@@ -76,39 +91,60 @@ function clickWorkspace(label) {
   return true
 }
 
-function findRegion(text) {
-  const needle = text.toLowerCase()
-  const candidates = Array.from(document.querySelectorAll("section, div"))
-  return candidates.find((el) => {
-    const own = Array.from(el.children).slice(0, 3).map((child) => child.textContent || "").join(" ").toLowerCase()
-    return own.includes(needle)
-  })
+// The Practice home shell is a fixed overlay above everything, so clicking a
+// workspace tab underneath it changes the tab without revealing it. From home
+// we go through home's own sidebar nav instead, which dismisses the shell.
+const HOME_NAV = {
+  Practice: "Practice center",
+  Gig: "Gig mode",
+  Create: "Create",
+  Reference: "Reference",
+  Tonal: "Tonal",
 }
 
-function focusSearch() {
-  const fields = Array.from(document.querySelectorAll("input, textarea"))
-  const field = fields.find((el) => {
-    const text = `${el.getAttribute("placeholder") || ""} ${el.getAttribute("aria-label") || ""}`.toLowerCase()
-    return text.includes("search") || text.includes("find a song")
-  })
-  if (!field) return false
-  field.focus()
-  field.select?.()
-  field.scrollIntoView({ behavior: "smooth", block: "center" })
-  return true
+function homeIsOpen() {
+  return document.body.classList.contains("db-pickup-home-open")
 }
 
-function focusRegionControl(labels, selector = "select, input, textarea, button") {
-  for (const label of labels) {
-    const region = findRegion(label)
-    const control = region?.querySelector(selector)
-    if (control) {
-      control.scrollIntoView({ behavior: "smooth", block: "center" })
-      control.focus?.({ preventScroll: true })
-      return true
-    }
+function goWorkspace(label) {
+  if (homeIsOpen()) {
+    const wanted = (HOME_NAV[label] || label).toLowerCase()
+    const navButton = Array.from(document.querySelectorAll(".db-pickup-nav-button"))
+      .find((el) => (el.textContent || "").trim().toLowerCase() === wanted)
+    if (navButton) { navButton.click(); return true }
+    document.querySelector(".db-pickup-return-home")?.click()
   }
+  return clickWorkspace(label)
+}
+
+// Home's nav switches workspaces on a short delay, and panels mount as they
+// come into view — so poll for the target rather than guessing one timeout.
+function waitFor(get, done, tries = 25) {
+  const tick = () => {
+    const found = get()
+    if (found) { done(found); return }
+    if (--tries > 0) window.setTimeout(tick, 40)
+  }
+  window.setTimeout(tick, 40)
+}
+
+function goHome() {
+  // Practice shows a "Practice Home" pill; everywhere else the floating
+  // jazzmaster button is the way back.
+  const pill = document.querySelector(".db-pickup-return-home")
+  if (pill) { pill.click(); return true }
+  const floating = document.querySelector(".db-app-home-button")
+  if (floating) { floating.click(); return true }
   return false
+}
+
+// Open a collapsed PowerPanel / <details> before scrolling to it, so the
+// shortcut lands on visible content rather than a closed header.
+function openPanel(el) {
+  if (!el) return
+  if (el.getAttribute?.("aria-expanded") === "false") el.click()
+  const details = el.closest?.("details")
+  if (details && !details.open) details.open = true
 }
 
 export default function KeyboardShortcuts() {
@@ -144,50 +180,85 @@ export default function KeyboardShortcuts() {
       if (workspaces[event.key]) {
         event.preventDefault()
         event.stopPropagation()
-        clickWorkspace(workspaces[event.key])
+        goWorkspace(workspaces[event.key])
+        return
+      }
+
+      if (event.key === "0") {
+        event.preventDefault()
+        event.stopPropagation()
+        goHome()
         return
       }
 
       const key = event.key.toLowerCase()
+
+      // Practice's Songbook drawer focuses its own search box on open.
       if (key === "/") {
         event.preventDefault()
         event.stopPropagation()
-        if (!focusSearch()) {
-          clickWorkspace("Gig")
-          requestAnimationFrame(focusSearch)
-        }
-      } else if (key === "c") {
+        goWorkspace("Practice")
+        waitFor(
+          () => document.querySelector('[aria-label="Open Songbook"]'),
+          (btn) => btn.click(),
+        )
+        return
+      }
+
+      if (key === "\\") {
         event.preventDefault()
         event.stopPropagation()
-        clickWorkspace("Practice")
-        requestAnimationFrame(() => focusRegionControl(["songbook", "category"], "select, button"))
-      } else if (key === "p") {
+        goWorkspace("Gig")
+        // Gig renders its library search only when no setlist is open.
+        waitFor(() => hook("gig-search"), (el) => reveal(el, { focus: true }))
+        return
+      }
+
+      if (key === "f") {
         event.preventDefault()
         event.stopPropagation()
-        clickWorkspace("Create")
-        requestAnimationFrame(() => focusRegionControl(["songbook", "chart generator", "projects"], "select, input, textarea, button"))
-      } else if (key === "f") {
+        goWorkspace("Practice")
+        waitFor(() => hook("fretboard"), (el) => reveal(el))
+        return
+      }
+
+      if (key === "l") {
         event.preventDefault()
         event.stopPropagation()
-        clickButton("fretboard")
-      } else if (key === "i") {
+        goWorkspace("Create")
+        waitFor(
+          () => document.getElementById("db-licktionary"),
+          (section) => { section.open = true; reveal(section) },
+        )
+        return
+      }
+
+      if (key === "b") {
         event.preventDefault()
         event.stopPropagation()
-        clickButton("roman")
-      } else if (key === "t") {
+        goWorkspace("Practice")
+        waitFor(() => hook("beatforge-library"), (header) => { openPanel(header); reveal(header) })
+        return
+      }
+
+      // Arms a 5-minute countdown: open the Timer drawer, select 5 min, and
+      // reset it to a full 5:00. It ticks down with the transport (the band is
+      // this app's one master practice control), so it starts on play.
+      if (key === "y") {
         event.preventDefault()
         event.stopPropagation()
-        clickButton("targets") || clickButton("guide tones")
-      } else if (key === "k") {
-        event.preventDefault()
-        event.stopPropagation()
-        clickWorkspace("Practice")
-        requestAnimationFrame(() => focusRegionControl(["metronome"], "button, input, select"))
-      } else if (key === "y") {
-        event.preventDefault()
-        event.stopPropagation()
-        clickWorkspace("Practice")
-        requestAnimationFrame(() => focusRegionControl(["practice timer", "timer"], "button, input, select"))
+        goWorkspace("Practice")
+        waitFor(
+          () => document.querySelector('[aria-label="Open Timer"]'),
+          (btn) => {
+            btn.click()
+            waitFor(() => hook("timer-length"), (select) => {
+              select.value = "300"
+              select.dispatchEvent(new Event("change", { bubbles: true }))
+              reveal(select)
+            })
+          },
+        )
       }
     }
 
