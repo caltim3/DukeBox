@@ -3,7 +3,9 @@ import PickupPracticeHome from "@/components/PickupPracticeHome";
 import AppHomeButton from "@/components/AppHomeButton";
 import "./globals.css";
 
-const BRAND_ICON = "/dukebox-jazzmaster.png";
+// Tightly-cropped square export of dukebox-jazzmaster.png — small enough for
+// tab/home-screen icons, and the guitar fills the frame so it reads at 16px.
+const BRAND_ICON = "/dukebox-jazzmaster-icon.png";
 
 export const metadata = {
   title: "The DukeBox",
