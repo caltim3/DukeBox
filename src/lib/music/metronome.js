@@ -77,12 +77,43 @@ export function isMetronomeRunning() {
   return _running
 }
 
+// Pluck voice for the Rhythm Shed — the original Rhythm Shed's tone (triangle
+// + sine octave through a lowpass), built lazily alongside the sample players.
+let _pluck = null
+function ensurePluck() {
+  if (_pluck) return _pluck
+  const filter = new Tone.Filter(2600, "lowpass").toDestination()
+  _pluck = new Tone.PolySynth(Tone.Synth, {
+    oscillator: { type: "triangle" },
+    envelope: { attack: 0.002, decay: 0.13, sustain: 0, release: 0.03 },
+    volume: -6,
+  }).connect(filter)
+  return _pluck
+}
+
+function playRhythmHit(time, vel) {
+  if (_cfg.rhythmVoice === "pluck") {
+    try { ensurePluck().triggerAttackRelease("C5", 0.14, time, Math.min(1, vel)) } catch {}
+  } else {
+    trigger(`${_cfg.kit}:snare`, time, vel)
+  }
+}
+
 /**
  * Start the metronome. Owns the shared Transport — callers must stop chart
  * playback first (and vice versa).
  *
+ * The optional `rhythm` turns the run into a Rhythm Shed workout: the cell
+ * grid keeps clicking as the time-keeper while the generated phrase is tapped
+ * out on the kit snare (or the original pluck tone). Timeline positions are in
+ * beats and already swung by the caller; the engine schedules them verbatim.
+ *
  * @param {object} opts { tempo, cells, subdivision ("4n"|"8n"), sound, kit,
- *                        volume, accentIntensity, onTick(cellIndex) }
+ *                        volume, accentIntensity, onTick(cellIndex),
+ *                        rhythm: { events: [{beat, m, i, rest}], leadBeats,
+ *                                  totalBeats, loop, voice ("snare"|"pluck"),
+ *                                  onEvent(m, i), onBeat(m, beatInBar),
+ *                                  onDone() } }
  */
 export async function startMetronome({
   tempo = 120,
@@ -93,12 +124,13 @@ export async function startMetronome({
   volume = 0.8,
   accentIntensity = 1.35,
   onTick = null,
+  rhythm = null,
 } = {}) {
   await Tone.start()
   await ensurePlayers()
   stopMetronome()
 
-  updateMetronome({ cells, sound, kit, volume, accentIntensity })
+  updateMetronome({ cells, sound, kit, volume, accentIntensity, rhythmVoice: rhythm?.voice || "snare" })
   _cellIndex = 0
 
   const tr = Tone.getTransport()
@@ -107,6 +139,7 @@ export async function startMetronome({
   tr.position = 0
   tr.bpm.value = tempo
   tr.swing = 0
+  tr.loop = false
 
   _repeatId = tr.scheduleRepeat((time) => {
     const list = _cfg.cells
@@ -118,6 +151,39 @@ export async function startMetronome({
     _cellIndex++
   }, subdivision)
 
+  if (rhythm) {
+    const { events = [], leadBeats = 0, totalBeats = 4, loop = true, onEvent, onBeat, onDone } = rhythm
+    const beatTime = (b) => `0:${b}:0`   // bars:beats:sixteenths with beats free-running
+
+    for (const ev of events) {
+      tr.schedule((time) => {
+        if (!ev.rest) {
+          const vel = _cfg.volume * (ev.strong ? _cfg.accentIntensity : 1)
+          playRhythmHit(time, vel)
+        }
+        if (onEvent) draw.schedule(() => onEvent(ev.m, ev.i), time)
+      }, beatTime(leadBeats + ev.beat))
+    }
+    if (onBeat) {
+      for (let b = 0; b < totalBeats; b++) {
+        tr.schedule((time) => {
+          draw.schedule(() => onBeat(Math.floor(b / 4), b % 4), time)
+        }, beatTime(leadBeats + b))
+      }
+    }
+
+    if (loop) {
+      // Loop the phrase forever, skipping the count-in bar after the first pass.
+      tr.loopStart = beatTime(leadBeats)
+      tr.loopEnd = beatTime(leadBeats + totalBeats)
+      tr.loop = true
+    } else {
+      tr.schedule((time) => {
+        draw.schedule(() => { stopMetronome(); if (onDone) onDone() }, time)
+      }, beatTime(leadBeats + totalBeats))
+    }
+  }
+
   _running = true
   tr.start()
 }
@@ -127,6 +193,7 @@ export function stopMetronome() {
   if (_repeatId != null) { try { tr.clear(_repeatId) } catch {} }
   _repeatId = null
   if (_running) { tr.stop(); tr.cancel(0) }
+  tr.loop = false
   _running = false
   _cellIndex = 0
 }

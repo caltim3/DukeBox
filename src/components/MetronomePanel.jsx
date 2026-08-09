@@ -8,6 +8,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import { DRUM_KIT_NAMES, DEFAULT_DRUM_KIT } from "@/lib/music/samples"
+import RhythmShed from "@/components/RhythmShed"
 
 let _metroMod = null
 async function loadMetronome() {
@@ -41,6 +42,7 @@ export default function MetronomePanel({ onBeforeStart, panelStyle, eyebrowStyle
   const [accentIntensity, setAccentIntensity] = useState(1.35)
   const [activeCell, setActiveCell] = useState(null)
   const tapTimesRef = useRef([])
+  const shedApiRef = useRef(null)   // Rhythm Shed hands its phrase over through this
 
   // Push live settings into the engine while it runs
   useEffect(() => {
@@ -66,10 +68,14 @@ export default function MetronomePanel({ onBeforeStart, panelStyle, eyebrowStyle
   async function start() {
     onBeforeStart?.()   // stop chart playback — Transport is shared
     const m = await loadMetronome()
+    const shedRhythm = shedApiRef.current?.getRhythm?.() || null
     await m.startMetronome({
       tempo, cells, sound, kit, volume, accentIntensity,
       subdivision: eighths ? "8n" : "4n",
       onTick: setActiveCell,
+      rhythm: shedRhythm
+        ? { ...shedRhythm, onDone: () => { setRunning(false); setActiveCell(null); shedApiRef.current?.clearHighlights?.() } }
+        : null,
     })
     setRunning(true)
   }
@@ -78,6 +84,22 @@ export default function MetronomePanel({ onBeforeStart, panelStyle, eyebrowStyle
     _metroMod?.stopMetronome()
     setRunning(false)
     setActiveCell(null)
+    shedApiRef.current?.clearHighlights?.()
+  }
+
+  function restart() {
+    stop()
+    start().catch(console.error)
+  }
+
+  // Rhythm Shed click presets — one tap programs the cell grid (always a 4/4
+  // bar of 8th cells, matching the shed's own meter).
+  function applyMetPreset(preset) {
+    setBeats(4)
+    setEighths(true)
+    if (preset === "off") setCells([0, 0, 0, 0, 0, 0, 0, 0])
+    else if (preset === "all") setCells([2, 0, 1, 0, 1, 0, 1, 0])
+    else if (preset === "24") setCells([0, 0, 2, 0, 0, 0, 2, 0])
   }
 
   function tapTempo() {
@@ -89,7 +111,7 @@ export default function MetronomePanel({ onBeforeStart, panelStyle, eyebrowStyle
       const t = tapTimesRef.current
       const intervals = t.slice(1).map((v, i) => v - t[i]).slice(-4)
       const avg = intervals.reduce((a, b) => a + b, 0) / intervals.length
-      const bpm = Math.round(Math.min(220, Math.max(40, 60000 / avg)))
+      const bpm = Math.round(Math.min(280, Math.max(40, 60000 / avg)))
       setTempo(bpm)
       if (running) _metroMod?.setMetronomeTempo(bpm)
     }
@@ -123,7 +145,7 @@ export default function MetronomePanel({ onBeforeStart, panelStyle, eyebrowStyle
 
         <label style={inlineLabelStyle}>
           Tempo
-          <input type="range" min="40" max="220" value={tempo} onChange={(e) => setTempo(Number(e.target.value))} />
+          <input type="range" min="40" max="280" value={tempo} onChange={(e) => setTempo(Number(e.target.value))} />
           <span style={{ minWidth: "34px" }}>{tempo}</span>
         </label>
 
@@ -178,6 +200,19 @@ export default function MetronomePanel({ onBeforeStart, panelStyle, eyebrowStyle
             onChange={(e) => setAccentIntensity(Number(e.target.value) / 100)} style={{ width: "60px" }} />
         </label>
       </div>
+
+      {/* Rhythm Shed — bebop rhythm generator sharing this transport; Start
+          above runs the click cells and taps the phrase on the kit snare. */}
+      <RhythmShed
+        apiRef={shedApiRef}
+        playing={running}
+        onPlay={() => { start().catch(console.error) }}
+        onStop={stop}
+        onRestart={restart}
+        onMetPreset={applyMetPreset}
+        inlineLabelStyle={inlineLabelStyle}
+        selectStyle={selectStyle}
+      />
 
       {/* Beat cells */}
       <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
