@@ -5,8 +5,12 @@
 // "next sounding bar" lookahead (same algorithm the Fretboard's Anticipate
 // overlay already uses, just called for 3 steps instead of 1). No new state.
 
-export default function AnticipationStrip({ now, upcoming = [], isPlaying }) {
+// beat is the 0-based beat of the current bar that's sounding (null when
+// stopped); beats is how many this bar has, so a half-bar shows two segments
+// rather than four empty ones.
+export default function AnticipationStrip({ now, upcoming = [], isPlaying, beat = null, beats = 4 }) {
   if (!now) return null
+  const beatCount = Math.max(1, Math.round(beats) || 4)
   return (
     <>
       <style>{`
@@ -30,14 +34,35 @@ export default function AnticipationStrip({ now, upcoming = [], isPlaying }) {
           {now.modeInfo && (
             <div style={{ fontSize: "12.5px", color: "var(--text)" }}>{now.modeInfo}</div>
           )}
-          <div style={{ display: "flex", gap: "4px", marginTop: "10px" }}>
-            {[0, 1, 2, 3].map((i) => (
-              <i key={i} style={{
-                flex: 1, height: "6px", borderRadius: "2px",
-                background: isPlaying ? "var(--accent)" : "var(--surface2)",
-                opacity: isPlaying ? 1 : 0.5,
-              }} />
-            ))}
+          {/* Beat meter: one segment per beat of this bar, filling left to
+              right as the measure plays. The beat that's sounding is solid and
+              slightly taller; beats already gone stay filled but dimmer, so the
+              bar reads as a progress meter rather than a row of blinking lights.
+              Beats still to come are hollow — an outline over the card, not a
+              tinted block. Dimming a filled block was too close to the filled
+              state to read as motion at a glance, which made a meter that was
+              in fact marching look stuck with everything lit. */}
+          <div
+            style={{ display: "flex", gap: "4px", marginTop: "10px", alignItems: "flex-end", height: "11px" }}
+            role="img"
+            aria-label={isPlaying && beat != null ? `Beat ${beat + 1} of ${beatCount}` : `${beatCount} beats per bar`}
+          >
+            {Array.from({ length: beatCount }, (_, i) => {
+              const live = isPlaying && beat != null
+              const isCurrent = live && i === beat
+              const isPast = live && i < beat
+              return (
+                <i key={i} style={{
+                  flex: 1,
+                  height: isCurrent ? "11px" : "6px",
+                  borderRadius: "2px",
+                  background: isCurrent || isPast ? "var(--accent)" : "transparent",
+                  boxShadow: isCurrent || isPast ? "none" : "inset 0 0 0 1px var(--accent)",
+                  opacity: isCurrent ? 1 : isPast ? 0.45 : 0.3,
+                  transition: "height 70ms ease, opacity 70ms ease, background 70ms ease",
+                }} />
+              )
+            })}
           </div>
         </div>
 

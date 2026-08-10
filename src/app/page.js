@@ -70,6 +70,11 @@ const PALETTES = [
   { id: "harbor", name: "Harbor", emoji: "⚓" },
 ]
 
+// What a first-time visitor gets. The no-flash boot script in app/layout.js
+// paints this same pair before hydration, so the two must agree.
+const DEFAULT_PALETTE = "harbor"
+const DEFAULT_PALETTE_INDEX = Math.max(0, PALETTES.findIndex((p) => p.id === DEFAULT_PALETTE))
+
 const INITIAL_BARS = [
   { root: "Bb", quality: "7", symbol: "Bb7",  section: "A" },
   { root: "Eb", quality: "7", symbol: "Eb7",  section: "A" },
@@ -119,6 +124,9 @@ export default function Home() {
   const [playMelody, setPlayMelody] = useState(false)
   const [swingAmount, setSwingAmount] = useState(0.5)
   const [playheadIndex, setPlayheadIndex] = useState(null)
+  // Which beat of the current bar is sounding (0-based); null when stopped.
+  // Drives the beat meter on the NOW card.
+  const [beatInBar, setBeatInBar] = useState(null)
 
   const [loopStart, setLoopStart] = useState(0)
   const [loopEnd, setLoopEnd] = useState(INITIAL_BARS.length - 1)
@@ -192,7 +200,7 @@ export default function Home() {
   const [enclosureOn, setEnclosureOn] = useState(false)     // chromatic cage around the 3rd Hunter target
   const [loadedLibraryNum, setLoadedLibraryNum] = useState(null)  // which BeatForge Library card is loaded, if any
   const [practiceMode, setPracticeMode] = useState(false)
-  const [paletteIndex, setPaletteIndex] = useState(0)
+  const [paletteIndex, setPaletteIndex] = useState(DEFAULT_PALETTE_INDEX)
   const [colorMode, setColorMode] = useState("dark")
   const [themePickerOpen, setThemePickerOpen] = useState(false)
   const [gridColumns, setGridColumns] = useState(4)
@@ -260,10 +268,6 @@ export default function Home() {
 
   const palette = PALETTES[paletteIndex]
 
-  const cyclePalette = useCallback(() => {
-    setPaletteIndex((index) => (index + 1) % PALETTES.length)
-  }, [])
-
   const setTheme = useCallback((paletteId, mode) => {
     const root = document.documentElement
     if (paletteId && PALETTES.some(({ id }) => id === paletteId)) {
@@ -279,18 +283,25 @@ export default function Home() {
     }
   }, [])
 
+  // Cycling goes through setTheme rather than nudging the index and letting an
+  // effect chase it. That effect used to fire on mount too, writing the
+  // DEFAULT palette over whatever the boot script had just painted — and,
+  // because setTheme also persists, overwriting the visitor's saved palette in
+  // localStorage. setTheme is now the only writer, so nothing touches the
+  // theme until the player actually asks for a change.
+  const cyclePalette = useCallback(() => {
+    setTheme(PALETTES[(paletteIndex + 1) % PALETTES.length].id, null)
+  }, [paletteIndex, setTheme])
+
   // The blocking head script has already painted the stored theme. This only
-  // synchronizes the controls with the attributes it selected.
+  // synchronizes the controls with the attributes it selected — it reads, and
+  // never writes, so re-running it (as StrictMode does) is harmless.
   useEffect(() => {
     const root = document.documentElement
     const savedIndex = PALETTES.findIndex(({ id }) => id === root.dataset.palette)
     if (savedIndex >= 0) setPaletteIndex(savedIndex)
     setColorMode(root.dataset.mode === "light" ? "light" : "dark")
   }, [])
-
-  useEffect(() => {
-    setTheme(palette.id, null)
-  }, [palette.id, setTheme])
 
   const toggleColorMode = useCallback(() => {
     setTheme(null, colorMode === "dark" ? "light" : "dark")
@@ -1113,7 +1124,8 @@ export default function Home() {
           if (!barsOverride?.length) setPlayheadIndex(lo + localIdx)
           onBar?.(localIdx)
         },
-        onStop: () => { playingRef.current = false; setIsPlaying(false); setPlayheadIndex(null); onDone?.() },
+        onBeat: (_localIdx, beat) => setBeatInBar(beat),
+        onStop: () => { playingRef.current = false; setIsPlaying(false); setPlayheadIndex(null); setBeatInBar(null); onDone?.() },
       })
     } catch (err) {
       console.error("Line practice audio error:", err)
@@ -1128,6 +1140,7 @@ export default function Home() {
     _audioMod?.stopAll()   // no-op if audio hasn't been loaded yet
     setIsPlaying(false)
     setPlayheadIndex(null)
+    setBeatInBar(null)
   }
 
   // loopOverride ({start, end}) forces a loop over an explicit bar range without
@@ -1164,7 +1177,8 @@ export default function Home() {
           bassStyle, bassComplexity, drumKit, reverbAmount,
           drumStyle:     drumStyleIdx,
           onBar:  (localIdx) => setPlayheadIndex(startIndex + localIdx),
-          onStop: () => { playingRef.current = false; setIsPlaying(false); setPlayheadIndex(null) },
+          onBeat: (_localIdx, beat) => setBeatInBar(beat),
+          onStop: () => { playingRef.current = false; setIsPlaying(false); setPlayheadIndex(null); setBeatInBar(null) },
         })
       } catch (err) {
         console.error("Audio error:", err)
@@ -1186,10 +1200,12 @@ export default function Home() {
         bassStyle, bassComplexity, drumKit, reverbAmount,
         drumStyle:     drumStyleIdx,
         onBar:  (localIdx) => setPlayheadIndex(startIndex + localIdx),
+        onBeat: (_localIdx, beat) => setBeatInBar(beat),
         onStop: () => {
           playingRef.current = false
           setIsPlaying(false)
           setPlayheadIndex(null)
+          setBeatInBar(null)
         },
       }
       try {
@@ -1941,6 +1957,8 @@ export default function Home() {
 
             <AnticipationStrip
               isPlaying={isPlaying && playheadIndex !== null}
+              beat={beatInBar}
+              beats={fretboardBar.beats ?? 4}
               now={{
                 barLabel: barLabels[fretboardBarIndex] ?? fretboardBarIndex + 1,
                 symbol: fretboardBar.symbol,

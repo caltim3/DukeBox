@@ -492,6 +492,7 @@ export async function startPlayback({
   reverbAmount  = 0,
   repeats       = 1,
   onBar         = null,
+  onBeat        = null,   // fires (barIdx, beatInBar) on every beat, for beat-level UI
   onStop        = null,
   lineEvents    = null,   // Line Lab: generated single-note line, played on the lead synth
   onLineNote    = null,   // Line Lab: fires (barIdx, noteIdx) per line note for UI sync
@@ -542,6 +543,21 @@ export async function startPlayback({
     const id = tr.schedule(time => draw.schedule(() => onBar?.(i % srcLen), time), t.time)
     scheduledIds.push(id)
   })
+
+  // Beat-change UI callbacks — one per beat inside each bar, so the display
+  // can march through a measure rather than only flipping at the barline.
+  // Half-bars (beats: 2) fire twice, which is what their meter is.
+  if (onBeat) {
+    timing.forEach((t, i) => {
+      const barStart = t.measure * 4 + t.beat
+      for (let b = 0; b < t.beats; b++) {
+        const abs = barStart + b
+        const at = `${Math.floor(abs / 4)}:${abs % 4}:0`
+        const id = tr.schedule(time => draw.schedule(() => onBeat(i % srcLen, b), time), at)
+        scheduledIds.push(id)
+      }
+    })
+  }
 
   // Auto-stop at end (non-loop)
   if (!loop) {
