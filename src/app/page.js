@@ -119,6 +119,9 @@ export default function Home() {
   const [playMelody, setPlayMelody] = useState(false)
   const [swingAmount, setSwingAmount] = useState(0.5)
   const [playheadIndex, setPlayheadIndex] = useState(null)
+  // Which beat of the current bar is sounding (0-based); null when stopped.
+  // Drives the beat meter on the NOW card.
+  const [beatInBar, setBeatInBar] = useState(null)
 
   const [loopStart, setLoopStart] = useState(0)
   const [loopEnd, setLoopEnd] = useState(INITIAL_BARS.length - 1)
@@ -1113,7 +1116,8 @@ export default function Home() {
           if (!barsOverride?.length) setPlayheadIndex(lo + localIdx)
           onBar?.(localIdx)
         },
-        onStop: () => { playingRef.current = false; setIsPlaying(false); setPlayheadIndex(null); onDone?.() },
+        onBeat: (_localIdx, beat) => setBeatInBar(beat),
+        onStop: () => { playingRef.current = false; setIsPlaying(false); setPlayheadIndex(null); setBeatInBar(null); onDone?.() },
       })
     } catch (err) {
       console.error("Line practice audio error:", err)
@@ -1128,6 +1132,7 @@ export default function Home() {
     _audioMod?.stopAll()   // no-op if audio hasn't been loaded yet
     setIsPlaying(false)
     setPlayheadIndex(null)
+    setBeatInBar(null)
   }
 
   // loopOverride ({start, end}) forces a loop over an explicit bar range without
@@ -1164,7 +1169,8 @@ export default function Home() {
           bassStyle, bassComplexity, drumKit, reverbAmount,
           drumStyle:     drumStyleIdx,
           onBar:  (localIdx) => setPlayheadIndex(startIndex + localIdx),
-          onStop: () => { playingRef.current = false; setIsPlaying(false); setPlayheadIndex(null) },
+          onBeat: (_localIdx, beat) => setBeatInBar(beat),
+          onStop: () => { playingRef.current = false; setIsPlaying(false); setPlayheadIndex(null); setBeatInBar(null) },
         })
       } catch (err) {
         console.error("Audio error:", err)
@@ -1186,10 +1192,12 @@ export default function Home() {
         bassStyle, bassComplexity, drumKit, reverbAmount,
         drumStyle:     drumStyleIdx,
         onBar:  (localIdx) => setPlayheadIndex(startIndex + localIdx),
+        onBeat: (_localIdx, beat) => setBeatInBar(beat),
         onStop: () => {
           playingRef.current = false
           setIsPlaying(false)
           setPlayheadIndex(null)
+          setBeatInBar(null)
         },
       }
       try {
@@ -1941,6 +1949,8 @@ export default function Home() {
 
             <AnticipationStrip
               isPlaying={isPlaying && playheadIndex !== null}
+              beat={beatInBar}
+              beats={fretboardBar.beats ?? 4}
               now={{
                 barLabel: barLabels[fretboardBarIndex] ?? fretboardBarIndex + 1,
                 symbol: fretboardBar.symbol,
