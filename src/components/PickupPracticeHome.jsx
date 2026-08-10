@@ -56,7 +56,7 @@ const PLAN_ROWS = [
         badge: "Rhythm Path",
         title: "BeatForge",
         subtitle: "Time workout and bebop rhythm generator",
-        art: "beatforge",
+        image: "/Beatforge.png",
         action: { type: "practice-panel", value: "beatforge-metronome" },
       },
       {
@@ -64,7 +64,7 @@ const PLAN_ROWS = [
         badge: "Line Path",
         title: "LineLab",
         subtitle: "Develop single-note lines over the changes",
-        art: "linelab",
+        image: "/linelab.png",
         action: { type: "create-section", value: "create-line-lab" },
       },
       {
@@ -72,7 +72,7 @@ const PLAN_ROWS = [
         badge: "Songwriting Path",
         title: "SongCrafter",
         subtitle: "Assemble progressions into a draft",
-        art: "songcrafter",
+        image: "/songwriting.png",
         action: { type: "create-section", value: "create-songcrafter" },
       },
       {
@@ -80,7 +80,7 @@ const PLAN_ROWS = [
         badge: "Jazz Standards",
         title: "Song Library",
         subtitle: "Every chart in the songbook",
-        art: "songlibrary",
+        image: "/Song%20Library.png",
         action: { type: "songbook", value: "Jazz Standards" },
       },
     ],
@@ -94,7 +94,7 @@ const PLAN_ROWS = [
         badge: "Learning Pathway",
         title: "251 Mastery",
         subtitle: "The ii-V-I through all twelve keys",
-        art: "ii-v-i",
+        image: "/251%20mastery.png",
         action: { type: "starter", value: "major-251" },
       },
       {
@@ -102,7 +102,7 @@ const PLAN_ROWS = [
         badge: "Song Study",
         title: "Black Orpheus",
         subtitle: "Minor ii-V-I roadmap",
-        art: "orpheus",
+        image: "/blackorpheus.png",
         action: { type: "starter", value: "black-orpheus" },
       },
       {
@@ -110,7 +110,7 @@ const PLAN_ROWS = [
         badge: "Song Study",
         title: "Autumn Leaves",
         subtitle: "The standard every session starts with",
-        art: "leaves",
+        image: "/autumnleaves.png",
         action: { type: "starter", value: "autumn-leaves" },
       },
       {
@@ -118,7 +118,7 @@ const PLAN_ROWS = [
         badge: "Song Study",
         title: "Dark Eyes",
         subtitle: "Gypsy jazz minor swing",
-        art: "darkeyes",
+        image: "/darkeyes.png",
         action: { type: "starter", value: "dark-eyes" },
       },
       {
@@ -126,7 +126,7 @@ const PLAN_ROWS = [
         badge: "Practice System",
         title: "Blues",
         subtitle: "Jazz blues in Bb, guide tones to language",
-        art: "blues",
+        image: "/blues.png",
         action: { type: "starter", value: "jazz-blues-bb" },
       },
     ],
@@ -726,11 +726,6 @@ export default function PickupPracticeHome() {
         }
 
         .db-pickup-progress-art,
-        .db-pickup-plan-art {
-          position: relative;
-          overflow: hidden;
-          isolation: isolate;
-        }
 
         .db-pickup-progress-art { border-radius: 6px; background: #0b1220; }
 
@@ -739,13 +734,6 @@ export default function PickupPracticeHome() {
           height: 100%;
           object-fit: cover;
           display: block;
-        }
-
-        .db-pickup-plan-art::before,
-        .db-pickup-plan-art::after {
-          content: "";
-          position: absolute;
-          pointer-events: none;
         }
 
         .db-pickup-progress-copy {
@@ -821,146 +809,12 @@ export default function PickupPracticeHome() {
           transform: translateY(-3px);
           box-shadow: 0 13px 30px rgba(17, 12, 70, 0.16);
         }
-
-        .db-pickup-plan-art { position: absolute; inset: 0; }
         .db-pickup-plan-card::after {
           content: "";
           position: absolute;
           inset: 0;
           background: linear-gradient(180deg, rgba(4,6,28,.05), rgba(4,6,28,.08) 38%, rgba(4,6,28,.92));
         }
-
-        .db-art-ii-v-i { background: linear-gradient(135deg, #101843, #4c20e8 72%, #745aff); }
-        .db-art-ii-v-i::before {
-          width: 142px; height: 142px; right: -22px; top: 18px;
-          border-radius: 50%;
-          background: radial-gradient(circle at 50% 50%, #fff 0 7%, transparent 8% 18%, rgba(255,255,255,.35) 19% 22%, transparent 23% 38%, rgba(255,255,255,.22) 39% 42%, transparent 43%);
-        }
-        .db-art-ii-v-i::after {
-          content: "ii  V  I"; left: 17px; top: 52px; color: white; font-size: 30px; font-weight: 900; letter-spacing: .08em;
-        }
-
-        .db-art-blues { background: linear-gradient(135deg, #031e3d, #0b6b92); }
-        .db-art-blues::before {
-          inset: 0;
-          background: repeating-linear-gradient(115deg, transparent 0 22px, rgba(255,255,255,.08) 23px 25px);
-        }
-        .db-art-blues::after {
-          width: 130px; height: 74px; right: 22px; top: 42px;
-          border: 5px solid #e8ca61; border-left-width: 15px; border-radius: 60% 22% 22% 60%; transform: rotate(-10deg);
-        }
-
-        .db-art-triads { background: linear-gradient(145deg, #042e27, #0c7965); }
-        .db-art-triads::before {
-          width: 0; height: 0; left: 48px; top: 30px;
-          border-left: 52px solid transparent; border-right: 52px solid transparent; border-bottom: 92px solid rgba(255,255,255,.86);
-          filter: drop-shadow(40px 18px 0 rgba(255,214,91,.6));
-        }
-        .db-art-triads::after {
-          width: 78px; height: 78px; right: 22px; top: 24px; border: 9px solid rgba(255,255,255,.24); border-radius: 50%;
-        }
-
-        .db-art-leaves { background: linear-gradient(145deg, #4b251c, #bb6931); }
-        .db-art-leaves::before {
-          width: 75px; height: 120px; left: 44px; top: 6px; border-radius: 80% 0 80% 0;
-          background: #f4c661; transform: rotate(32deg); box-shadow: 70px 38px 0 #d94c37, 135px -6px 0 #fff0a2;
-        }
-        .db-art-leaves::after {
-          width: 170px; height: 3px; left: 28px; top: 92px; background: rgba(255,255,255,.65); transform: rotate(-12deg);
-        }
-
-        /* Songwriting path — a ribbon mic in front of a warm studio wall. */
-        .db-art-songcrafter { background: linear-gradient(150deg, #3a1a08, #a4541c 78%, #d98b3a); }
-        .db-art-songcrafter::before {
-          width: 54px; height: 96px; left: 60px; top: 16px; border-radius: 27px;
-          background: rgba(255,255,255,.9);
-          box-shadow: inset 0 0 0 6px rgba(58,26,8,.55), 0 22px 0 -18px rgba(255,255,255,.9);
-        }
-        .db-art-songcrafter::after {
-          inset: 0;
-          background: repeating-linear-gradient(0deg, transparent 0 26px, rgba(0,0,0,.16) 27px 29px);
-        }
-
-        /* Song study — a lamplit street at night. */
-        .db-art-darkeyes { background: linear-gradient(150deg, #1a0a10, #5e1c2c 76%, #8d2f3f); }
-        .db-art-darkeyes::before {
-          width: 40px; height: 40px; left: 34px; top: 22px; border-radius: 50%;
-          background: rgba(255,214,168,.92); box-shadow: 0 0 44px 18px rgba(255,170,120,.32);
-        }
-        .db-art-darkeyes::after {
-          width: 5px; height: 84px; left: 51px; top: 56px; background: rgba(255,255,255,.34);
-        }
-
-        /* Jazz standards — a shelf of charts under a cool blue wash. */
-        .db-art-songlibrary { background: linear-gradient(150deg, #050c22, #16295e 78%, #2c47a4); }
-        .db-art-songlibrary::before {
-          width: 22px; height: 84px; left: 34px; top: 22px; border-radius: 3px;
-          background: rgba(255,255,255,.86);
-          box-shadow: 30px 8px 0 rgba(255,255,255,.62), 60px -6px 0 rgba(160,190,255,.75), 90px 12px 0 rgba(255,255,255,.4);
-        }
-        .db-art-songlibrary::after {
-          width: 168px; height: 4px; left: 26px; top: 112px; background: rgba(255,255,255,.5);
-        }
-
-        /* Rhythm path — a ride cymbal over a navy stage. */
-        .db-art-beatforge { background: linear-gradient(145deg, #060a24, #1b1f6b 74%, #2b2f96); }
-        .db-art-beatforge::before {
-          width: 104px; height: 104px; left: 24px; top: 14px; border-radius: 50%;
-          border: 4px solid rgba(240,206,110,.9);
-          box-shadow: inset 0 0 0 12px rgba(240,206,110,.22), inset 0 0 0 26px rgba(240,206,110,.14);
-        }
-        .db-art-beatforge::after {
-          width: 88px; height: 5px; right: 18px; top: 44px; border-radius: 3px;
-          background: #f0ce6e; transform: rotate(28deg); box-shadow: -6px 16px 0 #f0ce6e;
-        }
-
-        /* Song study — Rio at dusk. */
-        .db-art-orpheus { background: linear-gradient(145deg, #2a1006, #9a3d18 72%, #d8722f); }
-        .db-art-orpheus::before {
-          width: 86px; height: 86px; right: 26px; top: 16px; border-radius: 50%;
-          background: rgba(255,222,150,.92); box-shadow: 0 0 50px 16px rgba(255,170,90,.34);
-        }
-        .db-art-orpheus::after {
-          width: 190px; height: 46px; left: -10px; top: 78px;
-          background: rgba(30,10,4,.55); border-radius: 50% 50% 0 0 / 100% 100% 0 0;
-        }
-
-        /* Line path — a single melodic line rising across a dark green room. */
-        .db-art-linelab { background: linear-gradient(145deg, #04231a, #0a5c3f 74%, #12805a); }
-        .db-art-linelab::before {
-          width: 176px; height: 74px; left: 26px; top: 28px;
-          border-bottom: 4px solid #f2e06a; border-right: 4px solid #f2e06a;
-          border-radius: 0 0 90% 0; transform: rotate(-8deg);
-        }
-        .db-art-linelab::after {
-          width: 15px; height: 15px; right: 30px; top: 26px; border-radius: 50%; background: #f2e06a;
-          box-shadow: -52px 34px 0 rgba(255,255,255,.85), -104px 12px 0 rgba(255,255,255,.5);
-        }
-
-        .db-pickup-plan-content {
-          position: absolute;
-          z-index: 2;
-          inset: 0;
-          padding: 16px;
-          display: flex;
-          flex-direction: column;
-          justify-content: flex-end;
-        }
-
-        .db-pickup-badge {
-          align-self: flex-start;
-          margin-bottom: auto;
-          padding: 5px 8px;
-          border-radius: 5px;
-          background: rgba(20,20,27,.58);
-          color: #fff;
-          font-size: 11px;
-          font-weight: 750;
-          backdrop-filter: blur(5px);
-        }
-
-        .db-pickup-plan-content strong { font-size: 17px; line-height: 1.15; }
-        .db-pickup-plan-content span { margin-top: 5px; color: rgba(255,255,255,.76); font-size: 13px; }
 
         .db-pickup-core-grid {
           display: grid;
@@ -1127,6 +981,25 @@ export default function PickupPracticeHome() {
           .db-pickup-plan-grid { grid-template-columns: 1fr; }
           .db-pickup-plan-card { height: 190px; }
         }
+
+        /* Plan cards are the supplied artwork, edge to edge. The badge and
+           title are already part of each image, so these cards carry no text
+           of their own and no scrim over the top — and they keep the art's
+           16:9 so nothing gets cropped. Declared after the media queries so
+           the fixed card heights above don't win. */
+        .db-pickup-plan-card { height: auto; aspect-ratio: 16 / 9; background: #04061c; }
+        .db-pickup-plan-card::after { content: none; }
+        .db-pickup-plan-photo {
+          display: block;
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          -webkit-user-drag: none;
+          user-select: none;
+        }
+        @media (max-width: 540px) {
+          .db-pickup-plan-card { height: auto; }
+        }
       `}</style>
 
       <aside className="db-pickup-sidebar">
@@ -1276,13 +1149,12 @@ export default function PickupPracticeHome() {
                       if (didDragRef.current) { didDragRef.current = false; return }
                       runAction(item.action)
                     }}
+                    // The artwork already carries the badge and title, so the
+                    // card has no visible text of its own — this is what a
+                    // screen reader announces instead.
+                    aria-label={`${item.title} — ${item.subtitle}`}
                   >
-                    <div className={`db-pickup-plan-art db-art-${item.art}`} />
-                    <div className="db-pickup-plan-content">
-                      <span className="db-pickup-badge">{item.badge}</span>
-                      <strong>{item.title}</strong>
-                      <span>{item.subtitle}</span>
-                    </div>
+                    <img className="db-pickup-plan-photo" src={item.image} alt="" />
                   </button>
                 ))}
               </div>
