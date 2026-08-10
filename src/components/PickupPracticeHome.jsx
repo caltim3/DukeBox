@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import { GUIDES } from "./ReferenceGuides"
 import { getRecentActivity } from "@/lib/recentActivity"
-import { STARTER_PRESETS, requestStarter } from "@/lib/music/starters"
+import { STARTER_STRIP, requestStarter } from "@/lib/music/starters"
 
 const BRAND_ICON = "/dukebox-jazzmaster.png"
 
@@ -42,43 +42,90 @@ const GET_STARTED = [
   },
 ]
 
-const LEARNING_PLAN = [
+// The learning plan is two rows: the systems you practise WITH on top, the
+// tunes you practise ON underneath. Cards are drag-reorderable within their
+// own row (the split is the point, so they don't cross rows); the order is
+// saved per row in localStorage.
+const PLAN_ROWS = [
   {
-    badge: "Learning Pathway",
-    title: "251 Mastery",
-    subtitle: "The ii-V-I through all twelve keys",
-    art: "ii-v-i",
-    action: { type: "starter", value: "major-251" },
+    id: "systems",
+    label: "Systems",
+    items: [
+      {
+        id: "beatforge",
+        badge: "Rhythm Path",
+        title: "BeatForge",
+        subtitle: "Time workout and bebop rhythm generator",
+        art: "beatforge",
+        action: { type: "practice-panel", value: "beatforge-metronome" },
+      },
+      {
+        id: "linelab",
+        badge: "Line Path",
+        title: "LineLab",
+        subtitle: "Develop single-note lines over the changes",
+        art: "linelab",
+        action: { type: "create-section", value: "create-line-lab" },
+      },
+      {
+        id: "songcrafter",
+        badge: "Songwriting Path",
+        title: "SongCrafter",
+        subtitle: "Assemble progressions into a draft",
+        art: "songcrafter",
+        action: { type: "create-section", value: "create-songcrafter" },
+      },
+      {
+        id: "song-library",
+        badge: "Jazz Standards",
+        title: "Song Library",
+        subtitle: "Every chart in the songbook",
+        art: "songlibrary",
+        action: { type: "songbook", value: "Jazz Standards" },
+      },
+    ],
   },
   {
-    badge: "Practice System",
-    title: "Blues",
-    subtitle: "Jazz blues in Bb, guide tones to language",
-    art: "blues",
-    action: { type: "starter", value: "jazz-blues-bb" },
-  },
-  {
-    badge: "Song Study",
-    title: "Black Orpheus",
-    subtitle: "Minor ii-V-I roadmap",
-    art: "leaves",
-    action: { type: "starter", value: "black-orpheus" },
-  },
-  {
-    badge: "Songwriting Path",
-    title: "SongCrafter",
-    subtitle: "Assemble progressions into a draft",
-    art: "songcrafter",
-    action: { type: "create-section", value: "create-songcrafter" },
-  },
-  {
-    badge: "Line Path",
-    title: "LineLab",
-    subtitle: "Develop single-note lines over the changes",
-    art: "linelab",
-    action: { type: "create-section", value: "create-line-lab" },
+    id: "songs",
+    label: "Songs",
+    items: [
+      {
+        id: "251",
+        badge: "Learning Pathway",
+        title: "251 Mastery",
+        subtitle: "The ii-V-I through all twelve keys",
+        art: "ii-v-i",
+        action: { type: "starter", value: "major-251" },
+      },
+      {
+        id: "black-orpheus",
+        badge: "Song Study",
+        title: "Black Orpheus",
+        subtitle: "Minor ii-V-I roadmap",
+        art: "orpheus",
+        action: { type: "starter", value: "black-orpheus" },
+      },
+      {
+        id: "autumn-leaves",
+        badge: "Song Study",
+        title: "Autumn Leaves",
+        subtitle: "The standard every session starts with",
+        art: "leaves",
+        action: { type: "starter", value: "autumn-leaves" },
+      },
+      {
+        id: "dark-eyes",
+        badge: "Song Study",
+        title: "Dark Eyes",
+        subtitle: "Gypsy jazz minor swing",
+        art: "darkeyes",
+        action: { type: "starter", value: "dark-eyes" },
+      },
+    ],
   },
 ]
+
+const PLAN_ORDER_KEY = "dukebox.planOrder"
 
 // Direct links to the actual reference guides (public/reference/*.html),
 // the same list the Reference tab embeds — not placeholder cards.
@@ -224,6 +271,48 @@ export default function PickupPracticeHome() {
     if (homeOpen) setRecent(getRecentActivity())
   }
 
+  // Drag-reorderable plan cards. planOrder holds each row's card ids; unknown
+  // ids are dropped and new ones appended, so editing PLAN_ROWS in code never
+  // strands a saved order.
+  const [planOrder, setPlanOrder] = useState(null)
+  // Hydrating from localStorage has to happen after mount — it isn't available
+  // while this renders on the server, and seeding it during render would make
+  // the first client paint disagree with the server HTML.
+  useEffect(() => {
+    let saved = null
+    try { saved = JSON.parse(window.localStorage.getItem(PLAN_ORDER_KEY) || "null") } catch { /* ignore */ }
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPlanOrder(Object.fromEntries(PLAN_ROWS.map((row) => {
+      const ids = row.items.map((item) => item.id)
+      const fromSaved = Array.isArray(saved?.[row.id]) ? saved[row.id].filter((id) => ids.includes(id)) : []
+      return [row.id, [...fromSaved, ...ids.filter((id) => !fromSaved.includes(id))]]
+    })))
+  }, [])
+
+  const dragRef = useRef(null)          // { rowId, id } being dragged
+  const didDragRef = useRef(false)      // suppress the click that follows a drop
+
+  function orderedItems(row) {
+    const ids = planOrder?.[row.id]
+    if (!ids) return row.items
+    const byId = new Map(row.items.map((item) => [item.id, item]))
+    return ids.map((id) => byId.get(id)).filter(Boolean)
+  }
+
+  function moveCard(rowId, fromId, toId) {
+    if (fromId === toId) return
+    setPlanOrder((prev) => {
+      const ids = [...(prev?.[rowId] || [])]
+      const from = ids.indexOf(fromId)
+      const to = ids.indexOf(toId)
+      if (from < 0 || to < 0) return prev
+      ids.splice(to, 0, ids.splice(from, 1)[0])
+      const next = { ...prev, [rowId]: ids }
+      try { window.localStorage.setItem(PLAN_ORDER_KEY, JSON.stringify(next)) } catch { /* ignore */ }
+      return next
+    })
+  }
+
   function openWorkspace(id) {
     if (id === "practice") {
       findWorkspaceTab("Practice")?.click()
@@ -251,11 +340,36 @@ export default function PickupPracticeHome() {
   }
 
   // Opens the Songbook drawer with the cursor already in its search box —
-  // the drawer focuses its own search input as soon as it opens.
-  function openSongbookSearch() {
+  // the drawer focuses its own search input as soon as it opens. Passing a
+  // category also scrolls that section of the list to the top.
+  function openSongbookSearch(category) {
     openPracticeCenter()
     window.setTimeout(() => {
       document.querySelector('[aria-label="Open Songbook"]')?.click()
+      if (!category) return
+      // Two things fight this scroll: the drawer slides in over ~280ms (so
+      // scrollIntoView misbehaves through the animating translate — we drive
+      // the scroll box directly instead), and the drawer focuses its search
+      // input at 320ms, which yanks the same box back to the top. So run
+      // after that, and re-assert once if focus still beat us.
+      const scrollToCategory = () => {
+        const target = document.querySelector(`[data-db-category="${category}"]`)
+        if (!target) return false
+        let scroller = target.parentElement
+        while (scroller && scroller.scrollHeight <= scroller.clientHeight) scroller = scroller.parentElement
+        if (!scroller) { target.scrollIntoView({ behavior: "smooth", block: "start" }); return true }
+        const top = target.getBoundingClientRect().top
+          - scroller.getBoundingClientRect().top
+          + scroller.scrollTop
+        scroller.scrollTo({ top, behavior: "smooth" })
+        return true
+      }
+      let tries = 30
+      const tick = () => {
+        if (!scrollToCategory() && --tries > 0) { window.setTimeout(tick, 40); return }
+        window.setTimeout(scrollToCategory, 260)
+      }
+      window.setTimeout(tick, 420)
     }, 180)
   }
 
@@ -266,11 +380,23 @@ export default function PickupPracticeHome() {
       return
     }
     if (action.type === "songbook") {
-      openSongbookSearch()
+      openSongbookSearch(action.value)
       return
     }
     if (action.type === "section") {
       openPracticeCenter(action.value)
+      return
+    }
+    // A collapsible power panel in the Practice tab, addressed by the
+    // data-db-shortcut hook on its header.
+    if (action.type === "practice-panel") {
+      openPracticeCenter()
+      window.setTimeout(() => {
+        const header = document.querySelector(`[data-db-shortcut="${action.value}"]`)
+        if (!header) return
+        if (header.getAttribute("aria-expanded") === "false") header.click()
+        header.scrollIntoView({ behavior: "smooth", block: "start" })
+      }, 200)
       return
     }
     // A collapsible panel in the Create tab, addressed by its element id —
@@ -665,6 +791,10 @@ export default function PickupPracticeHome() {
           gap: 16px;
         }
 
+        .db-pickup-plan-grid + .db-pickup-plan-grid { margin-top: 16px; }
+        .db-pickup-plan-card { cursor: grab; }
+        .db-pickup-plan-card:active { cursor: grabbing; }
+
         .db-pickup-plan-card {
           position: relative;
           min-width: 0;
@@ -742,6 +872,50 @@ export default function PickupPracticeHome() {
         .db-art-songcrafter::after {
           inset: 0;
           background: repeating-linear-gradient(0deg, transparent 0 26px, rgba(0,0,0,.16) 27px 29px);
+        }
+
+        /* Song study — a lamplit street at night. */
+        .db-art-darkeyes { background: linear-gradient(150deg, #1a0a10, #5e1c2c 76%, #8d2f3f); }
+        .db-art-darkeyes::before {
+          width: 40px; height: 40px; left: 34px; top: 22px; border-radius: 50%;
+          background: rgba(255,214,168,.92); box-shadow: 0 0 44px 18px rgba(255,170,120,.32);
+        }
+        .db-art-darkeyes::after {
+          width: 5px; height: 84px; left: 51px; top: 56px; background: rgba(255,255,255,.34);
+        }
+
+        /* Jazz standards — a shelf of charts under a cool blue wash. */
+        .db-art-songlibrary { background: linear-gradient(150deg, #050c22, #16295e 78%, #2c47a4); }
+        .db-art-songlibrary::before {
+          width: 22px; height: 84px; left: 34px; top: 22px; border-radius: 3px;
+          background: rgba(255,255,255,.86);
+          box-shadow: 30px 8px 0 rgba(255,255,255,.62), 60px -6px 0 rgba(160,190,255,.75), 90px 12px 0 rgba(255,255,255,.4);
+        }
+        .db-art-songlibrary::after {
+          width: 168px; height: 4px; left: 26px; top: 112px; background: rgba(255,255,255,.5);
+        }
+
+        /* Rhythm path — a ride cymbal over a navy stage. */
+        .db-art-beatforge { background: linear-gradient(145deg, #060a24, #1b1f6b 74%, #2b2f96); }
+        .db-art-beatforge::before {
+          width: 104px; height: 104px; left: 24px; top: 14px; border-radius: 50%;
+          border: 4px solid rgba(240,206,110,.9);
+          box-shadow: inset 0 0 0 12px rgba(240,206,110,.22), inset 0 0 0 26px rgba(240,206,110,.14);
+        }
+        .db-art-beatforge::after {
+          width: 88px; height: 5px; right: 18px; top: 44px; border-radius: 3px;
+          background: #f0ce6e; transform: rotate(28deg); box-shadow: -6px 16px 0 #f0ce6e;
+        }
+
+        /* Song study — Rio at dusk. */
+        .db-art-orpheus { background: linear-gradient(145deg, #2a1006, #9a3d18 72%, #d8722f); }
+        .db-art-orpheus::before {
+          width: 86px; height: 86px; right: 26px; top: 16px; border-radius: 50%;
+          background: rgba(255,222,150,.92); box-shadow: 0 0 50px 16px rgba(255,170,90,.34);
+        }
+        .db-art-orpheus::after {
+          width: 190px; height: 46px; left: -10px; top: 78px;
+          background: rgba(30,10,4,.55); border-radius: 50% 50% 0 0 / 100% 100% 0 0;
         }
 
         /* Line path — a single melodic line rising across a dark green room. */
@@ -1040,7 +1214,7 @@ export default function PickupPracticeHome() {
             </div>
 
             <div className="db-pickup-starter-row">
-              {STARTER_PRESETS.map(({ id, label }) => (
+              {STARTER_STRIP.map(({ id, label }) => (
                 <button
                   type="button"
                   key={id}
@@ -1057,22 +1231,55 @@ export default function PickupPracticeHome() {
             <div className="db-pickup-section-heading">
               <div>
                 <h2>Your learning plan <Icon name="chevron" /></h2>
-                <p>Recommended practice paths based on the DukeBox systems.</p>
+                <p>Systems on top, tunes underneath — drag any card to reorder its row.</p>
               </div>
             </div>
 
-            <div className="db-pickup-plan-grid">
-              {LEARNING_PLAN.map((item) => (
-                <button type="button" key={item.title} className="db-pickup-plan-card" onClick={() => runAction(item.action)}>
-                  <div className={`db-pickup-plan-art db-art-${item.art}`} />
-                  <div className="db-pickup-plan-content">
-                    <span className="db-pickup-badge">{item.badge}</span>
-                    <strong>{item.title}</strong>
-                    <span>{item.subtitle}</span>
-                  </div>
-                </button>
-              ))}
-            </div>
+            {PLAN_ROWS.map((row) => (
+              <div className="db-pickup-plan-grid" key={row.id} aria-label={`${row.label} cards`}>
+                {orderedItems(row).map((item) => (
+                  <button
+                    type="button"
+                    key={item.id}
+                    className="db-pickup-plan-card"
+                    draggable
+                    onDragStart={(event) => {
+                      dragRef.current = { rowId: row.id, id: item.id }
+                      didDragRef.current = false
+                      event.dataTransfer.effectAllowed = "move"
+                      // Firefox refuses to start a drag without payload.
+                      event.dataTransfer.setData("text/plain", item.id)
+                    }}
+                    onDragOver={(event) => {
+                      if (dragRef.current?.rowId !== row.id) return
+                      event.preventDefault()
+                      event.dataTransfer.dropEffect = "move"
+                    }}
+                    onDrop={(event) => {
+                      const drag = dragRef.current
+                      if (drag?.rowId !== row.id) return
+                      event.preventDefault()
+                      didDragRef.current = true
+                      moveCard(row.id, drag.id, item.id)
+                      dragRef.current = null
+                    }}
+                    onDragEnd={() => { dragRef.current = null }}
+                    onClick={() => {
+                      // A drop fires a click right after; that shouldn't launch.
+                      if (didDragRef.current) { didDragRef.current = false; return }
+                      runAction(item.action)
+                    }}
+                  >
+                    <div className={`db-pickup-plan-art db-art-${item.art}`} />
+                    <div className="db-pickup-plan-content">
+                      <span className="db-pickup-badge">{item.badge}</span>
+                      <strong>{item.title}</strong>
+                      <span>{item.subtitle}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            ))}
           </section>
 
           <section className="db-pickup-section">

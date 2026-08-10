@@ -16,7 +16,13 @@ export const STARTER_PRESETS = [
   { id: "autumn-leaves",  label: "Autumn Leaves (Gm)" },
   { id: "black-orpheus",  label: "Black Orpheus (Am)" },
   { id: "all-the-things", label: "All the Things (Ab)" },
+  // Not on the Practice-home starter strip; reached from the learning plan.
+  { id: "dark-eyes",      label: "Dark Eyes (Dm)", stripHidden: true },
 ]
+
+// The strip shows the quick-load row; the full list also carries charts that
+// only the learning-plan cards link to.
+export const STARTER_STRIP = STARTER_PRESETS.filter((preset) => !preset.stripHidden)
 
 export const LOAD_STARTER_EVENT = "dukebox:load-starter"
 

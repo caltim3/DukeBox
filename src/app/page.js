@@ -956,6 +956,9 @@ export default function Home() {
       case "black-orpheus":
         loadForm("Black Orpheus (Am)")
         break
+      case "dark-eyes":
+        loadForm("Dark Eyes (Dm)")
+        break
       case "all-the-things": {
         // All the Things You Are — simplified 32-bar AABA in Ab major
         const s = (r, q) => ({ root: r, quality: q, symbol: buildChordSymbol(r, q) })
@@ -3088,6 +3091,7 @@ export default function Home() {
             open={openControlPanels.metronome}
             onToggle={() => toggleControlPanel("metronome")}
             keepMounted
+            shortcutId="beatforge-metronome"
           >
             <MetronomePanel
               apiRef={beatforgeRef}
