@@ -152,7 +152,7 @@ export default function CreateWorkspace({
         <ChartGenerator generator={generator} selectStyle={selectStyle} />
       </Section>
 
-      <Section title="SONGCRAFTER" subtitle="Assemble progressions and send them into an editable draft" color="var(--db-c-gold)" panelStyle={panelStyle}>
+      <Section id="create-songcrafter" title="SONGCRAFTER" subtitle="Assemble progressions and send them into an editable draft" color="var(--db-c-gold)" panelStyle={panelStyle}>
         <SongCrafter
           onSendToChart={({ bars, keyRoot, keyMode, title, tempo }) => onSongCrafted({
             bars, keyRoot, keyMode, title,

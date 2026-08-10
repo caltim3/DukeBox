@@ -112,7 +112,7 @@ export default function SongbookDrawer({
         )}
 
         {Object.entries(formCategories).map(([category, names]) => (
-          <div key={category} style={{ marginBottom: "14px" }}>
+          <div key={category} data-db-category={category} style={{ marginBottom: "14px" }}>
             <h5 style={{ font: "800 10.5px 'Archivo', sans-serif", letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--muted)", margin: "0 0 8px", paddingBottom: "6px", borderBottom: "1px solid var(--line)" }}>
               {category}
             </h5>

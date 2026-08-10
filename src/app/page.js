@@ -31,6 +31,7 @@ import { DRUM_KIT_NAMES, DEFAULT_DRUM_KIT } from "@/lib/music/samples"
 import { parseTonalUserSongs } from "@/lib/music/importTonal"
 import { parseGigChord, GIGBOOK_SONGS, gigSongToBars, parseGigKey, gigTempoNumber } from "@/lib/music/gigbook"
 import { guidedPrescription, drillStage, nextKeyInCycle, DRILL_LOOPS_PER_STAGE, PENA_DRILLS } from "@/lib/music/penaDrills"
+import { STARTER_PRESETS, LOAD_STARTER_EVENT } from "@/lib/music/starters"
 import Fretboard from "@/components/Fretboard"
 import MetronomePanel from "@/components/MetronomePanel"
 import BeatForgeLibrary from "@/components/BeatForgeLibrary"
@@ -96,16 +97,6 @@ const MODES = [
 // exactly as published, so it stays whatever it already is and nothing here
 // has to be kept in sync with it.
 const TONAL_URL = "https://caltim3.github.io/tonal/"
-
-const STARTER_PRESETS = [
-  { id: "jazz-blues-bb",  label: "Jazz Blues in Bb" },
-  { id: "major-251",      label: "Major ii-V-I Cycle" },
-  { id: "minor-251",      label: "Minor ii-V-I Cycle" },
-  { id: "rhythm-changes", label: "Rhythm Changes" },
-  { id: "autumn-leaves",  label: "Autumn Leaves (Gm)" },
-  { id: "black-orpheus",  label: "Black Orpheus (Am)" },
-  { id: "all-the-things", label: "All the Things (Ab)" },
-]
 
 export default function Home() {
   const [bars, setBars] = useState(INITIAL_BARS)
@@ -262,6 +253,7 @@ export default function Home() {
   const startPlaybackRef  = useRef(null)   // always points to latest startPlayback
   const stopPlaybackRef   = useRef(null)   // always points to latest stopPlayback
   const pendingStartRef   = useRef(false)  // set by loadStarter → fires after bars state commits
+  const loadStarterRef    = useRef(null)   // latest loadStarter, for the cross-tree starter event
   const toastTimer        = useRef(null)   // auto-dismiss handle for the toast
   const themePickerRef    = useRef(null)   // wraps the palette/mode dropdown, for click-outside close
   const beatforgeRef      = useRef(null)   // BeatForge Metronome's loadPattern — bridges the sibling Library panel
@@ -964,6 +956,9 @@ export default function Home() {
       case "black-orpheus":
         loadForm("Black Orpheus (Am)")
         break
+      case "dark-eyes":
+        loadForm("Dark Eyes (Dm)")
+        break
       case "all-the-things": {
         // All the Things You Are — simplified 32-bar AABA in Ab major
         const s = (r, q) => ({ root: r, quality: q, symbol: buildChordSymbol(r, q) })
@@ -1207,6 +1202,19 @@ export default function Home() {
   // Keep function refs current every render so keyboard handler never goes stale
   startPlaybackRef.current = startPlayback
   stopPlaybackRef.current  = stopPlayback
+  loadStarterRef.current   = loadStarter
+
+  // The starter strip lives on the Practice home screen, which renders in a
+  // separate tree (mounted from layout.js), so it asks for a chart by event
+  // rather than by reaching into this component.
+  useEffect(() => {
+    function onLoadStarter(event) {
+      const id = event.detail
+      if (id) loadStarterRef.current?.(id)
+    }
+    window.addEventListener(LOAD_STARTER_EVENT, onLoadStarter)
+    return () => window.removeEventListener(LOAD_STARTER_EVENT, onLoadStarter)
+  }, [])
 
   // Spacebar = universal play / stop
   useEffect(() => {
@@ -1773,37 +1781,9 @@ export default function Home() {
           </div>
         )}
 
-        {/* ── Start Practicing Fast ─────────────────────────────── */}
-        {inMode("practice") && <div style={{
-          ...panelStyle,
-          marginBottom: "16px",
-          border: "1px solid color-mix(in srgb, var(--db-c-green) 30%, transparent)",
-          background: "color-mix(in srgb, var(--db-c-green) 5%, var(--db-bg))",
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
-            <div style={{ ...eyebrowStyle, marginBottom: 0, color: "var(--db-c-green)" }}>START PRACTICING</div>
-          </div>
-          <div style={{ fontSize: "var(--db-fs-sm)", opacity: 0.6, marginBottom: "12px" }}>
-            Load a starter chart and begin at slow tempo — ideal for building muscle memory
-          </div>
-          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
-            {STARTER_PRESETS.map(({ id, label }) => (
-              <button
-                key={id}
-                onClick={() => loadStarter(id)}
-                style={{
-                  padding: "7px 12px", borderRadius: "var(--db-r-md)", fontSize: "var(--db-fs-sm)", cursor: "pointer",
-                  background: "var(--db-panel-bg)",
-                  border: "1px solid var(--db-panel-border)",
-                  color: "var(--db-text)",
-                  fontWeight: 500,
-                }}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>}
+        {/* The "Start practicing" starter strip now lives on the Practice
+            home screen (PickupPracticeHome); it reaches loadStarter here
+            through LOAD_STARTER_EVENT, wired up below. */}
 
 
         {/* ── Songbook + Timer drawers (spec §5.6) ────────────────
@@ -3111,6 +3091,7 @@ export default function Home() {
             open={openControlPanels.metronome}
             onToggle={() => toggleControlPanel("metronome")}
             keepMounted
+            shortcutId="beatforge-metronome"
           >
             <MetronomePanel
               apiRef={beatforgeRef}
