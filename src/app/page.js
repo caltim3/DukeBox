@@ -70,6 +70,11 @@ const PALETTES = [
   { id: "harbor", name: "Harbor", emoji: "⚓" },
 ]
 
+// What a first-time visitor gets. The no-flash boot script in app/layout.js
+// paints this same pair before hydration, so the two must agree.
+const DEFAULT_PALETTE = "harbor"
+const DEFAULT_PALETTE_INDEX = Math.max(0, PALETTES.findIndex((p) => p.id === DEFAULT_PALETTE))
+
 const INITIAL_BARS = [
   { root: "Bb", quality: "7", symbol: "Bb7",  section: "A" },
   { root: "Eb", quality: "7", symbol: "Eb7",  section: "A" },
@@ -195,7 +200,7 @@ export default function Home() {
   const [enclosureOn, setEnclosureOn] = useState(false)     // chromatic cage around the 3rd Hunter target
   const [loadedLibraryNum, setLoadedLibraryNum] = useState(null)  // which BeatForge Library card is loaded, if any
   const [practiceMode, setPracticeMode] = useState(false)
-  const [paletteIndex, setPaletteIndex] = useState(0)
+  const [paletteIndex, setPaletteIndex] = useState(DEFAULT_PALETTE_INDEX)
   const [colorMode, setColorMode] = useState("dark")
   const [themePickerOpen, setThemePickerOpen] = useState(false)
   const [gridColumns, setGridColumns] = useState(4)
@@ -263,10 +268,6 @@ export default function Home() {
 
   const palette = PALETTES[paletteIndex]
 
-  const cyclePalette = useCallback(() => {
-    setPaletteIndex((index) => (index + 1) % PALETTES.length)
-  }, [])
-
   const setTheme = useCallback((paletteId, mode) => {
     const root = document.documentElement
     if (paletteId && PALETTES.some(({ id }) => id === paletteId)) {
@@ -282,18 +283,25 @@ export default function Home() {
     }
   }, [])
 
+  // Cycling goes through setTheme rather than nudging the index and letting an
+  // effect chase it. That effect used to fire on mount too, writing the
+  // DEFAULT palette over whatever the boot script had just painted — and,
+  // because setTheme also persists, overwriting the visitor's saved palette in
+  // localStorage. setTheme is now the only writer, so nothing touches the
+  // theme until the player actually asks for a change.
+  const cyclePalette = useCallback(() => {
+    setTheme(PALETTES[(paletteIndex + 1) % PALETTES.length].id, null)
+  }, [paletteIndex, setTheme])
+
   // The blocking head script has already painted the stored theme. This only
-  // synchronizes the controls with the attributes it selected.
+  // synchronizes the controls with the attributes it selected — it reads, and
+  // never writes, so re-running it (as StrictMode does) is harmless.
   useEffect(() => {
     const root = document.documentElement
     const savedIndex = PALETTES.findIndex(({ id }) => id === root.dataset.palette)
     if (savedIndex >= 0) setPaletteIndex(savedIndex)
     setColorMode(root.dataset.mode === "light" ? "light" : "dark")
   }, [])
-
-  useEffect(() => {
-    setTheme(palette.id, null)
-  }, [palette.id, setTheme])
 
   const toggleColorMode = useCallback(() => {
     setTheme(null, colorMode === "dark" ? "light" : "dark")

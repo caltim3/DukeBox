@@ -20,10 +20,12 @@ export const metadata = {
 export default function RootLayout({ children }) {
   const themeBootScript = `
     (() => {
+      // Keep this list and the default in step with PALETTES / DEFAULT_PALETTE
+      // in app/page.js — this runs before hydration, so it can't import them.
       const palettes = ['studio','regatta','ember','kiln','harbor'];
       const savedPalette = localStorage.getItem('dukebox-palette');
       const savedMode = localStorage.getItem('dukebox-mode');
-      const palette = palettes.includes(savedPalette) ? savedPalette : 'studio';
+      const palette = palettes.includes(savedPalette) ? savedPalette : 'harbor';
       const mode = savedMode === 'light' || savedMode === 'dark'
         ? savedMode
         : 'light';
@@ -34,7 +36,7 @@ export default function RootLayout({ children }) {
   `;
 
   return (
-    <html lang="en" data-palette="studio" data-mode="light" suppressHydrationWarning>
+    <html lang="en" data-palette="harbor" data-mode="light" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
         <style>{`
