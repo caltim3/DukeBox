@@ -164,20 +164,18 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
         //     =   common tone (stays put)
         // Nothing further than a whole tone is marked at all; a bigger leap
         // isn't a resolution, so labelling it was worse than staying quiet.
-        // 3rd Hunter's "bracket" case (no half-step approach available) marks
-        // both whole-tone neighbors with a double arrow pointing at the target
-        // instead of the usual per-semitone repeated single arrow.
-        const semis = d.isGuide && guideToneDirections ? guideToneDirections[d.label] : null
-        const goesTo = d.isGuide && guideToneDirections ? guideToneDirections[`${d.label}:to`] : null
+        // The arrow is keyed off the note name alone, not the dot's role: in
+        // 3rd Hunter the note that moves is the lead-in (drawn in the approach
+        // colour), while the lit guide tone is the chord's own 3rd and stays
+        // unmarked.
+        const semis = guideToneDirections ? guideToneDirections[d.label] : null
+        const goesTo = guideToneDirections ? guideToneDirections[`${d.label}:to`] : null
         let glyph = null
-        if (semis === "bracket") {
-          glyph = "⇔"
-        } else if (semis != null) {
+        if (semis != null) {
           const n = Math.abs(semis)
           glyph = n === 0 ? "=" : (semis > 0 ? "→" : "←").repeat(n)
         }
-        const motionWord = semis === "bracket" ? "brackets the target"
-          : semis == null ? ""
+        const motionWord = semis == null ? ""
           : semis === 0 ? "stays"
           : `${Math.abs(semis) === 1 ? "a semitone" : "a whole tone"} ${semis > 0 ? "up" : "down"}`
         // Target/guide-tone dots pulse with a soft glow, same as every palette —
