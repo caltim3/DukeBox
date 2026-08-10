@@ -37,9 +37,13 @@ export default function AnticipationStrip({ now, upcoming = [], isPlaying, beat 
           {/* Beat meter: one segment per beat of this bar, filling left to
               right as the measure plays. The beat that's sounding is solid and
               slightly taller; beats already gone stay filled but dimmer, so the
-              bar reads as a progress meter rather than a row of blinking lights. */}
+              bar reads as a progress meter rather than a row of blinking lights.
+              Beats still to come are hollow — an outline over the card, not a
+              tinted block. Dimming a filled block was too close to the filled
+              state to read as motion at a glance, which made a meter that was
+              in fact marching look stuck with everything lit. */}
           <div
-            style={{ display: "flex", gap: "4px", marginTop: "10px", alignItems: "flex-end", height: "9px" }}
+            style={{ display: "flex", gap: "4px", marginTop: "10px", alignItems: "flex-end", height: "11px" }}
             role="img"
             aria-label={isPlaying && beat != null ? `Beat ${beat + 1} of ${beatCount}` : `${beatCount} beats per bar`}
           >
@@ -50,13 +54,12 @@ export default function AnticipationStrip({ now, upcoming = [], isPlaying, beat 
               return (
                 <i key={i} style={{
                   flex: 1,
-                  height: isCurrent ? "9px" : "6px",
+                  height: isCurrent ? "11px" : "6px",
                   borderRadius: "2px",
-                  background: live
-                    ? (isCurrent || isPast ? "var(--accent)" : "var(--surface2)")
-                    : "var(--surface2)",
-                  opacity: live ? (isCurrent ? 1 : isPast ? 0.55 : 0.35) : 0.5,
-                  transition: "height 80ms ease, opacity 80ms ease, background 80ms ease",
+                  background: isCurrent || isPast ? "var(--accent)" : "transparent",
+                  boxShadow: isCurrent || isPast ? "none" : "inset 0 0 0 1px var(--accent)",
+                  opacity: isCurrent ? 1 : isPast ? 0.45 : 0.3,
+                  transition: "height 70ms ease, opacity 70ms ease, background 70ms ease",
                 }} />
               )
             })}
