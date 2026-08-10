@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import { GUIDES } from "./ReferenceGuides"
 import { getRecentActivity } from "@/lib/recentActivity"
+import { STARTER_PRESETS, requestStarter } from "@/lib/music/starters"
 
 const BRAND_ICON = "/dukebox-jazzmaster.png"
 
@@ -265,6 +266,15 @@ export default function PickupPracticeHome() {
       openPracticeCenter(action.value)
       return
     }
+    // Starters used to be triggered by finding their button in the Practice
+    // tab and clicking it; the strip lives here now, so ask the page for the
+    // chart directly. Accepts an id or the display label, since saved
+    // recent-activity entries hold the label.
+    if (action.type === "starter") {
+      openPracticeCenter()
+      window.setTimeout(() => requestStarter(action.value), 180)
+      return
+    }
 
     openPracticeCenter()
     window.setTimeout(() => {
@@ -499,6 +509,31 @@ export default function PickupPracticeHome() {
 
         .db-pickup-section-heading h2 svg { width: 18px; height: 18px; }
         .db-pickup-section-heading p { margin: 3px 0 0; color: var(--pickup-muted); font-size: 13px; }
+
+        .db-pickup-starter-row {
+          display: flex;
+          gap: 8px;
+          flex-wrap: wrap;
+        }
+
+        .db-pickup-starter-chip {
+          padding: 9px 15px;
+          border-radius: 999px;
+          border: 1px solid var(--pickup-line);
+          background: #ffffff;
+          color: var(--pickup-navy);
+          font-size: 14px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: border-color 140ms ease, transform 140ms ease, box-shadow 140ms ease;
+        }
+
+        .db-pickup-starter-chip:hover {
+          border-color: var(--pickup-purple);
+          color: var(--pickup-purple);
+          transform: translateY(-1px);
+          box-shadow: 0 6px 16px rgba(17, 12, 70, 0.09);
+        }
 
         .db-pickup-text-button {
           border: 0;
@@ -943,6 +978,30 @@ export default function PickupPracticeHome() {
                     <strong>{item.title}</strong>
                     <span>{item.subtitle}</span>
                   </div>
+                </button>
+              ))}
+            </div>
+          </section>
+
+          {/* Moved here from the Practice tab — the starter charts are a way
+              in, so they belong on the way-in screen. */}
+          <section className="db-pickup-section">
+            <div className="db-pickup-section-heading">
+              <div>
+                <h2>Start practicing</h2>
+                <p>Load a starter chart and begin at slow tempo — ideal for building muscle memory.</p>
+              </div>
+            </div>
+
+            <div className="db-pickup-starter-row">
+              {STARTER_PRESETS.map(({ id, label }) => (
+                <button
+                  type="button"
+                  key={id}
+                  className="db-pickup-starter-chip"
+                  onClick={() => runAction({ type: "starter", value: id })}
+                >
+                  {label}
                 </button>
               ))}
             </div>
