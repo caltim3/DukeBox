@@ -412,19 +412,35 @@ export default function Home() {
   // Peña enclosure overlay — the chromatic cage (half step below and above)
   // around the 3rd Hunter target, plus the target itself, both shown on the
   // CURRENT bar's board so the cage is visible before the chord arrives.
+  // Two things share the fretboard's approach-note layer, both drawn in the
+  // enclosure colour so the only note lit as a GUIDE TONE stays the chord's
+  // own 3rd: 3rd Hunter's lead-in (the note that walks into the next bar's
+  // 3rd — this is the one carrying the arrow), and, when +Enclosure is on,
+  // the chromatic cage a half step either side of that target.
   const enclosureDisplay = useMemo(() => {
-    if (!enclosureOn || !targetsOverlay) return { notes: [], target: [] }
+    if (!targetsOverlay) return { notes: [], target: [] }
     const target = melodyPathState.targetsByBar?.[fretboardBarIndex]
-    if (!target) return { notes: [], target: [] }
-    const NOTES = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"]
-    const SHARP = { "C#": "Db", "D#": "Eb", "F#": "Gb", "G#": "Ab", "A#": "Bb" }
-    const pc = NOTES.indexOf(SHARP[target] || target)
-    if (pc < 0) return { notes: [], target: [] }
-    return {
-      notes: [NOTES[(pc + 11) % 12], NOTES[(pc + 1) % 12]],
-      target: [target],
+    const notes = []
+
+    if (melodyPathMode === "hunter3") {
+      const lead = melodyPathState.leadInByBar?.[fretboardBarIndex]
+      if (lead) notes.push(lead)
     }
-  }, [enclosureOn, targetsOverlay, melodyPathState, fretboardBarIndex])
+
+    if (enclosureOn && target) {
+      const NOTES = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"]
+      const SHARP = { "C#": "Db", "D#": "Eb", "F#": "Gb", "G#": "Ab", "A#": "Bb" }
+      const pc = NOTES.indexOf(SHARP[target] || target)
+      if (pc >= 0) notes.push(NOTES[(pc + 11) % 12], NOTES[(pc + 1) % 12])
+    }
+
+    return {
+      notes: Array.from(new Set(notes)),
+      // The next bar's 3rd, previewed on this board so the arrow has
+      // somewhere to point.
+      target: enclosureOn && target ? [target] : [],
+    }
+  }, [enclosureOn, targetsOverlay, melodyPathMode, melodyPathState, fretboardBarIndex])
 
   // Barry Harris 6th-dim passing tone — shown green when the Barry filter is on
   const barryPassingNotes = useMemo(() => {
@@ -499,29 +515,16 @@ export default function Home() {
     if (!targetsOverlay) return null
     const chroma = (n) => ({ C: 0, "C#": 1, Db: 1, D: 2, "D#": 3, Eb: 3, E: 4, F: 5, "F#": 6, Gb: 6, G: 7, "G#": 8, Ab: 8, A: 9, "A#": 10, Bb: 10, B: 11 })[n]
 
-    // 3rd Hunter's target is the 3rd of the NEXT chord — computed straight
-    // from targetsByBar, not from the next bar's own approach note(s), which
-    // point somewhere else entirely (that bar's own next chord). A bracket
-    // (two notes, no half-step approach in this chord) gets a "bracket"
-    // marker so the fretboard draws a double arrow into the target instead
-    // of the usual single-arrow-repeated-per-semitone glyph.
+    // 3rd Hunter: the lit note is this chord's own 3rd and carries no arrow.
+    // The arrow belongs to the lead-in — the note in THIS bar that walks into
+    // the NEXT bar's 3rd — which Melody Paths has already chosen, along with
+    // the signed distance it travels.
     if (melodyPathMode === "hunter3") {
-      const notes = melodyPathState.notesByBar[fretboardBarIndex]
+      const lead = melodyPathState.leadInByBar?.[fretboardBarIndex]
+      const delta = melodyPathState.leadDeltaByBar?.[fretboardBarIndex]
       const target = melodyPathState.targetsByBar?.[fretboardBarIndex]
-      if (!notes?.length || !target) return null
-      const tc = chroma(target)
-      if (tc == null) return null
-      const dirs = {}
-      if (notes.length > 1) {
-        notes.forEach((n) => { dirs[n] = "bracket"; dirs[`${n}:to`] = target })
-      } else {
-        const gc = chroma(notes[0])
-        if (gc != null) {
-          const signed = ((tc - gc + 6 + 12) % 12) - 6
-          if (Math.abs(signed) <= 2) { dirs[notes[0]] = signed; dirs[`${notes[0]}:to`] = target }
-        }
-      }
-      return dirs
+      if (!lead || delta == null) return null
+      return { [lead]: delta, [`${lead}:to`]: target }
     }
 
     // Only motion of a semitone or a whole tone counts as a target. The previous
@@ -2286,11 +2289,17 @@ export default function Home() {
               <span style={{ opacity: bebopOverlay || scaleFilter === "barry" ? 1 : 0.5 }}>
                 <span style={{ color: "var(--n-passing)" }}>●</span> {scaleFilter === "barry" ? "Barry passing tone" : "Bebop passing"}
               </span>
-              <span style={{ opacity: targetsOverlay ? 1 : 0.5 }}><span style={{ color: "var(--n-target)" }}>●</span> {melodyPathModeLabel} path / Target</span>
+              <span style={{ opacity: targetsOverlay ? 1 : 0.5 }}>
+                <span style={{ color: "var(--n-target)" }}>●</span>{" "}
+                {melodyPathMode === "hunter3" ? "3rd of this chord (guide tone)" : `${melodyPathModeLabel} path / Target`}
+              </span>
+              {targetsOverlay && melodyPathMode === "hunter3" && (
+                <span><span style={{ color: "var(--n-enclosure)" }}>◌</span> Leads into the next 3rd →</span>
+              )}
               {enclosureOn && (
                 <span><span style={{ color: "var(--n-enclosure)" }}>◌</span> Enclosure (½ step around next target)</span>
               )}
-              {targetsOverlay && anticipateOn && (
+              {targetsOverlay && (anticipateOn || melodyPathMode === "hunter3") && (
                 <span style={{ color: "var(--n-target)" }}>→ up a semitone · →→ up a whole tone · ← ←← down · = stays</span>
               )}
             </div>

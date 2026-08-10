@@ -113,41 +113,52 @@ function groupMeasures(bars) {
   return measures
 }
 
-function semitoneDistance(a, b) {
-  const diff = Math.abs(a - b) % 12
-  return Math.min(diff, 12 - diff)
+// Signed semitones from `from` up to `to`, by the shortest way round (-6..+5).
+function signedTo(from, to) {
+  return ((to - from + 6 + 12) % 12) - 6
 }
 
-// 3rd Hunter — the target is always the 3rd of the FOLLOWING chord. Prefer the
-// current chord's 7th if it already resolves there by half step (the classic
-// ii-V-I 7→3 motion); otherwise take whichever chord tone sits a half step
-// away; and if nothing in the current chord approaches by half step at all,
-// bracket the target from both whole tones on either side (shown on the
-// fretboard as a double arrow pointing at the target).
+// 3rd Hunter. The guide tone is the 3rd of THIS chord — that is the note that
+// lights up, one per bar, and the line drawn through them is the 3rds moving
+// through the changes.
+//
+// On top of that each bar carries a lead-in: the note over THIS chord that
+// walks into the NEXT bar's 3rd, which is what the arrow marks. A half step
+// from either side is the classic approach; a whole step is only accepted
+// from above, falling into the target. (An earlier version lit the approach
+// note itself and never showed the chord's own 3rd, which is why the mode
+// looked wrong.)
 function computeHunter3(columns, scalePcs) {
   return columns.map((column, index) => {
-    const next = columns[(index + 1) % columns.length]
-    const targetPc = next?.chord?.tones?.third
-    if (targetPc == null || !column.chord) return null
-    const tones = column.chord.tones
-    const withDegree = (role, pc) => ({ role, pc, targetPc, kind: "single", ...nearestScaleDegree(pc, scalePcs) })
+    const chord = column.chord
+    const ownThird = chord?.tones?.third
+    if (ownThird == null) return null
 
-    if (tones.seventh != null && semitoneDistance(tones.seventh, targetPc) === 1) {
-      return withDegree("seventh", tones.seventh)
-    }
-    for (const role of ["root", "third", "fifth", "seventh"]) {
-      const pc = tones[role]
-      if (pc != null && semitoneDistance(pc, targetPc) === 1) return withDegree(role, pc)
+    const targetPc = columns[(index + 1) % columns.length]?.chord?.tones?.third
+
+    let lead = null
+    if (targetPc != null) {
+      const candidates = []
+      // 7th first so the classic 7→3 resolution wins an otherwise equal tie.
+      for (const role of ["seventh", "third", "root", "fifth"]) {
+        const pc = chord.tones[role]
+        if (pc == null) continue
+        const delta = signedTo(pc, targetPc)
+        // +1 rises a half step into the target, -1 falls a half step onto it,
+        // -2 falls a whole step. A whole step from below is too far to read
+        // as a resolution, so it isn't offered.
+        if (delta === 1 || delta === -1 || delta === -2) candidates.push({ role, pc, delta })
+      }
+      candidates.sort((a, b) => Math.abs(a.delta) - Math.abs(b.delta))
+      lead = candidates[0] || null
     }
 
-    const above = (targetPc + 2) % 12
-    const below = (targetPc + 10) % 12
     return {
-      role: "bracket", targetPc, kind: "double",
-      dual: [
-        { pc: above, ...nearestScaleDegree(above, scalePcs) },
-        { pc: below, ...nearestScaleDegree(below, scalePcs) },
-      ],
+      role: "third",
+      pc: ownThird,
+      targetPc,
+      lead,
+      ...nearestScaleDegree(ownThird, scalePcs),
     }
   })
 }
@@ -260,8 +271,8 @@ export default function MelodyPaths({
     const found = new Set()
     rawGuide.forEach((item) => {
       if (!item) return
-      if (item.kind === "double") item.dual.forEach((d) => { if (!scalePcs.includes(d.pc)) found.add(d.pc) })
-      else if (!scalePcs.includes(item.pc)) found.add(item.pc)
+      if (!scalePcs.includes(item.pc)) found.add(item.pc)
+      if (item.lead && !scalePcs.includes(item.lead.pc)) found.add(item.lead.pc)
     })
     enclosurePcsByColumn.forEach((pcs) => pcs.forEach((pc) => { if (!scalePcs.includes(pc)) found.add(pc) }))
     return Array.from(found).sort((a, b) => a - b)
@@ -282,19 +293,22 @@ export default function MelodyPaths({
     const degreeFor = (pc) => allPcs.indexOf(pc) + 1
     return rawGuide.map((item) => {
       if (!item) return null
-      if (item.kind === "double") return { ...item, dual: item.dual.map((d) => ({ ...d, degree: degreeFor(d.pc) })) }
-      return { ...item, degree: degreeFor(item.pc) }
+      const next = { ...item, degree: degreeFor(item.pc) }
+      if (item.lead) next.lead = { ...item.lead, degree: degreeFor(item.lead.pc) }
+      return next
     })
   }, [rawGuide, guideMode, allPcs])
 
-  // notesByBar values are always arrays — one note normally, two for a 3rd
-  // Hunter bracket (whole tone above + below the target with no half-step
-  // approach available). targetsByBar is only populated by 3rd Hunter, so the
-  // fretboard can draw its own resolution arrows into the real target instead
-  // of guessing from one bar's note to the next.
+  // notesByBar holds the lit guide tone per bar (an array, since callers flatten
+  // it). targetsByBar and the lead-in maps are only filled by 3rd Hunter: the
+  // target is the NEXT bar's 3rd, and the lead-in is the note in THIS bar that
+  // walks into it, with the signed semitones it travels — that pair is what
+  // the fretboard turns into an arrow.
   const activePath = useMemo(() => {
     const notesByBar = {}
     const targetsByBar = {}
+    const leadInByBar = {}
+    const leadDeltaByBar = {}
     if (guideMode === "melody") {
       Object.values(melodyByMeasure).forEach((selection) => {
         const column = columns[selection.columnIndex]
@@ -305,15 +319,15 @@ export default function MelodyPaths({
       guide.forEach((item, columnIndex) => {
         const column = columns[columnIndex]
         if (!item || !column) return
-        if (item.kind === "double") {
-          notesByBar[column.barIndex] = item.dual.map((d) => displayNote(d.pc, tonic))
-        } else {
-          notesByBar[column.barIndex] = [displayNote(item.pc, tonic)]
-        }
+        notesByBar[column.barIndex] = [displayNote(item.pc, tonic)]
         if (item.targetPc != null) targetsByBar[column.barIndex] = displayNote(item.targetPc, tonic)
+        if (item.lead) {
+          leadInByBar[column.barIndex] = displayNote(item.lead.pc, tonic)
+          leadDeltaByBar[column.barIndex] = item.lead.delta
+        }
       })
     }
-    return { mode: guideMode, notesByBar, targetsByBar }
+    return { mode: guideMode, notesByBar, targetsByBar, leadInByBar, leadDeltaByBar }
   }, [columns, guide, guideMode, melodyByMeasure, scalePcs, tonic])
 
   useEffect(() => {
@@ -332,11 +346,9 @@ export default function MelodyPaths({
         const rect = node.getBoundingClientRect()
         return `${rect.left - chartRect.left + rect.width / 2},${rect.top - chartRect.top + rect.height / 2}`
       }
-      const guidePoints = guide.flatMap((item, index) => {
-        if (!item) return []
-        if (item.kind === "double") return item.dual.map((d) => point(index, d.degree))
-        return [point(index, item.degree)]
-      }).filter(Boolean).join(" ")
+      const guidePoints = guide
+        .map((item, index) => (item ? point(index, item.degree) : null))
+        .filter(Boolean).join(" ")
       const melodyPoints = Object.values(melodyByMeasure)
         .sort((a, b) => a.measureIndex - b.measureIndex)
         .map((item) => point(item.columnIndex, item.degree))
@@ -410,7 +422,7 @@ export default function MelodyPaths({
         /* The note a computed guide mode (7→3 / Smooth / 3rd Hunter) actually
            picked — a ring independent of the root/3rd/5th/7th role fill, so
            it's visible whether or not the pick happens to land on one of
-           those roles, and on both circles at once for a 3rd Hunter bracket. */
+           those roles. */
         .mp-degree.guide-hit { box-shadow:0 0 0 3px color-mix(in srgb, var(--mp-guide) 65%, transparent), inset 0 0 0 2px var(--mp-guide); }
         .mp-degree.guide-hit.melody { box-shadow:0 0 0 4px color-mix(in srgb, var(--mp-melody) 40%, transparent), inset 0 0 0 2px var(--mp-guide); }
         /* A row added for a pitch outside the key (see extraPcs) — dashed so
@@ -419,6 +431,13 @@ export default function MelodyPaths({
         /* Peña enclosure pitches — the chromatic cage around this column's
            3rd Hunter target, marked with a dashed alteration-colored outline. */
         .mp-degree.enc-hit { outline:2px dashed var(--mp-alter); outline-offset:2px; }
+        /* 3rd Hunter lead-in — the note that walks into the next bar's 3rd. */
+        .mp-degree.lead-hit { outline:2px dashed var(--mp-melody); outline-offset:2px; }
+        .mp-lead {
+          position:absolute; right:-13px; top:50%; transform:translateY(-50%);
+          font-size:14px; font-weight:900; line-height:1; color:var(--mp-melody);
+          text-shadow:0 0 3px var(--mp-bg);
+        }
         .mp-pitch { transition: color .12s ease; }
         .mp-alter { position:absolute; left:-34px; top:2px; display:grid; place-items:center; width:30px; height:22px; border-radius:6px; background:var(--mp-alter); color:#1F0708; font-size:9px; font-weight:900; }
         .mp-alter::after { content:""; position:absolute; right:-6px; top:8px; border-left:6px solid var(--mp-alter); border-top:3px solid transparent; border-bottom:3px solid transparent; }
@@ -458,7 +477,7 @@ export default function MelodyPaths({
             <button className={`mp-button ${guideMode === "73" ? "active" : ""}`} onClick={() => onGuideModeChange?.("73")}>7 → 3</button>
             <button className={`mp-button ${guideMode === "smooth" ? "active" : ""}`} onClick={() => onGuideModeChange?.("smooth")}>Smooth</button>
             <button className={`mp-button ${guideMode === "melody" ? "active" : ""}`} onClick={() => onGuideModeChange?.("melody")}>Melody</button>
-            <button className={`mp-button ${guideMode === "hunter3" ? "active" : ""}`} onClick={() => onGuideModeChange?.("hunter3")} title="Target the 3rd of the next chord — half-step approach when there is one, or bracket it from both whole tones">3rd Hunter</button>
+            <button className={`mp-button ${guideMode === "hunter3" ? "active" : ""}`} onClick={() => onGuideModeChange?.("hunter3")} title="Lights the 3rd of each chord as the guide tone, and marks the note that leads into the next chord's 3rd">3rd Hunter</button>
           </div>
           <div style={{ marginTop: "6px", color: "var(--mp-muted)", fontSize: "var(--db-fs-xs)", display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
             <span>Key center: {tonic} {keyMode === "minor" ? "minor" : "major"}</span>
@@ -511,7 +530,9 @@ export default function MelodyPaths({
             {columns.length === 0 && <div style={{ padding: "80px 30px", color: "var(--mp-muted)" }}>Load a song with chord changes to build its melody path.</div>}
             {columns.map((column, columnIndex) => {
               const guideItem = guide[columnIndex]
-              const guideHitPcs = !guideItem ? [] : guideItem.kind === "double" ? guideItem.dual.map((d) => d.pc) : [guideItem.pc]
+              const guideHitPcs = guideItem ? [guideItem.pc] : []
+              const leadPc = guideItem?.lead?.pc
+              const leadDelta = guideItem?.lead?.delta
               const encPcs = enclosurePcsByColumn[columnIndex] || []
               return (
               <div className={`mp-column ${playheadIndex === column.barIndex ? "playing" : ""}`} key={`${column.barIndex}:${column.chord?.symbol || "NC"}`}>
@@ -531,9 +552,12 @@ export default function MelodyPaths({
                     // The note this guide mode actually picked for this column —
                     // a ring that's independent of the root/3rd/5th/7th role fill,
                     // so it stays visible even when it lands on a role that isn't
-                    // colorful (or, for 3rd Hunter's bracket, on two notes at once).
+                    // colorful.
                     const isGuideHit = guideHitPcs.includes(pc)
-                    const isEncHit = !isGuideHit && encPcs.includes(pc)
+                    // 3rd Hunter's lead-in: the note here that walks into the
+                    // NEXT bar's 3rd. Arrow points the way it moves.
+                    const isLead = !isGuideHit && pc === leadPc
+                    const isEncHit = !isGuideHit && !isLead && encPcs.includes(pc)
                     const alteration = column.chord?.alterations.find((item) => nearestScaleDegree(item.pc, scalePcs).degree === degree)
                     return (
                       <button
@@ -544,12 +568,15 @@ export default function MelodyPaths({
                           if (node) nodeRefs.current.set(refKey, node)
                           else nodeRefs.current.delete(refKey)
                         }}
-                        className={`mp-degree ${role} ${isSelected ? "melody" : ""} ${isGuideHit ? "guide-hit" : ""} ${isEncHit ? "enc-hit" : ""} ${isExtra ? "extra" : ""}`}
+                        className={`mp-degree ${role} ${isSelected ? "melody" : ""} ${isGuideHit ? "guide-hit" : ""} ${isLead ? "lead-hit" : ""} ${isEncHit ? "enc-hit" : ""} ${isExtra ? "extra" : ""}`}
                         onClick={() => chooseMelody(column.measureIndex, columnIndex, degree)}
-                        aria-label={`${displayNote(pc, tonic)}, ${column.chord ? intervalName(column.chord.root, pc) : "no chord"}, measure ${column.measureIndex + 1}${isExtra ? " (not in the key)" : ""}`}
+                        aria-label={`${displayNote(pc, tonic)}, ${column.chord ? intervalName(column.chord.root, pc) : "no chord"}, measure ${column.measureIndex + 1}${isExtra ? " (not in the key)" : ""}${isGuideHit ? " — guide tone, the 3rd" : ""}${isLead ? " — leads into the next 3rd" : ""}`}
                       >
                         {column.chord ? intervalName(column.chord.root, pc) : "·"}
                         {alteration && <span className="mp-alter">{alteration.label}</span>}
+                        {isLead && (
+                          <span className="mp-lead" aria-hidden="true">{leadDelta > 0 ? "↑" : "↓"}</span>
+                        )}
                       </button>
                     )
                   })}

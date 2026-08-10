@@ -56,7 +56,7 @@ const PLAN_ROWS = [
         badge: "Rhythm Path",
         title: "BeatForge",
         subtitle: "Time workout and bebop rhythm generator",
-        image: "/Beatforge.png",
+        image: "/cards/beatforge2.jpg",
         action: { type: "practice-panel", value: "beatforge-metronome" },
       },
       {
@@ -64,7 +64,7 @@ const PLAN_ROWS = [
         badge: "Line Path",
         title: "LineLab",
         subtitle: "Develop single-note lines over the changes",
-        image: "/linelab.png",
+        image: "/cards/linelab2.jpg",
         action: { type: "create-section", value: "create-line-lab" },
       },
       {
@@ -72,7 +72,7 @@ const PLAN_ROWS = [
         badge: "Songwriting Path",
         title: "SongCrafter",
         subtitle: "Assemble progressions into a draft",
-        image: "/songwriting.png",
+        image: "/cards/songcrafter2.jpg",
         action: { type: "create-section", value: "create-songcrafter" },
       },
       {
@@ -80,7 +80,7 @@ const PLAN_ROWS = [
         badge: "Jazz Standards",
         title: "Song Library",
         subtitle: "Every chart in the songbook",
-        image: "/Song%20Library.png",
+        image: "/cards/song-library2.jpg",
         action: { type: "songbook", value: "Jazz Standards" },
       },
     ],
@@ -94,7 +94,7 @@ const PLAN_ROWS = [
         badge: "Learning Pathway",
         title: "251 Mastery",
         subtitle: "The ii-V-I through all twelve keys",
-        image: "/251%20mastery.png",
+        image: "/cards/251-mastery2.jpg",
         action: { type: "starter", value: "major-251" },
       },
       {
@@ -102,7 +102,7 @@ const PLAN_ROWS = [
         badge: "Song Study",
         title: "Black Orpheus",
         subtitle: "Minor ii-V-I roadmap",
-        image: "/blackorpheus.png",
+        image: "/cards/black-orpheus2.jpg",
         action: { type: "starter", value: "black-orpheus" },
       },
       {
@@ -110,7 +110,7 @@ const PLAN_ROWS = [
         badge: "Song Study",
         title: "Autumn Leaves",
         subtitle: "The standard every session starts with",
-        image: "/autumnleaves.png",
+        image: "/cards/autumn-leaves2.jpg",
         action: { type: "starter", value: "autumn-leaves" },
       },
       {
@@ -118,7 +118,7 @@ const PLAN_ROWS = [
         badge: "Song Study",
         title: "Dark Eyes",
         subtitle: "Gypsy jazz minor swing",
-        image: "/darkeyes.png",
+        image: "/cards/dark-eyes2.jpg",
         action: { type: "starter", value: "dark-eyes" },
       },
       {
@@ -126,7 +126,7 @@ const PLAN_ROWS = [
         badge: "Practice System",
         title: "Blues",
         subtitle: "Jazz blues in Bb, guide tones to language",
-        image: "/blues.png",
+        image: "/cards/blues2.jpg",
         action: { type: "starter", value: "jazz-blues-bb" },
       },
     ],

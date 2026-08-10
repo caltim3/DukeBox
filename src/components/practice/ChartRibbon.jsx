@@ -62,7 +62,9 @@ export default function ChartRibbon({
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(bars.length, 12) || 1}, 1fr)`, gap: "6px" }}>
+      {/* Eight measures per row maximum — a 12-wide row squeezed the chord
+          names and broke the four-bar phrasing the eye reads by. */}
+      <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(bars.length, 8) || 1}, 1fr)`, gap: "6px" }}>
         {bars.map((bar, index) => {
           const inLoop = loopEnabled && index >= lo && index <= hi
           const isNow = index === currentIndex
