@@ -45,31 +45,38 @@ const GET_STARTED = [
 const LEARNING_PLAN = [
   {
     badge: "Learning Pathway",
-    title: "Major ii-V-I Mastery",
-    subtitle: "Connect every position",
+    title: "251 Mastery",
+    subtitle: "The ii-V-I through all twelve keys",
     art: "ii-v-i",
-    action: { type: "starter", value: "Major ii-V-I Cycle" },
+    action: { type: "starter", value: "major-251" },
   },
   {
     badge: "Practice System",
-    title: "Jazz Blues Lab",
-    subtitle: "Guide tones to language",
+    title: "Blues",
+    subtitle: "Jazz blues in Bb, guide tones to language",
     art: "blues",
-    action: { type: "starter", value: "Jazz Blues in Bb" },
-  },
-  {
-    badge: "Melodic System",
-    title: "The Triad Network",
-    subtitle: "Inside and outside movement",
-    art: "triads",
-    action: { type: "section", value: "TRIAD" },
+    action: { type: "starter", value: "jazz-blues-bb" },
   },
   {
     badge: "Song Study",
-    title: "Autumn Leaves",
+    title: "Black Orpheus",
     subtitle: "Minor ii-V-I roadmap",
     art: "leaves",
-    action: { type: "starter", value: "Autumn Leaves (Gm)" },
+    action: { type: "starter", value: "black-orpheus" },
+  },
+  {
+    badge: "Songwriting Path",
+    title: "SongCrafter",
+    subtitle: "Assemble progressions into a draft",
+    art: "songcrafter",
+    action: { type: "create-section", value: "create-songcrafter" },
+  },
+  {
+    badge: "Line Path",
+    title: "LineLab",
+    subtitle: "Develop single-note lines over the changes",
+    art: "linelab",
+    action: { type: "create-section", value: "create-line-lab" },
   },
 ]
 
@@ -264,6 +271,19 @@ export default function PickupPracticeHome() {
     }
     if (action.type === "section") {
       openPracticeCenter(action.value)
+      return
+    }
+    // A collapsible panel in the Create tab, addressed by its element id —
+    // open it and scroll it into view rather than dropping the player at the
+    // top of a long workspace.
+    if (action.type === "create-section") {
+      openWorkspace("create")
+      window.setTimeout(() => {
+        const section = document.getElementById(action.value)
+        if (!section) return
+        section.open = true
+        section.scrollIntoView({ behavior: "smooth", block: "start" })
+      }, 180)
       return
     }
     // Starters used to be triggered by finding their button in the Practice
@@ -639,7 +659,9 @@ export default function PickupPracticeHome() {
 
         .db-pickup-plan-grid {
           display: grid;
-          grid-template-columns: repeat(4, minmax(190px, 1fr));
+          /* auto-fit rather than a fixed 4, so the row reflows as cards are
+             added or removed instead of overflowing. */
+          grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
           gap: 16px;
         }
 
@@ -708,6 +730,30 @@ export default function PickupPracticeHome() {
         }
         .db-art-leaves::after {
           width: 170px; height: 3px; left: 28px; top: 92px; background: rgba(255,255,255,.65); transform: rotate(-12deg);
+        }
+
+        /* Songwriting path — a ribbon mic in front of a warm studio wall. */
+        .db-art-songcrafter { background: linear-gradient(150deg, #3a1a08, #a4541c 78%, #d98b3a); }
+        .db-art-songcrafter::before {
+          width: 54px; height: 96px; left: 60px; top: 16px; border-radius: 27px;
+          background: rgba(255,255,255,.9);
+          box-shadow: inset 0 0 0 6px rgba(58,26,8,.55), 0 22px 0 -18px rgba(255,255,255,.9);
+        }
+        .db-art-songcrafter::after {
+          inset: 0;
+          background: repeating-linear-gradient(0deg, transparent 0 26px, rgba(0,0,0,.16) 27px 29px);
+        }
+
+        /* Line path — a single melodic line rising across a dark green room. */
+        .db-art-linelab { background: linear-gradient(145deg, #04231a, #0a5c3f 74%, #12805a); }
+        .db-art-linelab::before {
+          width: 176px; height: 74px; left: 26px; top: 28px;
+          border-bottom: 4px solid #f2e06a; border-right: 4px solid #f2e06a;
+          border-radius: 0 0 90% 0; transform: rotate(-8deg);
+        }
+        .db-art-linelab::after {
+          width: 15px; height: 15px; right: 30px; top: 26px; border-radius: 50%; background: #f2e06a;
+          box-shadow: -52px 34px 0 rgba(255,255,255,.85), -104px 12px 0 rgba(255,255,255,.5);
         }
 
         .db-pickup-plan-content {
