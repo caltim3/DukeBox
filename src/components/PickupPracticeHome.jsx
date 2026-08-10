@@ -121,6 +121,14 @@ const PLAN_ROWS = [
         art: "darkeyes",
         action: { type: "starter", value: "dark-eyes" },
       },
+      {
+        id: "blues",
+        badge: "Practice System",
+        title: "Blues",
+        subtitle: "Jazz blues in Bb, guide tones to language",
+        art: "blues",
+        action: { type: "starter", value: "jazz-blues-bb" },
+      },
     ],
   },
 ]
@@ -281,7 +289,6 @@ export default function PickupPracticeHome() {
   useEffect(() => {
     let saved = null
     try { saved = JSON.parse(window.localStorage.getItem(PLAN_ORDER_KEY) || "null") } catch { /* ignore */ }
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPlanOrder(Object.fromEntries(PLAN_ROWS.map((row) => {
       const ids = row.items.map((item) => item.id)
       const fromSaved = Array.isArray(saved?.[row.id]) ? saved[row.id].filter((id) => ids.includes(id)) : []
