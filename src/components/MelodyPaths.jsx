@@ -312,6 +312,7 @@ export default function MelodyPaths({
   // the fretboard turns into an arrow. Untouched here, so the drill still works.
   const activePath = useMemo(() => {
     const notesByBar = {}
+    const seventhsByBar = {}
     const targetsByBar = {}
     const leadInByBar = {}
     const leadDeltaByBar = {}
@@ -331,6 +332,11 @@ export default function MelodyPaths({
         const pair = [tones?.third, tones?.seventh].filter((pc) => pc != null)
         notesByBar[column.barIndex] = (pair.length ? pair : [item.pc])
           .map((pc) => displayNote(pc, tonic))
+        // Which of those is the 7th, so the board can colour it gold while
+        // keeping it the same size as the 3rd.
+        if (tones?.seventh != null) {
+          seventhsByBar[column.barIndex] = [displayNote(tones.seventh, tonic)]
+        }
         if (item.targetPc != null) targetsByBar[column.barIndex] = displayNote(item.targetPc, tonic)
         if (item.lead) {
           leadInByBar[column.barIndex] = displayNote(item.lead.pc, tonic)
@@ -338,7 +344,7 @@ export default function MelodyPaths({
         }
       })
     }
-    return { mode: guideMode, notesByBar, targetsByBar, leadInByBar, leadDeltaByBar }
+    return { mode: guideMode, notesByBar, seventhsByBar, targetsByBar, leadInByBar, leadDeltaByBar }
   }, [columns, guide, guideMode, melodyByMeasure, scalePcs, tonic])
 
   useEffect(() => {

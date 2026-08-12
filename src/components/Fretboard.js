@@ -23,7 +23,7 @@ const NUM_FRET_LABELS = [1, 3, 5, 7, 9, 12]
 const MAX_ROUTE_FRETS   = 3
 const MAX_ROUTE_STRINGS = 1
 
-export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes = null, view = "chord", tuningName = "Standard", targetNotes = [], passingNotes = [], guideToneNotes = [], guideToneDirections = null, enclosureNotes = [], ghostNotes = [], animate = false, barSeconds = 0, phaseKey = null }) {
+export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes = null, view = "chord", tuningName = "Standard", targetNotes = [], passingNotes = [], guideToneNotes = [], guideToneDirections = null, enclosureNotes = [], ghostNotes = [], seventhNotes = [], animate = false, barSeconds = 0, phaseKey = null }) {
   // The bar has a shape. Beats 1-2 the chord stands alone; beat 3 the ghosts
   // fade up and the routes start drawing; beat 4 the routes are at full and
   // everything that isn't a guide tone dims, so you are pulled into the change
@@ -40,6 +40,7 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
   const guideSet   = new Set((guideToneNotes ?? []).map(n => norm(n)))
   const enclosureSet = new Set((enclosureNotes ?? []).map(n => norm(n)))
   const ghostSet   = new Set((ghostNotes ?? []).map(n => norm(n)))
+  const seventhSet = new Set((seventhNotes ?? []).map(n => norm(n)))
   const root       = norm(rootNote)
 
   const strings     = TUNINGS[tuningName] || TUNINGS.Standard
@@ -84,7 +85,11 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
       // Color priority: resolution target > guide tone > bebop passing > enclosure > root > scale/chord
       // Fixed maple-note-role tokens (--n-*), never palette tokens — the board reads
       // the same on every palette (see docs/PRACTICE_REDESIGN_V3.md §4.7).
-      const color = isTarget  ? "var(--n-target)"
+      // The 7th is a guide tone like the 3rd and the same size; only the hue
+      // differs, so the pair reads as a pair without collapsing into one note.
+      const isSeventh = (isGuide || isTarget) && seventhSet.has(noteName)
+      const color = isSeventh ? "var(--n-seventh)"
+                  : isTarget  ? "var(--n-target)"
                   : isGuide   ? "var(--n-target)"
                   : isPassing ? "var(--n-passing)"
                   : isEnclosure ? "var(--n-enclosure)"
