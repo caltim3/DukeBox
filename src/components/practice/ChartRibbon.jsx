@@ -20,10 +20,21 @@ export default function ChartRibbon({
   currentIndex,
   nextIndex,
   sectionLabel,
-  showPlayhead = false,
 }) {
   const lo = Math.min(loopStart, loopEnd)
   const hi = Math.max(loopStart, loopEnd)
+
+  // A 36-bar tune rendered every bar at once, so the chord you were actually
+  // playing was one cell in a wall of them. Show three four-bar rows instead —
+  // the row you're in plus the next two — and let it scroll a row at a time as
+  // the playhead crosses into the next four. Four per row is also the phrasing
+  // the eye reads a lead sheet by.
+  const COLS = 4
+  const ROWS = 3
+  const anchor = currentIndex ?? selectedIndex ?? 0
+  const windowStart = Math.floor(anchor / COLS) * COLS
+  const windowBars = bars.slice(windowStart, windowStart + COLS * ROWS)
+  const windowEnd = windowStart + windowBars.length
 
   return (
     <div style={{ background: "var(--surface)", border: "1px solid var(--line)", borderRadius: "12px", padding: "12px 14px", marginBottom: "12px", position: "relative" }}>
@@ -62,10 +73,9 @@ export default function ChartRibbon({
         </div>
       </div>
 
-      {/* Eight measures per row maximum — a 12-wide row squeezed the chord
-          names and broke the four-bar phrasing the eye reads by. */}
-      <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(bars.length, 8) || 1}, 1fr)`, gap: "6px" }}>
-        {bars.map((bar, index) => {
+      <div style={{ display: "grid", gridTemplateColumns: `repeat(${COLS}, 1fr)`, gap: "6px" }}>
+        {windowBars.map((bar, offset) => {
+          const index = windowStart + offset
           const inLoop = loopEnabled && index >= lo && index <= hi
           const isNow = index === currentIndex
           const isNext = index === nextIndex
@@ -90,15 +100,18 @@ export default function ChartRibbon({
           )
         })}
       </div>
-      {showPlayhead && bars.length > 0 && currentIndex != null && (
-        <div
-          aria-hidden="true"
-          style={{
-            position: "absolute", top: "34px", bottom: "10px",
-            left: `${(currentIndex / bars.length) * 100}%`,
-            width: "2px", background: "var(--info)", boxShadow: "0 0 8px var(--glow)", pointerEvents: "none",
-          }}
-        />
+      {/* Where this window sits in the tune. The old full-width playhead rule
+          is gone with the single row it was drawn across — the current bar is
+          unmistakable now (accent fill, scaled up, ringed) and a vertical line
+          over three rows would mark nothing. */}
+      {bars.length > COLS * ROWS && (
+        <div style={{
+          marginTop: "8px", textAlign: "right",
+          font: "600 9.5px 'IBM Plex Mono', monospace", letterSpacing: "0.08em",
+          textTransform: "uppercase", color: "var(--muted)",
+        }}>
+          Bars {windowStart + 1}–{windowEnd} of {bars.length}
+        </div>
       )}
     </div>
   )

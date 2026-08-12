@@ -122,6 +122,12 @@
   --n-root:#DC2626; --n-chord:#16A34A; --n-scale:#047857;
   --n-passing:#57534E; --n-target:#2563EB; --n-target-glow:rgba(37,99,235,.45);
   --n-enclosure:#9333EA;
+  /* The 7th, gold — same weight as the 3rd (--n-target), different hue, so the
+     pair reads as a pair while you can still tell which is which. The old gold
+     was #FFD54F, picked against the dark board; on maple it measures 1.13:1
+     and disappears. This scores 3.47/2.59 against the two wood stops, which
+     beats --n-target's own 3.24/2.42. */
+  --n-seventh:#8A6100;
   /* The NEXT chord — ghost guide tones and the routes into them. Hue 315 sits
      in the only real gap left on the role wheel: 44deg from its nearest
      neighbour (enclosure 271, root 0), where amber would have landed 7deg from

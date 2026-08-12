@@ -425,6 +425,13 @@ export default function Home() {
     return melodyPathState.notesByBar[fretboardBarIndex] || []
   }, [targetsOverlay, melodyPathState, fretboardBarIndex])
 
+  // Which of those lit notes is the 7th — the board draws it gold at the same
+  // size as the 3rd, so the pair reads as a pair without merging into one note.
+  const seventhDisplayNotes = useMemo(() => {
+    if (!targetsOverlay) return []
+    return melodyPathState.seventhsByBar?.[fretboardBarIndex] || []
+  }, [targetsOverlay, melodyPathState, fretboardBarIndex])
+
   // Peña enclosure overlay — the chromatic cage (half step below and above)
   // around the 3rd Hunter target, plus the target itself, both shown on the
   // CURRENT bar's board so the cage is visible before the chord arrives.
@@ -2078,10 +2085,9 @@ export default function Home() {
               currentIndex={fretboardBarIndex}
               nextIndex={upcomingBarIndices[0]?.index}
               sectionLabel={fretboardBar.section ? `${fretboardBar.section} section` : "Chart"}
-              showPlayhead
             />
 
-            <div style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr", gap: "14px", alignItems: "end", marginBottom: "16px" }}>
+            <div style={{ marginBottom: "16px" }}>
               <div>
                 <div style={{ font: "600 11px 'IBM Plex Mono', monospace", color: "var(--muted)", letterSpacing: "0.16em", textTransform: "uppercase", marginBottom: "4px" }}>
                   Bar {barLabels[fretboardBarIndex] ?? fretboardBarIndex + 1} · {scaleLabelFull}
@@ -2092,23 +2098,6 @@ export default function Home() {
                 {displayedScaleNotes.length > 0 && (
                   <div style={{ color: "var(--muted)", fontSize: "14px", marginTop: "8px" }}>{displayedScaleNotes.join(" ")}</div>
                 )}
-              </div>
-              <div style={{ background: "var(--surface)", border: "1px solid var(--line)", borderRadius: "12px", padding: "12px 14px" }}>
-                <h5 style={{ font: "800 10px 'Archivo', sans-serif", letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--muted)", margin: "0 0 8px" }}>Coming up · next 3</h5>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "6px" }}>
-                  {upcomingBarIndices.map(({ index, stepsAway }, i) => (
-                    <div key={i} style={{
-                      background: "var(--surface2)", border: `1px solid ${i === 0 ? "var(--info)" : "var(--line)"}`,
-                      borderRadius: "8px", padding: "8px 8px", textAlign: "center",
-                    }}>
-                      <span style={{ font: "600 9px 'IBM Plex Mono', monospace", color: i === 0 ? "var(--info)" : "var(--muted)", letterSpacing: "0.14em", textTransform: "uppercase", display: "block" }}>
-                        {i === 0 ? "Next" : "Then"}
-                      </span>
-                      <div style={{ font: "800 22px 'IBM Plex Mono', monospace", marginTop: "2px", letterSpacing: "-0.01em" }}>{bars[index]?.symbol}</div>
-                      <div style={{ fontSize: "10px", color: "var(--muted)", marginTop: "2px" }}>{stepsAway === 1 ? "next bar" : `in ${stepsAway} bars`}</div>
-                    </div>
-                  ))}
-                </div>
               </div>
             </div>
           </>
@@ -2389,6 +2378,36 @@ export default function Home() {
                   </div>
                 )}
               </div>
+
+              {/* Coming up — moved out of the Focus header so it sits beside the
+                  chord you're on rather than across the page from it. Same
+                  lookahead the ghosts use, three bars deep instead of one. */}
+              {upcomingBarIndices.length > 0 && (
+                <div style={{
+                  background: "var(--surface)", border: "1px solid var(--line)",
+                  borderRadius: "var(--db-r-md)", padding: "8px 12px",
+                  display: "flex", flexDirection: "column", justifyContent: "center",
+                }}>
+                  <div style={{ font: "800 9.5px 'Archivo', sans-serif", letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--muted)", marginBottom: "6px" }}>
+                    Coming up
+                  </div>
+                  <div style={{ display: "flex", gap: "6px" }}>
+                    {upcomingBarIndices.map(({ index, stepsAway }, i) => (
+                      <div key={i} style={{
+                        background: "var(--surface2)",
+                        border: `1px solid ${i === 0 ? "var(--info)" : "var(--line)"}`,
+                        borderRadius: "8px", padding: "6px 10px", textAlign: "center", minWidth: "72px",
+                      }}>
+                        <span style={{ font: "600 8.5px 'IBM Plex Mono', monospace", color: i === 0 ? "var(--info)" : "var(--muted)", letterSpacing: "0.14em", textTransform: "uppercase", display: "block" }}>
+                          {i === 0 ? "Next" : "Then"}
+                        </span>
+                        <div style={{ font: "800 19px 'IBM Plex Mono', monospace", marginTop: "2px", letterSpacing: "-0.01em" }}>{bars[index]?.symbol}</div>
+                        <div style={{ fontSize: "9.5px", color: "var(--muted)", marginTop: "1px" }}>{stepsAway === 1 ? "next bar" : `in ${stepsAway}`}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Legend (spec §5.3) — always the same maple note-role colors, never the palette */}
@@ -2401,7 +2420,10 @@ export default function Home() {
               </span>
               <span style={{ opacity: targetsOverlay ? 1 : 0.5 }}>
                 <span style={{ color: "var(--n-target)" }}>●</span>{" "}
-                {melodyPathMode === "hunter3" ? "3rd & 7th of this chord (guide tones)" : `${melodyPathModeLabel} path · 3rd & 7th`}
+                {melodyPathMode === "hunter3" ? "3rd of this chord" : `${melodyPathModeLabel} path · 3rd`}
+              </span>
+              <span style={{ opacity: targetsOverlay ? 1 : 0.5 }}>
+                <span style={{ color: "var(--n-seventh)" }}>●</span> 7th of this chord
               </span>
               {targetsOverlay && melodyPathMode === "hunter3" && (
                 <span><span style={{ color: "var(--n-enclosure)" }}>◌</span> Leads into the next 3rd →</span>
@@ -2435,6 +2457,7 @@ export default function Home() {
                 guideToneDirections={guideToneDirections}
                 enclosureNotes={enclosureDisplay.notes}
                 ghostNotes={ghostGuideTones}
+                seventhNotes={seventhDisplayNotes}
                 animate={isPlaying && playheadIndex !== null}
                 barSeconds={fretboardBarSeconds}
                 phaseKey={playheadIndex}
