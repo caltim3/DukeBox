@@ -196,7 +196,9 @@ export default function Home() {
   const [targetsOverlay, setTargetsOverlay] = useState(true) // guide tones are the default practice view
   const [melodyPathMode, setMelodyPathMode] = useState("73")
   const [melodyPathState, setMelodyPathState] = useState({ mode: "73", notesByBar: {}, targetsByBar: {} })
-  const [anticipateOn, setAnticipateOn] = useState(false)   // second fretboard showing the next chord
+  // On by default: the ghosts and routes are the point of the board, and they
+  // are inert without it. Pairs with targetsOverlay above, which is already on.
+  const [anticipateOn, setAnticipateOn] = useState(true)   // ghost the next chord onto the neck
   const [enclosureOn, setEnclosureOn] = useState(false)     // chromatic cage around the 3rd Hunter target
   const [loadedLibraryNum, setLoadedLibraryNum] = useState(null)  // which BeatForge Library card is loaded, if any
   const [practiceMode, setPracticeMode] = useState(false)
@@ -2182,14 +2184,23 @@ export default function Home() {
                       }} title="Peña enclosure — show the chromatic cage (half step below and above) around the 3rd Hunter target, plus the target itself, before the chord arrives">
                         +Enclosure
                       </button>
-                      <button onClick={() => setAnticipateOn(p => !p)} style={{
+                      <button onClick={() => {
+                        // Anticipate is inert without guide tones — there is
+                        // nothing for the routes to start from — so turning it
+                        // on turns them on too. Turning it off leaves them
+                        // alone; you may still want the guide tones by
+                        // themselves.
+                        const next = !anticipateOn
+                        setAnticipateOn(next)
+                        if (next) setTargetsOverlay(true)
+                      }} style={{
                         padding: "4px 10px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-sm)", cursor: "pointer",
                         background: anticipateOn ? "color-mix(in srgb, var(--db-c-purple) 20%, var(--db-bg))" : "var(--db-panel-bg)",
                         border:     anticipateOn ? "1px solid var(--db-c-purple)" : "1px solid var(--db-panel-border)",
                         color:      anticipateOn ? "var(--db-c-purple)" : "var(--db-text)",
                         fontWeight: anticipateOn ? 700 : 400,
                         opacity:    anticipateOn ? 1 : 0.7,
-                      }} title="Show a second fretboard with the NEXT chord's tones and guide tones — see the change coming">
+                      }} title="Ghost the NEXT chord's guide tones onto this neck and draw the route into them — see the change coming. Turns on Guide Tones, which it needs.">
                         Anticipate
                       </button>
                     </div>
