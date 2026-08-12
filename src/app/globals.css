@@ -122,6 +122,12 @@
   --n-root:#DC2626; --n-chord:#16A34A; --n-scale:#047857;
   --n-passing:#57534E; --n-target:#2563EB; --n-target-glow:rgba(37,99,235,.45);
   --n-enclosure:#9333EA;
+  /* The NEXT chord — ghost guide tones and the routes into them. Hue 315 sits
+     in the only real gap left on the role wheel: 44deg from its nearest
+     neighbour (enclosure 271, root 0), where amber would have landed 7deg from
+     --n-passing and any teal within 46deg of --n-target. 5.8:1 and 4.3:1
+     against the two maple stops. */
+  --n-next:#821767; --n-next-fill:rgba(255,255,255,.78);
 
   /* Melody Paths — always dark navy */
   --mp-bg:#0F172A; --mp-surface:#1E293B; --mp-line:#334155;
