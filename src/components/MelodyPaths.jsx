@@ -299,11 +299,17 @@ export default function MelodyPaths({
     })
   }, [rawGuide, guideMode, allPcs])
 
-  // notesByBar holds the lit guide tone per bar (an array, since callers flatten
-  // it). targetsByBar and the lead-in maps are only filled by 3rd Hunter: the
+  // notesByBar holds the lit guide tones per bar. Both the 3rd and the 7th, at
+  // equal weight: they are the pair that spells the chord and the pair that
+  // voice-leads (7→3 one way, 3→7 the other), so emphasising one over the other
+  // hid half of every resolution. The path modes still choose their own single
+  // note for the chart line above — this is only what the fretboard lights, in
+  // the current bar and, through the same map, in the ghosted next bar.
+  //
+  // targetsByBar and the lead-in maps are only filled by 3rd Hunter: the
   // target is the NEXT bar's 3rd, and the lead-in is the note in THIS bar that
   // walks into it, with the signed semitones it travels — that pair is what
-  // the fretboard turns into an arrow.
+  // the fretboard turns into an arrow. Untouched here, so the drill still works.
   const activePath = useMemo(() => {
     const notesByBar = {}
     const targetsByBar = {}
@@ -319,7 +325,12 @@ export default function MelodyPaths({
       guide.forEach((item, columnIndex) => {
         const column = columns[columnIndex]
         if (!item || !column) return
-        notesByBar[column.barIndex] = [displayNote(item.pc, tonic)]
+        // Light the 3rd and the 7th together. Falls back to whatever the mode
+        // picked when a chord has no usable third/seventh (sus, NC, power).
+        const tones = column.chord?.tones
+        const pair = [tones?.third, tones?.seventh].filter((pc) => pc != null)
+        notesByBar[column.barIndex] = (pair.length ? pair : [item.pc])
+          .map((pc) => displayNote(pc, tonic))
         if (item.targetPc != null) targetsByBar[column.barIndex] = displayNote(item.targetPc, tonic)
         if (item.lead) {
           leadInByBar[column.barIndex] = displayNote(item.lead.pc, tonic)
@@ -477,7 +488,7 @@ export default function MelodyPaths({
             <button className={`mp-button ${guideMode === "73" ? "active" : ""}`} onClick={() => onGuideModeChange?.("73")}>7 → 3</button>
             <button className={`mp-button ${guideMode === "smooth" ? "active" : ""}`} onClick={() => onGuideModeChange?.("smooth")}>Smooth</button>
             <button className={`mp-button ${guideMode === "melody" ? "active" : ""}`} onClick={() => onGuideModeChange?.("melody")}>Melody</button>
-            <button className={`mp-button ${guideMode === "hunter3" ? "active" : ""}`} onClick={() => onGuideModeChange?.("hunter3")} title="Lights the 3rd of each chord as the guide tone, and marks the note that leads into the next chord's 3rd">3rd Hunter</button>
+            <button className={`mp-button ${guideMode === "hunter3" ? "active" : ""}`} onClick={() => onGuideModeChange?.("hunter3")} title="Lights the 3rd and 7th of each chord, and marks the note that leads into the next chord's 3rd">3rd Hunter</button>
           </div>
           <div style={{ marginTop: "6px", color: "var(--mp-muted)", fontSize: "var(--db-fs-xs)", display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
             <span>Key center: {tonic} {keyMode === "minor" ? "minor" : "major"}</span>

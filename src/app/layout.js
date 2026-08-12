@@ -1,6 +1,5 @@
 import KeyboardShortcuts from "@/components/KeyboardShortcuts";
 import PickupPracticeHome from "@/components/PickupPracticeHome";
-import AppHomeButton from "@/components/AppHomeButton";
 import "./globals.css";
 
 // Tightly-cropped square export of dukebox-jazzmaster.png — small enough for
@@ -52,7 +51,6 @@ export default function RootLayout({ children }) {
       </head>
       <body>
         {children}
-        <AppHomeButton />
         <PickupPracticeHome />
         <KeyboardShortcuts />
       </body>

@@ -17,6 +17,7 @@
 // listed here so the legend stays complete.
 
 import { useEffect, useState } from "react"
+import { goHome as requestHome } from "@/lib/homeNav"
 
 const GROUPS = [
   {
@@ -129,13 +130,12 @@ function waitFor(get, done, tries = 25) {
 }
 
 function goHome() {
-  // Practice shows a "Practice Home" pill; everywhere else the floating
-  // jazzmaster button is the way back.
-  const pill = document.querySelector(".db-pickup-return-home")
-  if (pill) { pill.click(); return true }
-  const floating = document.querySelector(".db-app-home-button")
-  if (floating) { floating.click(); return true }
-  return false
+  // PickupPracticeHome owns the home surface — see lib/homeNav. The old
+  // version clicked the return-home pill, which only exists on Practice, then
+  // fell back to the floating button, which fell back to the Practice tab. So
+  // "0" from Gig or Create landed on Practice instead of Home.
+  requestHome()
+  return true
 }
 
 // Open a collapsed PowerPanel / <details> before scrolling to it, so the
