@@ -18,13 +18,28 @@ const FRET_COUNT   = 12
 const MARKER_FRETS = [3, 5, 7, 9, 12]
 const NUM_FRET_LABELS = [1, 3, 5, 7, 9, 12]
 
-export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes = null, view = "chord", tuningName = "Standard", targetNotes = [], passingNotes = [], guideToneNotes = [], guideToneDirections = null, enclosureNotes = [] }) {
+// A route is only drawn to a ghost this close. Beyond it the "shortest path"
+// stops being a path you'd actually play, and the line lies about the fingering.
+const MAX_ROUTE_FRETS   = 3
+const MAX_ROUTE_STRINGS = 1
+
+export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes = null, view = "chord", tuningName = "Standard", targetNotes = [], passingNotes = [], guideToneNotes = [], guideToneDirections = null, enclosureNotes = [], ghostNotes = [], animate = false, barSeconds = 0, phaseKey = null }) {
+  // The bar has a shape. Beats 1-2 the chord stands alone; beat 3 the ghosts
+  // fade up and the routes start drawing; beat 4 the routes are at full and
+  // everything that isn't a guide tone dims, so you are pulled into the change
+  // instead of being surprised by it.
+  //
+  // Driven by CSS keyframes scaled to the bar's duration and remounted on
+  // phaseKey — the same approach Runway uses for its fill bar. No animation
+  // frame loop, no re-renders, and it stays on the compositor.
+  const phaseOn = animate && barSeconds > 0
   const displayNotes = view === "scale" && scaleNotes?.length ? scaleNotes : chordNotes
   const noteSet    = new Set(displayNotes.map(n => norm(n)))
   const targetSet  = new Set((targetNotes  ?? []).map(n => norm(n)))
   const passingSet = new Set((passingNotes ?? []).map(n => norm(n)))
   const guideSet   = new Set((guideToneNotes ?? []).map(n => norm(n)))
   const enclosureSet = new Set((enclosureNotes ?? []).map(n => norm(n)))
+  const ghostSet   = new Set((ghostNotes ?? []).map(n => norm(n)))
   const root       = norm(rootNote)
 
   const strings     = TUNINGS[tuningName] || TUNINGS.Standard
@@ -58,37 +73,112 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
       const inGuide   = guideSet.has(noteName)
       const inEnclosure = enclosureSet.has(noteName)
       if (!inChord && !inTarget && !inPassing && !inGuide && !inEnclosure) continue
-      const isRoot    = noteName === root
-      const isTarget  = !isRoot && inTarget
-      const isPassing = !isRoot && !isTarget && inPassing
-      const isGuide   = !isRoot && !isTarget && !isPassing && inGuide
-      const isEnclosure = !isRoot && !isTarget && !isPassing && !isGuide && inEnclosure
-      // Color priority: root > resolution target > bebop passing > guide tone > enclosure > scale/chord
+      // Rank by what the note is *for*, not by what it is. A resolution target
+      // and the guide tones outrank the root: the bass is already covering the
+      // root, which makes it the least useful note on the screen to a soloist.
+      const isTarget  = inTarget
+      const isGuide   = !isTarget && inGuide
+      const isPassing = !isTarget && !isGuide && inPassing
+      const isEnclosure = !isTarget && !isGuide && !isPassing && inEnclosure
+      const isRoot    = !isTarget && !isGuide && !isPassing && !isEnclosure && noteName === root
+      // Color priority: resolution target > guide tone > bebop passing > enclosure > root > scale/chord
       // Fixed maple-note-role tokens (--n-*), never palette tokens — the board reads
       // the same on every palette (see docs/PRACTICE_REDESIGN_V3.md §4.7).
-      const color = isRoot    ? "var(--n-root)"
-                  : isTarget  ? "var(--n-target)"
-                  : isPassing ? "var(--n-passing)"
+      const color = isTarget  ? "var(--n-target)"
                   : isGuide   ? "var(--n-target)"
+                  : isPassing ? "var(--n-passing)"
                   : isEnclosure ? "var(--n-enclosure)"
+                  : isRoot    ? "var(--n-root)"
                   : view === "scale" ? "var(--n-scale)"
                   : "var(--n-chord)"
+      // Size carries the same ranking as colour, so the hierarchy survives in
+      // peripheral vision and for anyone who can't separate the hues. Guide
+      // tones and targets share --n-target, so size is what tells them apart.
+      const r = isGuide ? 11 : isTarget ? 10 : isEnclosure ? 8 : 8.5
+      // A guide tone the next chord also contains: nothing to move, so it gets
+      // a ring rather than a route. "Stay put" is information worth drawing.
+      const held = isGuide && ghostSet.has(noteName)
+        && guideToneDirections?.[noteName] === 0
       dots.push({
         key:  `${si}-${f}`,
         cx:   dotX(f),
         cy:   strY(si),
-        r:    isRoot ? 10 : isEnclosure ? 8 : 9,
+        r,
         color,
         label: noteName,
+        si, f, held,
         isRoot, isTarget, isPassing, isGuide, isEnclosure,
       })
     }
   })
-  // Render overlays last (enclosure → guide → passing → target) so they always paint over scale dots
+  // Render overlays last (root → enclosure → passing → guide → target) so the
+  // notes that matter most always paint over the ones that matter least.
   dots.sort((a, b) => {
-    const rank = d => d.isTarget ? 4 : d.isPassing ? 3 : d.isGuide ? 2 : d.isEnclosure ? 1 : 0
+    const rank = d => d.isTarget ? 5 : d.isGuide ? 4 : d.isPassing ? 3 : d.isEnclosure ? 2 : d.isRoot ? 1 : 0
     return rank(a) - rank(b)
   })
+
+  // ── Ghosts: the NEXT chord's guide tones, on this same neck ────────────────
+  // Drawn here rather than on a second fretboard below, so there is no mental
+  // register-mapping between two graphics at tempo. At the bar change they are
+  // already where your eye is.
+  const heldAt = new Set(dots.filter(d => d.held).map(d => `${d.si}:${d.f}`))
+  const ghosts = []
+  if (ghostSet.size) {
+    strings.forEach((open, si) => {
+      const openChroma = NOTES_FLAT.indexOf(norm(open))
+      if (openChroma === -1) return
+      for (let f = 0; f <= FRET_COUNT; f++) {
+        const noteName = NOTES_FLAT[(openChroma + f) % 12]
+        if (!ghostSet.has(noteName)) continue
+        if (heldAt.has(`${si}:${f}`)) continue   // the ring on the live dot says it already
+        ghosts.push({ key: `g${si}-${f}`, cx: dotX(f), cy: strY(si), si, f, label: noteName })
+      }
+    })
+  }
+
+  // ── Routes: the shortest playable path from each live guide tone to a ghost ─
+  const routes = []
+  if (ghosts.length && guideToneDirections) {
+    for (const d of dots) {
+      if (!d.isGuide || d.held) continue
+      const semis = guideToneDirections[d.label]
+      const dest  = guideToneDirections[`${d.label}:to`]
+      if (semis == null || semis === 0 || !dest) continue
+      const destNorm = norm(dest)
+      let best = null, bestCost = Infinity
+      for (const g of ghosts) {
+        if (g.label !== destNorm) continue
+        const df = Math.abs(g.f - d.f), ds = Math.abs(g.si - d.si)
+        if (df > MAX_ROUTE_FRETS || ds > MAX_ROUTE_STRINGS) continue
+        const cost = df + ds * 2.2          // crossing a string costs more than sliding a fret
+        if (cost < bestCost) { bestCost = cost; best = g }
+      }
+      if (!best) continue
+      const mx = (d.cx + best.cx) / 2
+      const my = (d.cy + best.cy) / 2 - (d.si === best.si ? 15 : 10)
+      routes.push({
+        key: `r${d.key}`, fromKey: d.key,
+        d: `M${d.cx},${d.cy} Q${mx},${my} ${best.cx},${best.cy}`,
+        from: d.label, to: destNorm, semis,
+      })
+    }
+  }
+
+  // Where a route or a held ring already shows the resolution, the arrow glyph
+  // would only repeat it. Suppressed per dot, not globally: in 3rd Hunter the
+  // marked note is the lead-in, which is never a guide tone and never routed,
+  // so its arrow has to survive.
+  const drawnResolution = new Set([
+    ...routes.map(r => r.fromKey),
+    ...dots.filter(d => d.held).map(d => d.key),
+  ])
+
+  // Dimming only means something when something else stays lit. With no guide
+  // tones or targets on the board there is nothing to step back for, and the
+  // whole neck would fade out once a bar.
+  const hasLitLayer = dots.some(d => d.isGuide || d.isTarget)
+  const phaseDur = { animationDuration: `${barSeconds}s` }
 
   const midY = Y_TOP + (STR_SPAN / 2)
 
@@ -106,6 +196,39 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
           <feGaussianBlur stdDeviation="3.2" />
         </filter>
       </defs>
+
+      {phaseOn && (
+        <style>{`
+          .dbfb-ghost, .dbfb-route, .dbfb-dim {
+            animation-timing-function: linear;
+            animation-fill-mode: both;
+          }
+          .dbfb-ghost { animation-name: dbfbGhostIn }
+          .dbfb-route { animation-name: dbfbRouteIn }
+          .dbfb-dim   { animation-name: dbfbDim }
+
+          /* Beats 1-2 nothing; the change arrives over beat 3. */
+          @keyframes dbfbGhostIn {
+            0%, 45%    { opacity: 0 }
+            80%, 100%  { opacity: 0.85 }
+          }
+          /* The route draws itself along the neck across beats 3 and 4. */
+          @keyframes dbfbRouteIn {
+            0%, 55%    { stroke-dashoffset: 1; opacity: 0 }
+            58%        { opacity: 0.95 }
+            92%, 100%  { stroke-dashoffset: 0; opacity: 0.95 }
+          }
+          /* Beat 4: everything that isn't a guide tone gets out of the way. */
+          @keyframes dbfbDim {
+            0%, 70%    { opacity: 1 }
+            100%       { opacity: 0.4 }
+          }
+
+          @media (prefers-reduced-motion: reduce) {
+            .dbfb-ghost, .dbfb-route, .dbfb-dim { animation: none !important }
+          }
+        `}</style>
+      )}
 
       {/* Fretboard wood background */}
       <rect x={NUT_X} y={0} width={FRET_AREA} height={H} rx={3} fill="url(#fb-maple)" stroke="var(--fb-nut)" strokeWidth={1} />
@@ -153,7 +276,34 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
         >{note}</text>
       ))}
 
+      {/* Routes into the next chord — under the dots so they never hide a note */}
+      <g key={`routes-${phaseKey}`}>
+        {routes.map(r => (
+          <path key={r.key} d={r.d} fill="none" stroke="var(--n-next)" strokeWidth={2.4} strokeLinecap="round"
+            opacity={0.95} pathLength={1} strokeDasharray="1 1" strokeDashoffset={0}
+            className={phaseOn ? "dbfb-route" : undefined} style={phaseOn ? phaseDur : undefined}>
+            <title>{`${r.from} → ${r.to} · ${Math.abs(r.semis) === 1 ? "a semitone" : "a whole tone"} ${r.semis > 0 ? "up" : "down"}`}</title>
+          </path>
+        ))}
+      </g>
+
+      {/* Ghosts of the next chord's guide tones */}
+      <g key={`ghosts-${phaseKey}`}>
+        {ghosts.map(g => (
+          <g key={g.key} opacity={0.85}
+            className={phaseOn ? "dbfb-ghost" : undefined} style={phaseOn ? phaseDur : undefined}>
+            <circle cx={g.cx} cy={g.cy} r={9.5} fill="var(--n-next-fill)" stroke="var(--n-next)" strokeWidth={2.2} />
+            <text x={g.cx} y={g.cy + 3.2}
+              textAnchor="middle" fill="var(--n-next)"
+              fontSize={8} fontWeight="bold" fontFamily="Arial, sans-serif"
+            >{g.label}</text>
+            <title>{`${g.label} — guide tone of the next chord`}</title>
+          </g>
+        ))}
+      </g>
+
       {/* Note dots */}
+      <g key={`dots-${phaseKey}`}>
       {dots.map(d => {
         // How this guide tone resolves into the next chord.
         // One arrow per semitone, pointing the way the note moves in pitch —
@@ -168,7 +318,7 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
         // 3rd Hunter the note that moves is the lead-in (drawn in the approach
         // colour), while the lit guide tone is the chord's own 3rd and stays
         // unmarked.
-        const semis = guideToneDirections ? guideToneDirections[d.label] : null
+        const semis = (guideToneDirections && !drawnResolution.has(d.key)) ? guideToneDirections[d.label] : null
         const goesTo = guideToneDirections ? guideToneDirections[`${d.label}:to`] : null
         let glyph = null
         if (semis != null) {
@@ -181,14 +331,29 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
         // Target/guide-tone dots pulse with a soft glow, same as every palette —
         // the glow color is a constant token too (--n-target-glow).
         const glows = d.isTarget || d.isGuide
+        // Guide tones and targets hold their brightness through the bar; they
+        // are what you are aiming at. Everything else steps back on beat 4.
+        const dims = phaseOn && hasLitLayer && !d.isGuide && !d.isTarget
         return (
-          <g key={d.key}>
+          <g key={d.key}
+            className={dims ? "dbfb-dim" : undefined} style={dims ? phaseDur : undefined}>
             {glows && (
               <circle cx={d.cx} cy={d.cy} r={d.r + 4} fill="var(--n-target-glow)" filter="url(#fb-target-glow)" />
             )}
             <circle cx={d.cx} cy={d.cy} r={d.r} fill={d.color} stroke="#3D2A12" strokeWidth={d.isRoot ? 1.2 : 0.6} />
             {d.isEnclosure && (
               <circle cx={d.cx} cy={d.cy} r={d.r + 3} fill="none" stroke="var(--n-enclosure)" strokeWidth={1.4} strokeDasharray="3 2.5" />
+            )}
+            {/* Held guide tone — the next chord has it too, so stay put. Drawn
+                inside the dot rather than around it: strings are only ~23px
+                apart, so a concentric ring would spill into its neighbours,
+                and the enclosure ring already owns the outside of the dot. */}
+            {d.held && (
+              <circle cx={d.cx} cy={d.cy} r={d.r - 1.4}
+                fill="none" stroke="var(--n-next)" strokeWidth={2.4}
+                className={phaseOn ? "dbfb-ghost" : undefined} style={phaseOn ? phaseDur : undefined}>
+                <title>{`${d.label} is in both chords — hold it`}</title>
+              </circle>
             )}
             {glyph && <title>{`${d.label} → ${goesTo ?? "?"} · ${motionWord}`}</title>}
             <text x={d.cx} y={d.cy + 3.5}
@@ -205,6 +370,7 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
           </g>
         )
       })}
+      </g>
 
     </svg>
   )

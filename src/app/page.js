@@ -570,6 +570,27 @@ export default function Home() {
     return dirs
   }, [targetsOverlay, melodyPathMode, melodyPathState, fretboardBarIndex, anticipateBarIndex])
 
+  // The next chord's path notes, ghosted onto the maple board itself when
+  // Anticipate is on, with a route drawn into each. Seeing "here" and "there"
+  // on one board removes the register-mapping between two graphics at tempo.
+  //
+  // 3rd Hunter is excluded on purpose: there the arrow already belongs to the
+  // lead-in note rather than to a guide tone, so it keeps its own second board
+  // and its own marking untouched.
+  const ghostGuideTones = useMemo(() => {
+    if (!anticipateOn || !targetsOverlay) return []
+    if (melodyPathMode === "hunter3" || anticipateBarIndex == null) return []
+    return melodyPathState.notesByBar[anticipateBarIndex] || []
+  }, [anticipateOn, targetsOverlay, melodyPathMode, melodyPathState, anticipateBarIndex])
+
+  // How long the bar under the playhead lasts, so the fretboard's phase
+  // animation runs on the same clock as the audio. Matches Runway's tempo
+  // handling, including the practice-mode override.
+  const fretboardBarSeconds = useMemo(() => {
+    const bpm = (practiceMode ? 50 : tempo) || 120
+    return ((fretboardBar.beats ?? 4) * 60) / bpm
+  }, [fretboardBar, practiceMode, tempo])
+
   const romanNumerals = useMemo(() => {
     return bars.map((bar) => chordToRoman(bar.root, bar.quality, keyRoot, keyMode))
   }, [bars, keyRoot, keyMode])
@@ -2317,7 +2338,10 @@ export default function Home() {
               {enclosureOn && (
                 <span><span style={{ color: "var(--n-enclosure)" }}>◌</span> Enclosure (½ step around next target)</span>
               )}
-              {targetsOverlay && (anticipateOn || melodyPathMode === "hunter3") && (
+              {ghostGuideTones.length > 0 && (
+                <span style={{ color: "var(--n-next)" }}>○ next chord · ⌒ route in · ◎ held tone, stay put</span>
+              )}
+              {targetsOverlay && (anticipateOn || melodyPathMode === "hunter3") && ghostGuideTones.length === 0 && (
                 <span style={{ color: "var(--n-target)" }}>→ up a semitone · →→ up a whole tone · ← ←← down · = stays</span>
               )}
             </div>
@@ -2339,14 +2363,37 @@ export default function Home() {
                 guideToneNotes={guideToneDisplayNotes}
                 guideToneDirections={guideToneDirections}
                 enclosureNotes={enclosureDisplay.notes}
+                ghostNotes={ghostGuideTones}
+                animate={isPlaying && playheadIndex !== null}
+                barSeconds={fretboardBarSeconds}
+                phaseKey={playheadIndex}
                 view={fretboardView}
                 tuningName={fretboardTuning}
               />
             </div>
 
-            {/* Anticipate — the NEXT chord, rendered as the exact same maple
-                board, just dimmed to read as "coming up" rather than "now". */}
-            {anticipateOn && anticipateBar && (
+            {/* Anticipate — when the ghosts are on the board above they already
+                say where the next chord is, so this collapses to a readout.
+                3rd Hunter (which the ghosts skip) keeps the full second maple
+                board, dimmed to read as "coming up" rather than "now". */}
+            {anticipateOn && anticipateBar && ghostGuideTones.length > 0 && (
+              <div style={{
+                marginTop: "6px", padding: "6px 10px",
+                borderRadius: "var(--db-r-sm)",
+                border: "1px solid color-mix(in srgb, var(--n-next) 45%, transparent)",
+                background: "color-mix(in srgb, var(--n-next) 8%, transparent)",
+                display: "flex", alignItems: "baseline", gap: "10px", flexWrap: "wrap",
+              }}>
+                <div style={{ fontSize: "var(--db-fs-xs)", fontWeight: 700, letterSpacing: "0.12em", color: "var(--n-next)", textTransform: "uppercase" }}>
+                  Next · Bar {barLabels[anticipateBarIndex] ?? anticipateBarIndex + 1}
+                </div>
+                <div style={{ fontSize: "var(--db-fs-lg)", fontWeight: 700 }}>{anticipateBar.symbol}</div>
+                <div style={{ fontSize: "var(--db-fs-xs)", opacity: 0.75 }}>
+                  {melodyPathModeLabel} path {ghostGuideTones.join(" / ") || "—"}
+                </div>
+              </div>
+            )}
+            {anticipateOn && anticipateBar && ghostGuideTones.length === 0 && (
               <div style={{ marginTop: "10px", paddingTop: "10px", borderTop: "1px dashed var(--db-panel-border)", opacity: 0.6 }}>
                 <div style={{ display: "flex", alignItems: "baseline", gap: "10px", marginBottom: "4px" }}>
                   <div style={{ fontSize: "var(--db-fs-xs)", fontWeight: 700, letterSpacing: "0.12em", color: "var(--muted)", textTransform: "uppercase" }}>
