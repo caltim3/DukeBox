@@ -17,18 +17,10 @@ const GRID_COLUMNS = 8
 const MAX_VISIBLE_BARS = 16
 const BRAND_ICON = "/dukebox-jazzmaster.png"
 
-// Same "go home" behavior as AppHomeButton — jump back to Practice, or hand
-// off to Pickup Practice's own return button when that's what's showing.
-function goHome() {
-  const existingReturnButton = document.querySelector(".db-pickup-return-home")
-  if (existingReturnButton) {
-    existingReturnButton.click()
-    return
-  }
-  const practiceTab = [...document.querySelectorAll('[role="tab"]')]
-    .find((tab) => tab.textContent?.replace(/\s+/g, " ").trim().toLowerCase().includes("practice"))
-  practiceTab?.click()
-}
+// Home is a surface owned by PickupPracticeHome — see lib/homeNav. This used
+// to fall through to clicking the Practice tab, which is workspace "1", not
+// home.
+import { goHome } from "@/lib/homeNav"
 
 export default function GigBarStrip({ bars, title, playheadIndex, isPlaying, onStop }) {
   if (!isPlaying || playheadIndex == null || !bars?.length) return null

@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react"
 import { GUIDES } from "./ReferenceGuides"
 import { getRecentActivity } from "@/lib/recentActivity"
 import { STARTER_STRIP, requestStarter } from "@/lib/music/starters"
+import { GO_HOME_EVENT } from "@/lib/homeNav"
+import BuildStamp from "./BuildStamp"
 
 const BRAND_ICON = "/dukebox-jazzmaster.png"
 
@@ -320,6 +322,20 @@ export default function PickupPracticeHome() {
     })
   }
 
+  // Home is a surface, not a tab: it needs the Practice workspace selected AND
+  // practiceSurface === "home", and only this component owns the second half.
+  // Callers elsewhere dispatch GO_HOME_EVENT instead of clicking the Practice
+  // tab, which is a different destination ("1", not "0").
+  useEffect(() => {
+    function onGoHome() {
+      findWorkspaceTab("Practice")?.click()
+      setWorkspace("practice")
+      setPracticeSurface("home")
+    }
+    window.addEventListener(GO_HOME_EVENT, onGoHome)
+    return () => window.removeEventListener(GO_HOME_EVENT, onGoHome)
+  }, [])
+
   function openWorkspace(id) {
     if (id === "practice") {
       findWorkspaceTab("Practice")?.click()
@@ -624,6 +640,15 @@ export default function PickupPracticeHome() {
         }
 
         .db-pickup-header h1 span { color: var(--pickup-purple); }
+
+        /* Build stamp + bell, top right. The stamp moved here from the
+           Practice header — provenance belongs on the screen you land on. */
+        .db-pickup-header-right {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          flex-shrink: 0;
+        }
 
         .db-pickup-bell {
           width: 42px;
@@ -1054,9 +1079,12 @@ export default function PickupPracticeHome() {
         <div className="db-pickup-main-inner">
           <header className="db-pickup-header">
             <h1>Welcome back, <span>Tim!</span></h1>
-            <button type="button" className="db-pickup-bell" aria-label="Notifications" title="Notifications">
-              <Icon name="bell" />
-            </button>
+            <div className="db-pickup-header-right">
+              <BuildStamp />
+              <button type="button" className="db-pickup-bell" aria-label="Notifications" title="Notifications">
+                <Icon name="bell" />
+              </button>
+            </div>
           </header>
 
           <section className="db-pickup-section">

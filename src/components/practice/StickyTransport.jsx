@@ -21,17 +21,10 @@ const arrowBtn = {
 
 const BRAND_ICON = "/dukebox-jazzmaster.png"
 
-// Same "go home" behavior as AppHomeButton/GigBarStrip.
-function goHome() {
-  const existingReturnButton = document.querySelector(".db-pickup-return-home")
-  if (existingReturnButton) {
-    existingReturnButton.click()
-    return
-  }
-  const practiceTab = [...document.querySelectorAll('[role="tab"]')]
-    .find((tab) => tab.textContent?.replace(/\s+/g, " ").trim().toLowerCase().includes("practice"))
-  practiceTab?.click()
-}
+// Home is a surface owned by PickupPracticeHome — see lib/homeNav. This used
+// to fall through to clicking the Practice tab, which is workspace "1", not
+// home.
+import { goHome } from "@/lib/homeNav"
 
 export default function StickyTransport({
   isPlaying,

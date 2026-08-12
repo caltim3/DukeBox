@@ -31,7 +31,7 @@ import { DRUM_KIT_NAMES, DEFAULT_DRUM_KIT } from "@/lib/music/samples"
 import { parseTonalUserSongs } from "@/lib/music/importTonal"
 import { parseGigChord, GIGBOOK_SONGS, gigSongToBars, parseGigKey, gigTempoNumber } from "@/lib/music/gigbook"
 import { guidedPrescription, drillStage, nextKeyInCycle, DRILL_LOOPS_PER_STAGE, PENA_DRILLS } from "@/lib/music/penaDrills"
-import { STARTER_PRESETS, LOAD_STARTER_EVENT } from "@/lib/music/starters"
+import { STARTER_PRESETS, STARTER_STRIP, LOAD_STARTER_EVENT } from "@/lib/music/starters"
 import Fretboard from "@/components/Fretboard"
 import MetronomePanel from "@/components/MetronomePanel"
 import BeatForgeLibrary from "@/components/BeatForgeLibrary"
@@ -212,6 +212,9 @@ export default function Home() {
   // piece of client state the spec allows (§6): which top-canvas layout is
   // showing. Persisted so a reload keeps your last choice.
   const [practiceView, setPracticeView] = useState("cockpit")
+  // Which view the Start-practicing starter buttons open into. Separate from
+  // practiceView so arming it does not yank you out of the view you are in.
+  const [starterView, setStarterView] = useState("cockpit")
   useEffect(() => {
     const saved = window.localStorage.getItem("dukebox.practiceView")
     if (saved === "cockpit" || saved === "focus") setPracticeView(saved)
@@ -1676,7 +1679,6 @@ export default function Home() {
 
           <SyncControl auth={auth} syncStatus={syncStatus} style={{ marginLeft: "auto" }} />
 
-          <BuildStamp />
         </div>
 
         {/* ── Workspace switcher ─────────────────────────────────── */}
@@ -1719,6 +1721,61 @@ export default function Home() {
         <p style={{ opacity: 0.7, marginBottom: "20px", fontSize: "var(--db-fs-md)" }}>
           {MODES.find(m => m.id === mode)?.blurb}
         </p>
+
+        {/* Start practicing — the same starter charts as the Home strip, but
+            reachable without going home first. Each button loads the chart,
+            drops to practice tempo and starts the band (loadStarter already
+            does all three), after switching to whichever view is armed. */}
+        {inMode("practice") && (
+          <div style={{
+            marginBottom: "20px", padding: "12px 14px",
+            background: "var(--surface)", border: "1px solid var(--line)", borderRadius: "14px",
+          }}>
+            <div style={{ display: "flex", alignItems: "baseline", gap: "10px", flexWrap: "wrap", marginBottom: "9px" }}>
+              <span style={{ font: "700 11px 'IBM Plex Mono', monospace", letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--muted)" }}>
+                Start practicing
+              </span>
+              <span style={{ fontSize: "var(--db-fs-xs)", color: "var(--muted)" }}>
+                Loads at 50 BPM and starts the band — pick the view first
+              </span>
+              <div style={{ marginLeft: "auto", display: "flex", gap: 0, background: "var(--surface2)", border: "1px solid var(--line)", borderRadius: "9px", padding: "3px" }}>
+                {[["cockpit", "Practice"], ["focus", "Focus"]].map(([id, label]) => (
+                  <button
+                    key={id}
+                    onClick={() => setStarterView(id)}
+                    aria-pressed={starterView === id}
+                    title={`Starter charts open in ${label} view`}
+                    style={{
+                      font: "700 11.5px 'Instrument Sans', sans-serif", padding: "5px 11px", borderRadius: "6px",
+                      border: "none", letterSpacing: "0.02em", cursor: "pointer",
+                      background: starterView === id ? "var(--accent)" : "transparent",
+                      color: starterView === id ? "var(--accent-ink)" : "var(--muted)",
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: "7px", flexWrap: "wrap" }}>
+              {STARTER_STRIP.map((preset) => (
+                <button
+                  key={preset.id}
+                  onClick={() => { choosePracticeView(starterView); loadStarter(preset.id) }}
+                  title={`Load ${preset.label} and start playing in ${starterView === "focus" ? "Focus" : "Practice"} view`}
+                  style={{
+                    padding: "7px 14px", borderRadius: "999px", cursor: "pointer",
+                    font: "600 13px 'Instrument Sans', sans-serif",
+                    background: "var(--surface2)", color: "var(--text)",
+                    border: "1px solid var(--line)",
+                  }}
+                >
+                  ▶ {preset.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {inMode("gig") && (
           <div style={{ marginBottom: "20px" }}>
@@ -2277,8 +2334,11 @@ export default function Home() {
               </div>
             )}
 
-            {/* Now-playing readout — always visible, not folded behind settings. */}
-            <div style={{ display: "flex", alignItems: "stretch", gap: "10px", flexWrap: "wrap", marginBottom: "10px" }}>
+            {/* Now-playing readout — always visible, not folded behind settings.
+                Centred over the neck: it's the thing you glance up at while
+                playing, so it sits above the middle of the board rather than
+                off in the left margin. */}
+            <div style={{ display: "flex", alignItems: "stretch", justifyContent: "center", gap: "10px", flexWrap: "wrap", marginBottom: "10px" }}>
               {timerState && (() => {
                 const { seconds, running, done, duration } = timerState
                 const urgent = done || (running && seconds <= 10)
@@ -2289,7 +2349,7 @@ export default function Home() {
                     title="Practice timer — set it in the Timer drawer"
                     style={{
                       display: "flex", flexDirection: "column", justifyContent: "center",
-                      textAlign: "right", lineHeight: 1.1,
+                      textAlign: "center", lineHeight: 1.1,
                       padding: "8px 14px", borderRadius: "var(--db-r-md)",
                       border: `2px solid color-mix(in srgb, ${tColor} ${running || done ? "100%" : "40%"}, transparent)`,
                       background: running || done ? `color-mix(in srgb, ${tColor} 12%, var(--db-bg))` : "var(--db-panel-bg)",
@@ -2306,7 +2366,7 @@ export default function Home() {
               <div
                 aria-live="polite"
                 style={{
-                  textAlign: "right", lineHeight: 1.1,
+                  textAlign: "center", lineHeight: 1.1,
                   padding: "8px 16px", borderRadius: "var(--db-r-md)",
                   border: `2px solid ${(isPlaying && playheadIndex !== null) ? "var(--db-c-green)" : "var(--db-c-amber)"}`,
                   background: (isPlaying && playheadIndex !== null)
@@ -2341,7 +2401,7 @@ export default function Home() {
               </span>
               <span style={{ opacity: targetsOverlay ? 1 : 0.5 }}>
                 <span style={{ color: "var(--n-target)" }}>●</span>{" "}
-                {melodyPathMode === "hunter3" ? "3rd of this chord (guide tone)" : `${melodyPathModeLabel} path / Target`}
+                {melodyPathMode === "hunter3" ? "3rd & 7th of this chord (guide tones)" : `${melodyPathModeLabel} path · 3rd & 7th`}
               </span>
               {targetsOverlay && melodyPathMode === "hunter3" && (
                 <span><span style={{ color: "var(--n-enclosure)" }}>◌</span> Leads into the next 3rd →</span>
@@ -3305,54 +3365,6 @@ function SyncControl({ auth, syncStatus, style }) {
       </button>
     </div>
   )
-}
-
-// ─── Build stamp ─────────────────────────────────────────────────────────────
-// Which commit is actually running. Deploys are easy to misread — a cached page
-// or an old preview URL looks exactly like a deploy that never happened — so the
-// page states its own provenance instead of leaving you to infer it.
-// Values are inlined at build time; see the `env` block in next.config.mjs.
-function BuildStamp() {
-  const sha = process.env.NEXT_PUBLIC_BUILD_SHA || "dev"
-  const builtAt = process.env.NEXT_PUBLIC_BUILD_TIME || ""
-  const repo = process.env.NEXT_PUBLIC_BUILD_REPO || ""
-
-  // Formatted in UTC rather than the viewer's locale: server and browser sit in
-  // different time zones, so a localised string renders differently on each and
-  // trips React's hydration check. UTC is the same everywhere.
-  const stamped = (() => {
-    const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(builtAt)
-    if (!m) return ""
-    const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
-    const [, , mo, day, hh, mm] = m
-    return `${months[Number(mo) - 1]} ${Number(day)} ${hh}:${mm}Z`
-  })()
-
-  const label = `build ${sha}${stamped ? ` · ${stamped}` : ""}`
-  const title = `Running commit ${sha}${builtAt ? `, built ${builtAt}` : ""}${repo ? ` from ${repo}` : ""}`
-
-  const style = {
-    fontSize: "var(--db-fs-xs)",
-    fontFamily: "var(--font-mono, monospace)",
-    color: "var(--db-muted)",
-    padding: "4px 9px",
-    borderRadius: "var(--db-r-pill)",
-    border: "1px solid var(--db-panel-border)",
-    background: "var(--db-panel-bg)",
-    whiteSpace: "nowrap",
-    textDecoration: "none",
-    flexShrink: 0,
-  }
-
-  // Public repo — link straight to the commit that's live.
-  if (repo && sha !== "dev") {
-    return (
-      <a href={`https://github.com/${repo}/commit/${sha}`} target="_blank" rel="noopener noreferrer" style={style} title={title}>
-        {label}
-      </a>
-    )
-  }
-  return <span style={style} title={title}>{label}</span>
 }
 
 function InfoBlock({ title, value, color }) {
