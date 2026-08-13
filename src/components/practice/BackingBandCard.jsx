@@ -1,9 +1,11 @@
 "use client"
 
-// Backing band mini-mixer (spec §5.1). Mirrors the exact same play/mute
-// state the Band & Mix power panel edits (playChords/playBass/playDrums/
-// playMelody) — this is a second, compact view of the same booleans, not a
-// second source of truth.
+// Backing band mini-mixer (spec §5.1). Mirrors the exact same state the Band &
+// Mix power panel edits (playChords/playBass/playDrums/playMelody plus the
+// three style choices) — a second, compact view of the same values, not a
+// second source of truth. The styles used to be read-only text pointing you at
+// another panel; they're editable here now, since this card is already where
+// you look when you want to change who's playing.
 
 const muteBtn = (muted) => ({
   width: "28px", height: "24px", borderRadius: "6px", cursor: "pointer",
@@ -18,31 +20,46 @@ const rowStyle = {
   padding: "8px 0", borderTop: "1px solid var(--line)", fontSize: "12.5px",
 }
 
+const pickStyle = {
+  width: "100%", minWidth: 0, padding: "4px 6px", borderRadius: "6px",
+  border: "1px solid var(--line)", background: "var(--surface2)", color: "var(--text)",
+  font: "600 12px 'Instrument Sans', sans-serif", cursor: "pointer",
+}
+
 export default function BackingBandCard({
-  compingStyle, playChords, onToggleChords,
-  bassStyle, playBass, onToggleBass,
-  drumStyleLabel, playDrums, onToggleDrums,
+  compingStyle, compingOptions = [], onCompingChange,
+  playChords, onToggleChords,
+  bassStyle, bassOptions = [], onBassChange,
+  playBass, onToggleBass,
+  drumStyleLabel, drumOptions = [], onDrumChange,
+  playDrums, onToggleDrums,
   playMelody, onToggleMelody,
 }) {
   return (
     <div style={{ background: "var(--surface)", border: "1px solid var(--line)", borderRadius: "14px", padding: "14px 16px" }}>
       <h4 style={{ font: "800 11px 'Archivo', sans-serif", letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--muted)", margin: "0 0 10px" }}>
-        Backing band <small style={{ color: "var(--muted)", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>· change in Band &amp; Mix</small>
+        Backing band
       </h4>
 
       <div style={{ ...rowStyle, borderTop: "none" }}>
         <span style={{ color: "var(--muted)", textTransform: "uppercase", fontSize: "10.5px", letterSpacing: "0.1em" }}>Piano</span>
-        <span style={{ fontWeight: 600 }}>{compingStyle}</span>
+        <select value={compingStyle} onChange={(e) => onCompingChange?.(e.target.value)} style={pickStyle} aria-label="Piano style">
+          {compingOptions.map((name) => <option key={name} value={name}>{name}</option>)}
+        </select>
         <button style={muteBtn(!playChords)} onClick={onToggleChords} title="Mute piano">M</button>
       </div>
       <div style={rowStyle}>
         <span style={{ color: "var(--muted)", textTransform: "uppercase", fontSize: "10.5px", letterSpacing: "0.1em" }}>Bass</span>
-        <span style={{ fontWeight: 600 }}>{bassStyle}</span>
+        <select value={bassStyle} onChange={(e) => onBassChange?.(e.target.value)} style={pickStyle} aria-label="Bass style">
+          {bassOptions.map((name) => <option key={name} value={name}>{name}</option>)}
+        </select>
         <button style={muteBtn(!playBass)} onClick={onToggleBass} title="Mute bass">M</button>
       </div>
       <div style={rowStyle}>
         <span style={{ color: "var(--muted)", textTransform: "uppercase", fontSize: "10.5px", letterSpacing: "0.1em" }}>Drums</span>
-        <span style={{ fontWeight: 600 }}>{drumStyleLabel}</span>
+        <select value={drumStyleLabel} onChange={(e) => onDrumChange?.(e.target.value)} style={pickStyle} aria-label="Drums style">
+          {drumOptions.map((name) => <option key={name} value={name}>{name}</option>)}
+        </select>
         <button style={muteBtn(!playDrums)} onClick={onToggleDrums} title="Mute drums">M</button>
       </div>
       <div style={rowStyle}>
