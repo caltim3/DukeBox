@@ -18,12 +18,43 @@ const FRET_COUNT   = 12
 const MARKER_FRETS = [3, 5, 7, 9, 12]
 const NUM_FRET_LABELS = [1, 3, 5, 7, 9, 12]
 
+// Scale degrees relative to the board's root. Transposition-invariant and what
+// you actually think in mid-solo — a note name costs a read, a degree doesn't.
+// 3 semitones renders as b3 rather than #9: minor chords are far commoner on
+// this board than altered dominants, so that is the reading that is right more
+// often.
+const DEGREES = ["R", "b9", "9", "b3", "3", "11", "#11", "5", "b13", "13", "b7", "7"]
+
+function degreeOf(noteName, rootName) {
+  const a = NOTES_FLAT.indexOf(noteName)
+  const b = NOTES_FLAT.indexOf(rootName)
+  if (a < 0 || b < 0) return noteName
+  return DEGREES[(a - b + 12) % 12]
+}
+
+// Every playable position on a neck, so callers can score fret windows without
+// re-deriving the tuning maths.
+export function fretPositions(tuningName = "Standard") {
+  const strings = TUNINGS[tuningName] || TUNINGS.Standard
+  const out = []
+  strings.forEach((open, si) => {
+    const openChroma = NOTES_FLAT.indexOf(norm(open))
+    if (openChroma === -1) return
+    for (let f = 0; f <= FRET_COUNT; f++) {
+      out.push({ si, f, note: NOTES_FLAT[(openChroma + f) % 12] })
+    }
+  })
+  return out
+}
+
+export const FRETBOARD_FRETS = FRET_COUNT
+
 // A route is only drawn to a ghost this close. Beyond it the "shortest path"
 // stops being a path you'd actually play, and the line lies about the fingering.
 const MAX_ROUTE_FRETS   = 3
 const MAX_ROUTE_STRINGS = 1
 
-export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes = null, view = "chord", tuningName = "Standard", targetNotes = [], passingNotes = [], guideToneNotes = [], guideToneDirections = null, enclosureNotes = [], ghostNotes = [], seventhNotes = [], animate = false, barSeconds = 0, phaseKey = null }) {
+export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes = null, view = "chord", tuningName = "Standard", targetNotes = [], passingNotes = [], guideToneNotes = [], guideToneDirections = null, enclosureNotes = [], ghostNotes = [], seventhNotes = [], labelMode = "names", ghostRootNote = null, focusStart = null, focusSpan = 4, animate = false, barSeconds = 0, phaseKey = null }) {
   // The bar has a shape. Beats 1-2 the chord stands alone; beat 3 the ghosts
   // fade up and the routes start drawing; beat 4 the routes are at full and
   // everything that isn't a guide tone dims, so you are pulled into the change
@@ -111,6 +142,7 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
         r,
         color,
         label: noteName,
+        text: labelMode === "degrees" ? degreeOf(noteName, root) : noteName,
         si, f, held,
         isRoot, isTarget, isPassing, isGuide, isEnclosure,
       })
@@ -137,7 +169,13 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
         const noteName = NOTES_FLAT[(openChroma + f) % 12]
         if (!ghostSet.has(noteName)) continue
         if (heldAt.has(`${si}:${f}`)) continue   // the ring on the live dot says it already
-        ghosts.push({ key: `g${si}-${f}`, cx: dotX(f), cy: strY(si), si, f, label: noteName })
+        // A ghost's degree belongs to the chord it comes from, not this one —
+        // labelling the next chord's 3rd against the current root would name it
+        // something you'd never call it.
+        const ghostText = labelMode === "degrees" && ghostRootNote
+          ? degreeOf(noteName, norm(ghostRootNote))
+          : noteName
+        ghosts.push({ key: `g${si}-${f}`, cx: dotX(f), cy: strY(si), si, f, label: noteName, text: ghostText })
       }
     })
   }
@@ -164,6 +202,7 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
       const my = (d.cy + best.cy) / 2 - (d.si === best.si ? 15 : 10)
       routes.push({
         key: `r${d.key}`, fromKey: d.key,
+        startFret: d.f, endFret: best.f,
         d: `M${d.cx},${d.cy} Q${mx},${my} ${best.cx},${best.cy}`,
         from: d.label, to: destNorm, semis,
       })
@@ -183,6 +222,15 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
   // tones or targets on the board there is nothing to step back for, and the
   // whole neck would fade out once a bar.
   const hasLitLayer = dots.some(d => d.isGuide || d.isTarget)
+
+  // The fret focus window. Off (focusStart null) is the default so you can
+  // roam. When on, everything outside dims rather than disappearing — you keep
+  // your bearings, and the shapes you already know stay recognisable.
+  const focusOn = focusStart != null
+  const focusLo = focusOn ? focusStart : 0
+  const focusHi = focusOn ? focusStart + focusSpan : FRET_COUNT
+  const inFocus = (f) => !focusOn || (f >= focusLo && f <= focusHi)
+  const OUT_OF_FOCUS = 0.13
   const phaseDur = { animationDuration: `${barSeconds}s` }
 
   const midY = Y_TOP + (STR_SPAN / 2)
@@ -281,11 +329,28 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
         >{note}</text>
       ))}
 
+      {/* Wash over the wood outside the window. Sits above the frets and
+          strings but under the dots, which manage their own opacity — the
+          neck recedes while the shapes on it stay legible. */}
+      {focusOn && (
+        <g aria-hidden="true">
+          {focusLo > 0 && (
+            <rect x={NUT_X} y={2} width={Math.max(0, fretLineX(focusLo) - NUT_X)} height={H - 2}
+              fill="var(--fb-nut)" opacity={0.55} />
+          )}
+          {focusHi < FRET_COUNT && (
+            <rect x={fretLineX(focusHi)} y={2} width={Math.max(0, W - fretLineX(focusHi))} height={H - 2}
+              fill="var(--fb-nut)" opacity={0.55} />
+          )}
+        </g>
+      )}
+
       {/* Routes into the next chord — under the dots so they never hide a note */}
       <g key={`routes-${phaseKey}`}>
         {routes.map(r => (
           <path key={r.key} d={r.d} fill="none" stroke="var(--n-next)" strokeWidth={2.4} strokeLinecap="round"
-            opacity={0.95} pathLength={1} strokeDasharray="1 1" strokeDashoffset={0}
+            opacity={(inFocus(r.startFret) || inFocus(r.endFret)) ? 0.95 : 0}
+            pathLength={1} strokeDasharray="1 1" strokeDashoffset={0}
             className={phaseOn ? "dbfb-route" : undefined} style={phaseOn ? phaseDur : undefined}>
             <title>{`${r.from} → ${r.to} · ${Math.abs(r.semis) === 1 ? "a semitone" : "a whole tone"} ${r.semis > 0 ? "up" : "down"}`}</title>
           </path>
@@ -295,13 +360,13 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
       {/* Ghosts of the next chord's guide tones */}
       <g key={`ghosts-${phaseKey}`}>
         {ghosts.map(g => (
-          <g key={g.key} opacity={0.85}
+          <g key={g.key} opacity={inFocus(g.f) ? 0.85 : OUT_OF_FOCUS}
             className={phaseOn ? "dbfb-ghost" : undefined} style={phaseOn ? phaseDur : undefined}>
             <circle cx={g.cx} cy={g.cy} r={9.5} fill="var(--n-next-fill)" stroke="var(--n-next)" strokeWidth={2.2} />
             <text x={g.cx} y={g.cy + 3.2}
               textAnchor="middle" fill="var(--n-next)"
-              fontSize={8} fontWeight="bold" fontFamily="Arial, sans-serif"
-            >{g.label}</text>
+              fontSize={g.text.length > 2 ? 7 : 8} fontWeight="bold" fontFamily="Arial, sans-serif"
+            >{g.text}</text>
             <title>{`${g.label} — guide tone of the next chord`}</title>
           </g>
         ))}
@@ -341,6 +406,7 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
         const dims = phaseOn && hasLitLayer && !d.isGuide && !d.isTarget
         return (
           <g key={d.key}
+            opacity={inFocus(d.f) ? 1 : OUT_OF_FOCUS}
             className={dims ? "dbfb-dim" : undefined} style={dims ? phaseDur : undefined}>
             {glows && (
               <circle cx={d.cx} cy={d.cy} r={d.r + 4} fill="var(--n-target-glow)" filter="url(#fb-target-glow)" />
@@ -363,8 +429,9 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
             {glyph && <title>{`${d.label} → ${goesTo ?? "?"} · ${motionWord}`}</title>}
             <text x={d.cx} y={d.cy + 3.5}
               textAnchor="middle" fill="#FFFFFF"
-              fontSize={d.isRoot ? 9 : 8} fontWeight="bold" fontFamily="Arial, sans-serif"
-            >{d.label}</text>
+              fontSize={d.text.length > 2 ? 7 : d.isRoot ? 9 : 8}
+              fontWeight="bold" fontFamily="Arial, sans-serif"
+            >{d.text}</text>
             {glyph && (
               <text x={d.cx} y={d.cy - d.r - 2.5}
                 textAnchor="middle" fontSize={12.5} fontWeight="bold"
