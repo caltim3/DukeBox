@@ -46,7 +46,6 @@ import { useAuth, useCloudLibrary } from "@/lib/cloud"
 import { logActivity } from "@/lib/recentActivity"
 import SessionStrip from "@/components/practice/SessionStrip"
 import ChartRibbon from "@/components/practice/ChartRibbon"
-import AnticipationStrip from "@/components/practice/AnticipationStrip"
 import SongbookDrawer from "@/components/practice/SongbookDrawer"
 import TimerDrawer from "@/components/practice/TimerDrawer"
 import StickyTransport from "@/components/practice/StickyTransport"
@@ -2065,21 +2064,6 @@ export default function Home() {
               sectionLabel={`${fretboardBar.section ? `${fretboardBar.section} section` : "Chart"}${chartKey ? ` · ${chartKey} concert` : ""}`}
             />
 
-            <AnticipationStrip
-              isPlaying={isPlaying && playheadIndex !== null}
-              beat={beatInBar}
-              beats={fretboardBar.beats ?? 4}
-              now={{
-                barLabel: barLabels[fretboardBarIndex] ?? fretboardBarIndex + 1,
-                symbol: fretboardBar.symbol,
-                modeInfo: displayedScaleNotes.length ? `${scaleLabelFull} · ${displayedScaleNotes.join(" ")}` : scaleLabelFull,
-              }}
-              upcoming={upcomingBarIndices.map(({ index, stepsAway }) => ({
-                barLabel: barLabels[index] ?? index + 1,
-                symbol: bars[index]?.symbol,
-                stepsAway,
-              }))}
-            />
           </>
         )}
 
@@ -2380,27 +2364,51 @@ export default function Home() {
                 aria-live="polite"
                 style={{
                   textAlign: "center", lineHeight: 1.1,
-                  padding: "8px 16px", borderRadius: "var(--db-r-md)",
-                  border: `2px solid ${(isPlaying && playheadIndex !== null) ? "var(--db-c-green)" : "var(--db-c-amber)"}`,
-                  background: (isPlaying && playheadIndex !== null)
-                    ? "color-mix(in srgb, var(--db-c-green) 14%, var(--db-bg))"
-                    : "color-mix(in srgb, var(--db-c-amber) 10%, var(--db-bg))",
-                  boxShadow: (isPlaying && playheadIndex !== null) ? "0 0 16px color-mix(in srgb, var(--db-c-green) 30%, transparent)" : "none",
-                  minWidth: "180px",
+                  padding: "10px 18px", borderRadius: "var(--db-r-md)",
+                  border: `2px solid ${(isPlaying && playheadIndex !== null) ? "var(--n-root)" : "var(--line)"}`,
+                  background: "var(--surface)",
+                  minWidth: "200px",
                 }}
               >
-                <div style={{ fontSize: "var(--db-fs-xs)", letterSpacing: "0.12em", opacity: 0.7, marginBottom: "3px" }}>
-                  {(isPlaying && playheadIndex !== null) ? "NOW PLAYING" : "SELECTED"} · BAR {barLabels[fretboardBarIndex] ?? fretboardBarIndex + 1}
+                <div style={{ font: "700 10.5px 'IBM Plex Mono', monospace", letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--muted)", marginBottom: "2px" }}>
+                  {(isPlaying && playheadIndex !== null) ? "Now" : "Selected"} · Bar {barLabels[fretboardBarIndex] ?? fretboardBarIndex + 1}
                 </div>
-                <div style={{ fontSize: "2.4rem", fontWeight: 800, letterSpacing: "-0.01em", color: (isPlaying && playheadIndex !== null) ? "var(--db-c-green)" : "var(--db-c-amber)" }}>
+                {/* Burnt red, the same --n-root the board draws the root with, so
+                    the chord you are on reads as one thing across both. */}
+                <div style={{ font: "800 52px 'IBM Plex Mono', monospace", lineHeight: 1, margin: "4px 0 2px", letterSpacing: "-0.02em", color: "var(--n-root)" }}>
                   {fretboardBar.symbol}
                 </div>
-                <div style={{ fontSize: "var(--db-fs-lg)", fontWeight: 700, marginTop: "3px", color: "var(--db-c-blue)" }}>{scaleLabelFull}</div>
+                <div style={{ fontSize: "var(--db-fs-sm)", fontWeight: 700, color: "var(--db-c-blue)" }}>{scaleLabelFull}</div>
                 {displayedScaleNotes.length > 0 && (
-                  <div style={{ fontSize: "var(--db-fs-sm)", opacity: 0.75, marginTop: "3px", letterSpacing: "0.04em" }}>
+                  <div style={{ fontSize: "var(--db-fs-xs)", opacity: 0.75, marginTop: "2px", letterSpacing: "0.04em" }}>
                     {displayedScaleNotes.join(" · ")}
                   </div>
                 )}
+                {/* The beat meter that used to live only in the strip above.
+                    Current beat solid and taller, beats gone dimmer but filled,
+                    beats to come hollow — it marches rather than blinking. */}
+                <div
+                  style={{ display: "flex", gap: "4px", marginTop: "9px", alignItems: "flex-end", height: "11px" }}
+                  role="img"
+                  aria-label={(isPlaying && beatInBar != null) ? `Beat ${beatInBar + 1} of ${fretboardBar.beats ?? 4}` : `${fretboardBar.beats ?? 4} beats per bar`}
+                >
+                  {Array.from({ length: Math.max(1, Math.round(fretboardBar.beats ?? 4) || 4) }, (_, i) => {
+                    const live = isPlaying && beatInBar != null
+                    const isCurrent = live && i === beatInBar
+                    const isPast = live && i < beatInBar
+                    return (
+                      <i key={i} style={{
+                        flex: 1,
+                        height: isCurrent ? "11px" : "6px",
+                        borderRadius: "2px",
+                        background: isCurrent || isPast ? "var(--n-root)" : "transparent",
+                        boxShadow: isCurrent || isPast ? "none" : "inset 0 0 0 1px var(--n-root)",
+                        opacity: isCurrent ? 1 : isPast ? 0.45 : 0.3,
+                        transition: "height 70ms ease, opacity 70ms ease, background 70ms ease",
+                      }} />
+                    )
+                  })}
+                </div>
               </div>
 
               {/* Coming up — moved out of the Focus header so it sits beside the

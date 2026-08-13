@@ -461,23 +461,23 @@ export default function PickupPracticeHome() {
       <>
         <style>{`
           .db-pickup-return-home {
-            position: fixed; right: 18px; top: 18px; z-index: 9500;
-            min-height: 40px; padding: 9px 14px;
+            position: fixed; left: 18px; top: 18px; z-index: 9500;
+            width: 44px; height: 44px; padding: 0; justify-content: center;
             border: 1px solid var(--db-panel-border, #d9d9e1);
             border-radius: 999px; background: var(--db-panel-bg, #fff); color: var(--db-text, #080b2e);
             display: flex; align-items: center; gap: 8px;
             box-shadow: 0 8px 22px rgba(0,0,0,.13); cursor: pointer; font-weight: 750;
           }
-          .db-pickup-return-home-mark { width: 20px; height: 20px; object-fit: contain; display: block; }
+          .db-pickup-return-home-mark { width: 28px; height: 28px; object-fit: contain; display: block; }
         `}</style>
         <button
           type="button"
           className="db-pickup-return-home"
           onClick={() => setPracticeSurface("home")}
           title="Return to the Practice home page"
+          aria-label="Return to the Practice home page"
         >
           <img src={BRAND_ICON} alt="" aria-hidden="true" className="db-pickup-return-home-mark" />
-          Practice Home
         </button>
       </>
     )
@@ -931,11 +931,13 @@ export default function PickupPracticeHome() {
 
         .db-pickup-return-home {
           position: fixed;
-          right: 18px;
+          left: 18px;
           top: 18px;
           z-index: 9500;
-          min-height: 40px;
-          padding: 9px 14px;
+          width: 44px;
+          height: 44px;
+          padding: 0;
+          justify-content: center;
           border: 1px solid var(--db-panel-border, #d9d9e1);
           border-radius: 999px;
           background: var(--db-panel-bg, #fff);
@@ -949,7 +951,7 @@ export default function PickupPracticeHome() {
         }
 
         .db-pickup-return-home svg { width: 18px; height: 18px; color: var(--db-accent, #4c20e8); }
-        .db-pickup-return-home-mark { width: 20px; height: 20px; object-fit: contain; display: block; }
+        .db-pickup-return-home-mark { width: 28px; height: 28px; object-fit: contain; display: block; }
 
         @media (max-width: 1180px) {
           .db-pickup-progress-grid { grid-template-columns: 1fr; }
