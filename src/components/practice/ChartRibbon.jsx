@@ -20,9 +20,23 @@ export default function ChartRibbon({
   currentIndex,
   nextIndex,
   sectionLabel,
+  onToggleLoop,
 }) {
   const lo = Math.min(loopStart, loopEnd)
   const hi = Math.max(loopStart, loopEnd)
+  const selectedLabel = barLabels?.[selectedIndex] ?? selectedIndex + 1
+
+  // Setting a range is the whole gesture — nobody picks Start and End and then
+  // wants the band to keep running the full form. So the range buttons arm the
+  // loop as well as setting the bound.
+  const setStart = () => { onSetLoopStart(selectedIndex); if (!loopEnabled) onToggleLoop?.() }
+  const setEnd   = () => { onSetLoopEnd(selectedIndex);   if (!loopEnabled) onToggleLoop?.() }
+
+  const rangeBtn = {
+    font: "700 10px 'IBM Plex Mono', monospace", letterSpacing: "0.06em", textTransform: "uppercase",
+    padding: "6px 10px", borderRadius: "6px", border: "1px solid var(--hot)",
+    background: "var(--surface)", color: "var(--hot)", cursor: "pointer", whiteSpace: "nowrap",
+  }
 
   // A 36-bar tune rendered every bar at once, so the chord you were actually
   // playing was one cell in a wall of them. Show three four-bar rows instead —
@@ -31,9 +45,15 @@ export default function ChartRibbon({
   // the eye reads a lead sheet by.
   const COLS = 4
   const ROWS = 3
-  const anchor = currentIndex ?? selectedIndex ?? 0
+  const WINDOW = COLS * ROWS
+  // While looping, anchor on the loop rather than the playhead: a drill range
+  // that fits on screen should stay on screen, or you lose sight of the bars you
+  // are repeating. Only a loop longer than the window falls back to following
+  // the playhead, since it cannot all be shown at once anyway.
+  const loopFits = loopEnabled && hi - lo + 1 <= WINDOW
+  const anchor = loopFits ? lo : (currentIndex ?? selectedIndex ?? 0)
   const windowStart = Math.floor(anchor / COLS) * COLS
-  const windowBars = bars.slice(windowStart, windowStart + COLS * ROWS)
+  const windowBars = bars.slice(windowStart, windowStart + WINDOW)
   const windowEnd = windowStart + windowBars.length
 
   return (
@@ -44,32 +64,46 @@ export default function ChartRibbon({
         alignItems: "center", gap: "8px", flexWrap: "wrap",
       }}>
         <span>{sectionLabel}</span>
-        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "center" }}>
+
+        {/* Loop deck. The range buttons used to sit here unlabelled and unarmed:
+            you could set a start and an end and nothing would ever repeat,
+            because the only loop switch was in the sticky transport. Grouped
+            under one LOOP header now, with the on/off beside them. */}
+        <div style={{
+          display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap",
+          padding: "6px 10px", borderRadius: "10px",
+          border: `1px solid ${loopEnabled ? "var(--hot)" : "var(--line)"}`,
+          background: loopEnabled ? "var(--loop)" : "var(--surface2)",
+        }}>
           <button
-            onClick={() => onSetLoopStart(selectedIndex)}
-            title="Set Start at Selected Bar"
+            onClick={onToggleLoop}
+            aria-pressed={loopEnabled}
+            title={loopEnabled ? "Loop is on — click to play the whole form" : "Loop the selected range"}
             style={{
-              font: "700 9.5px 'IBM Plex Mono', monospace", letterSpacing: "0.08em", textTransform: "uppercase",
-              padding: "4px 8px", borderRadius: "6px", border: "1px solid var(--line)",
-              background: "var(--surface2)", color: "var(--muted)", cursor: "pointer",
+              font: "800 11px 'IBM Plex Mono', monospace", letterSpacing: "0.12em",
+              padding: "6px 12px", borderRadius: "6px", border: "1px solid var(--hot)",
+              background: loopEnabled ? "var(--hot)" : "transparent",
+              color: loopEnabled ? "#FFF" : "var(--hot)", cursor: "pointer",
             }}
           >
+            {loopEnabled ? "◼ LOOP ON" : "LOOP OFF"}
+          </button>
+
+          <button onClick={setStart} style={rangeBtn} title={`Loop from bar ${selectedLabel}`}>
             Start Here
           </button>
-          <button
-            onClick={() => onSetLoopEnd(selectedIndex)}
-            title="Set End at Selected Bar"
-            style={{
-              font: "700 9.5px 'IBM Plex Mono', monospace", letterSpacing: "0.08em", textTransform: "uppercase",
-              padding: "4px 8px", borderRadius: "6px", border: "1px solid var(--line)",
-              background: "var(--surface2)", color: "var(--muted)", cursor: "pointer",
-            }}
-          >
+          <button onClick={setEnd} style={rangeBtn} title={`Loop up to bar ${selectedLabel}`}>
             End Here
           </button>
-          {loopEnabled && (
-            <b style={{ color: "var(--hot)", fontWeight: 800, fontSize: "10.5px" }}>■ LOOP {lo + 1}–{hi + 1}</b>
-          )}
+
+          <span style={{
+            font: "800 11px 'IBM Plex Mono', monospace", letterSpacing: "0.04em",
+            color: loopEnabled ? "var(--hot)" : "var(--muted)", whiteSpace: "nowrap",
+          }}>
+            {loopEnabled
+              ? `Bars ${lo + 1}–${hi + 1} · ${hi - lo + 1} bar${hi === lo ? "" : "s"}`
+              : `Bar ${selectedLabel} selected`}
+          </span>
         </div>
       </div>
 
@@ -77,9 +111,17 @@ export default function ChartRibbon({
         {windowBars.map((bar, offset) => {
           const index = windowStart + offset
           const inLoop = loopEnabled && index >= lo && index <= hi
+          const isLoopStart = loopEnabled && index === lo
+          const isLoopEnd = loopEnabled && index === hi
           const isNow = index === currentIndex
           const isNext = index === nextIndex
           const isSelected = index === selectedIndex
+          // The loop bounds are drawn on the bars themselves, as brackets on the
+          // outer edges of the range — you can see where the repeat turns around
+          // without reading the numbers back off the header.
+          const edges = {}
+          if (isLoopStart) edges.borderLeft = "4px solid var(--hot)"
+          if (isLoopEnd) edges.borderRight = "4px solid var(--hot)"
           return (
             <button
               key={index}
@@ -92,10 +134,21 @@ export default function ChartRibbon({
                 transform: isNow ? "scale(1.05)" : "none",
                 borderRadius: "8px", padding: "8px 4px", textAlign: "center", cursor: "pointer",
                 transition: "transform .12s, background .12s",
+                position: "relative",
+                ...edges,
               }}
             >
               <span style={{ font: "500 9px 'IBM Plex Mono', monospace", opacity: 0.7, display: "block" }}>{barLabels?.[index] ?? index + 1}</span>
               <span style={{ font: "700 14px 'IBM Plex Mono', monospace", marginTop: "1px", display: "block" }}>{bar.symbol}</span>
+              {(isLoopStart || isLoopEnd) && (
+                <span style={{
+                  position: "absolute", top: "2px", right: "4px",
+                  font: "800 7.5px 'IBM Plex Mono', monospace", letterSpacing: "0.1em",
+                  color: isNow ? "var(--accent-ink)" : "var(--hot)",
+                }}>
+                  {isLoopStart && isLoopEnd ? "⟲" : isLoopStart ? "IN" : "OUT"}
+                </span>
+              )}
             </button>
           )
         })}
@@ -104,7 +157,7 @@ export default function ChartRibbon({
           is gone with the single row it was drawn across — the current bar is
           unmistakable now (accent fill, scaled up, ringed) and a vertical line
           over three rows would mark nothing. */}
-      {bars.length > COLS * ROWS && (
+      {bars.length > WINDOW && (
         <div style={{
           marginTop: "8px", textAlign: "right",
           font: "600 9.5px 'IBM Plex Mono', monospace", letterSpacing: "0.08em",

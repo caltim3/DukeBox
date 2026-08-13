@@ -264,6 +264,7 @@ export default function Home() {
   const playingRef        = useRef(false)  // true while repeats should continue
   const practiceModeRef   = useRef(false)  // mirrors practiceMode for immediate reads
   const startPlaybackRef  = useRef(null)   // always points to latest startPlayback
+  const loopSigRef        = useRef(null)   // last loop range the transport was started with
   const stopPlaybackRef   = useRef(null)   // always points to latest stopPlayback
   const pendingStartRef   = useRef(false)  // set by loadStarter → fires after bars state commits
   const loadStarterRef    = useRef(null)   // latest loadStarter, for the cross-tree starter event
@@ -1102,6 +1103,11 @@ export default function Home() {
     setLoopStart(index)
     setLoopEnd(index)
     setLoopEnabled(true)
+    // The loop-change effect keys off this signature. Seed it with the range we
+    // are about to start, or the state committing a tick later reads as a change
+    // and restarts the transport a second time — an audible stutter on a gesture
+    // that already started exactly the loop it wanted.
+    loopSigRef.current = `${index}-${index}`
     // Pass the range explicitly — loop state hasn't committed yet.
     startPlayback(null, { start: index, end: index }).catch(console.error)
   }
@@ -1381,6 +1387,22 @@ export default function Home() {
       startPlaybackRef.current().catch(console.error)
     }
   }, [bars])
+
+  // Changing the loop while the band is running has to restart it. startPlayback
+  // slices `bars` to the range once, at call time, so a running transport keeps
+  // looping whatever range it started with — hitting Start/End Here mid-take
+  // changed the highlight and nothing else, which is what made the looper feel
+  // disconnected. startPlayback stops itself first, so this is just a re-call.
+  useEffect(() => {
+    const signature = loopEnabled
+      ? `${Math.min(loopStart, loopEnd)}-${Math.max(loopStart, loopEnd)}`
+      : "off"
+    const previous = loopSigRef.current
+    loopSigRef.current = signature
+    if (previous === null || previous === signature) return  // first commit, or no real change
+    if (!playingRef.current) return
+    startPlaybackRef.current?.().catch(console.error)
+  }, [loopEnabled, loopStart, loopEnd])
 
   // Count real loops: the playhead wrapping backwards means a pass finished.
   // Counts both loop-range wraps and full-form wraps; resets with the chart.
@@ -2037,6 +2059,7 @@ export default function Home() {
               loopEnabled={loopEnabled}
               onSetLoopStart={setLoopStart}
               onSetLoopEnd={setLoopEnd}
+              onToggleLoop={() => setLoopEnabled(v => !v)}
               currentIndex={fretboardBarIndex}
               nextIndex={upcomingBarIndices[0]?.index}
               sectionLabel={`${fretboardBar.section ? `${fretboardBar.section} section` : "Chart"}${chartKey ? ` · ${chartKey} concert` : ""}`}
@@ -2082,6 +2105,7 @@ export default function Home() {
               loopEnabled={loopEnabled}
               onSetLoopStart={setLoopStart}
               onSetLoopEnd={setLoopEnd}
+              onToggleLoop={() => setLoopEnabled(v => !v)}
               currentIndex={fretboardBarIndex}
               nextIndex={upcomingBarIndices[0]?.index}
               sectionLabel={fretboardBar.section ? `${fretboardBar.section} section` : "Chart"}
