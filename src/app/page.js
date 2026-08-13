@@ -32,7 +32,7 @@ import { parseTonalUserSongs } from "@/lib/music/importTonal"
 import { parseGigChord, GIGBOOK_SONGS, gigSongToBars, parseGigKey, gigTempoNumber } from "@/lib/music/gigbook"
 import { guidedPrescription, drillStage, nextKeyInCycle, DRILL_LOOPS_PER_STAGE, PENA_DRILLS } from "@/lib/music/penaDrills"
 import { STARTER_PRESETS, STARTER_STRIP, LOAD_STARTER_EVENT } from "@/lib/music/starters"
-import Fretboard from "@/components/Fretboard"
+import Fretboard, { fretPositions, FRETBOARD_FRETS } from "@/components/Fretboard"
 import MetronomePanel from "@/components/MetronomePanel"
 import BeatForgeLibrary from "@/components/BeatForgeLibrary"
 import PracticeTimer from "@/components/PracticeTimer"
@@ -46,7 +46,6 @@ import { useAuth, useCloudLibrary } from "@/lib/cloud"
 import { logActivity } from "@/lib/recentActivity"
 import SessionStrip from "@/components/practice/SessionStrip"
 import ChartRibbon from "@/components/practice/ChartRibbon"
-import AnticipationStrip from "@/components/practice/AnticipationStrip"
 import SongbookDrawer from "@/components/practice/SongbookDrawer"
 import TimerDrawer from "@/components/practice/TimerDrawer"
 import StickyTransport from "@/components/practice/StickyTransport"
@@ -191,6 +190,14 @@ export default function Home() {
   }
   const [fretboardView, setFretboardView] = useState("scale")
   const [fretboardTuning, setFretboardTuning] = useState("Standard")
+  // Labels: note names to study with, degrees to play with. Degrees are
+  // transposition-invariant, so they survive the key changes Bebop Gym makes.
+  const [labelMode, setLabelMode] = useState("names")
+  // Fret focus: off | manual | auto. Off by default — the whole neck stays live
+  // so you can roam; this is for when you want to drill one position.
+  const [focusMode, setFocusMode] = useState("off")
+  const [focusStart, setFocusStart] = useState(5)
+  const [focusSpan, setFocusSpan] = useState(4)
   const [scaleFilter, setScaleFilter] = useState(null)  // null | "pentatonic" | "hexatonic" | "martino" | "hexchord" | "barry"
   const [bebopOverlay, setBebopOverlay] = useState(false)   // adds chromatic passing tone on top
   const [targetsOverlay, setTargetsOverlay] = useState(true) // guide tones are the default practice view
@@ -264,6 +271,7 @@ export default function Home() {
   const playingRef        = useRef(false)  // true while repeats should continue
   const practiceModeRef   = useRef(false)  // mirrors practiceMode for immediate reads
   const startPlaybackRef  = useRef(null)   // always points to latest startPlayback
+  const loopSigRef        = useRef(null)   // last loop range the transport was started with
   const stopPlaybackRef   = useRef(null)   // always points to latest stopPlayback
   const pendingStartRef   = useRef(false)  // set by loadStarter → fires after bars state commits
   const loadStarterRef    = useRef(null)   // latest loadStarter, for the cross-tree starter event
@@ -1102,6 +1110,11 @@ export default function Home() {
     setLoopStart(index)
     setLoopEnd(index)
     setLoopEnabled(true)
+    // The loop-change effect keys off this signature. Seed it with the range we
+    // are about to start, or the state committing a tick later reads as a change
+    // and restarts the transport a second time — an audible stutter on a gesture
+    // that already started exactly the loop it wanted.
+    loopSigRef.current = `${index}-${index}`
     // Pass the range explicitly — loop state hasn't committed yet.
     startPlayback(null, { start: index, end: index }).catch(console.error)
   }
@@ -1381,6 +1394,62 @@ export default function Home() {
       startPlaybackRef.current().catch(console.error)
     }
   }, [bars])
+
+  // Auto focus. Score every candidate window by how much of the next four bars
+  // it can actually reach — guide tones weighted over plain chord tones, and
+  // nearer bars over later ones — then subtract a penalty for moving, so the
+  // window doesn't twitch a fret every bar chasing a marginally better score.
+  const autoFocusStart = useMemo(() => {
+    if (focusMode !== "auto" || !bars.length) return null
+    const positions = fretPositions(fretboardTuning)
+    const lookahead = []
+    for (let step = 0; step < 4; step++) {
+      const bar = bars[(fretboardBarIndex + step) % bars.length]
+      if (!bar || bar.quality === "NC") continue
+      const info = chordInfo(bar.symbol)
+      const guides = melodyPathState.notesByBar[(fretboardBarIndex + step) % bars.length] || []
+      lookahead.push({ weight: 1 / (step + 1), guides: new Set(guides), tones: new Set(info.notes || []) })
+    }
+    if (!lookahead.length) return null
+
+    let best = focusStart, bestScore = -Infinity
+    for (let start = 0; start <= FRETBOARD_FRETS - focusSpan; start++) {
+      let score = 0
+      for (const { weight, guides, tones } of lookahead) {
+        for (const pos of positions) {
+          if (pos.f < start || pos.f > start + focusSpan) continue
+          if (guides.has(pos.note)) score += 2 * weight
+          else if (tones.has(pos.note)) score += 0.5 * weight
+        }
+      }
+      score -= Math.abs(start - focusStart) * 0.12   // hysteresis
+      if (score > bestScore) { bestScore = score; best = start }
+    }
+    return best
+  }, [focusMode, bars, fretboardBarIndex, fretboardTuning, focusSpan, focusStart, melodyPathState])
+
+  useEffect(() => {
+    if (autoFocusStart != null && autoFocusStart !== focusStart) setFocusStart(autoFocusStart)
+  }, [autoFocusStart]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // What the board is actually given: null means no window at all.
+  const activeFocusStart = focusMode === "off" ? null : focusStart
+
+  // Changing the loop while the band is running has to restart it. startPlayback
+  // slices `bars` to the range once, at call time, so a running transport keeps
+  // looping whatever range it started with — hitting Start/End Here mid-take
+  // changed the highlight and nothing else, which is what made the looper feel
+  // disconnected. startPlayback stops itself first, so this is just a re-call.
+  useEffect(() => {
+    const signature = loopEnabled
+      ? `${Math.min(loopStart, loopEnd)}-${Math.max(loopStart, loopEnd)}`
+      : "off"
+    const previous = loopSigRef.current
+    loopSigRef.current = signature
+    if (previous === null || previous === signature) return  // first commit, or no real change
+    if (!playingRef.current) return
+    startPlaybackRef.current?.().catch(console.error)
+  }, [loopEnabled, loopStart, loopEnd])
 
   // Count real loops: the playhead wrapping backwards means a pass finished.
   // Counts both loop-range wraps and full-form wraps; resets with the chart.
@@ -2037,26 +2106,12 @@ export default function Home() {
               loopEnabled={loopEnabled}
               onSetLoopStart={setLoopStart}
               onSetLoopEnd={setLoopEnd}
+              onToggleLoop={() => setLoopEnabled(v => !v)}
               currentIndex={fretboardBarIndex}
               nextIndex={upcomingBarIndices[0]?.index}
               sectionLabel={`${fretboardBar.section ? `${fretboardBar.section} section` : "Chart"}${chartKey ? ` · ${chartKey} concert` : ""}`}
             />
 
-            <AnticipationStrip
-              isPlaying={isPlaying && playheadIndex !== null}
-              beat={beatInBar}
-              beats={fretboardBar.beats ?? 4}
-              now={{
-                barLabel: barLabels[fretboardBarIndex] ?? fretboardBarIndex + 1,
-                symbol: fretboardBar.symbol,
-                modeInfo: displayedScaleNotes.length ? `${scaleLabelFull} · ${displayedScaleNotes.join(" ")}` : scaleLabelFull,
-              }}
-              upcoming={upcomingBarIndices.map(({ index, stepsAway }) => ({
-                barLabel: barLabels[index] ?? index + 1,
-                symbol: bars[index]?.symbol,
-                stepsAway,
-              }))}
-            />
           </>
         )}
 
@@ -2082,6 +2137,7 @@ export default function Home() {
               loopEnabled={loopEnabled}
               onSetLoopStart={setLoopStart}
               onSetLoopEnd={setLoopEnd}
+              onToggleLoop={() => setLoopEnabled(v => !v)}
               currentIndex={fretboardBarIndex}
               nextIndex={upcomingBarIndices[0]?.index}
               sectionLabel={fretboardBar.section ? `${fretboardBar.section} section` : "Chart"}
@@ -2263,6 +2319,53 @@ export default function Home() {
                         <option key={t} value={t}>{t}</option>
                       ))}
                     </select>
+
+                    {/* Labels — note names to study with, degrees to play with. */}
+                    <span style={{ font: "700 10px 'IBM Plex Mono', monospace", color: "var(--muted)", letterSpacing: "0.14em", textTransform: "uppercase", margin: "12px 0 5px", display: "block" }}>Labels</span>
+                    <div style={{ display: "inline-flex", border: "1px solid var(--line)", borderRadius: "7px", overflow: "hidden" }}>
+                      {[["names", "Names"], ["degrees", "Degrees"]].map(([id, label]) => (
+                        <button key={id} onClick={() => setLabelMode(id)} aria-pressed={labelMode === id}
+                          title={id === "degrees" ? "Scale degrees — transposition-invariant, and what you think in mid-solo" : "Note names — the study view"}
+                          style={{
+                            font: "700 11px 'Instrument Sans', sans-serif", padding: "5px 11px", border: "none", cursor: "pointer",
+                            background: labelMode === id ? "var(--accent)" : "var(--surface)",
+                            color: labelMode === id ? "var(--accent-ink)" : "var(--muted)",
+                          }}>{label}</button>
+                      ))}
+                    </div>
+
+                    {/* Fret focus — off by default so the whole neck stays live. */}
+                    <span style={{ font: "700 10px 'IBM Plex Mono', monospace", color: "var(--muted)", letterSpacing: "0.14em", textTransform: "uppercase", margin: "12px 0 5px", display: "block" }}>Fret focus</span>
+                    <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
+                      <div style={{ display: "inline-flex", border: "1px solid var(--line)", borderRadius: "7px", overflow: "hidden" }}>
+                        {[["off", "Off"], ["manual", "Manual"], ["auto", "Auto"]].map(([id, label]) => (
+                          <button key={id} onClick={() => setFocusMode(id)} aria-pressed={focusMode === id}
+                            title={id === "auto" ? "Follow the position that costs the least hand travel over the next four bars" : id === "manual" ? "Pin a window and dim the rest of the neck" : "Whole neck live"}
+                            style={{
+                              font: "700 11px 'Instrument Sans', sans-serif", padding: "5px 11px", border: "none", cursor: "pointer",
+                              background: focusMode === id ? "var(--accent)" : "var(--surface)",
+                              color: focusMode === id ? "var(--accent-ink)" : "var(--muted)",
+                            }}>{label}</button>
+                        ))}
+                      </div>
+                      {focusMode !== "off" && (
+                        <div style={{ display: "inline-flex", gap: "4px", alignItems: "center" }}>
+                          <button onClick={() => setFocusStart(v => Math.max(0, v - 1))} disabled={focusMode === "auto"}
+                            aria-label="Move the focus window towards the nut"
+                            style={{ font: "700 11px 'IBM Plex Mono', monospace", padding: "5px 9px", borderRadius: "6px", border: "1px solid var(--line)", background: "var(--surface)", color: "var(--muted)", cursor: focusMode === "auto" ? "default" : "pointer", opacity: focusMode === "auto" ? 0.4 : 1 }}>◀</button>
+                          <span style={{ font: "700 11px 'IBM Plex Mono', monospace", minWidth: "46px", textAlign: "center", color: "var(--text)" }}>
+                            {focusStart}–{focusStart + focusSpan}
+                          </span>
+                          <button onClick={() => setFocusStart(v => Math.min(FRETBOARD_FRETS - focusSpan, v + 1))} disabled={focusMode === "auto"}
+                            aria-label="Move the focus window towards the body"
+                            style={{ font: "700 11px 'IBM Plex Mono', monospace", padding: "5px 9px", borderRadius: "6px", border: "1px solid var(--line)", background: "var(--surface)", color: "var(--muted)", cursor: focusMode === "auto" ? "default" : "pointer", opacity: focusMode === "auto" ? 0.4 : 1 }}>▶</button>
+                          <button onClick={() => setFocusSpan(v => (v >= 6 ? 3 : v + 1))}
+                            aria-label="Change how many frets the focus window spans"
+                            title="Window width"
+                            style={{ font: "700 11px 'IBM Plex Mono', monospace", padding: "5px 9px", borderRadius: "6px", border: "1px solid var(--line)", background: "var(--surface)", color: "var(--muted)", cursor: "pointer" }}>{focusSpan + 1} fr</button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -2356,27 +2459,51 @@ export default function Home() {
                 aria-live="polite"
                 style={{
                   textAlign: "center", lineHeight: 1.1,
-                  padding: "8px 16px", borderRadius: "var(--db-r-md)",
-                  border: `2px solid ${(isPlaying && playheadIndex !== null) ? "var(--db-c-green)" : "var(--db-c-amber)"}`,
-                  background: (isPlaying && playheadIndex !== null)
-                    ? "color-mix(in srgb, var(--db-c-green) 14%, var(--db-bg))"
-                    : "color-mix(in srgb, var(--db-c-amber) 10%, var(--db-bg))",
-                  boxShadow: (isPlaying && playheadIndex !== null) ? "0 0 16px color-mix(in srgb, var(--db-c-green) 30%, transparent)" : "none",
-                  minWidth: "180px",
+                  padding: "10px 18px", borderRadius: "var(--db-r-md)",
+                  border: `2px solid ${(isPlaying && playheadIndex !== null) ? "var(--n-root)" : "var(--line)"}`,
+                  background: "var(--surface)",
+                  minWidth: "200px",
                 }}
               >
-                <div style={{ fontSize: "var(--db-fs-xs)", letterSpacing: "0.12em", opacity: 0.7, marginBottom: "3px" }}>
-                  {(isPlaying && playheadIndex !== null) ? "NOW PLAYING" : "SELECTED"} · BAR {barLabels[fretboardBarIndex] ?? fretboardBarIndex + 1}
+                <div style={{ font: "700 10.5px 'IBM Plex Mono', monospace", letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--muted)", marginBottom: "2px" }}>
+                  {(isPlaying && playheadIndex !== null) ? "Now" : "Selected"} · Bar {barLabels[fretboardBarIndex] ?? fretboardBarIndex + 1}
                 </div>
-                <div style={{ fontSize: "2.4rem", fontWeight: 800, letterSpacing: "-0.01em", color: (isPlaying && playheadIndex !== null) ? "var(--db-c-green)" : "var(--db-c-amber)" }}>
+                {/* Burnt red, the same --n-root the board draws the root with, so
+                    the chord you are on reads as one thing across both. */}
+                <div style={{ font: "800 52px 'IBM Plex Mono', monospace", lineHeight: 1, margin: "4px 0 2px", letterSpacing: "-0.02em", color: "var(--n-root)" }}>
                   {fretboardBar.symbol}
                 </div>
-                <div style={{ fontSize: "var(--db-fs-lg)", fontWeight: 700, marginTop: "3px", color: "var(--db-c-blue)" }}>{scaleLabelFull}</div>
+                <div style={{ fontSize: "var(--db-fs-sm)", fontWeight: 700, color: "var(--db-c-blue)" }}>{scaleLabelFull}</div>
                 {displayedScaleNotes.length > 0 && (
-                  <div style={{ fontSize: "var(--db-fs-sm)", opacity: 0.75, marginTop: "3px", letterSpacing: "0.04em" }}>
+                  <div style={{ fontSize: "var(--db-fs-xs)", opacity: 0.75, marginTop: "2px", letterSpacing: "0.04em" }}>
                     {displayedScaleNotes.join(" · ")}
                   </div>
                 )}
+                {/* The beat meter that used to live only in the strip above.
+                    Current beat solid and taller, beats gone dimmer but filled,
+                    beats to come hollow — it marches rather than blinking. */}
+                <div
+                  style={{ display: "flex", gap: "4px", marginTop: "9px", alignItems: "flex-end", height: "11px" }}
+                  role="img"
+                  aria-label={(isPlaying && beatInBar != null) ? `Beat ${beatInBar + 1} of ${fretboardBar.beats ?? 4}` : `${fretboardBar.beats ?? 4} beats per bar`}
+                >
+                  {Array.from({ length: Math.max(1, Math.round(fretboardBar.beats ?? 4) || 4) }, (_, i) => {
+                    const live = isPlaying && beatInBar != null
+                    const isCurrent = live && i === beatInBar
+                    const isPast = live && i < beatInBar
+                    return (
+                      <i key={i} style={{
+                        flex: 1,
+                        height: isCurrent ? "11px" : "6px",
+                        borderRadius: "2px",
+                        background: isCurrent || isPast ? "var(--n-root)" : "transparent",
+                        boxShadow: isCurrent || isPast ? "none" : "inset 0 0 0 1px var(--n-root)",
+                        opacity: isCurrent ? 1 : isPast ? 0.45 : 0.3,
+                        transition: "height 70ms ease, opacity 70ms ease, background 70ms ease",
+                      }} />
+                    )
+                  })}
+                </div>
               </div>
 
               {/* Coming up — moved out of the Focus header so it sits beside the
@@ -2458,6 +2585,10 @@ export default function Home() {
                 enclosureNotes={enclosureDisplay.notes}
                 ghostNotes={ghostGuideTones}
                 seventhNotes={seventhDisplayNotes}
+                labelMode={labelMode}
+                ghostRootNote={anticipateBar?.userTonic ?? anticipateBar?.root ?? null}
+                focusStart={activeFocusStart}
+                focusSpan={focusSpan}
                 animate={isPlaying && playheadIndex !== null}
                 barSeconds={fretboardBarSeconds}
                 phaseKey={playheadIndex}
