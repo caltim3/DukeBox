@@ -231,6 +231,51 @@ export default function Home() {
     window.localStorage.setItem("dukebox.practiceView", view)
   }, [])
 
+  // Focus is the phone mode. Top to bottom and nothing else: the chord you're
+  // on with the clock and what's coming, the neck edge to edge, the transport
+  // sat under it rather than floating across it.
+  const focusStage = inMode("practice") && practiceView === "focus"
+
+  // Entering asks the phone for landscape — a 12-fret neck wants the long side
+  // of the screen. The lock only holds inside fullscreen on Android and isn't
+  // offered at all on iOS, so both calls are attempts, not requirements; the
+  // layout stands up either way and just reads smaller in portrait.
+  const enterFocusMode = useCallback(async () => {
+    choosePracticeView("focus")
+    try {
+      const el = document.documentElement
+      if (!document.fullscreenElement && el.requestFullscreen) await el.requestFullscreen()
+      await window.screen?.orientation?.lock?.("landscape")
+    } catch { /* orientation lock is a nicety, not a requirement */ }
+  }, [choosePracticeView])
+
+  // Stamped on <body> so fixed furniture belonging to other surfaces (the
+  // return-home badge, which sits exactly where Focus's title bar goes) can
+  // stand down while the stage is up.
+  useEffect(() => {
+    document.body.classList.toggle("db-focus-mode", focusStage)
+    return () => document.body.classList.remove("db-focus-mode")
+  }, [focusStage])
+
+  const exitFocusMode = useCallback(() => {
+    choosePracticeView("cockpit")
+    try {
+      window.screen?.orientation?.unlock?.()
+      if (document.fullscreenElement) document.exitFullscreen?.()
+    } catch { /* ignore — we're leaving either way */ }
+  }, [choosePracticeView])
+
+  // The transport's gear used to flip a boolean on a panel most of a page
+  // below the fold, which from the transport looked exactly like nothing
+  // happening. Open it *and* go to it.
+  const openBandPanel = useCallback(() => {
+    setOpenControlPanels((prev) => ({ ...prev, band: true }))
+    requestAnimationFrame(() => {
+      document.querySelector('[data-db-shortcut="band-mix"]')
+        ?.scrollIntoView({ behavior: "smooth", block: "center" })
+    })
+  }, [])
+
   // Songbook / Timer drawers (spec §5.6) — simple open/closed UI state, not
   // persisted; they always start closed.
   const [songbookOpen, setSongbookOpen] = useState(false)
@@ -1602,6 +1647,79 @@ export default function Home() {
         }
       }
 
+      /* ── Focus stage ────────────────────────────────────────────────
+         Focus is the phone mode. The card that holds the neck goes full
+         bleed — out past the page's own 24px gutter to the screen edges —
+         so twelve frets get the whole width instead of the whole width
+         minus two margins and two borders. Everything that isn't chord,
+         neck, or transport steps out of the vertical budget. */
+      .db-focus-stage {
+        margin-left: calc(-1 * var(--db-page-gutter, 24px));
+        margin-right: calc(-1 * var(--db-page-gutter, 24px));
+        border-left: 0 !important;
+        border-right: 0 !important;
+        border-radius: 0 !important;
+        padding-left: 10px !important;
+        padding-right: 10px !important;
+      }
+
+      /* Focus keeps the oversized board it has always had on a desktop; on a
+         phone the full-bleed card is already the whole screen, and zooming
+         past that only pushes the top frets off the side. */
+      .db-focus-board { zoom: 1.18; }
+
+      @media (max-width: 900px) {
+        .db-focus-board { zoom: 1; }
+
+        /* The legend, the swipe hints and the settings summary are reference,
+           not instrument. On a phone they cost a third of the neck's height. */
+        .db-focus-stage .db-fret-legend,
+        .db-focus-stage .fret-foot,
+        .db-focus-stage .db-mobile-only,
+        .db-focus-stage .db-fret-summary { display: none !important; }
+        .db-focus-stage { padding-left: 4px !important; padding-right: 4px !important; }
+      }
+
+      /* Focus owns the screen — the practice-home badge is fixed at the exact
+         spot the stage's title bar lands on. */
+      body.db-focus-mode .db-pickup-return-home { display: none !important; }
+
+      /* Landscape phone: the tightest budget there is. The stage becomes a
+         column exactly one screen tall — title, chord row, neck, transport —
+         and the neck takes whatever the other three leave, sized by height
+         rather than width so the transport can't be pushed under the fold.
+         Everything below the stage is still there; you scroll to it. */
+      @media (max-height: 620px) and (orientation: landscape) {
+        .db-focus-stage {
+          height: 100dvh; box-sizing: border-box;
+          display: flex; flex-direction: column;
+          padding-top: 6px !important; padding-bottom: 6px !important;
+          margin-bottom: 10px !important;
+        }
+        .db-focus-stage > * { flex: 0 0 auto; }
+        .db-focus-stage .db-focus-board {
+          flex: 1 1 auto; min-height: 0;
+          display: flex; align-items: center; justify-content: center;
+          overflow: hidden !important;
+        }
+        .db-focus-stage .db-focus-board svg {
+          width: auto !important; height: 100% !important; max-width: 100%;
+        }
+        .db-focus-stage .db-transport-embedded { padding: 4px 8px; margin-top: 4px; }
+        /* Opening the fret settings inside a one-screen column would push the
+           neck out of it — the drawer scrolls instead. */
+        .db-focus-stage .db-fret-settings { max-height: 45dvh; overflow-y: auto; }
+        /* Chord, clock and next chord shrink off the screen's height, not its
+           width — width is the one thing a landscape phone has. */
+        .db-focus-stage .db-focus-chord { font-size: clamp(22px, 7vh, 40px) !important; }
+        .db-focus-stage .db-focus-clock { font-size: clamp(0.9rem, 5vh, 1.5rem) !important; }
+        /* The scale spelled out in letters, and the next chord's guide tones
+           written under the board, are both things the board is already
+           showing. Here they cost frets. */
+        .db-focus-stage .db-focus-spelling,
+        .db-focus-stage .db-anticipate-readout { display: none !important; }
+      }
+
       /* Larger tap targets on any touch device, not just narrow ones */
       @media (pointer: coarse) {
         button, select { min-height: 38px; }
@@ -1642,20 +1760,36 @@ export default function Home() {
         gap: "24px",
         // Extra bottom clearance in Practice mode so the sticky transport
         // (fixed to the viewport bottom) never sits on top of real content.
-        padding: inMode("practice") ? "24px 24px 96px" : "24px",
+        // Focus embeds its transport under the neck instead, so it neither
+        // needs that clearance nor wants the full side gutter.
+        padding: focusStage ? "10px 10px 24px" : inMode("practice") ? "24px 24px 96px" : "24px",
+        // Read back by .db-focus-stage to bleed the board out to the edges.
+        "--db-page-gutter": focusStage ? "10px" : "24px",
         fontFamily: "Arial, sans-serif",
         boxSizing: "border-box",
       }}
     >
-      <section style={{ minWidth: 0, overflow: "hidden" }}>
-        {/* Up to 16 bars from the active section, pinned above every workspace. */}
-        <GigBarStrip
-          bars={bars}
-          title={activeSongTitle || (selectedForm !== "Custom" ? selectedForm : null)}
-          playheadIndex={playheadIndex}
-          isPlaying={isPlaying}
-          onStop={stopPlayback}
-        />
+      {/* overflow stays hidden everywhere but Focus, where the board bleeds
+          out past this box on purpose. */}
+      <section style={{ minWidth: 0, overflow: focusStage ? "visible" : "hidden" }}>
+        {/* Up to 16 bars from the active section, pinned above every workspace.
+            Not in Focus: a fixed strip of the lead sheet hanging over the top
+            of the screen is exactly the thing covering the neck on a phone,
+            and Focus already shows the current bar and the next three. */}
+        {!focusStage && (
+          <GigBarStrip
+            bars={bars}
+            title={activeSongTitle || (selectedForm !== "Custom" ? selectedForm : null)}
+            playheadIndex={playheadIndex}
+            isPlaying={isPlaying}
+            onStop={stopPlayback}
+          />
+        )}
+        {/* Chrome — title, theme, workspace tabs, starters. Focus hides the
+            lot: on a landscape phone every row above the neck is a row the
+            neck doesn't get, and the ✕ chip is the way back to all of it. */}
+        {!focusStage && (
+        <>
         {/* Wraps and scales — at 390px this used to run the title onto two
             lines and push Shortcuts and the sync control off-screen entirely. */}
         <div style={{
@@ -1869,6 +2003,8 @@ export default function Home() {
               ))}
             </div>
           </div>
+        )}
+        </>
         )}
 
         {inMode("gig") && (
@@ -2133,67 +2269,44 @@ export default function Home() {
           </>
         )}
 
-        {inMode("practice") && practiceView === "focus" && (
-          <>
-            <SessionStrip
-              compact
-              timerState={timerState}
-              songTitle={activeSongTitle || (selectedForm !== "Custom" ? selectedForm : "Custom chart")}
-              loopsDone={loopsDone}
-              loopsTarget={100}
-              onOpenSongbook={() => setSongbookOpen(true)}
-              onOpenTimer={() => setTimerOpen(true)}
-            />
-
-            <ChartRibbon
-              bars={bars}
-              barLabels={barLabels}
-              selectedIndex={selectedIndex}
-              onSelectBar={setSelectedIndex}
-              loopStart={loopStart}
-              loopEnd={loopEnd}
-              loopEnabled={loopEnabled}
-              onSetLoopStart={setLoopStart}
-              onSetLoopEnd={setLoopEnd}
-              onToggleLoop={() => setLoopEnabled(v => !v)}
-              currentIndex={fretboardBarIndex}
-              nextIndex={upcomingBarIndices[0]?.index}
-              sectionLabel={fretboardBar.section ? `${fretboardBar.section} section` : "Chart"}
-            />
-
-            <div style={{ marginBottom: "16px" }}>
-              <div>
-                <div style={{ font: "600 11px 'IBM Plex Mono', monospace", color: "var(--muted)", letterSpacing: "0.16em", textTransform: "uppercase", marginBottom: "4px" }}>
-                  Bar {barLabels[fretboardBarIndex] ?? fretboardBarIndex + 1} · {scaleLabelFull}
-                </div>
-                <div style={{ font: "800 96px 'IBM Plex Mono', monospace", lineHeight: 0.85, letterSpacing: "-0.03em", color: "var(--accent)" }}>
-                  {fretboardBar.symbol}
-                </div>
-                {displayedScaleNotes.length > 0 && (
-                  <div style={{ color: "var(--muted)", fontSize: "14px", marginTop: "8px" }}>{displayedScaleNotes.join(" ")}</div>
-                )}
-              </div>
-            </div>
-          </>
-        )}
+        {/* Focus used to stack a session strip, a twelve-bar ribbon and a 96px
+            chord above the board — on a phone that is the whole screen before
+            the neck starts. The chord, the clock and what's coming next all
+            already live in the fretboard card's readout, so Focus renders that
+            card and nothing else. Everything dropped here is one tap away in
+            Cockpit, and ✕ CORE in the card's header is that tap. */}
 
         {inMode("practice") && (
-          <div data-db-shortcut="fretboard" style={{ background: "var(--surface)", border: "1px solid var(--line)", borderRadius: "14px", padding: "14px 14px 12px", marginBottom: "16px" }}>
+          <div
+            data-db-shortcut="fretboard"
+            className={focusStage ? "db-focus-stage" : undefined}
+            style={{ background: "var(--surface)", border: "1px solid var(--line)", borderRadius: "14px", padding: "14px 14px 12px", marginBottom: "16px" }}
+          >
             {/* Header (spec §5.3): title + one-line settings summary + caret that
-                opens the settings drawer folded inside the card. */}
+                opens the settings drawer folded inside the card. In Focus it
+                doubles as the stage's own title bar — the chord is spelled out
+                in 52px an inch below, so the title says which tune you're on
+                instead, and carries the way back out. */}
             <div
+              className="db-fret-header"
               onClick={() => toggleControlPanel("fretSettings")}
               role="button" tabIndex={0}
               onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleControlPanel("fretSettings") } }}
-              style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", flexWrap: "wrap", marginBottom: "10px", cursor: "pointer" }}
+              style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", flexWrap: "wrap", marginBottom: focusStage ? "6px" : "10px", cursor: "pointer" }}
             >
-              <div style={{ font: "800 12px 'Archivo', sans-serif", letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--muted)" }}>
-                Fretboard · <em style={{ color: "var(--text)", fontStyle: "normal", fontWeight: 900, letterSpacing: "0.02em", textTransform: "none" }}>
-                  {fretboardBar.symbol}{scaleLabel ? ` · ${scaleLabelFull}` : ""}
-                </em>
+              <div style={{ font: "800 12px 'Archivo', sans-serif", letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--muted)", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {focusStage ? (
+                  <>Focus · <em style={{ color: "var(--text)", fontStyle: "normal", fontWeight: 900, letterSpacing: "0.02em", textTransform: "none" }}>
+                    {activeSongTitle || (selectedForm !== "Custom" ? selectedForm : "Custom chart")}
+                  </em></>
+                ) : (
+                  <>Fretboard · <em style={{ color: "var(--text)", fontStyle: "normal", fontWeight: 900, letterSpacing: "0.02em", textTransform: "none" }}>
+                    {fretboardBar.symbol}{scaleLabel ? ` · ${scaleLabelFull}` : ""}
+                  </em></>
+                )}
               </div>
               <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-                <span style={{ font: "700 10.5px 'IBM Plex Mono', monospace", color: "var(--muted)", letterSpacing: "0.06em" }}>
+                <span className="db-fret-summary" style={{ font: "700 10.5px 'IBM Plex Mono', monospace", color: "var(--muted)", letterSpacing: "0.06em" }}>
                   {fretboardView === "chord" ? "Chord" : "Scale"}{scaleFilter ? ` + ${scaleFilter}` : ""}
                   {bebopOverlay ? " · +Bebop" : ""}{guideMode === "voice" ? " · Voice Leading" : guideMode === "melody" ? " · Melody" : ""}
                   {" · "}{fretboardTuning}
@@ -2203,13 +2316,27 @@ export default function Home() {
                   display: "inline-flex", alignItems: "center", justifyContent: "center", color: "var(--muted)", fontSize: "10px",
                   transition: "transform .2s", transform: openControlPanels.fretSettings ? "rotate(180deg)" : "none",
                 }}>▼</span>
+                {focusStage && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); exitFocusMode() }}
+                    title="Leave Focus and go back to the full practice view"
+                    aria-label="Exit Focus mode"
+                    style={{
+                      flexShrink: 0, font: "800 10px 'IBM Plex Mono', monospace", letterSpacing: "0.12em",
+                      padding: "6px 12px", borderRadius: "999px", cursor: "pointer",
+                      border: "1px solid var(--line)", background: "var(--surface2)", color: "var(--muted)",
+                    }}
+                  >
+                    ✕ CORE
+                  </button>
+                )}
               </div>
             </div>
 
             {/* Collapsible settings (spec §5.3) — same controls as before, just
                 folded inside the card instead of always shown. */}
             {openControlPanels.fretSettings && (
-              <div style={{ padding: "12px", background: "var(--surface2)", border: "1px solid var(--line)", borderRadius: "10px", marginBottom: "12px", display: "grid", gap: "12px" }}>
+              <div className="db-fret-settings" style={{ padding: "12px", background: "var(--surface2)", border: "1px solid var(--line)", borderRadius: "10px", marginBottom: "12px", display: "grid", gap: "12px" }}>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "10px" }}>
                   <div>
                     <span style={{ font: "700 10px 'IBM Plex Mono', monospace", color: "var(--muted)", letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: "5px", display: "block" }}>Systems</span>
@@ -2408,7 +2535,15 @@ export default function Home() {
                 Centred over the neck: it's the thing you glance up at while
                 playing, so it sits above the middle of the board rather than
                 off in the left margin. */}
-            <div style={{ display: "flex", alignItems: "stretch", justifyContent: "center", gap: "10px", flexWrap: "wrap", marginBottom: "10px" }}>
+            {/* Focus keeps this on one line and lets it shrink — clock, chord,
+                what's next, side by side above the neck, the way you'd want it
+                on a phone held sideways. */}
+            <div style={{
+              display: "flex", alignItems: "stretch", justifyContent: "center",
+              gap: focusStage ? "6px" : "10px",
+              flexWrap: focusStage ? "nowrap" : "wrap",
+              marginBottom: focusStage ? "8px" : "10px",
+            }}>
               {timerState && (() => {
                 const { seconds, running, done, duration } = timerState
                 const urgent = done || (running && seconds <= 10)
@@ -2419,15 +2554,15 @@ export default function Home() {
                     title="Practice timer — set it in the Timer drawer"
                     style={{
                       display: "flex", flexDirection: "column", justifyContent: "center",
-                      textAlign: "center", lineHeight: 1.1,
-                      padding: "8px 14px", borderRadius: "var(--db-r-md)",
+                      textAlign: "center", lineHeight: 1.1, flexShrink: focusStage ? 1 : 0,
+                      padding: focusStage ? "6px 8px" : "8px 14px", borderRadius: "var(--db-r-md)",
                       border: `2px solid color-mix(in srgb, ${tColor} ${running || done ? "100%" : "40%"}, transparent)`,
                       background: running || done ? `color-mix(in srgb, ${tColor} 12%, var(--db-bg))` : "var(--db-panel-bg)",
                       opacity: running || done ? 1 : 0.7,
                     }}
                   >
                     <div style={{ fontSize: "var(--db-fs-xs)", letterSpacing: "0.12em", opacity: 0.7, marginBottom: "3px" }}>{label}</div>
-                    <div style={{ fontSize: "1.8rem", fontWeight: 800, fontVariantNumeric: "tabular-nums", color: tColor }}>
+                    <div className="db-focus-clock" style={{ fontSize: focusStage ? "clamp(1.1rem, 4vw, 1.8rem)" : "1.8rem", fontWeight: 800, fontVariantNumeric: "tabular-nums", color: tColor }}>
                       {Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, "0")}
                     </div>
                   </div>
@@ -2437,10 +2572,11 @@ export default function Home() {
                 aria-live="polite"
                 style={{
                   textAlign: "center", lineHeight: 1.1,
-                  padding: "10px 18px", borderRadius: "var(--db-r-md)",
+                  padding: focusStage ? "6px 10px" : "10px 18px", borderRadius: "var(--db-r-md)",
                   border: `2px solid ${(isPlaying && playheadIndex !== null) ? "var(--n-root)" : "var(--line)"}`,
                   background: "var(--surface)",
-                  minWidth: "200px",
+                  minWidth: focusStage ? 0 : "200px",
+                  flexShrink: focusStage ? 1 : 0,
                 }}
               >
                 <div style={{ font: "700 10.5px 'IBM Plex Mono', monospace", letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--muted)", marginBottom: "2px" }}>
@@ -2448,12 +2584,16 @@ export default function Home() {
                 </div>
                 {/* Burnt red, the same --n-root the board draws the root with, so
                     the chord you are on reads as one thing across both. */}
-                <div style={{ font: "800 52px 'IBM Plex Mono', monospace", lineHeight: 1, margin: "4px 0 2px", letterSpacing: "-0.02em", color: "var(--n-root)" }}>
+                <div className="db-focus-chord" style={{
+                  font: "800 52px 'IBM Plex Mono', monospace",
+                  fontSize: focusStage ? "clamp(28px, 8vw, 52px)" : "52px",
+                  lineHeight: 1, margin: "4px 0 2px", letterSpacing: "-0.02em", color: "var(--n-root)",
+                }}>
                   {fretboardBar.symbol}
                 </div>
                 <div style={{ fontSize: "var(--db-fs-sm)", fontWeight: 700, color: "var(--db-c-blue)" }}>{scaleLabelFull}</div>
                 {displayedScaleNotes.length > 0 && (
-                  <div style={{ fontSize: "var(--db-fs-xs)", opacity: 0.75, marginTop: "2px", letterSpacing: "0.04em" }}>
+                  <div className="db-focus-spelling" style={{ fontSize: "var(--db-fs-xs)", opacity: 0.75, marginTop: "2px", letterSpacing: "0.04em" }}>
                     {displayedScaleNotes.join(" · ")}
                   </div>
                 )}
@@ -2490,18 +2630,22 @@ export default function Home() {
               {upcomingBarIndices.length > 0 && (
                 <div style={{
                   background: "var(--surface)", border: "1px solid var(--line)",
-                  borderRadius: "var(--db-r-md)", padding: "8px 12px",
+                  borderRadius: "var(--db-r-md)", padding: focusStage ? "6px 8px" : "8px 12px",
                   display: "flex", flexDirection: "column", justifyContent: "center",
+                  minWidth: 0, flexShrink: focusStage ? 1 : 0, overflow: "hidden",
                 }}>
                   <div style={{ font: "800 9.5px 'Archivo', sans-serif", letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--muted)", marginBottom: "6px" }}>
                     Coming up
                   </div>
                   <div style={{ display: "flex", gap: "6px" }}>
-                    {upcomingBarIndices.map(({ index, stepsAway }, i) => (
+                    {/* Focus shows only the next chord — three lookahead cards is
+                        the width the neck wants back on a phone. */}
+                    {(focusStage ? upcomingBarIndices.slice(0, 1) : upcomingBarIndices).map(({ index, stepsAway }, i) => (
                       <div key={i} style={{
                         background: "var(--surface2)",
                         border: `1px solid ${i === 0 ? "var(--info)" : "var(--line)"}`,
-                        borderRadius: "8px", padding: "6px 10px", textAlign: "center", minWidth: "72px",
+                        borderRadius: "8px", padding: focusStage ? "4px 8px" : "6px 10px", textAlign: "center",
+                        minWidth: focusStage ? "58px" : "72px",
                       }}>
                         <span style={{ font: "600 8.5px 'IBM Plex Mono', monospace", color: i === 0 ? "var(--info)" : "var(--muted)", letterSpacing: "0.14em", textTransform: "uppercase", display: "block" }}>
                           {i === 0 ? "Next" : "Then"}
@@ -2516,7 +2660,7 @@ export default function Home() {
             </div>
 
             {/* Legend (spec §5.3) — always the same maple note-role colors, never the palette */}
-            <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", marginBottom: "12px", fontSize: "12px", color: "var(--muted)" }}>
+            <div className="db-fret-legend" style={{ display: "flex", gap: "14px", flexWrap: "wrap", marginBottom: "12px", fontSize: "12px", color: "var(--muted)" }}>
               <span><span style={{ color: "var(--n-root)" }}>●</span> Root</span>
               <span><span style={{ color: "var(--n-chord)" }}>●</span> Chord tone</span>
               <span><span style={{ color: "var(--n-scale)" }}>●</span> Scale tone</span>
@@ -2549,9 +2693,11 @@ export default function Home() {
             <div className="db-mobile-only" style={{ fontSize: "var(--db-fs-xs)", opacity: 0.6, marginBottom: "4px" }}>
               Swipe the neck sideways to reach the upper frets · pinch to zoom
             </div>
-            {/* Focus view gets a bigger board (spec §5.2) — same component and
-                props, just scaled up; Cockpit stays at 1x. */}
-            <div style={{ overflowX: "auto", marginBottom: "4px", zoom: practiceView === "focus" ? 1.18 : 1 }}>
+            {/* Focus view gets a bigger board (spec §5.2). It used to get there
+                by zooming 1.18, which on a phone just pushed the top frets off
+                the side; now the card itself runs to the screen edges and the
+                board takes the width it's given, so nothing overflows. */}
+            <div className={focusStage ? "db-focus-board" : undefined} style={{ overflowX: "auto", marginBottom: "4px" }}>
               <Fretboard
                 chordNotes={fretboardInfo.notes || []}
                 rootNote={martinoMap ? martinoMap.displayRoot : (fretboardBar.userTonic ?? fretboardBar.root)}
@@ -2575,12 +2721,35 @@ export default function Home() {
               />
             </div>
 
+            {/* Focus's transport: the same controls as the floating one, sat in
+                the flow directly under the neck instead of hovering over the
+                bottom three strings. */}
+            {focusStage && (
+              <StickyTransport
+                embedded
+                isPlaying={isPlaying}
+                onTogglePlay={isPlaying ? stopPlayback : () => startPlayback().catch(console.error)}
+                loopEnabled={loopEnabled}
+                onToggleLoop={() => setLoopEnabled((v) => !v)}
+                tempo={tempo}
+                onTempoChange={setTempo}
+                swingAmount={swingAmount}
+                loopStart={loopStart}
+                loopEnd={loopEnd}
+                timerState={timerState}
+                practiceMode={practiceMode}
+                onTogglePracticeMode={setPracticeModeAndTempo}
+                originalTempo={originalTempo}
+                onOpenSettings={openBandPanel}
+              />
+            )}
+
             {/* Anticipate — when the ghosts are on the board above they already
                 say where the next chord is, so this collapses to a readout.
                 3rd Hunter (which the ghosts skip) keeps the full second maple
                 board, dimmed to read as "coming up" rather than "now". */}
             {anticipateOn && anticipateBar && ghostGuideTones.length > 0 && (
-              <div style={{
+              <div className="db-anticipate-readout" style={{
                 marginTop: "6px", padding: "6px 10px",
                 borderRadius: "var(--db-r-sm)",
                 border: "1px solid color-mix(in srgb, var(--n-next) 45%, transparent)",
@@ -2682,6 +2851,7 @@ export default function Home() {
             subtitle="Tempo, swing, comping, bass, drums, melody — live while playing"
             open={openControlPanels.band}
             onToggle={() => toggleControlPanel("band")}
+            shortcutId="band-mix"
           >
             <div className="db-controls" style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
                 <button
@@ -3415,7 +3585,7 @@ export default function Home() {
       {/* Sticky transport (spec §5.7) — always reachable in Practice mode,
           synced display of the same play/loop/tempo/swing/timer state the
           Band & Mix panel and chart ribbon edit. */}
-      {inMode("practice") && (
+      {inMode("practice") && !focusStage && (
         <StickyTransport
           isPlaying={isPlaying}
           onTogglePlay={isPlaying ? stopPlayback : () => startPlayback().catch(console.error)}
@@ -3427,8 +3597,33 @@ export default function Home() {
           loopStart={loopStart}
           loopEnd={loopEnd}
           timerState={timerState}
-          onOpenSettings={() => setOpenControlPanels((prev) => ({ ...prev, band: true }))}
+          practiceMode={practiceMode}
+          onTogglePracticeMode={setPracticeModeAndTempo}
+          originalTempo={originalTempo}
+          onOpenSettings={openBandPanel}
         />
+      )}
+
+      {/* Focus, one tap away from anywhere in Practice. Takes the phone into
+          landscape where it can and drops everything but chord, neck and
+          transport. Hidden while Focus is on — the ✕ CORE chip up in the
+          stage header is the way back. */}
+      {inMode("practice") && !focusStage && (
+        <button
+          onClick={enterFocusMode}
+          title="Focus mode — full-width neck, landscape on a phone"
+          aria-label="Enter Focus mode"
+          style={{
+            position: "fixed", right: "14px", bottom: "76px", zIndex: 51,
+            width: "48px", height: "48px", borderRadius: "50%", cursor: "pointer",
+            border: "1px solid var(--line)",
+            background: "color-mix(in srgb, var(--surface) 96%, transparent)",
+            color: "var(--accent)", fontSize: "20px", lineHeight: 1,
+            backdropFilter: "blur(12px)", boxShadow: "0 8px 32px rgba(0,0,0,.25)",
+          }}
+        >
+          👁
+        </button>
       )}
 
       {/* Transient toast */}

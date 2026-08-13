@@ -5,6 +5,12 @@
 // in Chart Navigation) — every control here calls the same setter the panel
 // version does, so editing from either place keeps them in sync. Nothing
 // here owns state; it's all lifted from Home().
+//
+// Two dresses, one component. `embedded` drops the fixed positioning and the
+// backdrop so Focus mode can sit it in the flow directly under the neck
+// instead of floating a slab of controls over the board; everything else —
+// including the Tempo/Practice switch — is identical in both, so a control
+// learned in one place is the same control in the other.
 
 function clock(totalSeconds) {
   if (totalSeconds == null) return "--:--"
@@ -38,28 +44,47 @@ export default function StickyTransport({
   loopEnd,
   timerState,
   onOpenSettings,
+  embedded = false,
+  practiceMode = false,
+  onTogglePracticeMode,
+  originalTempo,
 }) {
   const lo = Math.min(loopStart, loopEnd) + 1
   const hi = Math.max(loopStart, loopEnd) + 1
 
+  const shell = embedded
+    ? {
+        position: "static", width: "100%", boxSizing: "border-box",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        gap: "10px", flexWrap: "wrap",
+        background: "var(--surface2)",
+        border: "1px solid var(--line)", borderRadius: "12px", padding: "8px 10px",
+        marginTop: "8px",
+      }
+    : {
+        position: "fixed", bottom: "14px", left: "50%", transform: "translateX(-50%)", zIndex: 50,
+        display: "flex", alignItems: "center", gap: "10px",
+        background: "color-mix(in srgb, var(--surface) 96%, transparent)",
+        border: "1px solid var(--line)", borderRadius: "14px", padding: "8px 12px",
+        backdropFilter: "blur(12px)", boxShadow: "0 8px 32px rgba(0,0,0,.25)",
+        maxWidth: "calc(100vw - 24px)", overflowX: "auto",
+      }
+
   return (
-    <div style={{
-      position: "fixed", bottom: "14px", left: "50%", transform: "translateX(-50%)", zIndex: 50,
-      display: "flex", alignItems: "center", gap: "10px",
-      background: "color-mix(in srgb, var(--surface) 96%, transparent)",
-      border: "1px solid var(--line)", borderRadius: "14px", padding: "8px 12px",
-      backdropFilter: "blur(12px)", boxShadow: "0 8px 32px rgba(0,0,0,.25)",
-      maxWidth: "calc(100vw - 24px)", overflowX: "auto",
-    }}>
-      <button
-        type="button"
-        onClick={goHome}
-        title="Back to DukeBox home"
-        aria-label="Back to DukeBox home"
-        style={{ width: "34px", height: "34px", flexShrink: 0, padding: 0, border: 0, borderRadius: "50%", background: "transparent", cursor: "pointer" }}
-      >
-        <img src={BRAND_ICON} alt="" aria-hidden="true" style={{ display: "block", width: "100%", height: "100%", objectFit: "contain" }} />
-      </button>
+    <div className={embedded ? "db-transport db-transport-embedded" : "db-transport"} style={shell}>
+      {/* The brand button is a way *out* of practice — pointless directly under
+          the neck you're practising on, so Focus drops it. */}
+      {!embedded && (
+        <button
+          type="button"
+          onClick={goHome}
+          title="Back to DukeBox home"
+          aria-label="Back to DukeBox home"
+          style={{ width: "34px", height: "34px", flexShrink: 0, padding: 0, border: 0, borderRadius: "50%", background: "transparent", cursor: "pointer" }}
+        >
+          <img src={BRAND_ICON} alt="" aria-hidden="true" style={{ display: "block", width: "100%", height: "100%", objectFit: "contain" }} />
+        </button>
+      )}
       <button
         onClick={onTogglePlay}
         aria-label={isPlaying ? "Stop playback" : "Start playback"}
@@ -79,6 +104,35 @@ export default function StickyTransport({
       >
         LOOP
       </button>
+
+      {/* Tempo / Practice. The same setter the Band & Mix switch calls: the
+          song's own BPM, or 50 to take a change apart under a microscope.
+          It was buried three panels down, which is nowhere near where you
+          want it when a phrase falls apart at speed. */}
+      {onTogglePracticeMode && (
+        <button
+          onClick={() => onTogglePracticeMode(!practiceMode)}
+          aria-pressed={practiceMode}
+          title={practiceMode
+            ? `Practice — 50 BPM. Tap for song tempo${originalTempo ? ` (${originalTempo} BPM)` : ""}`
+            : "Song tempo. Tap to drop to 50 BPM to work a change out"}
+          style={{
+            height: "42px", padding: "0 12px", borderRadius: "10px", flexShrink: 0, cursor: "pointer",
+            border: `1px solid ${practiceMode ? "var(--db-c-green)" : "var(--db-c-blue)"}`,
+            background: practiceMode
+              ? "color-mix(in srgb, var(--db-c-green) 16%, transparent)"
+              : "color-mix(in srgb, var(--db-c-blue) 12%, transparent)",
+            color: practiceMode ? "var(--db-c-green)" : "var(--db-c-blue)",
+            font: "800 9.5px 'IBM Plex Mono', monospace", letterSpacing: "0.1em",
+            display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "1px",
+          }}
+        >
+          <span>{practiceMode ? "PRACTICE" : "TEMPO"}</span>
+          <span style={{ font: "700 11px 'IBM Plex Mono', monospace", opacity: 0.85 }}>
+            {practiceMode ? 50 : tempo}
+          </span>
+        </button>
+      )}
 
       <div style={{ display: "flex", gap: "8px", alignItems: "center", padding: "0 4px", borderLeft: "1px solid var(--line)" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: "1px", minWidth: "52px" }}>
@@ -107,7 +161,8 @@ export default function StickyTransport({
 
       <button
         onClick={onOpenSettings}
-        title="Open Band & Mix settings"
+        title="Open Band & Mix — tempo, swing, comping, bass, drums"
+        aria-label="Open Band and Mix settings"
         style={{ width: "42px", height: "42px", borderRadius: "10px", border: "1px solid var(--line)", background: "var(--surface2)", color: "var(--muted)", font: "600 15px 'Instrument Sans', sans-serif", cursor: "pointer", flexShrink: 0 }}
       >
         ⚙
