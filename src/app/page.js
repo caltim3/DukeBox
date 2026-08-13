@@ -1702,10 +1702,48 @@ export default function Home() {
           display: flex; align-items: center; justify-content: center;
           overflow: hidden !important;
         }
+        /* Take the width first and only give height back if the board would
+           otherwise not fit — the neck is what the screen is for. */
         .db-focus-stage .db-focus-board svg {
-          width: auto !important; height: 100% !important; max-width: 100%;
+          width: 100% !important; height: auto !important; max-height: 100%;
         }
-        .db-focus-stage .db-transport-embedded { padding: 4px 8px; margin-top: 4px; }
+
+        /* The readouts above the neck and the transport below it are glanced
+           at, not read. Both fold to a single line of their own height so the
+           frets get the difference: chord row roughly 60% shorter, transport
+           roughly 40%. */
+        .db-focus-stage .db-focus-now { margin-bottom: 4px !important; align-items: center; }
+        .db-focus-stage .db-focus-timer,
+        .db-focus-stage .db-focus-chordcard,
+        .db-focus-stage .db-focus-next,
+        .db-focus-stage .db-focus-next-card {
+          display: flex !important; flex-direction: row !important;
+          align-items: center; gap: 7px;
+          padding: 2px 8px !important;
+        }
+        .db-focus-stage .db-focus-timer > div,
+        .db-focus-stage .db-focus-chordcard > div,
+        .db-focus-stage .db-focus-next-card > * { margin: 0 !important; }
+        .db-focus-stage .db-focus-chord { font-size: clamp(17px, 5.5vh, 26px) !important; }
+        .db-focus-stage .db-focus-clock { font-size: clamp(0.8rem, 4vh, 1.15rem) !important; }
+        .db-focus-stage .db-focus-next-chord { font-size: 15px !important; }
+        .db-focus-stage .db-focus-beats { width: 40px; flex: 0 0 40px; height: 8px; }
+        /* Labels that only say what the box beside them already says. */
+        .db-focus-stage .db-focus-next-label,
+        .db-focus-stage .db-focus-next-when { display: none !important; }
+
+        .db-focus-stage .db-transport-embedded {
+          padding: 3px 8px !important; margin-top: 4px !important; gap: 7px !important;
+        }
+        .db-focus-stage .db-transport-embedded button { min-height: 0 !important; }
+        .db-focus-stage .db-transport-embedded .db-tp-play {
+          width: 40px !important; height: 32px !important; font-size: 15px !important;
+        }
+        .db-focus-stage .db-transport-embedded .db-tp-btn {
+          width: auto !important; height: 32px !important; padding: 0 9px !important;
+        }
+        .db-focus-stage .db-transport-embedded .db-tp-mode { flex-direction: row !important; gap: 5px !important; }
+        .db-focus-stage .db-transport-embedded .db-tp-stats { gap: 7px; }
         /* Opening the fret settings inside a one-screen column would push the
            neck out of it — the drawer scrolls instead. */
         .db-focus-stage .db-fret-settings { max-height: 45dvh; overflow-y: auto; }
@@ -2538,7 +2576,7 @@ export default function Home() {
             {/* Focus keeps this on one line and lets it shrink — clock, chord,
                 what's next, side by side above the neck, the way you'd want it
                 on a phone held sideways. */}
-            <div style={{
+            <div className={focusStage ? "db-focus-now" : undefined} style={{
               display: "flex", alignItems: "stretch", justifyContent: "center",
               gap: focusStage ? "6px" : "10px",
               flexWrap: focusStage ? "nowrap" : "wrap",
@@ -2551,6 +2589,7 @@ export default function Home() {
                 const tColor = urgent ? "var(--db-c-salmon)" : running ? "var(--db-c-green)" : "var(--db-muted)"
                 return (
                   <div
+                    className="db-focus-timer"
                     title="Practice timer — set it in the Timer drawer"
                     style={{
                       display: "flex", flexDirection: "column", justifyContent: "center",
@@ -2570,6 +2609,7 @@ export default function Home() {
               })()}
               <div
                 aria-live="polite"
+                className="db-focus-chordcard"
                 style={{
                   textAlign: "center", lineHeight: 1.1,
                   padding: focusStage ? "6px 10px" : "10px 18px", borderRadius: "var(--db-r-md)",
@@ -2591,7 +2631,7 @@ export default function Home() {
                 }}>
                   {fretboardBar.symbol}
                 </div>
-                <div style={{ fontSize: "var(--db-fs-sm)", fontWeight: 700, color: "var(--db-c-blue)" }}>{scaleLabelFull}</div>
+                <div className="db-focus-scale" style={{ fontSize: "var(--db-fs-sm)", fontWeight: 700, color: "var(--db-c-blue)" }}>{scaleLabelFull}</div>
                 {displayedScaleNotes.length > 0 && (
                   <div className="db-focus-spelling" style={{ fontSize: "var(--db-fs-xs)", opacity: 0.75, marginTop: "2px", letterSpacing: "0.04em" }}>
                     {displayedScaleNotes.join(" · ")}
@@ -2601,6 +2641,7 @@ export default function Home() {
                     Current beat solid and taller, beats gone dimmer but filled,
                     beats to come hollow — it marches rather than blinking. */}
                 <div
+                  className="db-focus-beats"
                   style={{ display: "flex", gap: "4px", marginTop: "9px", alignItems: "flex-end", height: "11px" }}
                   role="img"
                   aria-label={(isPlaying && beatInBar != null) ? `Beat ${beatInBar + 1} of ${fretboardBar.beats ?? 4}` : `${fretboardBar.beats ?? 4} beats per bar`}
@@ -2628,20 +2669,20 @@ export default function Home() {
                   chord you're on rather than across the page from it. Same
                   lookahead the ghosts use, three bars deep instead of one. */}
               {upcomingBarIndices.length > 0 && (
-                <div style={{
+                <div className="db-focus-next" style={{
                   background: "var(--surface)", border: "1px solid var(--line)",
                   borderRadius: "var(--db-r-md)", padding: focusStage ? "6px 8px" : "8px 12px",
                   display: "flex", flexDirection: "column", justifyContent: "center",
                   minWidth: 0, flexShrink: focusStage ? 1 : 0, overflow: "hidden",
                 }}>
-                  <div style={{ font: "800 9.5px 'Archivo', sans-serif", letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--muted)", marginBottom: "6px" }}>
+                  <div className="db-focus-next-label" style={{ font: "800 9.5px 'Archivo', sans-serif", letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--muted)", marginBottom: "6px" }}>
                     Coming up
                   </div>
                   <div style={{ display: "flex", gap: "6px" }}>
                     {/* Focus shows only the next chord — three lookahead cards is
                         the width the neck wants back on a phone. */}
                     {(focusStage ? upcomingBarIndices.slice(0, 1) : upcomingBarIndices).map(({ index, stepsAway }, i) => (
-                      <div key={i} style={{
+                      <div key={i} className="db-focus-next-card" style={{
                         background: "var(--surface2)",
                         border: `1px solid ${i === 0 ? "var(--info)" : "var(--line)"}`,
                         borderRadius: "8px", padding: focusStage ? "4px 8px" : "6px 10px", textAlign: "center",
@@ -2650,8 +2691,8 @@ export default function Home() {
                         <span style={{ font: "600 8.5px 'IBM Plex Mono', monospace", color: i === 0 ? "var(--info)" : "var(--muted)", letterSpacing: "0.14em", textTransform: "uppercase", display: "block" }}>
                           {i === 0 ? "Next" : "Then"}
                         </span>
-                        <div style={{ font: "800 19px 'IBM Plex Mono', monospace", marginTop: "2px", letterSpacing: "-0.01em" }}>{bars[index]?.symbol}</div>
-                        <div style={{ fontSize: "9.5px", color: "var(--muted)", marginTop: "1px" }}>{stepsAway === 1 ? "next bar" : `in ${stepsAway}`}</div>
+                        <div className="db-focus-next-chord" style={{ font: "800 19px 'IBM Plex Mono', monospace", marginTop: "2px", letterSpacing: "-0.01em" }}>{bars[index]?.symbol}</div>
+                        <div className="db-focus-next-when" style={{ fontSize: "9.5px", color: "var(--muted)", marginTop: "1px" }}>{stepsAway === 1 ? "next bar" : `in ${stepsAway}`}</div>
                       </div>
                     ))}
                   </div>
