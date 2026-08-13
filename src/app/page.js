@@ -413,15 +413,33 @@ export default function Home() {
     return withBebop.filter(n => !baseSet.has(n))
   }, [bebopOverlay, fretboardScaleData, fretboardBar, scaleFilter, martinoMap])
 
-  const melodyPathModeLabel = melodyPathMode === "73"
-    ? "7→3"
-    : melodyPathMode === "smooth"
-      ? "Smooth"
-      : melodyPathMode === "melody"
-        ? "Melody"
-        : melodyPathMode === "hunter3"
-          ? "3rd Hunter"
-          : melodyPathMode
+  // One concept, three states. The board used to expose 7→3, Smooth, Melody,
+  // 3rd Hunter, Enclosure and Anticipate as six separate switches you had to
+  // combine correctly to see anything useful. Voice Leading IS that
+  // combination — guide tones, ghosts of the next chord and the routes into
+  // them — so it is one choice now, and the default.
+  const guideMode = !targetsOverlay
+    ? "off"
+    : melodyPathMode === "melody" ? "melody" : "voice"
+
+  const chooseGuideMode = useCallback((mode) => {
+    if (mode === "off") {
+      setTargetsOverlay(false)
+      setAnticipateOn(false)
+      setEnclosureOn(false)
+      return
+    }
+    setTargetsOverlay(true)
+    setEnclosureOn(false)
+    if (mode === "melody") {
+      setMelodyPathMode("melody")
+      setAnticipateOn(false)          // a drawn melody has no next-chord target
+    } else {
+      setMelodyPathMode("73")
+      setAnticipateOn(true)           // anticipation is part of voice leading, not a separate switch
+    }
+  }, [])
+
 
   // The fretboard consumes Melody Paths' selected line directly. This keeps
   // every present and future path mode in sync without reimplementing its
@@ -2177,7 +2195,7 @@ export default function Home() {
               <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
                 <span style={{ font: "700 10.5px 'IBM Plex Mono', monospace", color: "var(--muted)", letterSpacing: "0.06em" }}>
                   {fretboardView === "chord" ? "Chord" : "Scale"}{scaleFilter ? ` + ${scaleFilter}` : ""}
-                  {bebopOverlay ? " · +Bebop" : ""}{targetsOverlay ? ` · +${melodyPathModeLabel}` : ""}{anticipateOn ? " · Anticipate" : ""}
+                  {bebopOverlay ? " · +Bebop" : ""}{guideMode === "voice" ? " · Voice Leading" : guideMode === "melody" ? " · Melody" : ""}
                   {" · "}{fretboardTuning}
                 </span>
                 <span aria-hidden="true" style={{
@@ -2249,62 +2267,22 @@ export default function Home() {
                       }}>
                         +Bebop Chromatic
                       </button>
-                      <button onClick={() => setTargetsOverlay(p => !p)} style={{
-                        padding: "4px 10px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-sm)", cursor: "pointer",
-                        background: targetsOverlay ? "color-mix(in srgb, var(--target) 22%, transparent)" : "var(--surface)",
-                        border:     targetsOverlay ? "1px solid var(--target)" : "1px solid var(--line)",
-                        color:      targetsOverlay ? "var(--target)" : "var(--text)",
-                        fontWeight: targetsOverlay ? 700 : 400,
-                        opacity:    targetsOverlay ? 1 : 0.7,
-                      }}>
-                        +{melodyPathModeLabel} Path
-                      </button>
-                      <button onClick={() => { setMelodyPathMode("hunter3"); setTargetsOverlay(true) }} style={{
-                        padding: "4px 10px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-sm)", cursor: "pointer",
-                        background: (targetsOverlay && melodyPathMode === "hunter3") ? "color-mix(in srgb, var(--target) 22%, transparent)" : "var(--surface)",
-                        border:     (targetsOverlay && melodyPathMode === "hunter3") ? "1px solid var(--target)" : "1px solid var(--line)",
-                        color:      (targetsOverlay && melodyPathMode === "hunter3") ? "var(--target)" : "var(--text)",
-                        fontWeight: (targetsOverlay && melodyPathMode === "hunter3") ? 700 : 400,
-                        opacity:    (targetsOverlay && melodyPathMode === "hunter3") ? 1 : 0.7,
-                      }} title="Target the 3rd of the NEXT chord — half-step approach when there is one, or bracket it from both whole tones">
-                        +3rd Hunter
-                      </button>
-                      <button onClick={() => {
-                        setEnclosureOn((p) => {
-                          const next = !p
-                          // The cage needs a target — turning it on implies 3rd Hunter.
-                          if (next) { setMelodyPathMode("hunter3"); setTargetsOverlay(true) }
-                          return next
-                        })
-                      }} style={{
-                        padding: "4px 10px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-sm)", cursor: "pointer",
-                        background: enclosureOn ? "color-mix(in srgb, var(--n-enclosure) 22%, transparent)" : "var(--surface)",
-                        border:     enclosureOn ? "1px solid var(--n-enclosure)" : "1px solid var(--line)",
-                        color:      enclosureOn ? "var(--n-enclosure)" : "var(--text)",
-                        fontWeight: enclosureOn ? 700 : 400,
-                        opacity:    enclosureOn ? 1 : 0.7,
-                      }} title="Peña enclosure — show the chromatic cage (half step below and above) around the 3rd Hunter target, plus the target itself, before the chord arrives">
-                        +Enclosure
-                      </button>
-                      <button onClick={() => {
-                        // Anticipate is inert without guide tones — there is
-                        // nothing for the routes to start from — so turning it
-                        // on turns them on too. Turning it off leaves them
-                        // alone; you may still want the guide tones by
-                        // themselves.
-                        const next = !anticipateOn
-                        setAnticipateOn(next)
-                        if (next) setTargetsOverlay(true)
-                      }} style={{
-                        padding: "4px 10px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-sm)", cursor: "pointer",
-                        background: anticipateOn ? "color-mix(in srgb, var(--db-c-purple) 20%, var(--db-bg))" : "var(--db-panel-bg)",
-                        border:     anticipateOn ? "1px solid var(--db-c-purple)" : "1px solid var(--db-panel-border)",
-                        color:      anticipateOn ? "var(--db-c-purple)" : "var(--db-text)",
-                        fontWeight: anticipateOn ? 700 : 400,
-                        opacity:    anticipateOn ? 1 : 0.7,
-                      }} title="Ghost the NEXT chord's guide tones onto this neck and draw the route into them — see the change coming. Turns on Guide Tones, which it needs.">
-                        Anticipate
-                      </button>
+                      {[
+                        ["voice",  "Voice Leading", "3rds and 7ths lit, the next chord ghosted onto the neck, and the route into it drawn as the bar turns over"],
+                        ["melody", "Melody",        "Light the melody you drew in Melody Paths below"],
+                        ["off",    "Off",           "Chord and scale tones only"],
+                      ].map(([id, label, hint]) => (
+                        <button key={id} onClick={() => chooseGuideMode(id)} aria-pressed={guideMode === id} title={hint} style={{
+                          padding: "4px 12px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-sm)", cursor: "pointer",
+                          background: guideMode === id ? "color-mix(in srgb, var(--target) 22%, transparent)" : "var(--surface)",
+                          border:     guideMode === id ? "1px solid var(--target)" : "1px solid var(--line)",
+                          color:      guideMode === id ? "var(--target)" : "var(--text)",
+                          fontWeight: guideMode === id ? 700 : 400,
+                          opacity:    guideMode === id ? 1 : 0.7,
+                        }}>
+                          {label}
+                        </button>
+                      ))}
                     </div>
                   </div>
 
@@ -2547,7 +2525,7 @@ export default function Home() {
               </span>
               <span style={{ opacity: targetsOverlay ? 1 : 0.5 }}>
                 <span style={{ color: "var(--n-target)" }}>●</span>{" "}
-                {melodyPathMode === "hunter3" ? "3rd of this chord" : `${melodyPathModeLabel} path · 3rd`}
+                {guideMode === "melody" ? "Melody note" : "3rd of this chord"}
               </span>
               <span style={{ opacity: targetsOverlay ? 1 : 0.5 }}>
                 <span style={{ color: "var(--n-seventh)" }}>●</span> 7th of this chord
@@ -2614,7 +2592,7 @@ export default function Home() {
                 </div>
                 <div style={{ fontSize: "var(--db-fs-lg)", fontWeight: 700 }}>{anticipateBar.symbol}</div>
                 <div style={{ fontSize: "var(--db-fs-xs)", opacity: 0.75 }}>
-                  {melodyPathModeLabel} path {ghostGuideTones.join(" / ") || "—"}
+                  guide tones {ghostGuideTones.join(" / ") || "—"}
                 </div>
               </div>
             )}
@@ -2626,7 +2604,7 @@ export default function Home() {
                   </div>
                   <div style={{ fontSize: "var(--db-fs-lg)", fontWeight: 700 }}>{anticipateBar.symbol}</div>
                   <div style={{ fontSize: "var(--db-fs-xs)", opacity: 0.75 }}>
-                    {melodyPathModeLabel} path {(melodyPathState.notesByBar[anticipateBarIndex] || []).join(" / ") || "—"}
+                    guide tones {(melodyPathState.notesByBar[anticipateBarIndex] || []).join(" / ") || "—"}
                   </div>
                 </div>
                 <div style={{ overflowX: "auto" }}>
@@ -2669,12 +2647,18 @@ export default function Home() {
             />
             <BackingBandCard
               compingStyle={compingStyle}
+              compingOptions={COMPING_STYLE_NAMES}
+              onCompingChange={setCompingStyle}
               playChords={playChords}
               onToggleChords={() => setPlayChords((v) => !v)}
               bassStyle={bassStyle}
+              bassOptions={BASS_STYLE_NAMES}
+              onBassChange={setBassStyle}
               playBass={playBass}
               onToggleBass={() => setPlayBass((v) => !v)}
               drumStyleLabel={DRUM_STYLES[drumStyleIdx].name}
+              drumOptions={DRUM_STYLES.map((d) => d.name)}
+              onDrumChange={(name) => setDrumStyleIdx(Math.max(0, DRUM_STYLES.findIndex((d) => d.name === name)))}
               playDrums={playDrums}
               onToggleDrums={() => setPlayDrums((v) => !v)}
               playMelody={playMelody}
