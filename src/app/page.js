@@ -102,6 +102,13 @@ const MODES = [
 // has to be kept in sync with it.
 const TONAL_URL = "https://caltim3.github.io/tonal/"
 
+// Tempo range shared by the slider and the keyboard nudges, so the two can
+// never disagree about how slow or fast the band is allowed to go. The floor
+// sits under Practice Mode's 50 BPM — you have to be able to nudge down from
+// there without the number pinning above where you already are.
+const TEMPO_MIN = 40
+const TEMPO_MAX = 300
+
 export default function Home() {
   const [bars, setBars] = useState(INITIAL_BARS)
   const [selectedIndex, setSelectedIndex] = useState(0)
@@ -579,7 +586,7 @@ export default function Home() {
   )
 
   // Same loop-aware lookahead as anticipateBarIndex above, generalized to the
-  // next 3 sounding bars — purely a display list for the Anticipation strip
+  // next 4 sounding bars — purely a display list for the Anticipation strip
   // (spec §5.5), not a second source of truth for the fretboard's Anticipate
   // overlay (which keeps using anticipateBarIndex, unchanged).
   const upcomingBarIndices = useMemo(() => {
@@ -588,7 +595,7 @@ export default function Home() {
     const hi = loopEnabled ? Math.max(loopStart, loopEnd) : bars.length - 1
     const span = hi - lo + 1
     const found = []
-    for (let step = 1; step <= span && found.length < 3; step++) {
+    for (let step = 1; step <= span && found.length < 4; step++) {
       const idx = lo + ((fretboardBarIndex - lo + step) % span + span) % span
       if (bars[idx] && bars[idx].quality !== "NC") found.push({ index: idx, stepsAway: found.length + 1 })
     }
@@ -1057,6 +1064,47 @@ export default function Home() {
     if (isPlaying) _audioMod?.updatePlayback({ tempo: newTempo })
   }
 
+  // Keyboard tempo nudges — p (−10), [ (−5), ] (+5), \ (+10), = to go back.
+  //
+  // The first nudge of a run snapshots what you were doing (Practice Mode's
+  // pinned 50 BPM, or your own Play Mode tempo) so `=` can put it back. A nudge
+  // always leaves Practice Mode, because that mode forces the band to 50 and
+  // would swallow the change — the number would move while the band didn't.
+  const tempoBeforeNudgeRef = useRef(null)
+
+  const nudgeTempo = useCallback((delta) => {
+    const current = practiceModeRef.current ? 50 : tempo
+    if (!tempoBeforeNudgeRef.current) {
+      tempoBeforeNudgeRef.current = { practiceMode: practiceModeRef.current, tempo }
+    }
+    const next = Math.max(TEMPO_MIN, Math.min(TEMPO_MAX, current + delta))
+    practiceModeRef.current = false
+    setPracticeMode(false)
+    setTempo(next)
+    if (playingRef.current) _audioMod?.updatePlayback({ tempo: next })
+  }, [tempo])
+
+  // `=` returns to whatever was live before the nudging started. With nothing
+  // to go back to it falls through to the plain Practice/Play toggle, so the
+  // key does the same job either way: back to the mode you were practicing in.
+  const restoreTempo = useCallback(() => {
+    const saved = tempoBeforeNudgeRef.current
+    if (!saved) {
+      const enabled = !practiceModeRef.current
+      const newTempo = enabled ? 50 : originalTempo
+      practiceModeRef.current = enabled
+      setPracticeMode(enabled)
+      setTempo(newTempo)
+      if (playingRef.current) _audioMod?.updatePlayback({ tempo: newTempo })
+      return
+    }
+    tempoBeforeNudgeRef.current = null
+    practiceModeRef.current = saved.practiceMode
+    setPracticeMode(saved.practiceMode)
+    setTempo(saved.tempo)
+    if (playingRef.current) _audioMod?.updatePlayback({ tempo: saved.practiceMode ? 50 : saved.tempo })
+  }, [originalTempo])
+
   function loadStarter(starterId) {
     // Stop any current playback before loading
     if (playingRef.current) stopPlayback()
@@ -1386,6 +1434,22 @@ export default function Home() {
         toggleColorMode()
         return
       }
+      // Tempo from the keyboard, so you can find the speed you can actually
+      // play the line at without letting go of the guitar.
+      if (!meta && !e.altKey) {
+        const bump = { p: -10, P: -10, "[": -5, "]": 5, "\\": 10 }[e.key]
+        if (bump != null) {
+          e.preventDefault()
+          nudgeTempo(bump)
+          return
+        }
+        if (e.key === "=") {
+          e.preventDefault()
+          restoreTempo()
+          return
+        }
+      }
+
       if (!meta && !e.altKey && (e.key === "o" || e.key === "O") && mode === "practice") {
         e.preventDefault()
         choosePracticeView(practiceView === "focus" ? "cockpit" : "focus")
@@ -1422,7 +1486,7 @@ export default function Home() {
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [bars, selectedIndex, clipboardBar, updateBar, cyclePalette, toggleColorMode, mode, practiceView, choosePracticeView])
+  }, [bars, selectedIndex, clipboardBar, updateBar, cyclePalette, toggleColorMode, mode, practiceView, choosePracticeView, nudgeTempo, restoreTempo])
 
   // Library hydration + cloud sync is handled by useCloudLibrary; here we only
   // ensure audio stops if the component unmounts mid-playback.
@@ -2336,9 +2400,26 @@ export default function Home() {
             {/* Collapsible settings (spec §5.3) — same controls as before, just
                 folded inside the card instead of always shown. */}
             {openControlPanels.fretSettings && (
-              <div className="db-fret-settings" style={{ padding: "12px", background: "var(--surface2)", border: "1px solid var(--line)", borderRadius: "10px", marginBottom: "12px", display: "grid", gap: "12px" }}>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "10px" }}>
-                  <div>
+              // One flat grid instead of two stacked ones. The old layout put
+              // Tuning, Labels and Fret focus in a single tall column beside two
+              // short ones, so a wide window was mostly empty air on the left
+              // while the right column ran three blocks deep. Every group is now
+              // its own cell on the same track grid, ordered by how often you
+              // reach for it and sized by how much it needs — dense flow lets
+              // the narrow ones backfill the gaps a wide one leaves behind.
+              <div className="db-fret-settings" style={{
+                padding: "10px 12px", background: "var(--surface2)", border: "1px solid var(--line)",
+                borderRadius: "10px", marginBottom: "12px",
+                display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(184px, 1fr))",
+                gridAutoFlow: "dense", gap: "10px 14px", alignItems: "start",
+              }}>
+                <style>{`
+                  .db-fret-settings > .db-fs-wide { grid-column: span 2; }
+                  @media (max-width: 620px) {
+                    .db-fret-settings > .db-fs-wide { grid-column: auto; }
+                  }
+                `}</style>
+                  <div className="db-fs-wide">
                     <span style={{ font: "700 10px 'IBM Plex Mono', monospace", color: "var(--muted)", letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: "5px", display: "block" }}>Systems</span>
                     <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
                       {["chord", "scale"].map((v) => (
@@ -2381,7 +2462,7 @@ export default function Home() {
                     </div>
                   </div>
 
-                  <div>
+                  <div className="db-fs-wide">
                     <span style={{ font: "700 10px 'IBM Plex Mono', monospace", color: "var(--muted)", letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: "5px", display: "block" }}>Overlays</span>
                     <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
                       <button onClick={() => setBebopOverlay(p => !p)} style={{
@@ -2424,9 +2505,11 @@ export default function Home() {
                         <option key={t} value={t}>{t}</option>
                       ))}
                     </select>
+                  </div>
 
-                    {/* Labels — note names to study with, degrees to play with. */}
-                    <span style={{ font: "700 10px 'IBM Plex Mono', monospace", color: "var(--muted)", letterSpacing: "0.14em", textTransform: "uppercase", margin: "12px 0 5px", display: "block" }}>Labels</span>
+                  {/* Labels — note names to study with, degrees to play with. */}
+                  <div>
+                    <span style={{ font: "700 10px 'IBM Plex Mono', monospace", color: "var(--muted)", letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: "5px", display: "block" }}>Labels</span>
                     <div style={{ display: "inline-flex", border: "1px solid var(--line)", borderRadius: "7px", overflow: "hidden" }}>
                       {[["names", "Names"], ["degrees", "Degrees"]].map(([id, label]) => (
                         <button key={id} onClick={() => setLabelMode(id)} aria-pressed={labelMode === id}
@@ -2438,9 +2521,11 @@ export default function Home() {
                           }}>{label}</button>
                       ))}
                     </div>
+                  </div>
 
-                    {/* Fret focus — off by default so the whole neck stays live. */}
-                    <span style={{ font: "700 10px 'IBM Plex Mono', monospace", color: "var(--muted)", letterSpacing: "0.14em", textTransform: "uppercase", margin: "12px 0 5px", display: "block" }}>Fret focus</span>
+                  {/* Fret focus — off by default so the whole neck stays live. */}
+                  <div className="db-fs-wide">
+                    <span style={{ font: "700 10px 'IBM Plex Mono', monospace", color: "var(--muted)", letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: "5px", display: "block" }}>Fret focus</span>
                     <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
                       <div style={{ display: "inline-flex", border: "1px solid var(--line)", borderRadius: "7px", overflow: "hidden" }}>
                         {[["off", "Off"], ["manual", "Manual"], ["auto", "Auto"]].map(([id, label]) => (
@@ -2472,50 +2557,46 @@ export default function Home() {
                       )}
                     </div>
                   </div>
-                </div>
 
-                {/* Transpose Song (moved from the old Songbook panel — spec §7).
-                    Transposes every bar in the chart (bars), not just one part —
-                    "part" here was a legacy label, not a scope limit. */}
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "10px", paddingTop: "10px", borderTop: "1px dashed var(--line)" }}>
-                  <div>
+                  {/* Transpose Song (moved from the old Songbook panel — spec §7).
+                      Transposes every bar in the chart (bars), not just one part —
+                      "part" here was a legacy label, not a scope limit.
+                      Key pickers and the button sit on one line: they're a single
+                      action ("put this song in that key"), and splitting them
+                      across two labelled columns cost a whole row of height to
+                      say what one row says. */}
+                  <div className="db-fs-wide">
                     <span style={{ font: "700 10px 'IBM Plex Mono', monospace", color: "var(--muted)", letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: "5px", display: "block" }}>
-                      Current key: {chartKey} {keyMode === "minor" ? "minor" : "major"}
+                      Transpose · now in {chartKey} {keyMode === "minor" ? "minor" : "major"}
                     </span>
-                    <span style={{ font: "700 10px 'IBM Plex Mono', monospace", color: "var(--muted)", letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: "5px", display: "block" }}>Transpose song to</span>
-                    <label style={inlineLabelStyle}>
+                    <div style={{ display: "flex", gap: "5px", alignItems: "center", flexWrap: "wrap" }}>
                       <select
                         value={keyRoot}
                         onChange={(e) => setKeyRoot(e.target.value)}
-                        style={{ ...selectStyle, width: "auto", padding: "6px 10px" }}
+                        style={{ ...selectStyle, width: "auto", padding: "5px 8px", fontSize: "var(--db-fs-sm)" }}
                       >
                         {ROOTS.map((r) => <option key={r} value={r}>{r}</option>)}
                       </select>
                       <select
                         value={keyMode}
                         onChange={(e) => setKeyMode(e.target.value)}
-                        style={{ ...selectStyle, width: "auto", padding: "6px 10px", marginLeft: "4px" }}
+                        style={{ ...selectStyle, width: "auto", padding: "5px 8px", fontSize: "var(--db-fs-sm)" }}
                       >
                         <option value="major">Major</option>
                         <option value="minor">Minor</option>
                       </select>
-                    </label>
-                  </div>
-                  <div>
-                    <span style={{ font: "700 10px 'IBM Plex Mono', monospace", color: "var(--muted)", letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: "5px", display: "block" }}>Apply</span>
-                    <button
-                      onClick={handleTransposeChart}
-                      style={buttonStyle(keyRoot !== chartKey ? "var(--db-c-amber)" : "var(--db-muted)")}
-                      title="Shifts every chord in the chart from the current key to the key picked above"
-                    >
-                      Transpose Song
-                    </button>
-                    <div style={{ fontSize: "var(--db-fs-xs)", opacity: 0.6, marginTop: "4px" }}>
-                      {keyRoot === chartKey
-                        ? "Chart is already in this key."
-                        : `Shifts every chord from ${chartKey} to ${keyRoot}.`}
+                      <button
+                        onClick={handleTransposeChart}
+                        style={{ ...buttonStyle(keyRoot !== chartKey ? "var(--db-c-amber)" : "var(--db-muted)"), padding: "5px 12px", fontSize: "var(--db-fs-sm)" }}
+                        title={keyRoot === chartKey
+                          ? "Chart is already in this key"
+                          : `Shifts every chord in the chart from ${chartKey} to ${keyRoot}`}
+                      >
+                        Transpose
+                      </button>
                     </div>
                   </div>
+
                   <div>
                     <span style={{ font: "700 10px 'IBM Plex Mono', monospace", color: "var(--muted)", letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: "5px", display: "block" }}>Chord display</span>
                     <label style={inlineLabelStyle}>
@@ -2527,7 +2608,6 @@ export default function Home() {
                       Roman Numerals
                     </label>
                   </div>
-                </div>
               </div>
             )}
 
@@ -2626,7 +2706,11 @@ export default function Home() {
 
               {/* Coming up — moved out of the Focus header so it sits beside the
                   chord you're on rather than across the page from it. Same
-                  lookahead the ghosts use, three bars deep instead of one. */}
+                  lookahead the ghosts use, four bars deep instead of one.
+                  Each tile is smaller and fainter than the one before it, so
+                  the row reads as distance: the chord you're about to play is
+                  nearly as loud as NOW, and the one four bars out is a hint you
+                  can take in without looking straight at it. */}
               {upcomingBarIndices.length > 0 && (
                 <div style={{
                   background: "var(--surface)", border: "1px solid var(--line)",
@@ -2637,23 +2721,44 @@ export default function Home() {
                   <div style={{ font: "800 9.5px 'Archivo', sans-serif", letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--muted)", marginBottom: "6px" }}>
                     Coming up
                   </div>
-                  <div style={{ display: "flex", gap: "6px" }}>
-                    {/* Focus shows only the next chord — three lookahead cards is
-                        the width the neck wants back on a phone. */}
-                    {(focusStage ? upcomingBarIndices.slice(0, 1) : upcomingBarIndices).map(({ index, stepsAway }, i) => (
-                      <div key={i} style={{
-                        background: "var(--surface2)",
-                        border: `1px solid ${i === 0 ? "var(--info)" : "var(--line)"}`,
-                        borderRadius: "8px", padding: focusStage ? "4px 8px" : "6px 10px", textAlign: "center",
-                        minWidth: focusStage ? "58px" : "72px",
-                      }}>
-                        <span style={{ font: "600 8.5px 'IBM Plex Mono', monospace", color: i === 0 ? "var(--info)" : "var(--muted)", letterSpacing: "0.14em", textTransform: "uppercase", display: "block" }}>
-                          {i === 0 ? "Next" : "Then"}
-                        </span>
-                        <div style={{ font: "800 19px 'IBM Plex Mono', monospace", marginTop: "2px", letterSpacing: "-0.01em" }}>{bars[index]?.symbol}</div>
-                        <div style={{ fontSize: "9.5px", color: "var(--muted)", marginTop: "1px" }}>{stepsAway === 1 ? "next bar" : `in ${stepsAway}`}</div>
-                      </div>
-                    ))}
+                  <div style={{ display: "flex", gap: "5px", alignItems: "stretch" }}>
+                    {/* Focus still shows only the next chord — four lookahead
+                        cards is the width the neck wants back on a phone. The
+                        size ramp below is what the wide view uses instead. */}
+                    {(focusStage ? upcomingBarIndices.slice(0, 1) : upcomingBarIndices).map(({ index, stepsAway }, i) => {
+                      // One ramp drives size, weight and fade together — mixing
+                      // separate per-tile values drifts out of step the moment
+                      // the count changes. At i === 0 it lands exactly on the
+                      // sizes Focus was already using, so the phone stage keeps
+                      // the tile it was tuned for.
+                      const near = 1 - i * 0.22        // 1 · .78 · .56 · .34
+                      return (
+                        <div key={i} style={{
+                          background: "var(--surface2)",
+                          border: `1px solid ${i === 0 ? "var(--info)" : "var(--line)"}`,
+                          borderRadius: "8px",
+                          padding: focusStage ? "4px 8px" : `${4 + Math.round(near * 3)}px ${4 + Math.round(near * 6)}px`,
+                          textAlign: "center",
+                          minWidth: focusStage ? "58px" : `${46 + Math.round(near * 26)}px`,
+                          alignSelf: "center",
+                          opacity: 0.5 + near * 0.5,
+                        }}>
+                          <span style={{
+                            font: `600 ${(7 + near * 1.5).toFixed(1)}px 'IBM Plex Mono', monospace`,
+                            color: i === 0 ? "var(--info)" : "var(--muted)",
+                            letterSpacing: "0.14em", textTransform: "uppercase", display: "block",
+                          }}>
+                            {i === 0 ? "Next" : "Then"}
+                          </span>
+                          <div style={{ font: `800 ${(11 + near * 8).toFixed(1)}px 'IBM Plex Mono', monospace`, marginTop: "2px", letterSpacing: "-0.01em" }}>
+                            {bars[index]?.symbol}
+                          </div>
+                          <div style={{ fontSize: `${(8 + near * 1.5).toFixed(1)}px`, color: "var(--muted)", marginTop: "1px" }}>
+                            {stepsAway === 1 ? "next bar" : `in ${stepsAway}`}
+                          </div>
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
               )}
@@ -2875,7 +2980,7 @@ export default function Home() {
 
                 <label style={inlineLabelStyle}>
                   Tempo
-                  <input type="range" min="70" max="180" value={tempo} onChange={(e) => setTempo(Number(e.target.value))} />
+                  <input type="range" min={TEMPO_MIN} max={TEMPO_MAX} value={tempo} onChange={(e) => setTempo(Number(e.target.value))} />
                   <span>{tempo}</span>
                 </label>
 
