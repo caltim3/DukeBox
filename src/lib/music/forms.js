@@ -196,14 +196,26 @@ const ALL_OF_ME = {
   ],
 }
 
+// Full AABC, 32 bars, one chord per bar — the ii-V-I motion is the whole
+// story here, and pairing each ii-V into a shared half-bar (as the old data
+// did) doubled the harmonic rhythm for the entire A and B sections, which is
+// not how the tune goes. Only the C section's turnaround genuinely shares a
+// bar (Am7b5-D7alt on the way to the final Gm6 Gm6), same as the real chart.
 const AUTUMN_LEAVES = {
   keyRoot: "G", keyMode: "minor", tempo: 130,
   bars: [
-    ...s("Cm7 F7"),     ...s("Bbmaj7 Ebmaj7"),
-    ...s("Am7b5 D7alt"), ...s("Gm7"),
-    ...s("Cm7 F7"),     ...s("Bbmaj7 Ebmaj7"),
-    ...s("Am7b5 D7alt"), ...s("Gm7 G7alt"),
-    ...s("Cm7 F7"),
+    ...s("Cm7", "A1"), ...s("F7", "A1"), ...s("Bbmaj7", "A1"), ...s("Ebmaj7", "A1"),
+    ...s("Am7b5", "A1"), ...s("D7alt", "A1"), ...s("Gm6", "A1"), ...s("Gm6", "A1"),
+
+    ...s("Cm7", "A2"), ...s("F7", "A2"), ...s("Bbmaj7", "A2"), ...s("Ebmaj7", "A2"),
+    ...s("Am7b5", "A2"), ...s("D7alt", "A2"), ...s("Gm6", "A2"), ...s("G7alt", "A2"),
+
+    ...s("Cm7", "B"), ...s("F7", "B"), ...s("Bbmaj7", "B"), ...s("Ebmaj7", "B"),
+    ...s("Am7b5", "B"), ...s("D7alt", "B"), ...s("Gm6", "B"), ...s("Gm6", "B"),
+
+    ...s("Am7b5", "C"), ...s("D7alt", "C"), ...s("Gm", "C"),
+    { root: "G", quality: "min7", symbol: "Gm7/F", section: "C", beats: 4, bass: "F" },
+    ...s("Ebmaj7", "C"), ...s("Am7b5 D7alt", "C"), ...s("Gm6", "C"), ...s("Gm6", "C"),
   ],
 }
 
