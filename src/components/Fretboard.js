@@ -54,7 +54,15 @@ export const FRETBOARD_FRETS = FRET_COUNT
 const MAX_ROUTE_FRETS   = 3
 const MAX_ROUTE_STRINGS = 1
 
-export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes = null, view = "chord", tuningName = "Standard", targetNotes = [], passingNotes = [], guideToneNotes = [], guideToneDirections = null, enclosureNotes = [], ghostNotes = [], seventhNotes = [], labelMode = "names", ghostRootNote = null, focusStart = null, focusSpan = 4, animate = false, barSeconds = 0, phaseKey = null }) {
+export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes = null, view = "chord", tuningName = "Standard", targetNotes = [], passingNotes = [], guideToneNotes = [], guideToneDirections = null, enclosureNotes = [], ghostNotes = [], seventhNotes = [], labelMode = "names", ghostRootNote = null, focusStart = null, focusSpan = 4, animate = false, barSeconds = 0, phaseKey = null, zorroOn = false, zorroCells = null }) {
+  // ZorroMode (the Pickup Music "3:2 System") takes the board over
+  // completely when it's on and has something to show — it draws its own
+  // two highways instead of the usual chord/scale dots, so every other
+  // overlay below (ghosts, routes, the fret-focus window) sits out rather
+  // than fighting it for the same neck. Off, or no shape for this chord
+  // quality, and nothing here changes.
+  const zorroActive = zorroOn && Array.isArray(zorroCells) && zorroCells.length > 0
+
   // The bar has a shape. Beats 1-2 the chord stands alone; beat 3 the ghosts
   // fade up and the routes start drawing; beat 4 the routes are at full and
   // everything that isn't a guide tone dims, so you are pulled into the change
@@ -92,8 +100,8 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
   function dotX(f)      { return f === 0 ? NUT_X - 16 : NUT_X + (f - 0.5) * FRET_W }
 
   // Build note dot list
-  const dots = []
-  strings.forEach((open, si) => {
+  let dots = []
+  if (!zorroActive) strings.forEach((open, si) => {
     const openNorm   = norm(open)
     const openChroma = NOTES_FLAT.indexOf(openNorm)
     if (openChroma === -1) return
@@ -148,6 +156,27 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
       })
     }
   })
+
+  // ZorroMode dots — two highways, each cell already resolved to an exact
+  // string/fret by pentatonic32.js, so this just paints them: blue for the
+  // 3-note group, red for the 2-note group, a gold ring on a minor shape's
+  // root ("ring finger on the root").
+  if (zorroActive) {
+    const ZORRO_COLOR = { A: "var(--n-penta-a)", B: "var(--n-penta-b)" }
+    dots = zorroCells.map(c => ({
+      key: `z${c.si}-${c.f}`,
+      cx: dotX(c.f),
+      cy: strY(c.si),
+      r: c.isRingRoot ? 10 : 8.5,
+      color: ZORRO_COLOR[c.group] || "var(--n-penta-a)",
+      label: c.noteName || c.text,
+      text: c.text,
+      si: c.si, f: c.f, held: false,
+      isRoot: false, isTarget: false, isPassing: false, isGuide: false, isEnclosure: false,
+      isZorroRing: !!c.isRingRoot,
+    }))
+  }
+
   // Render overlays last (root → enclosure → passing → guide → target) so the
   // notes that matter most always paint over the ones that matter least.
   dots.sort((a, b) => {
@@ -161,7 +190,7 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
   // already where your eye is.
   const heldAt = new Set(dots.filter(d => d.held).map(d => `${d.si}:${d.f}`))
   const ghosts = []
-  if (ghostSet.size) {
+  if (!zorroActive && ghostSet.size) {
     strings.forEach((open, si) => {
       const openChroma = NOTES_FLAT.indexOf(norm(open))
       if (openChroma === -1) return
@@ -226,7 +255,7 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
   // The fret focus window. Off (focusStart null) is the default so you can
   // roam. When on, everything outside dims rather than disappearing — you keep
   // your bearings, and the shapes you already know stay recognisable.
-  const focusOn = focusStart != null
+  const focusOn = !zorroActive && focusStart != null
   const focusLo = focusOn ? focusStart : 0
   const focusHi = focusOn ? focusStart + focusSpan : FRET_COUNT
   const inFocus = (f) => !focusOn || (f >= focusLo && f <= focusHi)
@@ -388,8 +417,8 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
         // 3rd Hunter the note that moves is the lead-in (drawn in the approach
         // colour), while the lit guide tone is the chord's own 3rd and stays
         // unmarked.
-        const semis = (guideToneDirections && !drawnResolution.has(d.key)) ? guideToneDirections[d.label] : null
-        const goesTo = guideToneDirections ? guideToneDirections[`${d.label}:to`] : null
+        const semis = (!zorroActive && guideToneDirections && !drawnResolution.has(d.key)) ? guideToneDirections[d.label] : null
+        const goesTo = (!zorroActive && guideToneDirections) ? guideToneDirections[`${d.label}:to`] : null
         let glyph = null
         if (semis != null) {
           const n = Math.abs(semis)
@@ -414,6 +443,12 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
             <circle cx={d.cx} cy={d.cy} r={d.r} fill={d.color} stroke="#3D2A12" strokeWidth={d.isRoot ? 1.2 : 0.6} />
             {d.isEnclosure && (
               <circle cx={d.cx} cy={d.cy} r={d.r + 3} fill="none" stroke="var(--n-enclosure)" strokeWidth={1.4} strokeDasharray="3 2.5" />
+            )}
+            {/* ZorroMode minor root — "ring finger on the root" in the chart. */}
+            {d.isZorroRing && (
+              <circle cx={d.cx} cy={d.cy} r={d.r + 3} fill="none" stroke="var(--n-penta-ring)" strokeWidth={2}>
+                <title>{`${d.label} — root, ring finger`}</title>
+              </circle>
             )}
             {/* Held guide tone — the next chord has it too, so stay put. Drawn
                 inside the dot rather than around it: strings are only ~23px

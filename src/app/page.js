@@ -33,6 +33,7 @@ import { parseGigChord, GIGBOOK_SONGS, gigSongToBars, parseGigKey, gigTempoNumbe
 import { guidedPrescription, drillStage, nextKeyInCycle, DRILL_LOOPS_PER_STAGE, PENA_DRILLS } from "@/lib/music/penaDrills"
 import { STARTER_PRESETS, STARTER_STRIP, LOAD_STARTER_EVENT } from "@/lib/music/starters"
 import Fretboard, { fretPositions, FRETBOARD_FRETS } from "@/components/Fretboard"
+import { getZorroHighways } from "@/lib/music/pentatonic32"
 import MetronomePanel from "@/components/MetronomePanel"
 import BeatForgeLibrary from "@/components/BeatForgeLibrary"
 import PracticeTimer from "@/components/PracticeTimer"
@@ -205,6 +206,12 @@ export default function Home() {
   const [focusMode, setFocusMode] = useState("off")
   const [focusStart, setFocusStart] = useState(5)
   const [focusSpan, setFocusSpan] = useState(4)
+  // ZorroMode — the 3:2 pentatonic system as the fretboard's focus. A toggle
+  // that sits beside Off/Manual/Auto rather than a fourth option among them:
+  // it takes the board over when on and leaves focusMode/focusStart alone,
+  // so switching it off hands the neck straight back to whatever those were
+  // already showing.
+  const [zorroMode, setZorroMode] = useState(false)
   const [scaleFilter, setScaleFilter] = useState(null)  // null | "pentatonic" | "hexatonic" | "martino" | "hexchord" | "barry"
   const [bebopOverlay, setBebopOverlay] = useState(false)   // adds chromatic passing tone on top
   const [targetsOverlay, setTargetsOverlay] = useState(true) // guide tones are the default practice view
@@ -414,6 +421,21 @@ export default function Home() {
 
 
   const fretboardInfo = useMemo(() => chordInfo(fretboardBar.symbol), [fretboardBar])
+
+  // ZorroMode — both 3:2-system highways for the chord currently sounding.
+  // Recomputes on every chord change (fretboardBar), same as everything else
+  // driving the neck, so it stays in sync with the transport without its own
+  // subscription. Off entirely when the toggle is off — no cost to pay.
+  const zorroHighway = useMemo(() => {
+    if (!zorroMode) return { usable: false, family: null, cells: [] }
+    return getZorroHighways({
+      rootNote: fretboardBar.userTonic ?? fretboardBar.root,
+      quality: fretboardBar.quality,
+      tuningName: fretboardTuning,
+      labelMode,
+    })
+  }, [zorroMode, fretboardBar, fretboardTuning, labelMode])
+  const zorroActiveOnBoard = zorroMode && zorroHighway.usable
 
   // When Martino mode is active, compute the remapped display root/quality for the fretboard.
   // Everything else (audio, guide tones, notation) continues to use the original fretboardBar data.
@@ -2555,6 +2577,40 @@ export default function Home() {
                             style={{ font: "700 11px 'IBM Plex Mono', monospace", padding: "5px 9px", borderRadius: "6px", border: "1px solid var(--line)", background: "var(--surface)", color: "var(--muted)", cursor: "pointer" }}>{focusSpan + 1} fr</button>
                         </div>
                       )}
+                      {/* ZorroMode — the Pickup Music 3:2 system as the focus, instead
+                          of a plain fret window. A toggle, not a fourth Off/Manual/Auto
+                          option: it takes the board over on top of whatever focusMode is
+                          set to, and leaves focusMode/focusStart untouched, so switching
+                          it back off hands the neck straight back to what they show. */}
+                      <label
+                        title={fretboardTuning !== "Standard"
+                          ? "3:2 shapes are built for standard tuning only"
+                          : "Show both 3:2-system positions as two highways across the whole neck"}
+                        style={{
+                          display: "inline-flex", alignItems: "center", gap: "6px",
+                          font: "700 11px 'Instrument Sans', sans-serif", padding: "5px 11px",
+                          borderRadius: "7px", border: "1px solid var(--line)",
+                          cursor: fretboardTuning === "Standard" ? "pointer" : "not-allowed",
+                          background: zorroMode ? "var(--accent)" : "var(--surface)",
+                          color: zorroMode ? "var(--accent-ink)" : "var(--muted)",
+                          opacity: fretboardTuning === "Standard" ? 1 : 0.5,
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={zorroMode}
+                          disabled={fretboardTuning !== "Standard"}
+                          onChange={(e) => setZorroMode(e.target.checked)}
+                          style={{ margin: 0 }}
+                          aria-label="ZorroMode — 3:2 pentatonic system as the fretboard focus"
+                        />
+                        Zorro · 3:2 system
+                      </label>
+                      {zorroMode && fretboardTuning === "Standard" && !zorroHighway.usable && (
+                        <span style={{ font: "600 10.5px 'Instrument Sans', sans-serif", color: "var(--muted)", fontStyle: "italic" }}>
+                          no 3:2 shape for this chord
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -2782,34 +2838,48 @@ export default function Home() {
               </div>
             )}
 
-            {/* Legend (spec §5.3) — always the same maple note-role colors, never the palette */}
-            <div className="db-fret-legend" style={{ display: "flex", gap: "14px", flexWrap: "wrap", marginBottom: "12px", fontSize: "12px", color: "var(--muted)" }}>
-              <span><span style={{ color: "var(--n-root)" }}>●</span> Root</span>
-              <span><span style={{ color: "var(--n-chord)" }}>●</span> Chord tone</span>
-              <span><span style={{ color: "var(--n-scale)" }}>●</span> Scale tone</span>
-              <span style={{ opacity: bebopOverlay || scaleFilter === "barry" ? 1 : 0.5 }}>
-                <span style={{ color: "var(--n-passing)" }}>●</span> {scaleFilter === "barry" ? "Barry passing tone" : "Bebop passing"}
-              </span>
-              <span style={{ opacity: targetsOverlay ? 1 : 0.5 }}>
-                <span style={{ color: "var(--n-target)" }}>●</span>{" "}
-                {guideMode === "melody" ? "Melody note" : "3rd of this chord"}
-              </span>
-              <span style={{ opacity: targetsOverlay ? 1 : 0.5 }}>
-                <span style={{ color: "var(--n-seventh)" }}>●</span> 7th of this chord
-              </span>
-              {targetsOverlay && melodyPathMode === "hunter3" && (
-                <span><span style={{ color: "var(--n-enclosure)" }}>◌</span> Leads into the next 3rd →</span>
-              )}
-              {enclosureOn && (
-                <span><span style={{ color: "var(--n-enclosure)" }}>◌</span> Enclosure (½ step around next target)</span>
-              )}
-              {ghostGuideTones.length > 0 && (
-                <span style={{ color: "var(--n-next)" }}>○ next chord · ⌒ route in · ◎ held tone, stay put</span>
-              )}
-              {targetsOverlay && (anticipateOn || melodyPathMode === "hunter3") && ghostGuideTones.length === 0 && (
-                <span style={{ color: "var(--n-target)" }}>→ up a semitone · →→ up a whole tone · ← ←← down · = stays</span>
-              )}
-            </div>
+            {/* Legend (spec §5.3) — always the same maple note-role colors, never the
+                palette. ZorroMode swaps this for its own two-color key: every other
+                overlay is sitting out while it's on (Fretboard.js), so their legend
+                entries would just be describing colors that aren't on the board. */}
+            {zorroActiveOnBoard ? (
+              <div className="db-fret-legend" style={{ display: "flex", gap: "14px", flexWrap: "wrap", marginBottom: "12px", fontSize: "12px", color: "var(--muted)" }}>
+                <span><span style={{ color: "var(--n-penta-a)" }}>●</span> {zorroHighway.family === "minor" ? "b3 · 4 · 5 (3-note group)" : "1 · 2 · 3 (3-note group)"}</span>
+                <span><span style={{ color: "var(--n-penta-b)" }}>●</span> {zorroHighway.family === "minor" ? "b7 · 1 (2-note group)" : "5 · 6 (2-note group)"}</span>
+                {zorroHighway.family === "minor" && (
+                  <span><span style={{ color: "var(--n-penta-ring)" }}>◌</span> Root — ring finger</span>
+                )}
+                <span style={{ fontStyle: "italic" }}>Two highways, both positions of the 3:2 system</span>
+              </div>
+            ) : (
+              <div className="db-fret-legend" style={{ display: "flex", gap: "14px", flexWrap: "wrap", marginBottom: "12px", fontSize: "12px", color: "var(--muted)" }}>
+                <span><span style={{ color: "var(--n-root)" }}>●</span> Root</span>
+                <span><span style={{ color: "var(--n-chord)" }}>●</span> Chord tone</span>
+                <span><span style={{ color: "var(--n-scale)" }}>●</span> Scale tone</span>
+                <span style={{ opacity: bebopOverlay || scaleFilter === "barry" ? 1 : 0.5 }}>
+                  <span style={{ color: "var(--n-passing)" }}>●</span> {scaleFilter === "barry" ? "Barry passing tone" : "Bebop passing"}
+                </span>
+                <span style={{ opacity: targetsOverlay ? 1 : 0.5 }}>
+                  <span style={{ color: "var(--n-target)" }}>●</span>{" "}
+                  {guideMode === "melody" ? "Melody note" : "3rd of this chord"}
+                </span>
+                <span style={{ opacity: targetsOverlay ? 1 : 0.5 }}>
+                  <span style={{ color: "var(--n-seventh)" }}>●</span> 7th of this chord
+                </span>
+                {targetsOverlay && melodyPathMode === "hunter3" && (
+                  <span><span style={{ color: "var(--n-enclosure)" }}>◌</span> Leads into the next 3rd →</span>
+                )}
+                {enclosureOn && (
+                  <span><span style={{ color: "var(--n-enclosure)" }}>◌</span> Enclosure (½ step around next target)</span>
+                )}
+                {ghostGuideTones.length > 0 && (
+                  <span style={{ color: "var(--n-next)" }}>○ next chord · ⌒ route in · ◎ held tone, stay put</span>
+                )}
+                {targetsOverlay && (anticipateOn || melodyPathMode === "hunter3") && ghostGuideTones.length === 0 && (
+                  <span style={{ color: "var(--n-target)" }}>→ up a semitone · →→ up a whole tone · ← ←← down · = stays</span>
+                )}
+              </div>
+            )}
 
             {/* THE MAPLE BOARD — always the same wood/note colors (spec §4.7),
                 untouched click-to-hear / swipe / pinch handlers. */}
@@ -2841,6 +2911,8 @@ export default function Home() {
                 phaseKey={playheadIndex}
                 view={fretboardView}
                 tuningName={fretboardTuning}
+                zorroOn={zorroMode}
+                zorroCells={zorroHighway.cells}
               />
             </div>
 
