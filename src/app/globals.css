@@ -135,6 +135,12 @@
      against the two maple stops. */
   --n-next:#821767; --n-next-fill:rgba(255,255,255,.78);
 
+  /* ZorroMode — the 3:2 pentatonic system's two note groups (3-note "A",
+     2-note "B") plus the ring drawn around a minor shape's root ("ring
+     finger on the root" in the Pickup Music chart). Distinct from every
+     other note-role hue above so a highway never reads as a guide tone. */
+  --n-penta-a:#0EA5E9; --n-penta-b:#E11D48; --n-penta-ring:#FDE047;
+
   /* Melody Paths — always dark navy */
   --mp-bg:#0F172A; --mp-surface:#1E293B; --mp-line:#334155;
   --mp-text:#E2E8F0; --mp-muted:#94A3B8; --mp-hdr-accent:#F8FAFC;
