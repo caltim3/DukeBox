@@ -2615,14 +2615,17 @@ export default function Home() {
                 Centred over the neck: it's the thing you glance up at while
                 playing, so it sits above the middle of the board rather than
                 off in the left margin. */}
-            {/* Focus keeps this on one line and lets it shrink — clock, chord,
-                what's next, side by side above the neck, the way you'd want it
-                on a phone held sideways. */}
+            {/* Core and Focus render this row identically — same gap, same
+                padding, same tile sizes, same four bars of lookahead. Focus
+                used to shrink it and cut the lookahead to one tile; that made
+                the thing you track while playing move and resize when you
+                switched modes, which is the one thing it must never do. The
+                only survivors are the landscape-phone rules below, which size
+                the clock and chord off screen height so the stage still fits
+                one screen. */}
             <div style={{
               display: "flex", alignItems: "stretch", justifyContent: "center",
-              gap: focusStage ? "6px" : "10px",
-              flexWrap: focusStage ? "nowrap" : "wrap",
-              marginBottom: focusStage ? "8px" : "10px",
+              gap: "10px", flexWrap: "wrap", marginBottom: "10px",
             }}>
               {timerState && (() => {
                 const { seconds, running, done, duration } = timerState
@@ -2634,15 +2637,15 @@ export default function Home() {
                     title="Practice timer — set it in the Timer drawer"
                     style={{
                       display: "flex", flexDirection: "column", justifyContent: "center",
-                      textAlign: "center", lineHeight: 1.1, flexShrink: focusStage ? 1 : 0,
-                      padding: focusStage ? "6px 8px" : "8px 14px", borderRadius: "var(--db-r-md)",
+                      textAlign: "center", lineHeight: 1.1, flexShrink: 0,
+                      padding: "8px 14px", borderRadius: "var(--db-r-md)",
                       border: `2px solid color-mix(in srgb, ${tColor} ${running || done ? "100%" : "40%"}, transparent)`,
                       background: running || done ? `color-mix(in srgb, ${tColor} 12%, var(--db-bg))` : "var(--db-panel-bg)",
                       opacity: running || done ? 1 : 0.7,
                     }}
                   >
                     <div style={{ fontSize: "var(--db-fs-xs)", letterSpacing: "0.12em", opacity: 0.7, marginBottom: "3px" }}>{label}</div>
-                    <div className="db-focus-clock" style={{ fontSize: focusStage ? "clamp(1.1rem, 4vw, 1.8rem)" : "1.8rem", fontWeight: 800, fontVariantNumeric: "tabular-nums", color: tColor }}>
+                    <div className="db-focus-clock" style={{ fontSize: "1.8rem", fontWeight: 800, fontVariantNumeric: "tabular-nums", color: tColor }}>
                       {Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, "0")}
                     </div>
                   </div>
@@ -2652,11 +2655,11 @@ export default function Home() {
                 aria-live="polite"
                 style={{
                   textAlign: "center", lineHeight: 1.1,
-                  padding: focusStage ? "6px 10px" : "10px 18px", borderRadius: "var(--db-r-md)",
+                  padding: "10px 18px", borderRadius: "var(--db-r-md)",
                   border: `2px solid ${(isPlaying && playheadIndex !== null) ? "var(--n-root)" : "var(--line)"}`,
                   background: "var(--surface)",
-                  minWidth: focusStage ? 0 : "200px",
-                  flexShrink: focusStage ? 1 : 0,
+                  minWidth: "200px",
+                  flexShrink: 0,
                 }}
               >
                 <div style={{ font: "700 10.5px 'IBM Plex Mono', monospace", letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--muted)", marginBottom: "2px" }}>
@@ -2666,7 +2669,6 @@ export default function Home() {
                     the chord you are on reads as one thing across both. */}
                 <div className="db-focus-chord" style={{
                   font: "800 52px 'IBM Plex Mono', monospace",
-                  fontSize: focusStage ? "clamp(28px, 8vw, 52px)" : "52px",
                   lineHeight: 1, margin: "4px 0 2px", letterSpacing: "-0.02em", color: "var(--n-root)",
                 }}>
                   {fretboardBar.symbol}
@@ -2714,32 +2716,27 @@ export default function Home() {
               {upcomingBarIndices.length > 0 && (
                 <div style={{
                   background: "var(--surface)", border: "1px solid var(--line)",
-                  borderRadius: "var(--db-r-md)", padding: focusStage ? "6px 8px" : "8px 12px",
+                  borderRadius: "var(--db-r-md)", padding: "8px 12px",
                   display: "flex", flexDirection: "column", justifyContent: "center",
-                  minWidth: 0, flexShrink: focusStage ? 1 : 0, overflow: "hidden",
+                  minWidth: 0, flexShrink: 0, overflow: "hidden",
                 }}>
                   <div style={{ font: "800 9.5px 'Archivo', sans-serif", letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--muted)", marginBottom: "6px" }}>
                     Coming up
                   </div>
                   <div style={{ display: "flex", gap: "5px", alignItems: "stretch" }}>
-                    {/* Focus still shows only the next chord — four lookahead
-                        cards is the width the neck wants back on a phone. The
-                        size ramp below is what the wide view uses instead. */}
-                    {(focusStage ? upcomingBarIndices.slice(0, 1) : upcomingBarIndices).map(({ index, stepsAway }, i) => {
+                    {upcomingBarIndices.map(({ index, stepsAway }, i) => {
                       // One ramp drives size, weight and fade together — mixing
                       // separate per-tile values drifts out of step the moment
-                      // the count changes. At i === 0 it lands exactly on the
-                      // sizes Focus was already using, so the phone stage keeps
-                      // the tile it was tuned for.
+                      // the count changes.
                       const near = 1 - i * 0.22        // 1 · .78 · .56 · .34
                       return (
                         <div key={i} style={{
                           background: "var(--surface2)",
                           border: `1px solid ${i === 0 ? "var(--info)" : "var(--line)"}`,
                           borderRadius: "8px",
-                          padding: focusStage ? "4px 8px" : `${4 + Math.round(near * 3)}px ${4 + Math.round(near * 6)}px`,
+                          padding: `${4 + Math.round(near * 3)}px ${4 + Math.round(near * 6)}px`,
                           textAlign: "center",
-                          minWidth: focusStage ? "58px" : `${46 + Math.round(near * 26)}px`,
+                          minWidth: `${46 + Math.round(near * 26)}px`,
                           alignSelf: "center",
                           opacity: 0.5 + near * 0.5,
                         }}>
@@ -2763,6 +2760,27 @@ export default function Home() {
                 </div>
               )}
             </div>
+
+            {/* What you're playing, named, immediately above the neck. The
+                stage header carries the same title, but that's a settings
+                toggle at the top of the card — by the time you're looking at
+                the board mid-tune it's out of your eyeline. Left-aligned over
+                the nut, above the legend, so it reads as a label on the
+                instrument rather than another readout competing with the
+                chord. Focus only: Core still has the chart and the song strip
+                on screen to tell you the same thing. */}
+            {focusStage && (
+              <div style={{
+                font: "800 13px 'Instrument Sans', sans-serif", color: "var(--text)",
+                letterSpacing: "0.01em", marginBottom: "6px", minWidth: 0,
+                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+              }}>
+                {activeSongTitle || (selectedForm !== "Custom" ? selectedForm : "Custom chart")}
+                <span style={{ font: "700 10.5px 'IBM Plex Mono', monospace", color: "var(--muted)", letterSpacing: "0.12em", marginLeft: "8px" }}>
+                  {chartKey} {keyMode === "minor" ? "MINOR" : "MAJOR"}
+                </span>
+              </div>
+            )}
 
             {/* Legend (spec §5.3) — always the same maple note-role colors, never the palette */}
             <div className="db-fret-legend" style={{ display: "flex", gap: "14px", flexWrap: "wrap", marginBottom: "12px", fontSize: "12px", color: "var(--muted)" }}>
