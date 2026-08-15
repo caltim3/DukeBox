@@ -208,10 +208,30 @@ export default function Home() {
   const [focusSpan, setFocusSpan] = useState(4)
   // ZorroMode — the 3:2 pentatonic system as the fretboard's focus. A toggle
   // that sits beside Off/Manual/Auto rather than a fourth option among them:
-  // it takes the board over when on and leaves focusMode/focusStart alone,
-  // so switching it off hands the neck straight back to whatever those were
-  // already showing.
+  // it swaps which notes the board draws (the two 3:2 highways instead of
+  // chord/scale tones), not whether a fret window narrows the neck — Manual
+  // and Auto still do that job, dimming the same as always.
   const [zorroMode, setZorroMode] = useState(false)
+  // Zorro without any window covers nearly the whole neck (each highway
+  // tiles it on its own — see pentatonic32.js), which reads as "everywhere
+  // lit up," not "focused." So turning Zorro on on top of Off nudges the
+  // window to Auto for you; turning it back off restores Off, but only if
+  // that nudge is what put it there — a window you picked yourself, Manual
+  // or Auto, is left exactly alone.
+  const zorroFocusNudge = useRef(null)
+  useEffect(() => {
+    if (zorroMode) {
+      if (focusMode === "off") {
+        zorroFocusNudge.current = "off"
+        setFocusMode("auto")
+      } else {
+        zorroFocusNudge.current = null
+      }
+    } else if (zorroFocusNudge.current != null) {
+      setFocusMode(zorroFocusNudge.current)
+      zorroFocusNudge.current = null
+    }
+  }, [zorroMode]) // eslint-disable-line react-hooks/exhaustive-deps
   const [scaleFilter, setScaleFilter] = useState(null)  // null | "pentatonic" | "hexatonic" | "martino" | "hexchord" | "barry"
   const [bebopOverlay, setBebopOverlay] = useState(false)   // adds chromatic passing tone on top
   const [targetsOverlay, setTargetsOverlay] = useState(true) // guide tones are the default practice view
@@ -2578,10 +2598,14 @@ export default function Home() {
                         </div>
                       )}
                       {/* ZorroMode — the Pickup Music 3:2 system as the focus, instead
-                          of a plain fret window. A toggle, not a fourth Off/Manual/Auto
-                          option: it takes the board over on top of whatever focusMode is
-                          set to, and leaves focusMode/focusStart untouched, so switching
-                          it back off hands the neck straight back to what they show.
+                          of chord/scale tones. A toggle, not a fourth Off/Manual/Auto
+                          option: it changes WHICH notes the window shows, not whether
+                          there's a window — Off/Manual/Auto still narrow and dim the
+                          neck exactly as before. Since the two highways tile the whole
+                          board on their own, Zorro nudges Off to Auto so there's a
+                          window to show them in (see the useEffect above); it un-nudges
+                          on the way back out, leaving a Manual/Auto pick you made
+                          yourself alone.
                           A button, not a checkbox — matching Off/Manual/Auto and every
                           other toggle in this panel. A bare <input type="checkbox"> here
                           rendered with a native tap target too small to hit reliably on
@@ -2592,7 +2616,7 @@ export default function Home() {
                         aria-pressed={zorroMode}
                         title={fretboardTuning !== "Standard"
                           ? "3:2 shapes are built for standard tuning only"
-                          : "Show both 3:2-system positions as two highways across the whole neck"}
+                          : "Show both 3:2-system positions as two highways, windowed by Fret focus"}
                         style={{
                           font: "700 11px 'Instrument Sans', sans-serif", padding: "5px 11px",
                           borderRadius: "7px", border: "1px solid var(--line)",
