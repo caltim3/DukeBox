@@ -255,7 +255,15 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
   // The fret focus window. Off (focusStart null) is the default so you can
   // roam. When on, everything outside dims rather than disappearing — you keep
   // your bearings, and the shapes you already know stay recognisable.
-  const focusOn = !zorroActive && focusStart != null
+  //
+  // ZorroMode still uses this: it swaps WHICH notes are drawn (the 3:2 shape
+  // instead of chord/scale tones), not whether a window narrows the neck. Two
+  // highways tile the whole board on their own (that's the point of the
+  // octave copies), so without a window they cover almost every fret and the
+  // page reads as "everywhere lit up" rather than "focused." page.js nudges
+  // focusMode from Off to Auto the moment Zorro turns on for exactly this
+  // reason — Zorro without a window isn't a focus mode.
+  const focusOn = focusStart != null
   const focusLo = focusOn ? focusStart : 0
   const focusHi = focusOn ? focusStart + focusSpan : FRET_COUNT
   const inFocus = (f) => !focusOn || (f >= focusLo && f <= focusHi)
