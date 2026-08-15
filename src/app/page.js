@@ -2581,13 +2581,19 @@ export default function Home() {
                           of a plain fret window. A toggle, not a fourth Off/Manual/Auto
                           option: it takes the board over on top of whatever focusMode is
                           set to, and leaves focusMode/focusStart untouched, so switching
-                          it back off hands the neck straight back to what they show. */}
-                      <label
+                          it back off hands the neck straight back to what they show.
+                          A button, not a checkbox — matching Off/Manual/Auto and every
+                          other toggle in this panel. A bare <input type="checkbox"> here
+                          rendered with a native tap target too small to hit reliably on
+                          a phone, which is exactly where Focus lives. */}
+                      <button
+                        onClick={() => setZorroMode(v => !v)}
+                        disabled={fretboardTuning !== "Standard"}
+                        aria-pressed={zorroMode}
                         title={fretboardTuning !== "Standard"
                           ? "3:2 shapes are built for standard tuning only"
                           : "Show both 3:2-system positions as two highways across the whole neck"}
                         style={{
-                          display: "inline-flex", alignItems: "center", gap: "6px",
                           font: "700 11px 'Instrument Sans', sans-serif", padding: "5px 11px",
                           borderRadius: "7px", border: "1px solid var(--line)",
                           cursor: fretboardTuning === "Standard" ? "pointer" : "not-allowed",
@@ -2596,16 +2602,8 @@ export default function Home() {
                           opacity: fretboardTuning === "Standard" ? 1 : 0.5,
                         }}
                       >
-                        <input
-                          type="checkbox"
-                          checked={zorroMode}
-                          disabled={fretboardTuning !== "Standard"}
-                          onChange={(e) => setZorroMode(e.target.checked)}
-                          style={{ margin: 0 }}
-                          aria-label="ZorroMode — 3:2 pentatonic system as the fretboard focus"
-                        />
-                        Zorro · 3:2 system
-                      </label>
+                        {zorroMode ? "✓ " : ""}Zorro · 3:2 system
+                      </button>
                       {zorroMode && fretboardTuning === "Standard" && !zorroHighway.usable && (
                         <span style={{ font: "600 10.5px 'Instrument Sans', sans-serif", color: "var(--muted)", fontStyle: "italic" }}>
                           no 3:2 shape for this chord
