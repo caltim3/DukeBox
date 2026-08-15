@@ -35,7 +35,7 @@ const GROUPS = [
     title: "Jump to",
     items: [
       ["/", "Song library in Practice"],
-      ["\\", "Song library in Gig"],
+      ["G", "Song library in Gig"],
       ["F", "Fretboard"],
       ["L", "Licktionary"],
       ["B", "BeatForge Library"],
@@ -51,6 +51,16 @@ const GROUPS = [
       ["⌘/Ctrl C", "Copy selected bar"],
       ["⌘/Ctrl V", "Paste selected bar"],
       ["Double-click", "Loop one chord"],
+    ],
+  },
+  {
+    title: "Tempo",
+    items: [
+      ["P", "Slower by 10 BPM"],
+      ["[", "Slower by 5 BPM"],
+      ["]", "Faster by 5 BPM"],
+      ["\\", "Faster by 10 BPM"],
+      ["=", "Back to where you were"],
     ],
   },
   {
@@ -205,7 +215,9 @@ export default function KeyboardShortcuts() {
         return
       }
 
-      if (key === "\\") {
+      // Gig's library moved off `\`, which now nudges the tempo up 10 (handled
+      // in page.js, where the transport state lives).
+      if (key === "g") {
         event.preventDefault()
         event.stopPropagation()
         goWorkspace("Gig")
