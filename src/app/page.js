@@ -2784,46 +2784,6 @@ export default function Home() {
                     )}
                   </div>
 
-                  {/* Transpose — lives in ChartRibbon ("the floating lead
-                      sheet") in Cockpit now, but Focus doesn't render
-                      ChartRibbon at all (that's most of the point of Focus),
-                      so without a copy here Focus would have no way to
-                      transpose whatsoever. Scoped to focusStage specifically
-                      — Cockpit keeps its one copy in ChartRibbon, not two. */}
-                  {focusStage && (
-                    <div className="db-fs-wide">
-                      <span style={{ font: "700 10px 'IBM Plex Mono', monospace", color: "var(--muted)", letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: "5px", display: "block" }}>
-                        Transpose · now in {chartKey} {keyMode === "minor" ? "minor" : "major"}
-                      </span>
-                      <div style={{ display: "flex", gap: "5px", alignItems: "center", flexWrap: "wrap" }}>
-                        <select
-                          value={keyRoot}
-                          onChange={(e) => setKeyRoot(e.target.value)}
-                          style={{ ...selectStyle, width: "auto", padding: "5px 8px", fontSize: "var(--db-fs-sm)" }}
-                        >
-                          {ROOTS.map((r) => <option key={r} value={r}>{r}</option>)}
-                        </select>
-                        <select
-                          value={keyMode}
-                          onChange={(e) => setKeyMode(e.target.value)}
-                          style={{ ...selectStyle, width: "auto", padding: "5px 8px", fontSize: "var(--db-fs-sm)" }}
-                        >
-                          <option value="major">Major</option>
-                          <option value="minor">Minor</option>
-                        </select>
-                        <button
-                          onClick={handleTransposeChart}
-                          style={{ ...buttonStyle(keyRoot !== chartKey ? "var(--db-c-amber)" : "var(--db-muted)"), padding: "5px 12px", fontSize: "var(--db-fs-sm)" }}
-                          title={keyRoot === chartKey
-                            ? "Chart is already in this key"
-                            : `Shifts every chord in the chart from ${chartKey} to ${keyRoot}`}
-                        >
-                          Transpose
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
               </div>
             )}
 
