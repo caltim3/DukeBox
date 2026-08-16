@@ -294,6 +294,22 @@ export default function Home() {
     } catch { /* ignore — we're leaving either way */ }
   }, [choosePracticeView])
 
+  // The stage scrolls (see .db-focus-stage in the CSS below): the title bar
+  // and its settings drawer sit ABOVE the pinned chord/board/transport, so
+  // "scroll up" is the whole affordance for reaching them — no second panel,
+  // no modal. focusStageRef is the scrolling element; focusTopbarRef is what
+  // the pinned view scrolls *to*, both on entry and any time settings close.
+  const focusStageRef = useRef(null)
+  const focusTopbarRef = useRef(null)
+  const scrollFocusToPlay = useCallback(() => {
+    focusTopbarRef.current?.scrollIntoView({ block: "start" })
+  }, [])
+  useEffect(() => {
+    if (!focusStage) return
+    const id = requestAnimationFrame(scrollFocusToPlay)
+    return () => cancelAnimationFrame(id)
+  }, [focusStage, scrollFocusToPlay])
+
   // The transport's gear used to flip a boolean on a panel most of a page
   // below the fold, which from the transport looked exactly like nothing
   // happening. Open it *and* go to it.
@@ -1806,77 +1822,97 @@ export default function Home() {
       }
 
       /* ── Focus stage ────────────────────────────────────────────────
-         Focus is the phone mode. The card that holds the neck goes full
-         bleed — out past the page's own 24px gutter to the screen edges —
-         so twelve frets get the whole width instead of the whole width
-         minus two margins and two borders. Everything that isn't chord,
-         neck, or transport steps out of the vertical budget. */
+         Focus is the "super mobile" app mode, on a phone or a desktop
+         window alike: a fixed full-screen pane over the whole page — not
+         just a full-bleed card in the page's own scroll — so it snaps to
+         the screen the instant it opens, on any device, whether or not
+         the browser's own Fullscreen/orientation-lock calls in
+         enterFocusMode() actually take (iOS grants neither).
+         Three fixed windows, top to bottom:
+           - .db-focus-topbar  — the chord you're on, pinned to the top,
+             scaled down from Cockpit's version since here it's permanent
+             chrome, not one row in a tall page.
+           - .db-focus-board   — the neck, edge to edge, taking every pixel
+             the other two don't need.
+           - .db-transport-embedded — tempo/loop/play, pinned to the bottom.
+         The title bar and its settings drawer (.db-fret-header,
+         .db-fret-settings) render ABOVE .db-focus-topbar in normal flow,
+         inside the stage's own scroll — off-screen by default (see the
+         scroll-to-topbar effect in Home()), one swipe/scroll up away. */
       .db-focus-stage {
-        margin-left: calc(-1 * var(--db-page-gutter, 24px));
-        margin-right: calc(-1 * var(--db-page-gutter, 24px));
-        border-left: 0 !important;
-        border-right: 0 !important;
+        position: fixed; inset: 0; z-index: 500;
+        height: 100dvh; width: 100vw;
+        box-sizing: border-box;
+        display: flex; flex-direction: column;
+        overflow-y: auto; overscroll-behavior-y: contain;
+        background: var(--surface);
+        margin: 0 !important;
+        border: 0 !important;
         border-radius: 0 !important;
-        padding-left: 10px !important;
-        padding-right: 10px !important;
+        padding: 0 !important;
+      }
+      .db-focus-stage > * { flex: 0 0 auto; }
+      .db-focus-stage .db-fret-header,
+      .db-focus-stage .db-fret-settings,
+      .db-focus-stage .db-focus-topbar {
+        padding-left: 12px; padding-right: 12px; box-sizing: border-box;
+      }
+      .db-focus-stage .db-fret-header { padding-top: 10px; }
+      .db-focus-stage .db-fret-settings { margin-left: 12px; margin-right: 12px; }
+
+      /* The pinned chord readout. Sticky (not the whole stage's own fixed
+         positioning) so it scrolls out of the way while the title bar and
+         settings drawer above it are being reached, then locks back to the
+         top the moment they scroll past. */
+      .db-focus-stage .db-focus-topbar {
+        position: sticky; top: 0; z-index: 2;
+        background: var(--surface);
+        padding-top: 8px; padding-bottom: 6px; margin-bottom: 0 !important;
+        gap: 6px !important;
+      }
+      .db-focus-stage .db-focus-chord { font-size: clamp(30px, 6.5vh, 44px) !important; }
+      .db-focus-stage .db-focus-clock { font-size: clamp(1rem, 4vh, 1.5rem) !important; }
+      /* The scale spelled out in letters, and the next chord's guide tones
+         written under the board, are both things the board itself already
+         shows — here they're extra height the pinned bar can't spare. */
+      .db-focus-stage .db-focus-spelling,
+      .db-focus-stage .db-anticipate-readout { display: none !important; }
+
+      /* The neck: everything the topbar and transport don't need, edge to
+         edge — no zoom trick, no fixed aspect box, just full width and
+         whatever height that leaves. */
+      .db-focus-board { zoom: 1; }
+      .db-focus-stage .db-focus-board {
+        flex: 1 1 auto; min-height: 0;
+        display: flex; align-items: center; justify-content: center;
+        overflow: hidden !important;
+        margin: 0 !important; padding: 0 4px !important;
+      }
+      .db-focus-stage .db-focus-board svg {
+        width: 100% !important; height: auto !important; max-height: 100%;
       }
 
-      /* Focus keeps the oversized board it has always had on a desktop; on a
-         phone the full-bleed card is already the whole screen, and zooming
-         past that only pushes the top frets off the side. */
-      .db-focus-board { zoom: 1.18; }
+      /* The legend, the swipe hint and the settings summary are reference,
+         not instrument — Focus never has the height to spare for them. */
+      .db-focus-stage .db-fret-legend,
+      .db-focus-stage .fret-foot,
+      .db-focus-stage .db-mobile-only,
+      .db-focus-stage .db-fret-summary { display: none !important; }
 
-      @media (max-width: 900px) {
-        .db-focus-board { zoom: 1; }
-
-        /* The legend, the swipe hints and the settings summary are reference,
-           not instrument. On a phone they cost a third of the neck's height. */
-        .db-focus-stage .db-fret-legend,
-        .db-focus-stage .fret-foot,
-        .db-focus-stage .db-mobile-only,
-        .db-focus-stage .db-fret-summary { display: none !important; }
-        .db-focus-stage { padding-left: 4px !important; padding-right: 4px !important; }
+      /* Tempo/loop/play, pinned to the bottom the same way the topbar pins
+         to the top — sticky within the stage's own scroll. */
+      .db-focus-stage .db-transport-embedded {
+        position: sticky; bottom: 0; z-index: 2;
+        margin-top: 0 !important;
+        border-radius: 0 !important; border-left: 0 !important; border-right: 0 !important; border-bottom: 0 !important;
+        padding-top: 6px !important; padding-bottom: max(6px, env(safe-area-inset-bottom)) !important;
       }
 
-      /* Focus owns the screen — the practice-home badge is fixed at the exact
-         spot the stage's title bar lands on. */
-      body.db-focus-mode .db-pickup-return-home { display: none !important; }
-
-      /* Landscape phone: the tightest budget there is. The stage becomes a
-         column exactly one screen tall — title, chord row, neck, transport —
-         and the neck takes whatever the other three leave, sized by height
-         rather than width so the transport can't be pushed under the fold.
-         Everything below the stage is still there; you scroll to it. */
-      @media (max-height: 620px) and (orientation: landscape) {
-        .db-focus-stage {
-          height: 100dvh; box-sizing: border-box;
-          display: flex; flex-direction: column;
-          padding-top: 6px !important; padding-bottom: 6px !important;
-          margin-bottom: 10px !important;
-        }
-        .db-focus-stage > * { flex: 0 0 auto; }
-        .db-focus-stage .db-focus-board {
-          flex: 1 1 auto; min-height: 0;
-          display: flex; align-items: center; justify-content: center;
-          overflow: hidden !important;
-        }
-        .db-focus-stage .db-focus-board svg {
-          width: auto !important; height: 100% !important; max-width: 100%;
-        }
-        .db-focus-stage .db-transport-embedded { padding: 4px 8px; margin-top: 4px; }
-        /* Opening the fret settings inside a one-screen column would push the
-           neck out of it — the drawer scrolls instead. */
-        .db-focus-stage .db-fret-settings { max-height: 45dvh; overflow-y: auto; }
-        /* Chord, clock and next chord shrink off the screen's height, not its
-           width — width is the one thing a landscape phone has. */
-        .db-focus-stage .db-focus-chord { font-size: clamp(22px, 7vh, 40px) !important; }
-        .db-focus-stage .db-focus-clock { font-size: clamp(0.9rem, 5vh, 1.5rem) !important; }
-        /* The scale spelled out in letters, and the next chord's guide tones
-           written under the board, are both things the board is already
-           showing. Here they cost frets. */
-        .db-focus-stage .db-focus-spelling,
-        .db-focus-stage .db-anticipate-readout { display: none !important; }
-      }
+      /* Focus owns the screen — the practice-home badge and the normal
+         floating transport (hidden anyway once .db-focus-stage covers them,
+         but this keeps them from fighting its z-index while transitioning). */
+      body.db-focus-mode .db-pickup-return-home,
+      body.db-focus-mode .db-transport:not(.db-transport-embedded) { display: none !important; }
 
       /* Larger tap targets on any touch device, not just narrow ones */
       @media (pointer: coarse) {
@@ -2008,12 +2044,18 @@ export default function Home() {
             <>
               {/* Cockpit / Focus — the one new bit of client state the v3 redesign
                   adds (spec §6). Swaps the top canvas only; power panels, drawers,
-                  and the sticky transport are shared by both views. */}
+                  and the sticky transport are shared by both views. Routed through
+                  enter/exitFocusMode rather than choosePracticeView directly — this
+                  is the second way into Focus (the dedicated CTA near the transport
+                  is the other), and both need the same fullscreen/landscape-lock
+                  attempt on the way in and the same release on the way out, or a
+                  visitor who uses this toggle to leave Focus would still be stuck
+                  in a fullscreen window showing Cockpit underneath it. */}
               <div style={{ display: "flex", gap: 0, background: "var(--surface2)", border: "1px solid var(--line)", borderRadius: "9px", padding: "3px" }}>
                 {[["cockpit", "Cockpit"], ["focus", "Focus"]].map(([id, label]) => (
                   <button
                     key={id}
-                    onClick={() => choosePracticeView(id)}
+                    onClick={() => { if (id === "focus") enterFocusMode(); else exitFocusMode() }}
                     aria-pressed={practiceView === id}
                     style={{
                       font: "700 11.5px 'Instrument Sans', sans-serif", padding: "6px 12px", borderRadius: "6px",
@@ -2147,7 +2189,7 @@ export default function Home() {
               {STARTER_STRIP.map((preset) => (
                 <button
                   key={preset.id}
-                  onClick={() => { choosePracticeView(starterView); loadStarter(preset.id) }}
+                  onClick={() => { (starterView === "focus" ? enterFocusMode : () => choosePracticeView(starterView))(); loadStarter(preset.id) }}
                   title={`Load ${preset.label} and start playing in ${starterView === "focus" ? "Focus" : "Practice"} view`}
                   style={{
                     padding: "7px 14px", borderRadius: "999px", cursor: "pointer",
@@ -2439,6 +2481,7 @@ export default function Home() {
 
         {inMode("practice") && (
           <div
+            ref={focusStage ? focusStageRef : null}
             data-db-shortcut="fretboard"
             className={focusStage ? "db-focus-stage" : undefined}
             style={{ background: "var(--surface)", border: "1px solid var(--line)", borderRadius: "14px", padding: "14px 14px 12px", marginBottom: "16px" }}
@@ -2447,12 +2490,23 @@ export default function Home() {
                 opens the settings drawer folded inside the card. In Focus it
                 doubles as the stage's own title bar — the chord is spelled out
                 in 52px an inch below, so the title says which tune you're on
-                instead, and carries the way back out. */}
+                instead, and carries the way back out. In Focus, this header
+                (and the settings drawer it opens) sit above the pinned chord/
+                board/transport view — see focusStageRef/focusTopbarRef above —
+                so opening it scrolls the stage up to show it, and closing it
+                scrolls back down to the pinned view. */}
             <div
               className="db-fret-header"
-              onClick={() => toggleControlPanel("fretSettings")}
+              onClick={() => {
+                const opening = !openControlPanels.fretSettings
+                toggleControlPanel("fretSettings")
+                if (focusStage) requestAnimationFrame(() => {
+                  if (opening) focusStageRef.current?.scrollTo({ top: 0, behavior: "smooth" })
+                  else scrollFocusToPlay()
+                })
+              }}
               role="button" tabIndex={0}
-              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleControlPanel("fretSettings") } }}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.currentTarget.click() ; e.preventDefault() } }}
               style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", flexWrap: "wrap", marginBottom: focusStage ? "6px" : "10px", cursor: "pointer" }}
             >
               <div style={{ font: "800 12px 'Archivo', sans-serif", letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--muted)", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -2775,16 +2829,12 @@ export default function Home() {
             {/* Now-playing readout — always visible, not folded behind settings.
                 Centred over the neck: it's the thing you glance up at while
                 playing, so it sits above the middle of the board rather than
-                off in the left margin. */}
-            {/* Core and Focus render this row identically — same gap, same
-                padding, same tile sizes, same four bars of lookahead. Focus
-                used to shrink it and cut the lookahead to one tile; that made
-                the thing you track while playing move and resize when you
-                switched modes, which is the one thing it must never do. The
-                only survivors are the landscape-phone rules below, which size
-                the clock and chord off screen height so the stage still fits
-                one screen. */}
-            <div style={{
+                off in the left margin. Core and Focus share the same markup
+                and tile layout — only Focus pins it (.db-focus-topbar, sticky
+                to the top of the scrolling stage) and scales it down, since
+                there it's permanent chrome competing with the neck for height
+                rather than one row in an already-tall page. */}
+            <div ref={focusStage ? focusTopbarRef : null} className={focusStage ? "db-focus-topbar" : undefined} style={{
               display: "flex", alignItems: "stretch", justifyContent: "center",
               gap: "10px", flexWrap: "wrap", marginBottom: "10px",
             }}>
