@@ -444,8 +444,8 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
       {threeTwoActive && threeTwo.kind === "penta" && (
         <g aria-hidden="true">
           {threeTwoBands.map((b) => (
-            <rect key={b.key} x={Math.min(b.x1, b.x2)} y={b.y - 12}
-              width={Math.abs(b.x2 - b.x1)} height={24} rx={12} fill={b.color} />
+            <rect key={b.key} x={Math.min(b.x1, b.x2)} y={b.y - 10}
+              width={Math.abs(b.x2 - b.x1)} height={20} rx={10} fill={b.color} />
           ))}
         </g>
       )}
