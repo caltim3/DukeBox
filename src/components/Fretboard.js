@@ -414,8 +414,14 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
 
       {/* Wash over the wood outside the window. Sits above the frets and
           strings but under the dots, which manage their own opacity — the
-          neck recedes while the shapes on it stay legible. */}
-      {focusOn && (
+          neck recedes while the shapes on it stay legible.
+          The 3:2 System has no window of its own (the reference page draws
+          every fret evenly, full opacity, no focus concept at all) — the
+          nudge-to-Auto effect that turns this on for ZorroMode never fires
+          for threeTwoMode (page.js), but guard here too so a window left on
+          from before threeTwoMode was switched on doesn't wash out half the
+          diagonal shape. */}
+      {focusOn && !threeTwoActive && (
         <g aria-hidden="true">
           {focusLo > 0 && (
             <rect x={NUT_X} y={2} width={Math.max(0, fretLineX(focusLo) - NUT_X)} height={H - 2}
@@ -501,7 +507,7 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
         const dims = phaseOn && hasLitLayer && !d.isGuide && !d.isTarget
         return (
           <g key={d.key}
-            opacity={inFocus(d.f) ? 1 : OUT_OF_FOCUS}
+            opacity={(threeTwoActive || inFocus(d.f)) ? 1 : OUT_OF_FOCUS}
             className={dims ? "dbfb-dim" : undefined} style={dims ? phaseDur : undefined}>
             {glows && (
               <circle cx={d.cx} cy={d.cy} r={d.r + 4} fill="var(--n-target-glow)" filter="url(#fb-target-glow)" />

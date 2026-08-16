@@ -219,17 +219,21 @@ export default function Home() {
   // handlers below): both take over the whole neck, so only one can drive
   // it at a time. threeTwoLevel follows the reference page's own ladder —
   // 0 chord scales, 1 home base/inside, 2 chase-the-chord/color, 3 altered.
+  // Unlike Zorro (below), it has no Fret-focus window of its own — the
+  // reference page draws every fret evenly at full opacity, no dimming, no
+  // windowing — so it doesn't touch focusMode at all (Fretboard.js ignores
+  // the focus window outright while it's active, belt-and-suspenders).
   const [threeTwoMode, setThreeTwoMode] = useState(false)
   const [threeTwoLevel, setThreeTwoLevel] = useState(1)
-  // Zorro/3:2 without any window covers nearly the whole neck (each highway
-  // tiles it on its own — see pentatonic32.js and threeTwoSystem.js), which
-  // reads as "everywhere lit up," not "focused." So turning either on on top
-  // of Off nudges the window to Auto for you; turning it back off restores
-  // Off, but only if that nudge is what put it there — a window you picked
-  // yourself, Manual or Auto, is left exactly alone.
+  // Zorro without any window covers nearly the whole neck (each highway
+  // tiles it on its own — see pentatonic32.js), which reads as "everywhere
+  // lit up," not "focused." So turning Zorro on on top of Off nudges the
+  // window to Auto for you; turning it back off restores Off, but only if
+  // that nudge is what put it there — a window you picked yourself, Manual
+  // or Auto, is left exactly alone.
   const zorroFocusNudge = useRef(null)
   useEffect(() => {
-    if (zorroMode || threeTwoMode) {
+    if (zorroMode) {
       if (focusMode === "off") {
         zorroFocusNudge.current = "off"
         setFocusMode("auto")
@@ -240,7 +244,7 @@ export default function Home() {
       setFocusMode(zorroFocusNudge.current)
       zorroFocusNudge.current = null
     }
-  }, [zorroMode, threeTwoMode]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [zorroMode]) // eslint-disable-line react-hooks/exhaustive-deps
   const [scaleFilter, setScaleFilter] = useState(null)  // null | "pentatonic" | "hexatonic" | "martino" | "hexchord" | "barry"
   const [bebopOverlay, setBebopOverlay] = useState(false)   // adds chromatic passing tone on top
   const [targetsOverlay, setTargetsOverlay] = useState(true) // guide tones are the default practice view
