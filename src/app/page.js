@@ -481,13 +481,13 @@ export default function Home() {
     if (!threeTwoMode) return { kind: null, cells: [], bandRuns: [] }
     if (threeTwoLevel === 0) {
       if (fretboardBar.quality === "NC") return { kind: "scale", cells: [] }
-      const { cells } = buildScaleBoard({
+      const { cells, scaleName } = buildScaleBoard({
         rootNote: fretboardBar.userTonic ?? fretboardBar.root,
         quality: fretboardBar.quality,
         tuningName: fretboardTuning,
         labelMode,
       })
-      return { kind: "scale", cells }
+      return { kind: "scale", cells, scaleName }
     }
     if (!threeTwoChoice.usable) return { kind: "penta", cells: [], bandRuns: [] }
     const { cells, bandRuns } = buildPentaBoard({
@@ -528,15 +528,22 @@ export default function Home() {
   }, [fretboardScaleData, fretboardBar, scaleFilter, martinoMap])
 
   // Bebop: chromatic passing tones shown in green over the current scale.
-  // Hexatonic and Martino modes use dedicated two-note passing tone rules
-  // (M7+b9 for minorHex, b6+b7 for majorHex) instead of the standard single-note bebop.
+  // Hexatonic, Hex·Chord and Martino modes use dedicated two-note passing
+  // tone rules (M7+b9 for minorHex, b6+b7 for majorHex) instead of the
+  // standard single-note bebop. Hex·Chord shares Hexatonic's rule (not its
+  // own) because its major/minor-7 formulas are the identical semitone sets
+  // — "Major minus 4" / "Dorian minus 6" in HEX_INTERVALS is majorHex/
+  // minorHex by another name — so the same two added tones are correct
+  // there too. (Previously Hex·Chord fell through to the standard one-note
+  // rule instead, which doesn't match a six-note scale the way it matches a
+  // seven-note one — see docs/FRETBOARD_CHORD_SCALE_CONTROLS.md.)
   const bebopPassingNotes = useMemo(() => {
     if (!bebopOverlay) return []
     const effectiveRoot    = martinoMap ? martinoMap.displayRoot    : (fretboardBar.userTonic ?? fretboardBar.root)
     const effectiveQuality = martinoMap ? martinoMap.displayQuality : fretboardBar.quality
 
-    if (scaleFilter === "hexatonic" || martinoMap) {
-      const base    = applyScaleFilter([], effectiveRoot, effectiveQuality, "hexatonic")
+    if (scaleFilter === "hexatonic" || scaleFilter === "hexchord" || martinoMap) {
+      const base    = applyScaleFilter([], effectiveRoot, effectiveQuality, scaleFilter === "hexchord" ? "hexchord" : "hexatonic")
       const baseSet = new Set(base)
       return getHexatonicBebopNotes(effectiveRoot, effectiveQuality).filter(n => n && !baseSet.has(n))
     }
@@ -636,7 +643,17 @@ export default function Home() {
 
   // Fretboard's "now playing" scale label — hoisted out of the old inline
   // render IIFE so both the fretboard card header and the readout can use it.
-  const scaleLabel = martinoMap
+  // Checked first, ahead of every other branch: once the 3:2 System is
+  // actually driving the board, none of scaleFilter/martinoMap describes
+  // what's showing anymore — this label used to keep quoting the plain
+  // recommended scale the whole time 3:2 was on, the one place in the app
+  // that still lied about what was on the neck (see
+  // docs/FRETBOARD_CHORD_SCALE_CONTROLS.md, "one live sentence" item).
+  const scaleLabel = threeTwoActiveOnBoard
+    ? (threeTwoLevel === 0
+        ? `3:2 System · Level 0 · ${threeTwoBoard.scaleName ?? ""}`
+        : `3:2 System · Level ${threeTwoLevel}${threeTwoChoice.why ? ` · ${threeTwoChoice.why}` : ""}`)
+    : martinoMap
     ? `Martino → ${martinoMap.displayRoot}m${martinoMap.displayQuality === "min7b5" ? " (melodic)" : ""}`
     : scaleFilter === "hexchord"
     ? hexChoiceForChord(fretboardBar.userTonic ?? fretboardBar.root, fretboardBar.quality).label
@@ -645,7 +662,7 @@ export default function Home() {
     : (scaleFilter ?? fretboardScaleData[0]?.name ?? "")
   const scaleTonic = fretboardBar.userTonic ?? fretboardBar.root
   const scaleLabelFull = scaleLabel
-    ? (martinoMap || scaleFilter === "hexchord" || scaleFilter === "barry" ? scaleLabel : `${scaleTonic} ${scaleLabel}`)
+    ? (threeTwoActiveOnBoard || martinoMap || scaleFilter === "hexchord" || scaleFilter === "barry" ? scaleLabel : `${scaleTonic} ${scaleLabel}`)
     : "—"
 
   // Anticipate — the next sounding bar, wrapping inside the loop range when
@@ -2559,134 +2576,234 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Collapsible settings (spec §5.3) — same controls as before, just
-                folded inside the card instead of always shown. */}
+            {/* Collapsible settings (spec §5.3) — revamped per
+                docs/FRETBOARD_CHORD_SCALE_CONTROLS.md into two labeled groups
+                instead of one flat grid, because they answer two genuinely
+                different questions for a player working on connecting lines
+                across changes:
+                  PALETTE — what's available over THIS chord (Chord/Scale,
+                    the five filters, the 3:2 System, Tuning, Labels).
+                  CONNECT — how this chord leads into the NEXT one (Voice
+                    Leading/Melody/Off, Fret Focus's window).
+                Three fixes from that doc's audit land here too: the eight
+                PALETTE choices (Chord/Scale/5 filters/3:2 System) are now a
+                true mutually-exclusive set — picking any one turns the
+                others off, including clearing a still-highlighted filter
+                when you click back to Chord, which used to leave it lit
+                with no effect. +Bebop Chromatic disables itself over Barry
+                6th, which already carries its own passing tone (verified:
+                every Barry family's built-in passing chroma is exactly the
+                chroma the bebop overlay would otherwise add — it was a
+                silent no-op before). And CONNECT says so, in one line, on
+                the rare occasion it doesn't apply either. */}
             {openControlPanels.fretSettings && (
-              // One flat grid instead of two stacked ones. The old layout put
-              // Tuning, Labels and Fret focus in a single tall column beside two
-              // short ones, so a wide window was mostly empty air on the left
-              // while the right column ran three blocks deep. Every group is now
-              // its own cell on the same track grid, ordered by how often you
-              // reach for it and sized by how much it needs — dense flow lets
-              // the narrow ones backfill the gaps a wide one leaves behind.
-              <div className="db-fret-settings" style={{
-                padding: "10px 12px", background: "var(--surface2)", border: "1px solid var(--line)",
-                borderRadius: "10px", marginBottom: "12px",
-                display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(184px, 1fr))",
-                gridAutoFlow: "dense", gap: "10px 14px", alignItems: "start",
-              }}>
-                <style>{`
-                  .db-fret-settings > .db-fs-wide { grid-column: span 2; }
-                  @media (max-width: 620px) {
-                    .db-fret-settings > .db-fs-wide { grid-column: auto; }
-                  }
-                `}</style>
-                  <div className="db-fs-wide">
-                    <span style={{ font: "700 10px 'IBM Plex Mono', monospace", color: "var(--muted)", letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: "5px", display: "block" }}>Systems</span>
-                    <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
-                      {["chord", "scale"].map((v) => (
-                        <button key={v} onClick={() => setFretboardView(v)} style={{
-                          padding: "4px 10px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-sm)", cursor: "pointer",
-                          background: fretboardView === v ? "color-mix(in srgb, var(--db-c-amber) 20%, var(--db-bg))" : "var(--db-panel-bg)",
-                          border:     fretboardView === v ? "1px solid var(--db-c-amber)" : "1px solid var(--db-panel-border)",
-                          color:      fretboardView === v ? "var(--db-c-amber)" : "var(--db-text)",
-                          fontWeight: fretboardView === v ? 700 : 400,
-                          opacity:    fretboardView === v ? 1 : 0.7,
-                        }}>
-                          {v === "chord" ? "Chord" : "Scale"}
-                        </button>
-                      ))}
-                      {[
-                        ["pentatonic", "Pentatonic"],
-                        ["hexatonic",  "Hexatonic"],
-                        ["martino",    "Martino"],
-                        ["hexchord",   "Hex·Chord"],
-                        ["barry",      "Barry 6th"],
-                      ].map(([f, label]) => (
-                        <button key={f} onClick={() => {
-                          // Turning a filter on implies you want to see the scale, not the chord
-                          setScaleFilter(prev => {
-                            const next = prev === f ? null : f
-                            if (next) setFretboardView("scale")
-                            return next
-                          })
-                        }} style={{
-                          padding: "4px 10px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-sm)", cursor: "pointer",
-                          background: scaleFilter === f ? "color-mix(in srgb, var(--db-c-blue) 20%, var(--db-bg))" : "var(--db-panel-bg)",
-                          border:     scaleFilter === f ? "1px solid var(--db-c-blue)" : "1px solid var(--db-panel-border)",
-                          color:      scaleFilter === f ? "var(--db-c-blue)" : "var(--db-text)",
-                          fontWeight: scaleFilter === f ? 700 : 400,
-                          opacity:    scaleFilter === f ? 1 : 0.7,
-                        }}>
-                          {label}
-                        </button>
-                      ))}
-                    </div>
+              <div className="db-fret-settings" style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "12px" }}>
+                {/* ── PALETTE ──────────────────────────────────────────── */}
+                <div style={{ padding: "10px 12px", background: "var(--surface2)", border: "1px solid var(--line)", borderRadius: "10px" }}>
+                  <span style={{ font: "800 10px 'IBM Plex Mono', monospace", color: "var(--muted)", letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: "6px", display: "block" }}>
+                    Palette <span style={{ fontWeight: 400, opacity: 0.7, textTransform: "none", letterSpacing: "0" }}>· what&apos;s available over this chord</span>
+                  </span>
+
+                  <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+                    {["chord", "scale"].map((v) => (
+                      <button key={v} onClick={() => {
+                        setFretboardView(v)
+                        setThreeTwoMode(false)
+                        if (v === "chord") setScaleFilter(null)   // was left lit with no effect — see doc
+                      }} style={{
+                        padding: "4px 10px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-sm)", cursor: "pointer",
+                        background: fretboardView === v && !threeTwoMode ? "color-mix(in srgb, var(--db-c-amber) 20%, var(--db-bg))" : "var(--db-panel-bg)",
+                        border:     fretboardView === v && !threeTwoMode ? "1px solid var(--db-c-amber)" : "1px solid var(--db-panel-border)",
+                        color:      fretboardView === v && !threeTwoMode ? "var(--db-c-amber)" : "var(--db-text)",
+                        fontWeight: fretboardView === v && !threeTwoMode ? 700 : 400,
+                        opacity:    fretboardView === v && !threeTwoMode ? 1 : 0.7,
+                      }}>
+                        {v === "chord" ? "Chord" : "Scale"}
+                      </button>
+                    ))}
+                    {[
+                      ["pentatonic", "Pentatonic"],
+                      ["hexatonic",  "Hexatonic"],
+                      ["martino",    "Martino"],
+                      ["hexchord",   "Hex·Chord"],
+                      ["barry",      "Barry 6th"],
+                    ].map(([f, label]) => (
+                      <button key={f} onClick={() => {
+                        // Turning a filter on implies you want to see the scale, not the chord
+                        setThreeTwoMode(false)
+                        setScaleFilter(prev => {
+                          const next = prev === f ? null : f
+                          if (next) setFretboardView("scale")
+                          return next
+                        })
+                      }} style={{
+                        padding: "4px 10px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-sm)", cursor: "pointer",
+                        background: scaleFilter === f && !threeTwoMode ? "color-mix(in srgb, var(--db-c-blue) 20%, var(--db-bg))" : "var(--db-panel-bg)",
+                        border:     scaleFilter === f && !threeTwoMode ? "1px solid var(--db-c-blue)" : "1px solid var(--db-panel-border)",
+                        color:      scaleFilter === f && !threeTwoMode ? "var(--db-c-blue)" : "var(--db-text)",
+                        fontWeight: scaleFilter === f && !threeTwoMode ? 700 : 400,
+                        opacity:    scaleFilter === f && !threeTwoMode ? 1 : 0.7,
+                      }}>
+                        {label}
+                      </button>
+                    ))}
+                    {/* The "3:2 System" — the Pickup Music 3:2 system, leveled and
+                        wired to the loaded song (src/lib/music/threeTwoSystem.js).
+                        Lives here now, as the 8th palette choice, rather than
+                        beside Fret Focus's Off/Manual/Auto: it isn't a window —
+                        it replaces the note-selection pipeline the same way
+                        Pentatonic or Barry do, just with its own visual system
+                        (exact reference-page colors, diagonal highway bands)
+                        instead of the maple board's usual root/chord/scale
+                        palette. Turning it on clears scaleFilter (and vice
+                        versa) so the highlighted button always matches what's
+                        actually on the board — no more all-eight-look-equally-
+                        live state while only one of them is doing anything.
+                        Reads the loaded chart (bars), classifies its form (blues /
+                        jazz blues / standard / modal), and offers that form's own
+                        Chord-scales / Home-base-or-Inside / Chase-or-Color /
+                        Altered ladder. Colors are the reference page's exact hex
+                        (--n-32-* in globals.css), not the app's usual note-role
+                        palette — see Fretboard.js's threeTwo prop. */}
+                    <button
+                      onClick={() => setThreeTwoMode(v => {
+                        const next = !v
+                        if (next) setScaleFilter(null)
+                        return next
+                      })}
+                      disabled={fretboardTuning !== "Standard"}
+                      aria-pressed={threeTwoMode}
+                      title={fretboardTuning !== "Standard"
+                        ? "3:2 shapes are built for standard tuning only"
+                        : "The full leveled 3:2 System, matched to this song's chords"}
+                      style={{
+                        padding: "4px 10px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-sm)",
+                        cursor: fretboardTuning === "Standard" ? "pointer" : "not-allowed",
+                        background: threeTwoMode ? "color-mix(in srgb, var(--n-32-blue) 22%, var(--db-bg))" : "var(--db-panel-bg)",
+                        border:     threeTwoMode ? "1px solid var(--n-32-blue)" : "1px solid var(--db-panel-border)",
+                        color:      threeTwoMode ? "var(--n-32-blue)" : "var(--db-text)",
+                        fontWeight: threeTwoMode ? 700 : 400,
+                        opacity:    fretboardTuning !== "Standard" ? 0.4 : threeTwoMode ? 1 : 0.7,
+                      }}
+                    >
+                      3:2 System
+                    </button>
                   </div>
 
-                  <div className="db-fs-wide">
-                    <span style={{ font: "700 10px 'IBM Plex Mono', monospace", color: "var(--muted)", letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: "5px", display: "block" }}>Overlays</span>
-                    <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
-                      <button onClick={() => setBebopOverlay(p => !p)} style={{
-                        padding: "4px 10px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-sm)", cursor: "pointer",
+                  {threeTwoMode && fretboardTuning !== "Standard" && (
+                    <span style={{ font: "600 10.5px 'Instrument Sans', sans-serif", color: "var(--muted)", fontStyle: "italic", display: "block", marginTop: "6px" }}>
+                      no 3:2 shape for this chord
+                    </span>
+                  )}
+                  {threeTwoMode && fretboardTuning === "Standard" && (
+                    <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap", marginTop: "8px" }}>
+                      <span style={{ font: "700 10px 'IBM Plex Mono', monospace", color: "var(--muted)", letterSpacing: "0.1em", textTransform: "uppercase" }}>
+                        {songForm.label}
+                      </span>
+                      <div style={{ display: "inline-flex", border: "1px solid var(--line)", borderRadius: "7px", overflow: "hidden" }}>
+                        {threeTwoLevelDefs.map((lv) => (
+                          <button key={lv.id} onClick={() => setThreeTwoLevel(lv.id)} aria-pressed={threeTwoLevel === lv.id}
+                            title={lv.note}
+                            style={{
+                              font: "700 11px 'Instrument Sans', sans-serif", padding: "5px 10px", border: "none", cursor: "pointer",
+                              background: threeTwoLevel === lv.id ? "var(--accent)" : "var(--surface)",
+                              color: threeTwoLevel === lv.id ? "var(--accent-ink)" : "var(--muted)",
+                            }}>
+                            {lv.id} · {lv.name}
+                          </button>
+                        ))}
+                      </div>
+                      {threeTwoLevel > 0 && !threeTwoChoice.usable && threeTwoChoice.why && (
+                        <span style={{ font: "600 10.5px 'Instrument Sans', sans-serif", color: "var(--muted)", fontStyle: "italic" }}>
+                          {threeTwoChoice.why}
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Tuning isn't a chord-scale decision at all — it's the one
+                      instrument setting that ended up in this drawer because it
+                      shared a row with Labels, not because it belongs with
+                      Systems conceptually. Kept here (moving it elsewhere is a
+                      bigger change than this pass), but set apart below a rule
+                      so it doesn't read as an 8th SYSTEMS choice. */}
+                  <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", marginTop: "10px", paddingTop: "8px", borderTop: "1px dashed var(--line)" }}>
+                    <div>
+                      <span style={{ font: "700 10px 'IBM Plex Mono', monospace", color: "var(--muted)", letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: "5px", display: "block" }}>Tuning</span>
+                      <select
+                        value={fretboardTuning}
+                        onChange={(e) => setFretboardTuning(e.target.value)}
+                        style={{ ...selectStyle, width: "auto", padding: "4px 8px", fontSize: "var(--db-fs-sm)" }}
+                      >
+                        {TUNING_NAMES.map((t) => (
+                          <option key={t} value={t}>{t}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Labels — note names to study with, degrees to play with. */}
+                    <div>
+                      <span style={{ font: "700 10px 'IBM Plex Mono', monospace", color: "var(--muted)", letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: "5px", display: "block" }}>Labels</span>
+                      <div style={{ display: "inline-flex", border: "1px solid var(--line)", borderRadius: "7px", overflow: "hidden" }}>
+                        {[["names", "Names"], ["degrees", "Degrees"]].map(([id, label]) => (
+                          <button key={id} onClick={() => setLabelMode(id)} aria-pressed={labelMode === id}
+                            title={id === "degrees" ? "Scale degrees — transposition-invariant, and what you think in mid-solo" : "Note names — the study view"}
+                            style={{
+                              font: "700 11px 'Instrument Sans', sans-serif", padding: "5px 11px", border: "none", cursor: "pointer",
+                              background: labelMode === id ? "var(--accent)" : "var(--surface)",
+                              color: labelMode === id ? "var(--accent-ink)" : "var(--muted)",
+                            }}>{label}</button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ── CONNECT ──────────────────────────────────────────── */}
+                <div style={{ padding: "10px 12px", background: "var(--surface2)", border: "1px solid var(--line)", borderRadius: "10px" }}>
+                  <span style={{ font: "800 10px 'IBM Plex Mono', monospace", color: "var(--muted)", letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: "6px", display: "block" }}>
+                    Connect <span style={{ fontWeight: 400, opacity: 0.7, textTransform: "none", letterSpacing: "0" }}>· how this chord leads into the next one</span>
+                  </span>
+                  {threeTwoMode && fretboardTuning === "Standard" && (
+                    <div style={{ font: "600 10.5px 'Instrument Sans', sans-serif", color: "var(--muted)", fontStyle: "italic", marginBottom: "8px" }}>
+                      The 3:2 System is drawing its own connections right now — Voice Leading and Fret Focus apply again once it&apos;s off.
+                    </div>
+                  )}
+
+                  <div style={{ display: "flex", gap: "4px", flexWrap: "wrap", marginBottom: "10px" }}>
+                    <button onClick={() => setBebopOverlay(p => !p)} disabled={scaleFilter === "barry"}
+                      title={scaleFilter === "barry" ? "Barry 6th already includes its own passing tone" : undefined}
+                      style={{
+                        padding: "4px 10px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-sm)",
+                        cursor: scaleFilter === "barry" ? "not-allowed" : "pointer",
                         background: bebopOverlay ? "color-mix(in srgb, var(--passing) 22%, transparent)" : "var(--surface)",
                         border:     bebopOverlay ? "1px solid var(--passing)" : "1px solid var(--line)",
                         color:      bebopOverlay ? "var(--passing)" : "var(--text)",
                         fontWeight: bebopOverlay ? 700 : 400,
-                        opacity:    bebopOverlay ? 1 : 0.7,
+                        opacity:    scaleFilter === "barry" ? 0.35 : (bebopOverlay ? 1 : 0.7),
                       }}>
-                        +Bebop Chromatic
+                      +Bebop Chromatic
+                    </button>
+                    {[
+                      ["voice",  "Voice Leading", "3rds and 7ths lit, the next chord ghosted onto the neck, and the route into it drawn as the bar turns over"],
+                      ["melody", "Melody",        "Light the melody you drew in Melody Paths below"],
+                      ["off",    "Off",           "Chord and scale tones only"],
+                    ].map(([id, label, hint]) => (
+                      <button key={id} onClick={() => chooseGuideMode(id)} aria-pressed={guideMode === id} title={hint} style={{
+                        padding: "4px 12px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-sm)", cursor: "pointer",
+                        background: guideMode === id ? "color-mix(in srgb, var(--target) 22%, transparent)" : "var(--surface)",
+                        border:     guideMode === id ? "1px solid var(--target)" : "1px solid var(--line)",
+                        color:      guideMode === id ? "var(--target)" : "var(--text)",
+                        fontWeight: guideMode === id ? 700 : 400,
+                        opacity:    guideMode === id ? 1 : 0.7,
+                      }}>
+                        {label}
                       </button>
-                      {[
-                        ["voice",  "Voice Leading", "3rds and 7ths lit, the next chord ghosted onto the neck, and the route into it drawn as the bar turns over"],
-                        ["melody", "Melody",        "Light the melody you drew in Melody Paths below"],
-                        ["off",    "Off",           "Chord and scale tones only"],
-                      ].map(([id, label, hint]) => (
-                        <button key={id} onClick={() => chooseGuideMode(id)} aria-pressed={guideMode === id} title={hint} style={{
-                          padding: "4px 12px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-sm)", cursor: "pointer",
-                          background: guideMode === id ? "color-mix(in srgb, var(--target) 22%, transparent)" : "var(--surface)",
-                          border:     guideMode === id ? "1px solid var(--target)" : "1px solid var(--line)",
-                          color:      guideMode === id ? "var(--target)" : "var(--text)",
-                          fontWeight: guideMode === id ? 700 : 400,
-                          opacity:    guideMode === id ? 1 : 0.7,
-                        }}>
-                          {label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <span style={{ font: "700 10px 'IBM Plex Mono', monospace", color: "var(--muted)", letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: "5px", display: "block" }}>Tuning</span>
-                    <select
-                      value={fretboardTuning}
-                      onChange={(e) => setFretboardTuning(e.target.value)}
-                      style={{ ...selectStyle, width: "auto", padding: "4px 8px", fontSize: "var(--db-fs-sm)" }}
-                    >
-                      {TUNING_NAMES.map((t) => (
-                        <option key={t} value={t}>{t}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Labels — note names to study with, degrees to play with. */}
-                  <div>
-                    <span style={{ font: "700 10px 'IBM Plex Mono', monospace", color: "var(--muted)", letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: "5px", display: "block" }}>Labels</span>
-                    <div style={{ display: "inline-flex", border: "1px solid var(--line)", borderRadius: "7px", overflow: "hidden" }}>
-                      {[["names", "Names"], ["degrees", "Degrees"]].map(([id, label]) => (
-                        <button key={id} onClick={() => setLabelMode(id)} aria-pressed={labelMode === id}
-                          title={id === "degrees" ? "Scale degrees — transposition-invariant, and what you think in mid-solo" : "Note names — the study view"}
-                          style={{
-                            font: "700 11px 'Instrument Sans', sans-serif", padding: "5px 11px", border: "none", cursor: "pointer",
-                            background: labelMode === id ? "var(--accent)" : "var(--surface)",
-                            color: labelMode === id ? "var(--accent-ink)" : "var(--muted)",
-                          }}>{label}</button>
-                      ))}
-                    </div>
+                    ))}
                   </div>
 
                   {/* Fret focus — off by default so the whole neck stays live. */}
-                  <div className="db-fs-wide">
+                  <div>
                     <span style={{ font: "700 10px 'IBM Plex Mono', monospace", color: "var(--muted)", letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: "5px", display: "block" }}>Fret focus</span>
                     <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
                       <div style={{ display: "inline-flex", border: "1px solid var(--line)", borderRadius: "7px", overflow: "hidden" }}>
@@ -2717,73 +2834,9 @@ export default function Home() {
                             style={{ font: "700 11px 'IBM Plex Mono', monospace", padding: "5px 9px", borderRadius: "6px", border: "1px solid var(--line)", background: "var(--surface)", color: "var(--muted)", cursor: "pointer" }}>{focusSpan + 1} fr</button>
                         </div>
                       )}
-                      {/* The "3:2 System" — the Pickup Music 3:2 system, leveled and
-                          wired to the loaded song (src/lib/music/threeTwoSystem.js).
-                          A toggle, not a fourth Off/Manual/Auto option: it changes
-                          WHICH notes the board shows, not whether a window narrows
-                          the neck — it has no window of its own (see the state
-                          comment above). A button, not a checkbox — matching
-                          Off/Manual/Auto and every other toggle in this panel. A
-                          bare <input type="checkbox"> here rendered with a native
-                          tap target too small to hit reliably on a phone, which is
-                          exactly where Focus lives.
-                          Reads the loaded chart (bars), classifies its form (blues /
-                          jazz blues / standard / modal), and offers that form's own
-                          Chord-scales / Home-base-or-Inside / Chase-or-Color /
-                          Altered ladder. Colors are the reference page's exact hex
-                          (--n-32-* in globals.css), not the app's usual note-role
-                          palette — see Fretboard.js's threeTwo prop. */}
-                      <button
-                        onClick={() => setThreeTwoMode(v => !v)}
-                        disabled={fretboardTuning !== "Standard"}
-                        aria-pressed={threeTwoMode}
-                        title={fretboardTuning !== "Standard"
-                          ? "3:2 shapes are built for standard tuning only"
-                          : "The full leveled 3:2 System, matched to this song's chords"}
-                        style={{
-                          font: "700 11px 'Instrument Sans', sans-serif", padding: "5px 11px",
-                          borderRadius: "7px", border: "1px solid var(--line)",
-                          cursor: fretboardTuning === "Standard" ? "pointer" : "not-allowed",
-                          background: threeTwoMode ? "var(--accent)" : "var(--surface)",
-                          color: threeTwoMode ? "var(--accent-ink)" : "var(--muted)",
-                          opacity: fretboardTuning === "Standard" ? 1 : 0.5,
-                        }}
-                      >
-                        {threeTwoMode ? "✓ " : ""}3:2 System
-                      </button>
-                      {threeTwoMode && fretboardTuning !== "Standard" && (
-                        <span style={{ font: "600 10.5px 'Instrument Sans', sans-serif", color: "var(--muted)", fontStyle: "italic" }}>
-                          no 3:2 shape for this chord
-                        </span>
-                      )}
                     </div>
-                    {threeTwoMode && fretboardTuning === "Standard" && (
-                      <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap", marginTop: "6px" }}>
-                        <span style={{ font: "700 10px 'IBM Plex Mono', monospace", color: "var(--muted)", letterSpacing: "0.1em", textTransform: "uppercase" }}>
-                          {songForm.label}
-                        </span>
-                        <div style={{ display: "inline-flex", border: "1px solid var(--line)", borderRadius: "7px", overflow: "hidden" }}>
-                          {threeTwoLevelDefs.map((lv) => (
-                            <button key={lv.id} onClick={() => setThreeTwoLevel(lv.id)} aria-pressed={threeTwoLevel === lv.id}
-                              title={lv.note}
-                              style={{
-                                font: "700 11px 'Instrument Sans', sans-serif", padding: "5px 10px", border: "none", cursor: "pointer",
-                                background: threeTwoLevel === lv.id ? "var(--accent)" : "var(--surface)",
-                                color: threeTwoLevel === lv.id ? "var(--accent-ink)" : "var(--muted)",
-                              }}>
-                              {lv.id} · {lv.name}
-                            </button>
-                          ))}
-                        </div>
-                        {threeTwoLevel > 0 && !threeTwoChoice.usable && threeTwoChoice.why && (
-                          <span style={{ font: "600 10.5px 'Instrument Sans', sans-serif", color: "var(--muted)", fontStyle: "italic" }}>
-                            {threeTwoChoice.why}
-                          </span>
-                        )}
-                      </div>
-                    )}
                   </div>
-
+                </div>
               </div>
             )}
 
