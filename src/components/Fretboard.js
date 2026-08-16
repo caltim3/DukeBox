@@ -54,14 +54,17 @@ export const FRETBOARD_FRETS = FRET_COUNT
 const MAX_ROUTE_FRETS   = 3
 const MAX_ROUTE_STRINGS = 1
 
-export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes = null, view = "chord", tuningName = "Standard", targetNotes = [], passingNotes = [], guideToneNotes = [], guideToneDirections = null, enclosureNotes = [], ghostNotes = [], seventhNotes = [], labelMode = "names", ghostRootNote = null, focusStart = null, focusSpan = 4, animate = false, barSeconds = 0, phaseKey = null, zorroOn = false, zorroCells = null }) {
+export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes = null, view = "chord", tuningName = "Standard", targetNotes = [], passingNotes = [], guideToneNotes = [], guideToneDirections = null, enclosureNotes = [], ghostNotes = [], seventhNotes = [], labelMode = "names", ghostRootNote = null, focusStart = null, focusSpan = 4, animate = false, barSeconds = 0, phaseKey = null, zorroOn = false, zorroCells = null, threeTwo = null }) {
   // ZorroMode (the Pickup Music "3:2 System") takes the board over
   // completely when it's on and has something to show — it draws its own
   // two highways instead of the usual chord/scale dots, so every other
   // overlay below (ghosts, routes, the fret-focus window) sits out rather
   // than fighting it for the same neck. Off, or no shape for this chord
   // quality, and nothing here changes.
-  const zorroActive = zorroOn && Array.isArray(zorroCells) && zorroCells.length > 0
+  // threeTwo takes precedence if somehow both are on — page.js keeps them
+  // mutually exclusive, this is just the belt-and-suspenders order.
+  const threeTwoActive = !!threeTwo?.on && Array.isArray(threeTwo?.cells) && threeTwo.cells.length > 0
+  const zorroActive = zorroOn && !threeTwoActive && Array.isArray(zorroCells) && zorroCells.length > 0
 
   // The bar has a shape. Beats 1-2 the chord stands alone; beat 3 the ghosts
   // fade up and the routes start drawing; beat 4 the routes are at full and
@@ -101,7 +104,7 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
 
   // Build note dot list
   let dots = []
-  if (!zorroActive) strings.forEach((open, si) => {
+  if (!zorroActive && !threeTwoActive) strings.forEach((open, si) => {
     const openNorm   = norm(open)
     const openChroma = NOTES_FLAT.indexOf(openNorm)
     if (openChroma === -1) return
@@ -177,6 +180,49 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
     }))
   }
 
+  // "3:2 System" dots (src/lib/music/threeTwoSystem.js) — Level 0 is a
+  // 7-note chord-scale board (root / chord tone / tension, three fixed
+  // tiers); Levels 1-3 are a pentatonic (two color groups, root drawn
+  // hollow in its own group's pale band, exactly like the reference page).
+  // Both branches feed the shared dot-render loop below via the same
+  // color/thirtyTwoStroke/textColor fields zorroActive's dots don't set —
+  // those default away to the ordinary maple stroke and white text there.
+  let threeTwoBands = []
+  if (threeTwoActive && threeTwo.kind === "scale") {
+    dots = threeTwo.cells.map((c) => ({
+      key: `32s${c.si}-${c.f}`,
+      cx: dotX(c.f), cy: strY(c.si), r: c.tier === "tension" ? 12.5 : 15,
+      color: c.tier === "root" ? "var(--n-32-red)" : c.tier === "chord" ? "var(--n-32-blue)" : "var(--n-32-tension)",
+      thirtyTwoStroke: c.tier === "tension" ? "var(--n-32-tension-stroke)" : null,
+      textColor: c.tier === "tension" ? "var(--n-32-tension-text)" : "#fff",
+      label: c.noteName, text: c.text,
+      si: c.si, f: c.f, held: false,
+      isRoot: false, isTarget: false, isPassing: false, isGuide: false, isEnclosure: false,
+    }))
+  } else if (threeTwoActive && threeTwo.kind === "penta") {
+    dots = threeTwo.cells.map((c) => {
+      const strong = c.group === "red" ? "var(--n-32-red)" : "var(--n-32-blue)"
+      const band = c.group === "red" ? "var(--n-32-red-band)" : "var(--n-32-blue-band)"
+      return {
+        key: `32p${c.si}-${c.f}`,
+        cx: dotX(c.f), cy: strY(c.si), r: c.isRoot ? 16 : 15,
+        color: c.isRoot ? band : strong,
+        thirtyTwoStroke: c.isRoot ? strong : null,
+        textColor: c.isRoot ? strong : "#fff",
+        label: c.noteName, text: c.text,
+        si: c.si, f: c.f, held: false,
+        isRoot: false, isTarget: false, isPassing: false, isGuide: false, isEnclosure: false,
+      }
+    })
+    if (Array.isArray(threeTwo.bandRuns)) {
+      threeTwoBands = threeTwo.bandRuns.map((r, i) => ({
+        key: `32band${i}`,
+        x1: dotX(r.fromF) - 22, x2: dotX(r.toF) + 22, y: strY(r.si),
+        color: r.group === "red" ? "var(--n-32-red-band)" : "var(--n-32-blue-band)",
+      }))
+    }
+  }
+
   // Render overlays last (root → enclosure → passing → guide → target) so the
   // notes that matter most always paint over the ones that matter least.
   dots.sort((a, b) => {
@@ -190,7 +236,7 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
   // already where your eye is.
   const heldAt = new Set(dots.filter(d => d.held).map(d => `${d.si}:${d.f}`))
   const ghosts = []
-  if (!zorroActive && ghostSet.size) {
+  if (!zorroActive && !threeTwoActive && ghostSet.size) {
     strings.forEach((open, si) => {
       const openChroma = NOTES_FLAT.indexOf(norm(open))
       if (openChroma === -1) return
@@ -409,6 +455,18 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
         ))}
       </g>
 
+      {/* "3:2 System" highway bands — translucent runs behind grouped notes,
+          same read as the reference page's colored ovals. Penta levels only;
+          Level 0's chord-scale board has no bands, just the three dot tiers. */}
+      {threeTwoActive && threeTwo.kind === "penta" && (
+        <g aria-hidden="true">
+          {threeTwoBands.map((b) => (
+            <rect key={b.key} x={Math.min(b.x1, b.x2)} y={b.y - 17}
+              width={Math.abs(b.x2 - b.x1)} height={34} rx={17} fill={b.color} />
+          ))}
+        </g>
+      )}
+
       {/* Note dots */}
       <g key={`dots-${phaseKey}`}>
       {dots.map(d => {
@@ -425,8 +483,8 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
         // 3rd Hunter the note that moves is the lead-in (drawn in the approach
         // colour), while the lit guide tone is the chord's own 3rd and stays
         // unmarked.
-        const semis = (!zorroActive && guideToneDirections && !drawnResolution.has(d.key)) ? guideToneDirections[d.label] : null
-        const goesTo = (!zorroActive && guideToneDirections) ? guideToneDirections[`${d.label}:to`] : null
+        const semis = (!zorroActive && !threeTwoActive && guideToneDirections && !drawnResolution.has(d.key)) ? guideToneDirections[d.label] : null
+        const goesTo = (!zorroActive && !threeTwoActive && guideToneDirections) ? guideToneDirections[`${d.label}:to`] : null
         let glyph = null
         if (semis != null) {
           const n = Math.abs(semis)
@@ -448,7 +506,7 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
             {glows && (
               <circle cx={d.cx} cy={d.cy} r={d.r + 4} fill="var(--n-target-glow)" filter="url(#fb-target-glow)" />
             )}
-            <circle cx={d.cx} cy={d.cy} r={d.r} fill={d.color} stroke="#3D2A12" strokeWidth={d.isRoot ? 1.2 : 0.6} />
+            <circle cx={d.cx} cy={d.cy} r={d.r} fill={d.color} stroke={d.thirtyTwoStroke || "#3D2A12"} strokeWidth={d.thirtyTwoStroke ? 3 : (d.isRoot ? 1.2 : 0.6)} />
             {d.isEnclosure && (
               <circle cx={d.cx} cy={d.cy} r={d.r + 3} fill="none" stroke="var(--n-enclosure)" strokeWidth={1.4} strokeDasharray="3 2.5" />
             )}
@@ -471,7 +529,7 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
             )}
             {glyph && <title>{`${d.label} → ${goesTo ?? "?"} · ${motionWord}`}</title>}
             <text x={d.cx} y={d.cy + 3.5}
-              textAnchor="middle" fill="#FFFFFF"
+              textAnchor="middle" fill={d.textColor || "#FFFFFF"}
               fontSize={d.text.length > 2 ? 7 : d.isRoot ? 9 : 8}
               fontWeight="bold" fontFamily="Arial, sans-serif"
             >{d.text}</text>

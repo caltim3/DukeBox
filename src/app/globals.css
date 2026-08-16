@@ -141,6 +141,17 @@
      other note-role hue above so a highway never reads as a guide tone. */
   --n-penta-a:#0EA5E9; --n-penta-b:#E11D48; --n-penta-ring:#FDE047;
 
+  /* The "3:2 System" panel (Practice → Fretboard) — the leveled, song-aware
+     version of the Pentatonic 3:2 Navigator (src/lib/music/threeTwoSystem.js).
+     Exact hex from that reference page (public/reference/pentatonic-32-
+     navigator.html), not this app's usual note-role hues — the whole point
+     is that the board reads identically to the standalone page. Distinct
+     namespace from --n-penta-* above (ZorroMode's single-position toggle),
+     which keeps its own sky/rose colors unchanged. */
+  --n-32-blue:#1D9BF0; --n-32-blue-band:#C4E5FB;
+  --n-32-red:#E2402F; --n-32-red-band:#F8CCC5;
+  --n-32-tension:#FBFAF6; --n-32-tension-stroke:#9AA0A6; --n-32-tension-text:#6B7075;
+
   /* Melody Paths — always dark navy */
   --mp-bg:#0F172A; --mp-surface:#1E293B; --mp-line:#334155;
   --mp-text:#E2E8F0; --mp-muted:#94A3B8; --mp-hdr-accent:#F8FAFC;
