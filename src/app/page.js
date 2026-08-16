@@ -139,6 +139,15 @@ export default function Home() {
   const [loopEnd, setLoopEnd] = useState(INITIAL_BARS.length - 1)
   const [loopEnabled, setLoopEnabled] = useState(false)
 
+  // Freeze — the band stops, and the floating chart ribbon becomes a silent
+  // practice pad: click a chord to put it on the fretboard with no rhythm or
+  // chord sound behind it, click the same (already-selected) chord again to
+  // hear just that one chord at the song's tempo. Unfreezing picks the
+  // transport back up exactly where freezing left it — same tempo, same loop
+  // range, only running again if it was running before.
+  const [freezeMode, setFreezeMode] = useState(false)
+  const freezeWasPlayingRef = useRef(false)
+
   const [keyRoot, setKeyRoot] = useState("Bb")
   const [keyMode, setKeyMode] = useState("major")
   const [showRomanNumerals, setShowRomanNumerals] = useState(false)
@@ -1283,6 +1292,38 @@ export default function Home() {
     startPlayback(null, { start: index, end: index }).catch(console.error)
   }
 
+  // Freeze toggle (ChartRibbon's "Freeze" button). Entering stops the
+  // transport but remembers whether it was running; leaving resumes it if it
+  // was — same tempo, same loop range, both untouched the whole time. Doesn't
+  // reuse stopPlayback's own bookkeeping for "was playing," because Freeze
+  // needs to remember that answer across the whole frozen session, not just
+  // the instant playback stopped.
+  function toggleFreeze() {
+    if (!freezeMode) {
+      freezeWasPlayingRef.current = isPlaying
+      if (isPlaying) stopPlayback()
+      setFreezeMode(true)
+    } else {
+      setFreezeMode(false)
+      if (freezeWasPlayingRef.current) {
+        freezeWasPlayingRef.current = false
+        startPlayback().catch(console.error)
+      }
+    }
+  }
+
+  // Freeze's "tap the selected chord again to hear it" — one stab through the
+  // shared piano sampler, no transport, no loop, no rhythm section. Sized to
+  // the bar's own beat count at the song's current tempo so a whole-note bar
+  // rings longer than a half-note one, same math Line Lab's solo preview uses.
+  async function previewChordAt(index) {
+    const bar = bars[index]
+    if (!bar || bar.quality === "NC") return
+    const { playChordStab } = await loadAudio()
+    const beats = bar.beats ?? 4
+    playChordStab(bar.symbol, Math.max(0.4, beats * (60 / tempo))).catch(() => {})
+  }
+
   // Copy the chart as plain text: "| Dm7 | G7 | Cmaj7 | Cmaj7 |", 4 bars a line.
   function copyChartAsText() {
     const lines = []
@@ -2381,6 +2422,9 @@ export default function Home() {
               currentIndex={fretboardBarIndex}
               nextIndex={upcomingBarIndices[0]?.index}
               sectionLabel={`${fretboardBar.section ? `${fretboardBar.section} section` : "Chart"}${chartKey ? ` · ${chartKey} concert` : ""}`}
+              freezeMode={freezeMode}
+              onToggleFreeze={toggleFreeze}
+              onPreviewChord={previewChordAt}
             />
 
           </>
