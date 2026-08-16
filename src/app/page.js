@@ -33,7 +33,6 @@ import { parseGigChord, GIGBOOK_SONGS, gigSongToBars, parseGigKey, gigTempoNumbe
 import { guidedPrescription, drillStage, nextKeyInCycle, DRILL_LOOPS_PER_STAGE, PENA_DRILLS } from "@/lib/music/penaDrills"
 import { STARTER_PRESETS, STARTER_STRIP, LOAD_STARTER_EVENT } from "@/lib/music/starters"
 import Fretboard, { fretPositions, FRETBOARD_FRETS } from "@/components/Fretboard"
-import { getZorroHighways } from "@/lib/music/pentatonic32"
 import { classifySongForm, getLevelDefs, resolvePentaChoice, buildPentaBoard, buildScaleBoard, PENTA_LEGEND } from "@/lib/music/threeTwoSystem"
 import MetronomePanel from "@/components/MetronomePanel"
 import BeatForgeLibrary from "@/components/BeatForgeLibrary"
@@ -207,44 +206,18 @@ export default function Home() {
   const [focusMode, setFocusMode] = useState("off")
   const [focusStart, setFocusStart] = useState(5)
   const [focusSpan, setFocusSpan] = useState(4)
-  // ZorroMode — the 3:2 pentatonic system as the fretboard's focus. A toggle
-  // that sits beside Off/Manual/Auto rather than a fourth option among them:
-  // it swaps which notes the board draws (the two 3:2 highways instead of
-  // chord/scale tones), not whether a fret window narrows the neck — Manual
-  // and Auto still do that job, dimming the same as always.
-  const [zorroMode, setZorroMode] = useState(false)
-  // The "3:2 System" panel — the leveled, song-aware pentatonic navigator
-  // (src/lib/music/threeTwoSystem.js), distinct from the single-position
-  // Zorro toggle above. Mutually exclusive with it (see the two onClick
-  // handlers below): both take over the whole neck, so only one can drive
-  // it at a time. threeTwoLevel follows the reference page's own ladder —
-  // 0 chord scales, 1 home base/inside, 2 chase-the-chord/color, 3 altered.
-  // Unlike Zorro (below), it has no Fret-focus window of its own — the
-  // reference page draws every fret evenly at full opacity, no dimming, no
-  // windowing — so it doesn't touch focusMode at all (Fretboard.js ignores
-  // the focus window outright while it's active, belt-and-suspenders).
+  // The "3:2 System" — the leveled, song-aware pentatonic navigator
+  // (src/lib/music/threeTwoSystem.js). A toggle that sits beside
+  // Off/Manual/Auto rather than a fourth Fret-focus option among them: it
+  // swaps which notes the board draws (the reference page's Chord-scales /
+  // Home-base-or-Inside / Chase-or-Color / Altered ladder instead of
+  // chord/scale tones), not whether a fret window narrows the neck. It has
+  // no window of its own, though — the reference page draws every fret
+  // evenly at full opacity, no dimming, no windowing — so it doesn't touch
+  // focusMode at all; Fretboard.js ignores the focus window outright while
+  // it's active regardless, belt-and-suspenders.
   const [threeTwoMode, setThreeTwoMode] = useState(false)
   const [threeTwoLevel, setThreeTwoLevel] = useState(1)
-  // Zorro without any window covers nearly the whole neck (each highway
-  // tiles it on its own — see pentatonic32.js), which reads as "everywhere
-  // lit up," not "focused." So turning Zorro on on top of Off nudges the
-  // window to Auto for you; turning it back off restores Off, but only if
-  // that nudge is what put it there — a window you picked yourself, Manual
-  // or Auto, is left exactly alone.
-  const zorroFocusNudge = useRef(null)
-  useEffect(() => {
-    if (zorroMode) {
-      if (focusMode === "off") {
-        zorroFocusNudge.current = "off"
-        setFocusMode("auto")
-      } else {
-        zorroFocusNudge.current = null
-      }
-    } else if (zorroFocusNudge.current != null) {
-      setFocusMode(zorroFocusNudge.current)
-      zorroFocusNudge.current = null
-    }
-  }, [zorroMode]) // eslint-disable-line react-hooks/exhaustive-deps
   const [scaleFilter, setScaleFilter] = useState(null)  // null | "pentatonic" | "hexatonic" | "martino" | "hexchord" | "barry"
   const [bebopOverlay, setBebopOverlay] = useState(false)   // adds chromatic passing tone on top
   const [targetsOverlay, setTargetsOverlay] = useState(true) // guide tones are the default practice view
@@ -454,21 +427,6 @@ export default function Home() {
 
 
   const fretboardInfo = useMemo(() => chordInfo(fretboardBar.symbol), [fretboardBar])
-
-  // ZorroMode — both 3:2-system highways for the chord currently sounding.
-  // Recomputes on every chord change (fretboardBar), same as everything else
-  // driving the neck, so it stays in sync with the transport without its own
-  // subscription. Off entirely when the toggle is off — no cost to pay.
-  const zorroHighway = useMemo(() => {
-    if (!zorroMode) return { usable: false, family: null, cells: [] }
-    return getZorroHighways({
-      rootNote: fretboardBar.userTonic ?? fretboardBar.root,
-      quality: fretboardBar.quality,
-      tuningName: fretboardTuning,
-      labelMode,
-    })
-  }, [zorroMode, fretboardBar, fretboardTuning, labelMode])
-  const zorroActiveOnBoard = zorroMode && zorroHighway.usable
 
   // "3:2 System" — form classification runs off the whole chart (not just
   // the current bar), so it only needs to recompute when the chart or key
@@ -2650,52 +2608,24 @@ export default function Home() {
                             style={{ font: "700 11px 'IBM Plex Mono', monospace", padding: "5px 9px", borderRadius: "6px", border: "1px solid var(--line)", background: "var(--surface)", color: "var(--muted)", cursor: "pointer" }}>{focusSpan + 1} fr</button>
                         </div>
                       )}
-                      {/* ZorroMode — the Pickup Music 3:2 system as the focus, instead
-                          of chord/scale tones. A toggle, not a fourth Off/Manual/Auto
-                          option: it changes WHICH notes the window shows, not whether
-                          there's a window — Off/Manual/Auto still narrow and dim the
-                          neck exactly as before. Since the two highways tile the whole
-                          board on their own, Zorro nudges Off to Auto so there's a
-                          window to show them in (see the useEffect above); it un-nudges
-                          on the way back out, leaving a Manual/Auto pick you made
-                          yourself alone.
-                          A button, not a checkbox — matching Off/Manual/Auto and every
-                          other toggle in this panel. A bare <input type="checkbox"> here
-                          rendered with a native tap target too small to hit reliably on
-                          a phone, which is exactly where Focus lives. */}
+                      {/* The "3:2 System" — the Pickup Music 3:2 system, leveled and
+                          wired to the loaded song (src/lib/music/threeTwoSystem.js).
+                          A toggle, not a fourth Off/Manual/Auto option: it changes
+                          WHICH notes the board shows, not whether a window narrows
+                          the neck — it has no window of its own (see the state
+                          comment above). A button, not a checkbox — matching
+                          Off/Manual/Auto and every other toggle in this panel. A
+                          bare <input type="checkbox"> here rendered with a native
+                          tap target too small to hit reliably on a phone, which is
+                          exactly where Focus lives.
+                          Reads the loaded chart (bars), classifies its form (blues /
+                          jazz blues / standard / modal), and offers that form's own
+                          Chord-scales / Home-base-or-Inside / Chase-or-Color /
+                          Altered ladder. Colors are the reference page's exact hex
+                          (--n-32-* in globals.css), not the app's usual note-role
+                          palette — see Fretboard.js's threeTwo prop. */}
                       <button
-                        onClick={() => setZorroMode(v => { const nv = !v; if (nv) setThreeTwoMode(false); return nv })}
-                        disabled={fretboardTuning !== "Standard"}
-                        aria-pressed={zorroMode}
-                        title={fretboardTuning !== "Standard"
-                          ? "3:2 shapes are built for standard tuning only"
-                          : "Show both 3:2-system positions as two highways, windowed by Fret focus"}
-                        style={{
-                          font: "700 11px 'Instrument Sans', sans-serif", padding: "5px 11px",
-                          borderRadius: "7px", border: "1px solid var(--line)",
-                          cursor: fretboardTuning === "Standard" ? "pointer" : "not-allowed",
-                          background: zorroMode ? "var(--accent)" : "var(--surface)",
-                          color: zorroMode ? "var(--accent-ink)" : "var(--muted)",
-                          opacity: fretboardTuning === "Standard" ? 1 : 0.5,
-                        }}
-                      >
-                        {zorroMode ? "✓ " : ""}Zorro · 3:2 system
-                      </button>
-                      {zorroMode && fretboardTuning === "Standard" && !zorroHighway.usable && (
-                        <span style={{ font: "600 10.5px 'Instrument Sans', sans-serif", color: "var(--muted)", fontStyle: "italic" }}>
-                          no 3:2 shape for this chord
-                        </span>
-                      )}
-                      {/* The leveled, song-aware 3:2 System — src/lib/music/
-                          threeTwoSystem.js. Reads the loaded chart (bars),
-                          classifies its form (blues / jazz blues / standard /
-                          modal), and offers that form's own Chord-scales /
-                          Home-base-or-Inside / Chase-or-Color / Altered
-                          ladder. Colors are the reference page's exact hex
-                          (--n-32-* in globals.css), not the app's usual
-                          note-role palette — see Fretboard.js's threeTwo prop. */}
-                      <button
-                        onClick={() => setThreeTwoMode(v => { const nv = !v; if (nv) setZorroMode(false); return nv })}
+                        onClick={() => setThreeTwoMode(v => !v)}
                         disabled={fretboardTuning !== "Standard"}
                         aria-pressed={threeTwoMode}
                         title={fretboardTuning !== "Standard"
@@ -2970,10 +2900,9 @@ export default function Home() {
             )}
 
             {/* Legend (spec §5.3) — always the same maple note-role colors, never the
-                palette. ZorroMode and the 3:2 System each swap this for their own
-                key: every other overlay is sitting out while either is on
-                (Fretboard.js), so their legend entries would just be describing
-                colors that aren't on the board. */}
+                palette. The 3:2 System swaps this for its own key: every other
+                overlay is sitting out while it's on (Fretboard.js), so their legend
+                entries would just be describing colors that aren't on the board. */}
             {threeTwoActiveOnBoard ? (
               <div className="db-fret-legend" style={{ display: "flex", gap: "14px", flexWrap: "wrap", marginBottom: "12px", fontSize: "12px", color: "var(--muted)" }}>
                 {threeTwoLevel === 0 ? (
@@ -2990,15 +2919,6 @@ export default function Home() {
                   ))
                 )}
                 <span style={{ fontStyle: "italic" }}>{threeTwoChoice.why || "3:2 System"}</span>
-              </div>
-            ) : zorroActiveOnBoard ? (
-              <div className="db-fret-legend" style={{ display: "flex", gap: "14px", flexWrap: "wrap", marginBottom: "12px", fontSize: "12px", color: "var(--muted)" }}>
-                <span><span style={{ color: "var(--n-penta-a)" }}>●</span> {zorroHighway.family === "minor" ? "b3 · 4 · 5 (3-note group)" : "1 · 2 · 3 (3-note group)"}</span>
-                <span><span style={{ color: "var(--n-penta-b)" }}>●</span> {zorroHighway.family === "minor" ? "b7 · 1 (2-note group)" : "5 · 6 (2-note group)"}</span>
-                {zorroHighway.family === "minor" && (
-                  <span><span style={{ color: "var(--n-penta-ring)" }}>◌</span> Root — ring finger</span>
-                )}
-                <span style={{ fontStyle: "italic" }}>Two highways, both positions of the 3:2 system</span>
               </div>
             ) : (
               <div className="db-fret-legend" style={{ display: "flex", gap: "14px", flexWrap: "wrap", marginBottom: "12px", fontSize: "12px", color: "var(--muted)" }}>
@@ -3060,8 +2980,6 @@ export default function Home() {
                 phaseKey={playheadIndex}
                 view={fretboardView}
                 tuningName={fretboardTuning}
-                zorroOn={zorroMode}
-                zorroCells={zorroHighway.cells}
                 threeTwo={{
                   on: threeTwoActiveOnBoard,
                   kind: threeTwoBoard.kind,
