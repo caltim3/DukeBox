@@ -4,6 +4,13 @@
 // to these same guides instead of keeping its own separate list.
 export const GUIDES = [
   {
+    title: "Pentatonic 3:2 Navigator",
+    subtitle: "Diagonal fretboard-freedom shapes, moved through real changes — standalone, with its own audio and metronome",
+    src: "/reference/pentatonic-32-navigator.html",
+    height: "1500px",
+    color: "var(--db-c-blue)",
+  },
+  {
     title: "Barry Harris Practice Regimen & Pivots",
     subtitle: "Interactive guitar reference",
     src: "/reference/likas-page-2-guitar.html",

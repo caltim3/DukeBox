@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pentatonic 3:2 Navigator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#FBFAF6; --ink:#1B1C1E; --chrome:#222427; --chrome2:#2D3033;
+  --blue:#1D9BF0; --blue-band:#C4E5FB; --red:#E2402F; --red-band:#F8CCC5;
+  --muted:#8B9096; --line:#3A3E42; --active:#F3B23E;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+body{background:var(--chrome); color:#E8E9EA; font-family:'Barlow',system-ui,-apple-system,sans-serif; min-height:100vh;}
+.wrap{max-width:1200px; margin:0 auto; padding:20px 16px 48px;}
+
+header h1{font-family:'Barlow Condensed','Arial Narrow',sans-serif; font-weight:700; font-size:30px; letter-spacing:.06em; text-transform:uppercase;}
+header .sub{color:var(--muted); font-size:14px; margin-top:2px;}
+
+.tabs{display:flex; flex-wrap:wrap; gap:8px; margin:18px 0 14px;}
+.tabs button{font-family:'Barlow Condensed','Arial Narrow',sans-serif; font-size:17px; font-weight:600; letter-spacing:.04em; text-transform:uppercase;
+  background:var(--chrome2); color:#D7D9DB; border:1px solid var(--line); border-radius:6px; padding:8px 14px; cursor:pointer;}
+.tabs button.on{background:#E8E9EA; color:var(--ink); border-color:#E8E9EA;}
+
+.controlrow{display:flex; flex-wrap:wrap; align-items:center; gap:14px; margin-bottom:14px;}
+.playbtn{width:88px; font-family:'Barlow Condensed','Arial Narrow',sans-serif; font-size:18px; font-weight:700; letter-spacing:.05em; text-transform:uppercase;
+  background:var(--active); color:#221A05; border:none; border-radius:6px; padding:10px 0; cursor:pointer;}
+.playbtn.playing{background:#E2402F; color:#fff;}
+.tempo{display:flex; align-items:center; gap:8px; color:var(--muted); font-size:13px;}
+.tempo input{accent-color:var(--active); width:130px;}
+.tempo b{color:#E8E9EA; font-variant-numeric:tabular-nums; width:60px;}
+
+.levels{display:flex; flex-wrap:wrap; gap:6px; margin-left:auto;}
+.levels button{background:transparent; color:#C9CCCF; border:1px solid var(--line); border-radius:20px; padding:6px 13px; font-size:13px; font-weight:500; cursor:pointer;}
+.levels button.on{background:var(--blue); border-color:var(--blue); color:#fff;}
+
+.levelnote{color:var(--muted); font-size:13.5px; line-height:1.45; margin:-6px 0 14px; max-width:860px;}
+
+.timeline{display:grid; grid-template-columns:repeat(auto-fit,minmax(72px,1fr)); border-left:3px solid var(--line); margin-bottom:16px;}
+.bar{border-right:1.5px solid var(--line); display:flex; min-height:52px;}
+.bar:last-child{border-right:3px solid var(--line);}
+.seg{flex:1; display:flex; align-items:center; justify-content:center; cursor:pointer; font-family:'Barlow Condensed','Arial Narrow',sans-serif;
+  font-size:17px; font-weight:600; letter-spacing:.03em; color:#D7D9DB; border-right:1px dashed #3a3e42;}
+.seg:last-child{border-right:none;}
+.seg:hover{color:#fff;}
+.seg.cur{background:var(--chrome2); color:var(--active); box-shadow:inset 0 -3px 0 var(--active);}
+
+.now{background:var(--chrome2); border:1px solid var(--line); border-radius:8px; padding:14px 16px; margin-bottom:14px;
+  display:flex; flex-wrap:wrap; gap:6px 26px; align-items:baseline;}
+.now .pent{font-family:'Barlow Condensed','Arial Narrow',sans-serif; font-size:26px; font-weight:700; letter-spacing:.03em;}
+.now .pent .over{color:var(--muted); font-size:18px; font-weight:500; letter-spacing:.02em;}
+.now .pent .chd{color:var(--active);}
+.now .why{color:#C9CCCF; font-size:14px; max-width:560px; line-height:1.4;}
+.now .meta{color:var(--muted); font-size:13px;}
+.legend{display:flex; gap:14px; font-size:13px; color:#C9CCCF; margin-left:auto; align-items:center;}
+.legend .sw{display:inline-block; width:26px; height:13px; border-radius:7px; vertical-align:-2px; margin-right:6px;}
+
+.boardcard{background:var(--paper); border-radius:10px; padding:14px 8px 6px; overflow-x:auto; box-shadow:0 6px 24px rgba(0,0,0,.35);}
+#board{transition:opacity .14s ease;}
+#board.fade{opacity:0;}
+svg text{font-family:'Barlow',system-ui,sans-serif;}
+.note{cursor:pointer;}
+
+@media (max-width:700px){
+  .levels{margin-left:0;}
+  .timeline{grid-template-columns:repeat(4,1fr);}
+  .now .legend{margin-left:0;}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Pentatonic 3:2 Navigator</h1>
+    <div class="sub">Diagonal fretboard-freedom shapes, moved through real changes. Click any chord, or press play and watch the system slide.</div>
+  </header>
+
+  <nav class="tabs" id="tabs"></nav>
+
+  <div class="controlrow">
+    <button class="playbtn" id="playbtn">Play</button>
+    <div class="tempo"><span>Tempo</span><input type="range" id="tempo" min="60" max="180" value="104"><b id="bpm">104 bpm</b></div>
+    <div class="levels" id="levels"></div>
+  </div>
+  <div class="levelnote" id="levelnote"></div>
+
+  <div class="timeline" id="timeline"></div>
+
+  <div class="now">
+    <div class="pent" id="pentname"></div>
+    <div class="why" id="why"></div>
+    <div class="meta" id="meta"></div>
+    <div class="legend" id="legend"></div>
+  </div>
+
+  <div class="boardcard"><div id="board"></div></div>
+</div>
+
+<script>
+'use strict';
+/* ---------- music data ---------- */
+var TUNING=[40,45,50,55,59,64];      // low E -> high E (midi)
+var FRETS=17;
+var NAMES=['C','D\u266d','D','E\u266d','E','F','G\u266d','G','A\u266d','A','B\u266d','B'];
+
+var PENTS={
+  m:{label:'minor pentatonic',
+     ivs:{0:['1','r',true],3:['\u266d3','b'],5:['4','b'],7:['5','b'],10:['\u266d7','r']},
+     legend:[['r','\u266d7 \u2013 1 pair'],['b','\u266d3 \u2013 4 \u2013 5 group']]},
+  M:{label:'major pentatonic',
+     ivs:{0:['1','b',true],2:['2','b'],4:['3','b'],7:['5','r'],9:['6','r']},
+     legend:[['b','1 \u2013 2 \u2013 3 group'],['r','5 \u2013 6 pair']]}
+};
+
+var SCALES={
+  mixo:{label:'mixolydian', ivs:{0:'1',2:'2',4:'3',5:'4',7:'5',9:'6',10:'\u266d7'}, ct:[0,4,7,10]},
+  dorian:{label:'dorian', ivs:{0:'1',2:'2',3:'\u266d3',5:'4',7:'5',9:'6',10:'\u266d7'}, ct:[0,3,7,10]},
+  ionian:{label:'major (ionian)', ivs:{0:'1',2:'2',4:'3',5:'4',7:'5',9:'6',11:'7'}, ct:[0,4,7,11]},
+  locrian:{label:'locrian', ivs:{0:'1',1:'\u266d9',3:'\u266d3',5:'11',6:'\u266d5',8:'\u266d13',10:'\u266d7'}, ct:[0,3,6,10]},
+  alt:{label:'altered', ivs:{0:'1',1:'\u266d9',3:'#9',4:'3',6:'\u266d5',8:'\u266d13',10:'\u266d7'}, ct:[0,4,10]}
+};
+
+var CHORDS={
+  'A7':{pc:9,q:'7'},'D7':{pc:2,q:'7'},'E7':{pc:4,q:'7'},
+  'B\u266d7':{pc:10,q:'7'},'E\u266d7':{pc:3,q:'7'},'G7alt':{pc:7,q:'alt'},
+  'Cm7':{pc:0,q:'m7'},'F7':{pc:5,q:'7'},
+  'Dm7':{pc:2,q:'m7'},'G7':{pc:7,q:'7'},'Cmaj7':{pc:0,q:'maj7'},
+  'Dm7\u266d5':{pc:2,q:'m7b5'}
+};
+var QUAL={'7':[0,4,10],'m7':[0,3,10],'maj7':[0,4,11],'m7b5':[0,3,6,10],'alt':[0,4,10,13]};
+
+function P(pc,t,why){return {pc:pc,t:t,why:why};}
+var b='\u266d';
+var BB7='B'+b+'7', EB7='E'+b+'7', DM7B5='Dm7'+b+'5';
+
+var PROGS=[
+{ id:'clapton', label:'Blues in A (1\u20134\u20135)',
+  bars:[['A7'],['A7'],['A7'],['A7'],['D7'],['D7'],['A7'],['A7'],['E7'],['D7'],['A7'],['E7']],
+  levels:[
+   {name:'0 \u00b7 Chord scales',
+    note:'The textbook answer before any pentatonic thinking: mixolydian over each dominant. Seven notes per chord \u2014 chord tones solid, tensions hollow. Compare this wall of options to the five-note systems in the levels above.',
+    map:(function(){var m={};
+      m['A7']=P(9,'mixo','A mixolydian: 1 2 3 4 5 6 '+b+'7. No '+b+'3 \u2014 the blues rub lives in Level 1, not here.');
+      m['D7']=P(2,'mixo','D mixolydian \u2014 exactly one note changes from A mixo: C# drops to C.');
+      m['E7']=P(4,'mixo','E mixolydian \u2014 one note up from A mixo: G becomes G#.');
+      return m;})()},
+   {name:'1 \u00b7 Home base',
+    note:'The classic: one A minor pentatonic blanket over the whole form. The '+b+'3 rubbing against A7\u2019s major 3rd is the blues. One 3:2 system, zero movement \u2014 this is the reference point for everything above it.',
+    map:(function(){var m={};
+      m['A7']=P(9,'m','Straight at the chord: 1 '+b+'3 4 5 '+b+'7. Bend the '+b+'3 toward the 3.');
+      m['D7']=P(9,'m','A pent vs D7 = 5 '+b+'7 1 9 11. Free color without moving.');
+      m['E7']=P(9,'m','A pent vs E7 = 4 '+b+'13 '+b+'7 1 #9. Tense \u2014 resolve back to the I.');
+      return m;})()},
+   {name:'2 \u00b7 Chase the chord',
+    note:'The core 3:2 exercise: play the chord\u2019s own minor pentatonic. Same diagonal geometry, three neck positions \u2014 the whole system slides +5 frets to D, +2 more to E (or drop \u22125 to E below).',
+    map:(function(){var m={};
+      m['A7']=P(9,'m','Home system.');
+      m['D7']=P(2,'m','Identical shape, entire system shifted +5 frets.');
+      m['E7']=P(4,'m','+2 frets above the D system, or \u22125 below it.');
+      return m;})()},
+   {name:'3 \u00b7 Color: pent off the 5th',
+    note:'Minor pentatonic built on the 5th of each dominant gives 5 '+b+'7 1 9 11 \u2014 no 3rd, all color. Session-player move: sounds modern without leaving pentatonic fingering.',
+    map:(function(){var m={};
+      m['A7']=P(4,'m','E minor pent vs A7 = 5 '+b+'7 1 9 11.');
+      m['D7']=P(9,'m','A minor pent vs D7 = 5 '+b+'7 1 9 11.');
+      m['E7']=P(11,'m','B minor pent vs E7 = 5 '+b+'7 1 9 11.');
+      return m;})()},
+   {name:'4 \u00b7 Major pent chase',
+    note:'The sweet BB King / Clapton sound: each chord\u2019s major pentatonic (the 3:2 grouping flips to 1\u20132\u20133 + 5\u20136). Mix freely with Level 1 \u2014 the major/minor blend on the I chord is the whole vocabulary.',
+    map:(function(){var m={};
+      m['A7']=P(9,'M','A major pent: 1 2 3 5 6 \u2014 same geometry as F#m pent, 3 frets below the A minor system.');
+      m['D7']=P(2,'M','D major pent \u2014 same shape, +5.');
+      m['E7']=P(4,'M','E major pent \u2014 +2 above D.');
+      return m;})()}
+  ]},
+{ id:'jazzblues', label:'Jazz Blues in B'+b,
+  bars:[[BB7],[EB7],[BB7],[BB7],[EB7],[EB7],[BB7],['G7alt'],['Cm7'],['F7'],
+        [[BB7,2],['G7alt',2]],[['Cm7',2],['F7',2]]],
+  levels:[
+   {name:'0 \u00b7 Chord scales',
+    note:'Classic chord-scale theory over the form: mixolydian on the dominants, dorian on the ii, altered on G7. Watch how little actually changes between adjacent scales \u2014 usually one note.',
+    map:(function(){var m={};
+      m[BB7]=P(10,'mixo','B'+b+' mixolydian: 1 2 3 4 5 6 '+b+'7. Home scale.');
+      m[EB7]=P(3,'mixo','E'+b+' mixo \u2014 exactly one note changes from B'+b+' mixo: D drops to D'+b+'.');
+      m['G7alt']=P(7,'alt','G altered (= A'+b+' melodic minor): '+b+'9 #9 3 '+b+'5 '+b+'13 '+b+'7. The pentatonic shortcut for this scale is B'+b+' min pent.');
+      m['Cm7']=P(0,'dorian','C dorian: 1 2 '+b+'3 4 5 6 '+b+'7.');
+      m['F7']=P(5,'mixo','F mixolydian \u2014 the same seven notes as C dorian; the ii and V share one scale.');
+      return m;})()},
+   {name:'1 \u00b7 Blues blanket',
+    note:'B'+b+' minor pentatonic over everything. Notice bar 8: over G7 the same shape is accidentally a perfect altered fragment ('+b+'9 #9 '+b+'5 '+b+'13 '+b+'7). The blanket is smarter than it looks.',
+    map:(function(){var m={};
+      m[BB7]=P(10,'m','Straight blues.');
+      m[EB7]=P(10,'m','vs E'+b+'7 = 5 '+b+'7 1 9 11.');
+      m['G7alt']=P(10,'m','vs G7 = '+b+'9 #9 '+b+'5 '+b+'13 '+b+'7 \u2014 fully altered by accident.');
+      m['Cm7']=P(10,'m','vs Cm7 = '+b+'7 '+b+'9 '+b+'3 11 '+b+'13. The '+b+'9 rubs \u2014 keep it passing.');
+      m['F7']=P(10,'m','vs F7 = 11 '+b+'13 '+b+'7 1 #9. Tension into bar 11.');
+      return m;})()},
+   {name:'2 \u00b7 Chase the chord',
+    note:'Each chord\u2019s own minor pentatonic. Watch the geometry: B'+b+'\u2192E'+b+' is +5 frets, into Cm is +2, F is +5 from C. On G7alt you stay on B'+b+' minor pent \u2014 it already IS the altered sound.',
+    map:(function(){var m={};
+      m[BB7]=P(10,'m','Home system.');
+      m[EB7]=P(3,'m','System slides +5 frets.');
+      m['G7alt']=P(10,'m','Stay put: B'+b+' min pent ('+b+'3 above G) = altered G7.');
+      m['Cm7']=P(0,'m','+2 from B'+b+'.');
+      m['F7']=P(5,'m','+5 from C, resolving down a 5th to B'+b+'.');
+      return m;})()},
+   {name:'3 \u00b7 Color off the 5th',
+    note:'Dominants get the minor pent off their 5th (5 '+b+'7 1 9 11); Cm7 gets G minor pent for the same 9/11 color. G7alt keeps the '+b+'3-up altered trick.',
+    map:(function(){var m={};
+      m[BB7]=P(5,'m','F min pent vs B'+b+'7 = 5 '+b+'7 1 9 11.');
+      m[EB7]=P(10,'m','B'+b+' min pent vs E'+b+'7 = 5 '+b+'7 1 9 11.');
+      m['G7alt']=P(10,'m','B'+b+' min pent = '+b+'9 #9 '+b+'5 '+b+'13 '+b+'7.');
+      m['Cm7']=P(7,'m','G min pent vs Cm7 = 5 '+b+'7 1 9 11.');
+      m['F7']=P(0,'m','C min pent vs F7 = 5 '+b+'7 1 9 11.');
+      return m;})()},
+   {name:'4 \u00b7 Altered turnarounds',
+    note:'Full ladder: color on the tonic-side dominants, altered ('+b+'3-up minor pent) on the two V chords that resolve \u2014 G7\u2192Cm and F7\u2192B'+b+'. One fingering, maximum tension, clean release.',
+    map:(function(){var m={};
+      m[BB7]=P(5,'m','Color: 5 '+b+'7 1 9 11.');
+      m[EB7]=P(10,'m','Color: 5 '+b+'7 1 9 11.');
+      m['G7alt']=P(10,'m',b+'3 up from G: the full altered package.');
+      m['Cm7']=P(7,'m','Color: 5 '+b+'7 1 9 11.');
+      m['F7']=P(8,'m','A'+b+' min pent = '+b+'9 #9 '+b+'5 '+b+'13 '+b+'7 of F, resolving to B'+b+'.');
+      return m;})()}
+  ]},
+{ id:'maj251', label:'Major 2\u20135\u20131 in C',
+  bars:[['Dm7'],['G7'],['Cmaj7'],['Cmaj7']],
+  levels:[
+   {name:'0 \u00b7 Chord scales',
+    note:'The famous one: D dorian, G mixolydian, C ionian are all the same seven notes. Chord-scale theory here is really about which chord tones go solid \u2014 watch the dots change while the pitch set stays put.',
+    map:(function(){var m={};
+      m['Dm7']=P(2,'dorian','D dorian = C major starting from D.');
+      m['G7']=P(7,'mixo','G mixolydian = C major from G. Same pitches, new solid dots: B and F are now the guide tones.');
+      m['Cmaj7']=P(0,'ionian','C ionian. Sub lydian (raise the 4) if the maj7 wants lift.');
+      return m;})()},
+   {name:'1 \u00b7 Inside',
+    note:'All white-note pentatonics. D minor pent covers both the ii and the V (vs G7 it reads 5 '+b+'7 1 9 11); A minor pent IS C major pent for the resolution. Two systems, one +7/\u22125 slide.',
+    map:(function(){var m={};
+      m['Dm7']=P(2,'m','Chord tones + 11, straight at the ii.');
+      m['G7']=P(2,'m','D min pent vs G7 = 5 '+b+'7 1 9 11 \u2014 mixolydian color, no 3rd.');
+      m['Cmaj7']=P(9,'m','A min pent = C major pent: 6 1 2 3 5.');
+      return m;})()},
+   {name:'2 \u00b7 Color',
+    note:'Everything moves off-root for upper structure: pent off the 5th of the ii, pent off the 3rd of the Imaj7. The E-minor-pent-over-Cmaj7 sound (3 5 6 7 9) is the prettiest cheap trick in jazz.',
+    map:(function(){var m={};
+      m['Dm7']=P(9,'m','A min pent vs Dm7 = 5 '+b+'7 1 9 11.');
+      m['G7']=P(2,'m','D min pent vs G7 = 5 '+b+'7 1 9 11.');
+      m['Cmaj7']=P(4,'m','E min pent vs Cmaj7 = 3 5 6 7 9.');
+      return m;})()},
+   {name:'3 \u00b7 Altered V',
+    note:'Same as Level 2 but the V gets B'+b+' minor pent ('+b+'3 up from G): '+b+'9 #9 '+b+'5 '+b+'13 '+b+'7. Geometry: the A system slides up ONE fret to B'+b+' (pure half-step tension), then jumps to E for release.',
+    map:(function(){var m={};
+      m['Dm7']=P(9,'m','A min pent = 5 '+b+'7 1 9 11.');
+      m['G7']=P(10,'m','B'+b+' min pent = altered G7. Whole system up one fret from A.');
+      m['Cmaj7']=P(4,'m','E min pent = 3 5 6 7 9. Resolution.');
+      return m;})()}
+  ]},
+{ id:'min251', label:'Minor 2\u20135\u20131 in Cm',
+  bars:[[DM7B5],['G7alt'],['Cm7'],['Cm7']],
+  levels:[
+   {name:'0 \u00b7 Chord scales',
+    note:'Textbook minor cadence: locrian on the \u00f8, altered on the V, dorian on the i. Three parent keys in three bars \u2014 this is exactly why the '+b+'3-up pentatonic shortcut in Level 2 earns its keep.',
+    map:(function(){var m={};
+      m[DM7B5]=P(2,'locrian','D locrian (= E'+b+' major from D). Hipper option: locrian \u266e2 from F melodic minor.');
+      m['G7alt']=P(7,'alt','G altered = A'+b+' melodic minor from G.');
+      m['Cm7']=P(0,'dorian','C dorian. Aeolian also works; melodic minor if the i turns m6 or mMaj7.');
+      return m;})()},
+   {name:'1 \u00b7 One sound',
+    note:'C minor pentatonic over the whole cadence. Serviceable and dark, but the half-diminished and altered chords are only implied \u2014 Level 2 is where this progression opens up.',
+    map:(function(){var m={};
+      m[DM7B5]=P(0,'m','vs D\u00f8 = '+b+'7 '+b+'9 '+b+'3 11 '+b+'13. Home color, loosely attached.');
+      m['G7alt']=P(0,'m','vs G7 = 11 '+b+'13 '+b+'7 1 #9. Okay; Level 2 is stronger.');
+      m['Cm7']=P(0,'m','Home.');
+      return m;})()},
+   {name:'2 \u00b7 Spell the chords',
+    note:'The killer version: minor pent a '+b+'3 above the root of the ii and the V. F min pent nails the half-diminished, B'+b+' min pent nails the altered V. F\u2192B'+b+'\u2192C: the system moves in 4ths \u2014 two clean +5/\u22127 slides.',
+    map:(function(){var m={};
+      m[DM7B5]=P(5,'m','F min pent vs D\u00f8 = '+b+'3 '+b+'5 '+b+'13 '+b+'7 '+b+'9 \u2014 the \u00f8 sound in one shape.');
+      m['G7alt']=P(10,'m','B'+b+' min pent vs G7 = '+b+'9 #9 '+b+'5 '+b+'13 '+b+'7.');
+      m['Cm7']=P(0,'m','Land on home.');
+      return m;})()},
+   {name:'3 \u00b7 Color the i',
+    note:'Same ii and V, but the tonic minor gets G minor pent (off the 5th) for a 9/11 Cm sound instead of plain '+b+'3 blues. B'+b+'\u2192G is a \u22123 slide into the release.',
+    map:(function(){var m={};
+      m[DM7B5]=P(5,'m','F min pent = the \u00f8 spelled out.');
+      m['G7alt']=P(10,'m','B'+b+' min pent = altered.');
+      m['Cm7']=P(7,'m','G min pent vs Cm7 = 5 '+b+'7 1 9 11.');
+      return m;})()}
+  ]}
+];
+
+/* ---------- state ---------- */
+var progIdx=0, levelIdx=0, curChord=null, playing=false;
+var ac=null, master=null, schedTimer=null, beatIdx=0, nextBeatTime=0, uiQueue=[];
+var beats=[];
+
+/* ---------- helpers ---------- */
+function prog(){return PROGS[progIdx];}
+function level(){return prog().levels[levelIdx];}
+function normBars(){
+  return prog().bars.map(function(bar){
+    return bar.map(function(seg){
+      return Array.isArray(seg)? {c:seg[0],beats:seg[1]} : {c:seg,beats:4};
+    });
+  });
+}
+function pentFor(chord){ return level().map[chord]; }
+
+/* ---------- fretboard render ---------- */
+function boardFrame(){
+  var nutX=34, fw=84, gap=46, top=26, W=nutX+FRETS*fw+22, H=top+5*gap+52;
+  var s=[];
+  s.push('<svg width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'" xmlns="http://www.w3.org/2000/svg">');
+  function yFor(row){return top+row*gap;}          // row 0 = high E
+  function xFor(f){return f===0? nutX-16 : nutX+(f-0.5)*fw;}
+  for(var f=0;f<=FRETS;f++){
+    var x=nutX+f*fw;
+    s.push('<line x1="'+x+'" y1="'+yFor(0)+'" x2="'+x+'" y2="'+yFor(5)+'" stroke="'+(f===0?'#6a6d70':'#2b2c2e')+'" stroke-width="'+(f===0?7:1.6)+'"/>');
+  }
+  var mid=(yFor(2)+yFor(3))/2;
+  [3,5,7,9,15,17].forEach(function(fi){
+    s.push('<circle cx="'+(nutX+(fi-0.5)*fw)+'" cy="'+mid+'" r="7" fill="#D4D2CC"/>');
+  });
+  s.push('<circle cx="'+(nutX+11.5*fw)+'" cy="'+(mid-gap)+'" r="7" fill="#D4D2CC"/>');
+  s.push('<circle cx="'+(nutX+11.5*fw)+'" cy="'+(mid+gap)+'" r="7" fill="#D4D2CC"/>');
+  for(var r=0;r<6;r++){
+    s.push('<line x1="'+(nutX-24)+'" y1="'+yFor(r)+'" x2="'+(W-10)+'" y2="'+yFor(r)+'" stroke="#232425" stroke-width="'+(1.2+r*0.6)+'"/>');
+  }
+  [3,5,7,9,12,15,17].forEach(function(fi){
+    s.push('<text x="'+(nutX+(fi-0.5)*fw)+'" y="'+(yFor(5)+34)+'" font-size="15" font-style="italic" font-weight="600" fill="#5c5e60" text-anchor="middle">'+fi+'</text>');
+  });
+  return {s:s, yFor:yFor, xFor:xFor};
+}
+function buildBoard(rootPc,type){
+  var ivs=PENTS[type].ivs;
+  var frm=boardFrame(), s=frm.s, yFor=frm.yFor, xFor=frm.xFor;
+  var band={r:'#F8CCC5',b:'#C4E5FB'}, main={r:'#E2402F',b:'#1D9BF0'};
+  for(var st=0;st<6;st++){
+    var row=5-st, y=yFor(row), notes=[];
+    for(var fr=0;fr<=FRETS;fr++){
+      var iv=((TUNING[st]+fr-rootPc)%12+12)%12;
+      if(ivs[iv]) notes.push({f:fr,iv:iv,midi:TUNING[st]+fr});
+    }
+    var runs=[], cur=null;
+    notes.forEach(function(n){
+      var g=ivs[n.iv][1];
+      if(cur && cur.g===g && n.f-cur.notes[cur.notes.length-1].f<=4){ cur.notes.push(n); }
+      else { cur={g:g,notes:[n]}; runs.push(cur); }
+    });
+    runs.forEach(function(run){
+      var x1=xFor(run.notes[0].f)-22, x2=xFor(run.notes[run.notes.length-1].f)+22;
+      s.push('<rect x="'+x1+'" y="'+(y-17)+'" width="'+(x2-x1)+'" height="34" rx="17" fill="'+band[run.g]+'"/>');
+    });
+    notes.forEach(function(n){
+      var d=ivs[n.iv], g=d[1], isRoot=!!d[2], x=xFor(n.f);
+      var fill=isRoot? band[g] : main[g];
+      var stroke=isRoot? ' stroke="'+main[g]+'" stroke-width="3"' : '';
+      var tcol=isRoot? main[g] : '#fff';
+      s.push('<g class="note" data-midi="'+n.midi+'">'+
+        '<circle cx="'+x+'" cy="'+y+'" r="16" fill="'+fill+'"'+stroke+'/>'+
+        '<text x="'+x+'" y="'+(y+5)+'" font-size="14" font-weight="700" fill="'+tcol+'" text-anchor="middle" pointer-events="none">'+d[0]+'</text></g>');
+    });
+  }
+  s.push('</svg>');
+  return s.join('');
+}
+function buildBoardScale(rootPc,scaleId){
+  var sc=SCALES[scaleId];
+  var frm=boardFrame(), s=frm.s, yFor=frm.yFor, xFor=frm.xFor;
+  for(var st=0;st<6;st++){
+    var row=5-st, y=yFor(row);
+    for(var fr=0;fr<=FRETS;fr++){
+      var iv=((TUNING[st]+fr-rootPc)%12+12)%12;
+      if(sc.ivs[iv]===undefined) continue;
+      var x=xFor(fr), midi=TUNING[st]+fr;
+      var isRoot=(iv===0), isCt=sc.ct.indexOf(iv)>=0;
+      var r, fill, stroke, tcol, fs;
+      if(isRoot){ r=16; fill='#E2402F'; stroke=''; tcol='#fff'; fs=14; }
+      else if(isCt){ r=16; fill='#1D9BF0'; stroke=''; tcol='#fff'; fs=14; }
+      else { r=12.5; fill='#FBFAF6'; stroke=' stroke="#9AA0A6" stroke-width="2"'; tcol='#6B7075'; fs=11.5; }
+      s.push('<g class="note" data-midi="'+midi+'">'+
+        '<circle cx="'+x+'" cy="'+y+'" r="'+r+'" fill="'+fill+'"'+stroke+'/>'+
+        '<text x="'+x+'" y="'+(y+4)+'" font-size="'+fs+'" font-weight="700" fill="'+tcol+'" text-anchor="middle" pointer-events="none">'+sc.ivs[iv]+'</text></g>');
+    }
+  }
+  s.push('</svg>');
+  return s.join('');
+}
+
+var lastPent=null;
+function renderBoard(){
+  var p=pentFor(curChord); if(!p) return;
+  var key=p.pc+p.t;
+  var el=document.getElementById('board');
+  function draw(){
+    el.innerHTML=PENTS[p.t]? buildBoard(p.pc,p.t) : buildBoardScale(p.pc,p.t);
+    el.querySelectorAll('.note').forEach(function(n){
+      n.addEventListener('click',function(){ pluck(parseInt(n.getAttribute('data-midi'),10)); });
+    });
+  }
+  if(lastPent!==null && lastPent!==key){
+    el.classList.add('fade');
+    setTimeout(function(){ draw(); el.classList.remove('fade'); },140);
+  } else draw();
+  lastPent=key;
+}
+
+/* ---------- UI render ---------- */
+function renderTabs(){
+  var t=document.getElementById('tabs'); t.innerHTML='';
+  PROGS.forEach(function(p,i){
+    var btn=document.createElement('button');
+    btn.textContent=p.label; if(i===progIdx) btn.className='on';
+    btn.onclick=function(){ stop(); progIdx=i; levelIdx=0; curChord=normBars()[0][0].c; lastPent=null; renderAll(); };
+    t.appendChild(btn);
+  });
+}
+function renderLevels(){
+  var l=document.getElementById('levels'); l.innerHTML='';
+  prog().levels.forEach(function(lv,i){
+    var btn=document.createElement('button');
+    btn.textContent=lv.name; if(i===levelIdx) btn.className='on';
+    btn.onclick=function(){ levelIdx=i; renderLevels(); renderNow(); renderBoard(); };
+    l.appendChild(btn);
+  });
+  document.getElementById('levelnote').textContent=level().note;
+}
+function renderTimeline(){
+  var tl=document.getElementById('timeline'); tl.innerHTML='';
+  normBars().forEach(function(bar,bi){
+    var bd=document.createElement('div'); bd.className='bar';
+    bar.forEach(function(seg,si){
+      var sd=document.createElement('div'); sd.className='seg'; sd.id='seg-'+bi+'-'+si;
+      sd.textContent=seg.c;
+      sd.onclick=function(){ setChord(seg.c, bi, si); };
+      bd.appendChild(sd);
+    });
+    tl.appendChild(bd);
+  });
+}
+function highlightSeg(bi,si){
+  var curEls=document.querySelectorAll('.seg.cur');
+  for(var i=0;i<curEls.length;i++) curEls[i].classList.remove('cur');
+  var el=document.getElementById('seg-'+bi+'-'+si);
+  if(el) el.classList.add('cur');
+}
+function renderNow(){
+  var p=pentFor(curChord); if(!p) return;
+  var sysLabel=PENTS[p.t]? PENTS[p.t].label : SCALES[p.t].label;
+  document.getElementById('pentname').innerHTML=
+    NAMES[p.pc]+' '+sysLabel+' <span class="over">over <span class="chd">'+curChord+'</span></span>';
+  document.getElementById('why').textContent=p.why;
+  var f6=((p.pc-4)%12+12)%12;
+  var fretsTxt = f6===0 ? 'open / 12' : (f6 + (f6+12<=FRETS? ' / '+(f6+12):''));
+  document.getElementById('meta').textContent='Root on low E: fret '+fretsTxt;
+  var lg=document.getElementById('legend'); lg.innerHTML='';
+  if(PENTS[p.t]){
+    PENTS[p.t].legend.forEach(function(item){
+      var sp=document.createElement('span');
+      var col=item[0]==='r'? ['#F8CCC5','#E2402F'] : ['#C4E5FB','#1D9BF0'];
+      sp.innerHTML='<span class="sw" style="background:'+col[0]+'; border:2px solid '+col[1]+'"></span>'+item[1];
+      lg.appendChild(sp);
+    });
+  } else {
+    [['#E2402F','#E2402F','root'],['#1D9BF0','#1D9BF0','chord tone'],['#FBFAF6','#9AA0A6','tension']].forEach(function(it){
+      var sp=document.createElement('span');
+      sp.innerHTML='<span class="sw" style="background:'+it[0]+'; border:2px solid '+it[1]+'; border-radius:50%; width:15px; height:15px;"></span>'+it[2];
+      lg.appendChild(sp);
+    });
+  }
+}
+function setChord(c,bi,si){ curChord=c; if(bi!==undefined) highlightSeg(bi,si); renderNow(); renderBoard(); }
+function renderAll(){ renderTabs(); renderLevels(); renderTimeline(); highlightSeg(0,0); renderNow(); renderBoard(); }
+
+/* ---------- audio ---------- */
+function ensureAC(){
+  if(!ac){ ac=new (window.AudioContext||window.webkitAudioContext)();
+    master=ac.createGain(); master.gain.value=0.85; master.connect(ac.destination); }
+  if(ac.state==='suspended') ac.resume();
+}
+function pluck(midi){
+  ensureAC();
+  var t=ac.currentTime, f=440*Math.pow(2,(midi-69)/12);
+  var o1=ac.createOscillator(), o2=ac.createOscillator(), g=ac.createGain(), lp=ac.createBiquadFilter();
+  o1.type='triangle'; o1.frequency.value=f;
+  o2.type='sawtooth'; o2.frequency.value=f; o2.detune.value=4;
+  lp.type='lowpass'; lp.frequency.setValueAtTime(2600,t); lp.frequency.exponentialRampToValueAtTime(700,t+1.1);
+  g.gain.setValueAtTime(0.001,t); g.gain.exponentialRampToValueAtTime(0.35,t+0.006);
+  g.gain.exponentialRampToValueAtTime(0.0008,t+1.15);
+  o1.connect(lp); o2.connect(lp); lp.connect(g); g.connect(master);
+  o1.start(t); o2.start(t); o1.stop(t+1.2); o2.stop(t+1.2);
+}
+function bassNote(pc,fifth,t,dur){
+  var midi=38+((pc-2+12)%12)+(fifth?7:0);
+  var f=440*Math.pow(2,(midi-69)/12);
+  var o=ac.createOscillator(), g=ac.createGain();
+  o.type='triangle'; o.frequency.value=f;
+  g.gain.setValueAtTime(0.001,t); g.gain.exponentialRampToValueAtTime(0.34,t+0.01);
+  g.gain.exponentialRampToValueAtTime(0.001,t+dur*0.95);
+  o.connect(g); g.connect(master); o.start(t); o.stop(t+dur);
+}
+function chordStab(chord,t,dur){
+  var def=CHORDS[chord]; if(!def) return;
+  var root=50+((def.pc-2+12)%12);
+  QUAL[def.q].forEach(function(iv){
+    var f=440*Math.pow(2,(root+iv-69)/12);
+    var o=ac.createOscillator(), g=ac.createGain(), lp=ac.createBiquadFilter();
+    o.type='sawtooth'; o.frequency.value=f;
+    lp.type='lowpass'; lp.frequency.value=1500;
+    g.gain.setValueAtTime(0.001,t); g.gain.exponentialRampToValueAtTime(0.075,t+0.015);
+    g.gain.exponentialRampToValueAtTime(0.001,t+Math.min(dur,0.5));
+    o.connect(lp); lp.connect(g); g.connect(master);
+    o.start(t); o.stop(t+Math.min(dur,0.55));
+  });
+}
+function flattenBeats(){
+  beats=[];
+  normBars().forEach(function(bar,bi){
+    var pos=0;
+    bar.forEach(function(seg,si){
+      for(var k=0;k<seg.beats;k++){
+        beats.push({c:seg.c, bar:bi, seg:si, pos:pos});
+        pos++;
+      }
+    });
+  });
+}
+function scheduleBeat(bt,t){
+  var spb=60/parseInt(document.getElementById('tempo').value,10);
+  var def=CHORDS[bt.c];
+  if(bt.pos%2===0) bassNote(def.pc, bt.pos===2, t, spb*1.05);
+  else chordStab(bt.c, t, spb);
+  uiQueue.push({t:t, c:bt.c, bar:bt.bar, seg:bt.seg});
+}
+function schedLoop(){
+  var spb=60/parseInt(document.getElementById('tempo').value,10);
+  while(nextBeatTime < ac.currentTime+0.14){
+    scheduleBeat(beats[beatIdx], nextBeatTime);
+    nextBeatTime+=spb;
+    beatIdx=(beatIdx+1)%beats.length;
+  }
+}
+function uiLoop(){
+  if(!playing) return;
+  while(uiQueue.length && uiQueue[0].t<=ac.currentTime+0.02){
+    var e=uiQueue.shift();
+    setChord(e.c, e.bar, e.seg);
+  }
+  requestAnimationFrame(uiLoop);
+}
+function play(){
+  ensureAC(); flattenBeats();
+  beatIdx=0; uiQueue=[]; nextBeatTime=ac.currentTime+0.08;
+  playing=true;
+  var pb=document.getElementById('playbtn');
+  pb.textContent='Stop'; pb.classList.add('playing');
+  schedTimer=setInterval(schedLoop,25);
+  requestAnimationFrame(uiLoop);
+}
+function stop(){
+  playing=false;
+  if(schedTimer){ clearInterval(schedTimer); schedTimer=null; }
+  uiQueue=[];
+  var pb=document.getElementById('playbtn');
+  pb.textContent='Play'; pb.classList.remove('playing');
+}
+document.getElementById('playbtn').addEventListener('click',function(){ if(playing){stop();}else{play();} });
+document.getElementById('tempo').addEventListener('input',function(e){
+  document.getElementById('bpm').textContent=e.target.value+' bpm';
+});
+document.addEventListener('keydown',function(e){
+  if(e.code==='Space' && e.target.tagName!=='INPUT'){ e.preventDefault(); if(playing){stop();}else{play();} }
+});
+
+/* ---------- init ---------- */
+curChord=normBars()[0][0].c;
+renderAll();
+</script>
+</body>
+</html>
