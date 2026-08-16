@@ -150,7 +150,12 @@ export default function Home() {
 
   const [keyRoot, setKeyRoot] = useState("Bb")
   const [keyMode, setKeyMode] = useState("major")
-  const [showRomanNumerals, setShowRomanNumerals] = useState(false)
+  // The toggle for this lived in the Fretboard settings drawer; removed to
+  // narrow that panel (more fretboard, less chrome, in Focus especially).
+  // The Lead Sheet Grid's own roman-numeral row (below) is left in place,
+  // just permanently off — nothing else in the app currently offers a way
+  // to turn it back on.
+  const showRomanNumerals = false
   const [selectedForm, setSelectedForm] = useState("Custom")
 
   const [promptText, setPromptText] = useState("")
@@ -2467,6 +2472,12 @@ export default function Home() {
               freezeMode={freezeMode}
               onToggleFreeze={toggleFreeze}
               onPreviewChord={previewChordAt}
+              chartKey={chartKey}
+              keyRoot={keyRoot}
+              keyMode={keyMode}
+              onKeyRootChange={setKeyRoot}
+              onKeyModeChange={setKeyMode}
+              onTranspose={handleTransposeChart}
             />
 
           </>
@@ -2773,56 +2784,6 @@ export default function Home() {
                     )}
                   </div>
 
-                  {/* Transpose Song (moved from the old Songbook panel — spec §7).
-                      Transposes every bar in the chart (bars), not just one part —
-                      "part" here was a legacy label, not a scope limit.
-                      Key pickers and the button sit on one line: they're a single
-                      action ("put this song in that key"), and splitting them
-                      across two labelled columns cost a whole row of height to
-                      say what one row says. */}
-                  <div className="db-fs-wide">
-                    <span style={{ font: "700 10px 'IBM Plex Mono', monospace", color: "var(--muted)", letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: "5px", display: "block" }}>
-                      Transpose · now in {chartKey} {keyMode === "minor" ? "minor" : "major"}
-                    </span>
-                    <div style={{ display: "flex", gap: "5px", alignItems: "center", flexWrap: "wrap" }}>
-                      <select
-                        value={keyRoot}
-                        onChange={(e) => setKeyRoot(e.target.value)}
-                        style={{ ...selectStyle, width: "auto", padding: "5px 8px", fontSize: "var(--db-fs-sm)" }}
-                      >
-                        {ROOTS.map((r) => <option key={r} value={r}>{r}</option>)}
-                      </select>
-                      <select
-                        value={keyMode}
-                        onChange={(e) => setKeyMode(e.target.value)}
-                        style={{ ...selectStyle, width: "auto", padding: "5px 8px", fontSize: "var(--db-fs-sm)" }}
-                      >
-                        <option value="major">Major</option>
-                        <option value="minor">Minor</option>
-                      </select>
-                      <button
-                        onClick={handleTransposeChart}
-                        style={{ ...buttonStyle(keyRoot !== chartKey ? "var(--db-c-amber)" : "var(--db-muted)"), padding: "5px 12px", fontSize: "var(--db-fs-sm)" }}
-                        title={keyRoot === chartKey
-                          ? "Chart is already in this key"
-                          : `Shifts every chord in the chart from ${chartKey} to ${keyRoot}`}
-                      >
-                        Transpose
-                      </button>
-                    </div>
-                  </div>
-
-                  <div>
-                    <span style={{ font: "700 10px 'IBM Plex Mono', monospace", color: "var(--muted)", letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: "5px", display: "block" }}>Chord display</span>
-                    <label style={inlineLabelStyle}>
-                      <input
-                        type="checkbox"
-                        checked={showRomanNumerals}
-                        onChange={(e) => setShowRomanNumerals(e.target.checked)}
-                      />
-                      Roman Numerals
-                    </label>
-                  </div>
               </div>
             )}
 

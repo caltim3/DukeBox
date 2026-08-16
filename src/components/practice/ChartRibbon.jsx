@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { ROOTS } from "@/lib/music/tonal"
 
 // Chart ribbon — in-flow, always-visible bar strip for the Cockpit/Focus
 // canvas (spec §5.5). Distinct from <GigBarStrip>, which is a fixed overlay
@@ -27,6 +28,12 @@ export default function ChartRibbon({
   freezeMode,
   onToggleFreeze,
   onPreviewChord,
+  chartKey,
+  keyRoot,
+  keyMode,
+  onKeyRootChange,
+  onKeyModeChange,
+  onTranspose,
 }) {
   const lo = Math.min(loopStart, loopEnd)
   const hi = Math.max(loopStart, loopEnd)
@@ -176,6 +183,71 @@ export default function ChartRibbon({
                 : `Bar ${selectedLabel} selected`}
             </span>
           </div>
+
+          {/* Transpose — moved here from the Fretboard card's settings drawer
+              (spec §7 originally put it there) so that drawer stays narrow in
+              Focus, where every row of chrome is a row the neck doesn't get.
+              Key pickers and the button stay on one line, same as before:
+              they're a single action ("put this song in that key"), not three
+              separate settings. */}
+          {chartKey && (
+            <div style={{
+              display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap",
+              padding: "6px 10px", borderRadius: "10px",
+              border: "1px solid var(--line)", background: "var(--surface2)",
+              opacity: freezeMode ? 0.5 : 1,
+            }}>
+              <span style={{
+                font: "800 10px 'IBM Plex Mono', monospace", letterSpacing: "0.04em",
+                color: "var(--muted)", whiteSpace: "nowrap",
+              }}>
+                {chartKey} {keyMode === "minor" ? "minor" : "major"}
+              </span>
+              <select
+                value={keyRoot}
+                disabled={freezeMode}
+                onChange={(e) => onKeyRootChange?.(e.target.value)}
+                style={{
+                  font: "700 11px 'Instrument Sans', sans-serif", padding: "5px 6px", borderRadius: "6px",
+                  border: "1px solid var(--line)", background: "var(--surface)", color: "var(--text)",
+                  cursor: freezeMode ? "not-allowed" : "pointer",
+                }}
+              >
+                {ROOTS.map((r) => <option key={r} value={r}>{r}</option>)}
+              </select>
+              <select
+                value={keyMode}
+                disabled={freezeMode}
+                onChange={(e) => onKeyModeChange?.(e.target.value)}
+                style={{
+                  font: "700 11px 'Instrument Sans', sans-serif", padding: "5px 6px", borderRadius: "6px",
+                  border: "1px solid var(--line)", background: "var(--surface)", color: "var(--text)",
+                  cursor: freezeMode ? "not-allowed" : "pointer",
+                }}
+              >
+                <option value="major">Major</option>
+                <option value="minor">Minor</option>
+              </select>
+              <button
+                onClick={onTranspose}
+                disabled={freezeMode || keyRoot === chartKey}
+                title={keyRoot === chartKey
+                  ? "Chart is already in this key"
+                  : `Shifts every chord in the chart from ${chartKey} to ${keyRoot}`}
+                style={{
+                  font: "800 11px 'IBM Plex Mono', monospace", letterSpacing: "0.06em", textTransform: "uppercase",
+                  padding: "6px 10px", borderRadius: "6px",
+                  border: `1px solid ${keyRoot !== chartKey ? "var(--accent)" : "var(--line)"}`,
+                  background: keyRoot !== chartKey ? "var(--accent)" : "var(--surface)",
+                  color: keyRoot !== chartKey ? "var(--accent-ink)" : "var(--muted)",
+                  cursor: freezeMode || keyRoot === chartKey ? "not-allowed" : "pointer",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                Transpose
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
