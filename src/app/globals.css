@@ -135,19 +135,11 @@
      against the two maple stops. */
   --n-next:#821767; --n-next-fill:rgba(255,255,255,.78);
 
-  /* ZorroMode — the 3:2 pentatonic system's two note groups (3-note "A",
-     2-note "B") plus the ring drawn around a minor shape's root ("ring
-     finger on the root" in the Pickup Music chart). Distinct from every
-     other note-role hue above so a highway never reads as a guide tone. */
-  --n-penta-a:#0EA5E9; --n-penta-b:#E11D48; --n-penta-ring:#FDE047;
-
   /* The "3:2 System" panel (Practice → Fretboard) — the leveled, song-aware
      version of the Pentatonic 3:2 Navigator (src/lib/music/threeTwoSystem.js).
      Exact hex from that reference page (public/reference/pentatonic-32-
      navigator.html), not this app's usual note-role hues — the whole point
-     is that the board reads identically to the standalone page. Distinct
-     namespace from --n-penta-* above (ZorroMode's single-position toggle),
-     which keeps its own sky/rose colors unchanged. */
+     is that the board reads identically to the standalone page. */
   --n-32-blue:#1D9BF0; --n-32-blue-band:#C4E5FB;
   --n-32-red:#E2402F; --n-32-red-band:#F8CCC5;
   --n-32-tension:#FBFAF6; --n-32-tension-stroke:#9AA0A6; --n-32-tension-text:#6B7075;

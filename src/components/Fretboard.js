@@ -54,17 +54,14 @@ export const FRETBOARD_FRETS = FRET_COUNT
 const MAX_ROUTE_FRETS   = 3
 const MAX_ROUTE_STRINGS = 1
 
-export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes = null, view = "chord", tuningName = "Standard", targetNotes = [], passingNotes = [], guideToneNotes = [], guideToneDirections = null, enclosureNotes = [], ghostNotes = [], seventhNotes = [], labelMode = "names", ghostRootNote = null, focusStart = null, focusSpan = 4, animate = false, barSeconds = 0, phaseKey = null, zorroOn = false, zorroCells = null, threeTwo = null }) {
-  // ZorroMode (the Pickup Music "3:2 System") takes the board over
+export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes = null, view = "chord", tuningName = "Standard", targetNotes = [], passingNotes = [], guideToneNotes = [], guideToneDirections = null, enclosureNotes = [], ghostNotes = [], seventhNotes = [], labelMode = "names", ghostRootNote = null, focusStart = null, focusSpan = 4, animate = false, barSeconds = 0, phaseKey = null, threeTwo = null }) {
+  // The "3:2 System" (src/lib/music/threeTwoSystem.js) takes the board over
   // completely when it's on and has something to show — it draws its own
-  // two highways instead of the usual chord/scale dots, so every other
-  // overlay below (ghosts, routes, the fret-focus window) sits out rather
-  // than fighting it for the same neck. Off, or no shape for this chord
-  // quality, and nothing here changes.
-  // threeTwo takes precedence if somehow both are on — page.js keeps them
-  // mutually exclusive, this is just the belt-and-suspenders order.
+  // dots instead of the usual chord/scale ones, so every other overlay
+  // below (ghosts, routes, the fret-focus window) sits out rather than
+  // fighting it for the same neck. Off, or no shape for this chord/level,
+  // and nothing here changes.
   const threeTwoActive = !!threeTwo?.on && Array.isArray(threeTwo?.cells) && threeTwo.cells.length > 0
-  const zorroActive = zorroOn && !threeTwoActive && Array.isArray(zorroCells) && zorroCells.length > 0
 
   // The bar has a shape. Beats 1-2 the chord stands alone; beat 3 the ghosts
   // fade up and the routes start drawing; beat 4 the routes are at full and
@@ -104,7 +101,7 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
 
   // Build note dot list
   let dots = []
-  if (!zorroActive && !threeTwoActive) strings.forEach((open, si) => {
+  if (!threeTwoActive) strings.forEach((open, si) => {
     const openNorm   = norm(open)
     const openChroma = NOTES_FLAT.indexOf(openNorm)
     if (openChroma === -1) return
@@ -160,38 +157,24 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
     }
   })
 
-  // ZorroMode dots — two highways, each cell already resolved to an exact
-  // string/fret by pentatonic32.js, so this just paints them: blue for the
-  // 3-note group, red for the 2-note group, a gold ring on a minor shape's
-  // root ("ring finger on the root").
-  if (zorroActive) {
-    const ZORRO_COLOR = { A: "var(--n-penta-a)", B: "var(--n-penta-b)" }
-    dots = zorroCells.map(c => ({
-      key: `z${c.si}-${c.f}`,
-      cx: dotX(c.f),
-      cy: strY(c.si),
-      r: c.isRingRoot ? 10 : 8.5,
-      color: ZORRO_COLOR[c.group] || "var(--n-penta-a)",
-      label: c.noteName || c.text,
-      text: c.text,
-      si: c.si, f: c.f, held: false,
-      isRoot: false, isTarget: false, isPassing: false, isGuide: false, isEnclosure: false,
-      isZorroRing: !!c.isRingRoot,
-    }))
-  }
-
   // "3:2 System" dots (src/lib/music/threeTwoSystem.js) — Level 0 is a
   // 7-note chord-scale board (root / chord tone / tension, three fixed
   // tiers); Levels 1-3 are a pentatonic (two color groups, root drawn
   // hollow in its own group's pale band, exactly like the reference page).
   // Both branches feed the shared dot-render loop below via the same
-  // color/thirtyTwoStroke/textColor fields zorroActive's dots don't set —
-  // those default away to the ordinary maple stroke and white text there.
+  // color/thirtyTwoStroke/textColor fields the normal board's dots don't
+  // set — those default away to the ordinary maple stroke and white text.
+  //
+  // Sizes are scaled down from the reference page's own (r:16, band
+  // padding ±22, band height 34) by FRET_W's ratio to the reference's own
+  // fret spacing (~53px here vs its 84px) — the reference draws these at a
+  // fret width this board doesn't have, and reusing its raw pixel values
+  // crowded every dot into its neighbors on both strings and frets.
   let threeTwoBands = []
   if (threeTwoActive && threeTwo.kind === "scale") {
     dots = threeTwo.cells.map((c) => ({
       key: `32s${c.si}-${c.f}`,
-      cx: dotX(c.f), cy: strY(c.si), r: c.tier === "tension" ? 12.5 : 15,
+      cx: dotX(c.f), cy: strY(c.si), r: c.tier === "tension" ? 8 : 10.5,
       color: c.tier === "root" ? "var(--n-32-red)" : c.tier === "chord" ? "var(--n-32-blue)" : "var(--n-32-tension)",
       thirtyTwoStroke: c.tier === "tension" ? "var(--n-32-tension-stroke)" : null,
       textColor: c.tier === "tension" ? "var(--n-32-tension-text)" : "#fff",
@@ -205,7 +188,7 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
       const band = c.group === "red" ? "var(--n-32-red-band)" : "var(--n-32-blue-band)"
       return {
         key: `32p${c.si}-${c.f}`,
-        cx: dotX(c.f), cy: strY(c.si), r: c.isRoot ? 16 : 15,
+        cx: dotX(c.f), cy: strY(c.si), r: c.isRoot ? 11.5 : 10.5,
         color: c.isRoot ? band : strong,
         thirtyTwoStroke: c.isRoot ? strong : null,
         textColor: c.isRoot ? strong : "#fff",
@@ -217,7 +200,7 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
     if (Array.isArray(threeTwo.bandRuns)) {
       threeTwoBands = threeTwo.bandRuns.map((r, i) => ({
         key: `32band${i}`,
-        x1: dotX(r.fromF) - 22, x2: dotX(r.toF) + 22, y: strY(r.si),
+        x1: dotX(r.fromF) - 14, x2: dotX(r.toF) + 14, y: strY(r.si),
         color: r.group === "red" ? "var(--n-32-red-band)" : "var(--n-32-blue-band)",
       }))
     }
@@ -236,7 +219,7 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
   // already where your eye is.
   const heldAt = new Set(dots.filter(d => d.held).map(d => `${d.si}:${d.f}`))
   const ghosts = []
-  if (!zorroActive && !threeTwoActive && ghostSet.size) {
+  if (!threeTwoActive && ghostSet.size) {
     strings.forEach((open, si) => {
       const openChroma = NOTES_FLAT.indexOf(norm(open))
       if (openChroma === -1) return
@@ -301,14 +284,9 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
   // The fret focus window. Off (focusStart null) is the default so you can
   // roam. When on, everything outside dims rather than disappearing — you keep
   // your bearings, and the shapes you already know stay recognisable.
-  //
-  // ZorroMode still uses this: it swaps WHICH notes are drawn (the 3:2 shape
-  // instead of chord/scale tones), not whether a window narrows the neck. Two
-  // highways tile the whole board on their own (that's the point of the
-  // octave copies), so without a window they cover almost every fret and the
-  // page reads as "everywhere lit up" rather than "focused." page.js nudges
-  // focusMode from Off to Auto the moment Zorro turns on for exactly this
-  // reason — Zorro without a window isn't a focus mode.
+  // The "3:2 System" ignores this entirely (see threeTwoActive below) — the
+  // reference page it's ported from has no windowing concept, just the whole
+  // neck at even opacity.
   const focusOn = focusStart != null
   const focusLo = focusOn ? focusStart : 0
   const focusHi = focusOn ? focusStart + focusSpan : FRET_COUNT
@@ -416,10 +394,9 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
           strings but under the dots, which manage their own opacity — the
           neck recedes while the shapes on it stay legible.
           The 3:2 System has no window of its own (the reference page draws
-          every fret evenly, full opacity, no focus concept at all) — the
-          nudge-to-Auto effect that turns this on for ZorroMode never fires
-          for threeTwoMode (page.js), but guard here too so a window left on
-          from before threeTwoMode was switched on doesn't wash out half the
+          every fret evenly, full opacity, no focus concept at all) — page.js
+          never nudges focusMode on for it, but guard here too so a window
+          left on from before it was switched on doesn't wash out half the
           diagonal shape. */}
       {focusOn && !threeTwoActive && (
         <g aria-hidden="true">
@@ -467,8 +444,8 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
       {threeTwoActive && threeTwo.kind === "penta" && (
         <g aria-hidden="true">
           {threeTwoBands.map((b) => (
-            <rect key={b.key} x={Math.min(b.x1, b.x2)} y={b.y - 17}
-              width={Math.abs(b.x2 - b.x1)} height={34} rx={17} fill={b.color} />
+            <rect key={b.key} x={Math.min(b.x1, b.x2)} y={b.y - 12}
+              width={Math.abs(b.x2 - b.x1)} height={24} rx={12} fill={b.color} />
           ))}
         </g>
       )}
@@ -489,8 +466,8 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
         // 3rd Hunter the note that moves is the lead-in (drawn in the approach
         // colour), while the lit guide tone is the chord's own 3rd and stays
         // unmarked.
-        const semis = (!zorroActive && !threeTwoActive && guideToneDirections && !drawnResolution.has(d.key)) ? guideToneDirections[d.label] : null
-        const goesTo = (!zorroActive && !threeTwoActive && guideToneDirections) ? guideToneDirections[`${d.label}:to`] : null
+        const semis = (!threeTwoActive && guideToneDirections && !drawnResolution.has(d.key)) ? guideToneDirections[d.label] : null
+        const goesTo = (!threeTwoActive && guideToneDirections) ? guideToneDirections[`${d.label}:to`] : null
         let glyph = null
         if (semis != null) {
           const n = Math.abs(semis)
@@ -515,12 +492,6 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
             <circle cx={d.cx} cy={d.cy} r={d.r} fill={d.color} stroke={d.thirtyTwoStroke || "#3D2A12"} strokeWidth={d.thirtyTwoStroke ? 3 : (d.isRoot ? 1.2 : 0.6)} />
             {d.isEnclosure && (
               <circle cx={d.cx} cy={d.cy} r={d.r + 3} fill="none" stroke="var(--n-enclosure)" strokeWidth={1.4} strokeDasharray="3 2.5" />
-            )}
-            {/* ZorroMode minor root — "ring finger on the root" in the chart. */}
-            {d.isZorroRing && (
-              <circle cx={d.cx} cy={d.cy} r={d.r + 3} fill="none" stroke="var(--n-penta-ring)" strokeWidth={2}>
-                <title>{`${d.label} — root, ring finger`}</title>
-              </circle>
             )}
             {/* Held guide tone — the next chord has it too, so stay put. Drawn
                 inside the dot rather than around it: strings are only ~23px
