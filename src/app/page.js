@@ -2597,7 +2597,20 @@ export default function Home() {
                 silent no-op before). And CONNECT says so, in one line, on
                 the rare occasion it doesn't apply either. */}
             {openControlPanels.fretSettings && (
-              <div className="db-fret-settings" style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "12px" }}>
+              <div className="db-fret-settings" style={{
+                display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "12px", alignItems: "start",
+              }}>
+                {/* Side by side, not stacked — the two groups rarely both run
+                    tall at once (CONNECT is usually two short rows), so
+                    stacking them spent a whole extra screen's worth of height
+                    saying two labels instead of one. Collapses back to a
+                    single column under 760px, where side-by-side would just
+                    wrap every row into an unreadable stack anyway. */}
+                <style>{`
+                  @media (max-width: 760px) {
+                    .db-fret-settings { grid-template-columns: 1fr !important; }
+                  }
+                `}</style>
                 {/* ── PALETTE ──────────────────────────────────────────── */}
                 <div style={{ padding: "10px 12px", background: "var(--surface2)", border: "1px solid var(--line)", borderRadius: "10px" }}>
                   <span style={{ font: "800 10px 'IBM Plex Mono', monospace", color: "var(--muted)", letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: "6px", display: "block" }}>
