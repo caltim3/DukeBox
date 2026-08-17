@@ -1282,7 +1282,10 @@ function gigQuality(suffix) {
   if (/^m9|^min9|^-9/.test(s)) return "min9"
   if (/^m11|^m13/.test(s)) return "min9"
   if (/^(madd9|m\(add9\))/.test(s)) return "minadd9"
-  if (/^(m7|min7|-7|m|min|-)/.test(s)) return "min7"
+  // A bare "m"/"min"/"-" with nothing after it is a plain minor triad, not
+  // an implied m7 — only an explicit "m7"/"min7"/"-7" means the 7th.
+  if (/^(m|min|-)$/.test(s)) return "min"
+  if (/^(m7|min7|-7)/.test(s)) return "min7"
   if (/^(7alt|alt|7#9|7#5|7b5|7#11)/.test(s)) return "7alt"
   if (/^7b9/.test(s)) return "7b9"
   if (/^(7sus4|7sus)/.test(s)) return "7sus4"

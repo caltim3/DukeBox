@@ -63,26 +63,26 @@ export const TAVERN_SET_SONGS = [
       {
         "name": "Verse",
         "chords": [
-          "Gmaj7",
-          "Gmaj7",
-          "Cmaj7",
-          "Cmaj7",
-          "Gmaj7",
-          "Gmaj7",
-          "Cmaj7",
-          "Cmaj7"
+          "G",
+          "G",
+          "C",
+          "C",
+          "G",
+          "G",
+          "C",
+          "C"
         ]
       },
       {
         "name": "Chorus",
         "chords": [
-          "Em7",
-          "Em7",
-          "Cmaj7",
-          "Cmaj7",
-          "Em7",
-          "Em7",
-          "Cmaj7",
+          "Em",
+          "Em",
+          "C",
+          "C",
+          "Em",
+          "Em",
+          "C",
           "D"
         ]
       }
@@ -1082,8 +1082,8 @@ export const TAVERN_SET_SONGS = [
         "chords": [
           "G",
           "G",
-          "Am7",
-          "Am7",
+          "Am",
+          "Am",
           "D7",
           "D7",
           "G",
