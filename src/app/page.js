@@ -148,6 +148,13 @@ export default function Home() {
   // range, only running again if it was running before.
   const [freezeMode, setFreezeMode] = useState(false)
   const freezeWasPlayingRef = useRef(false)
+  // Focus's Now + Coming Up strip has no chart ribbon to freeze from, so it
+  // gets its own snapshot of the five chords on screen the moment freeze
+  // goes on — the Now tile plus the four Coming Up tiles. Holding this list
+  // still (rather than recomputing Coming Up live off whichever chord is
+  // currently toggled) is what lets "any of the 5 shown chords" stay put as
+  // the thing you're choosing between, instead of reshuffling on every tap.
+  const [freezeChordIndices, setFreezeChordIndices] = useState(null)
 
   const [keyRoot, setKeyRoot] = useState("Bb")
   const [keyMode, setKeyMode] = useState("major")
@@ -1178,7 +1185,21 @@ export default function Home() {
     setTempo(t); setOriginalTempo(t)
     setActiveGigSongId(songId ?? null)
     setActiveSongTitle(title ?? null)
-    if (autoplay) pendingStartRef.current = true
+    if (autoplay) {
+      pendingStartRef.current = true
+      // Gig songbook's "Latest 10 Played" playlist — only real catalog tunes
+      // (a songId) count, and only when actually played, not just loaded
+      // into the editor. Most-recent-first, de-duped, capped, rides along
+      // with the synced library so it follows you across devices (same
+      // pattern as promptHistory above).
+      if (songId) {
+        setLibrary(lib => {
+          const prev = lib.prefs?.recentlyPlayedIds ?? []
+          const next = [songId, ...prev.filter(id => id !== songId)].slice(0, 10)
+          return { ...lib, prefs: { ...lib.prefs, recentlyPlayedIds: next } }
+        })
+      }
+    }
   }
 
   function toggleControlPanel(panelName) {
@@ -1370,10 +1391,14 @@ export default function Home() {
   function toggleFreeze() {
     if (!freezeMode) {
       freezeWasPlayingRef.current = isPlaying
+      // Now tile first, then the four Coming Up tiles — same order they're
+      // already reading top to bottom / left to right on screen.
+      setFreezeChordIndices([fretboardBarIndex, ...upcomingBarIndices.map((u) => u.index)])
       if (isPlaying) stopPlayback()
       setFreezeMode(true)
     } else {
       setFreezeMode(false)
+      setFreezeChordIndices(null)
       if (freezeWasPlayingRef.current) {
         freezeWasPlayingRef.current = false
         startPlayback().catch(console.error)
@@ -2943,17 +2968,28 @@ export default function Home() {
               })()}
               <div
                 aria-live="polite"
+                // Freeze's Now tile is chord #1 of the 5 shown — clicking it
+                // while frozen goes back to the chord that was sounding when
+                // you hit the snowflake; clicking it when it's already the
+                // frozen one previews it instead, same double-tap language
+                // ChartRibbon's freeze uses.
+                onClick={freezeMode ? () => {
+                  const idx = freezeChordIndices?.[0] ?? fretboardBarIndex
+                  if (idx === selectedIndex) previewChordAt(idx); else setSelectedIndex(idx)
+                } : undefined}
+                title={freezeMode ? (fretboardBarIndex === selectedIndex && fretboardBarIndex === (freezeChordIndices?.[0] ?? -1) ? "Tap again to hear this chord" : "Tap to freeze on this chord") : undefined}
                 style={{
                   textAlign: "center", lineHeight: 1.1,
                   padding: "10px 18px", borderRadius: "var(--db-r-md)",
-                  border: `2px solid ${(isPlaying && playheadIndex !== null) ? "var(--n-root)" : "var(--line)"}`,
+                  border: `2px solid ${freezeMode ? "var(--info)" : (isPlaying && playheadIndex !== null) ? "var(--n-root)" : "var(--line)"}`,
                   background: "var(--surface)",
                   minWidth: "200px",
                   flexShrink: 0,
+                  cursor: freezeMode ? "pointer" : "default",
                 }}
               >
-                <div style={{ font: "700 10.5px 'IBM Plex Mono', monospace", letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--muted)", marginBottom: "2px" }}>
-                  {(isPlaying && playheadIndex !== null) ? "Now" : "Selected"} · Bar {barLabels[fretboardBarIndex] ?? fretboardBarIndex + 1}
+                <div style={{ font: "700 10.5px 'IBM Plex Mono', monospace", letterSpacing: "0.16em", textTransform: "uppercase", color: freezeMode ? "var(--info)" : "var(--muted)", marginBottom: "2px" }}>
+                  {freezeMode ? "❄ Frozen" : (isPlaying && playheadIndex !== null) ? "Now" : "Selected"} · Bar {barLabels[fretboardBarIndex] ?? fretboardBarIndex + 1}
                 </div>
                 {/* Burnt red, the same --n-root the board draws the root with, so
                     the chord you are on reads as one thing across both. */}
@@ -3003,39 +3039,56 @@ export default function Home() {
                   the row reads as distance: the chord you're about to play is
                   nearly as loud as NOW, and the one four bars out is a hint you
                   can take in without looking straight at it. */}
-              {upcomingBarIndices.length > 0 && (
+              {/* While frozen this reads off the snapshot Freeze took instead of
+                  the live lookahead, so the four tiles hold still — otherwise
+                  toggling which chord is frozen would re-anchor "coming up" to
+                  the new selection and the row would reshuffle under your thumb. */}
+              {(() => {
+                const comingUpList = (freezeMode && freezeChordIndices)
+                  ? freezeChordIndices.slice(1).map((index, i) => ({ index, stepsAway: i + 1 }))
+                  : upcomingBarIndices
+                if (comingUpList.length === 0) return null
+                return (
                 <div style={{
                   background: "var(--surface)", border: "1px solid var(--line)",
                   borderRadius: "var(--db-r-md)", padding: "8px 12px",
                   display: "flex", flexDirection: "column", justifyContent: "center",
                   minWidth: 0, flexShrink: 0, overflow: "hidden",
                 }}>
-                  <div style={{ font: "800 9.5px 'Archivo', sans-serif", letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--muted)", marginBottom: "6px" }}>
-                    Coming up
+                  <div style={{ font: "800 9.5px 'Archivo', sans-serif", letterSpacing: "0.16em", textTransform: "uppercase", color: freezeMode ? "var(--info)" : "var(--muted)", marginBottom: "6px" }}>
+                    {freezeMode ? "❄ Tap to freeze" : "Coming up"}
                   </div>
                   <div style={{ display: "flex", gap: "5px", alignItems: "stretch" }}>
-                    {upcomingBarIndices.map(({ index, stepsAway }, i) => {
+                    {comingUpList.map(({ index, stepsAway }, i) => {
                       // One ramp drives size, weight and fade together — mixing
                       // separate per-tile values drifts out of step the moment
                       // the count changes.
                       const near = 1 - i * 0.22        // 1 · .78 · .56 · .34
+                      const isFrozenPick = freezeMode && index === selectedIndex
                       return (
-                        <div key={i} style={{
-                          background: "var(--surface2)",
-                          border: `1px solid ${i === 0 ? "var(--info)" : "var(--line)"}`,
-                          borderRadius: "8px",
-                          padding: `${4 + Math.round(near * 3)}px ${4 + Math.round(near * 6)}px`,
-                          textAlign: "center",
-                          minWidth: `${46 + Math.round(near * 26)}px`,
-                          alignSelf: "center",
-                          opacity: 0.5 + near * 0.5,
-                        }}>
+                        <div
+                          key={i}
+                          onClick={freezeMode ? () => {
+                            if (index === selectedIndex) previewChordAt(index); else setSelectedIndex(index)
+                          } : undefined}
+                          title={freezeMode ? (isFrozenPick ? "Tap again to hear this chord" : "Tap to freeze on this chord") : undefined}
+                          style={{
+                            background: "var(--surface2)",
+                            border: isFrozenPick ? "2px solid var(--info)" : `1px solid ${!freezeMode && i === 0 ? "var(--info)" : "var(--line)"}`,
+                            borderRadius: "8px",
+                            padding: `${4 + Math.round(near * 3)}px ${4 + Math.round(near * 6)}px`,
+                            textAlign: "center",
+                            minWidth: `${46 + Math.round(near * 26)}px`,
+                            alignSelf: "center",
+                            opacity: 0.5 + near * 0.5,
+                            cursor: freezeMode ? "pointer" : "default",
+                          }}>
                           <span style={{
                             font: `600 ${(7 + near * 1.5).toFixed(1)}px 'IBM Plex Mono', monospace`,
-                            color: i === 0 ? "var(--info)" : "var(--muted)",
+                            color: isFrozenPick ? "var(--info)" : (!freezeMode && i === 0) ? "var(--info)" : "var(--muted)",
                             letterSpacing: "0.14em", textTransform: "uppercase", display: "block",
                           }}>
-                            {i === 0 ? "Next" : "Then"}
+                            {isFrozenPick ? "❄" : i === 0 ? "Next" : "Then"}
                           </span>
                           <div style={{ font: `800 ${(11 + near * 8).toFixed(1)}px 'IBM Plex Mono', monospace`, marginTop: "2px", letterSpacing: "-0.01em" }}>
                             {bars[index]?.symbol}
@@ -3048,6 +3101,36 @@ export default function Home() {
                     })}
                   </div>
                 </div>
+                )
+              })()}
+
+              {/* Freeze — Focus has no chart ribbon to freeze from (that's a
+                  Cockpit-only control), so it gets its own trigger here: a
+                  small square right of Coming Up. Stops the band and turns
+                  the 5 chords above (Now + the 4 Coming Up tiles) into a
+                  silent practice pad — tap one to hold its scale on the neck,
+                  tap the held one again to hear just that chord. Hitting the
+                  snowflake again drops the freeze and, if the band was
+                  playing when you froze it, picks back up at that same tempo. */}
+              {focusStage && (
+                <button
+                  onClick={toggleFreeze}
+                  aria-pressed={freezeMode}
+                  title={freezeMode
+                    ? "Unfreeze — picks the band back up at the tempo that just stopped"
+                    : "Freeze — stop the band, tap any of the 5 chords above to hold its scale on the neck"}
+                  style={{
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    width: "38px", height: "38px", flexShrink: 0, alignSelf: "center",
+                    borderRadius: "var(--db-r-md)",
+                    border: `1px solid ${freezeMode ? "var(--info)" : "var(--line)"}`,
+                    background: freezeMode ? "var(--info)" : "var(--surface)",
+                    color: freezeMode ? "#FFF" : "var(--info)",
+                    fontSize: "17px", lineHeight: 1, cursor: "pointer",
+                  }}
+                >
+                  ❄
+                </button>
               )}
             </div>
 

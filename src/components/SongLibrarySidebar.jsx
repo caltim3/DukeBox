@@ -9,6 +9,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import { buildCatalog } from "@/lib/music/songSource"
+import { BUILTIN_PLAYLISTS, resolveActiveList } from "@/lib/music/playlists"
 
 const THEME = {
   panel: "var(--surface)", ink: "var(--text)", muted: "var(--muted)",
@@ -18,17 +19,33 @@ const THEME = {
 export default function SongLibrarySidebar({
   library, setLibrary, selectedId = null, onSelect,
   autoSelectFirst = false, preferId = null, selectStyle, searchShortcutHook,
+  // Two-row pill strip alongside the dropdown, one tap per built-in playlist
+  // or setlist — off by default so the global "/" drawer keeps its narrower,
+  // dropdown-only picker; the Gig tab turns it on.
+  showPills = false,
 }) {
   const theme = THEME
-  const setlists = library?.setlists ?? []
+  // Memoized (rather than `library?.setlists ?? []` inline) so a missing
+  // `setlists` array doesn't hand the resolved-list useMemo below a fresh
+  // empty array reference every render.
+  const setlists = useMemo(() => library?.setlists ?? [], [library?.setlists])
   const librarySongs = library?.songs
+  const recentlyPlayedIds = library?.prefs?.recentlyPlayedIds
 
   const pool = useMemo(() => buildCatalog(librarySongs ?? []), [librarySongs])
   const poolById = useMemo(() => Object.fromEntries(pool.map(s => [s.id, s])), [pool])
 
   const [query, setQuery] = useState("")
-  const [activeSetlist, setActiveSetlist] = useState(null)   // setlist id or null (all songs)
+  // "" (all tunes) | `playlist:<id>` (a built-in above) | `setlist:<id>` (a user setlist)
+  const [activeList, setActiveList] = useState("")
   const dragIdx = useRef(null)
+
+  const resolved = useMemo(
+    () => resolveActiveList(activeList, { pool, poolById, setlists, recentlyPlayedIds }),
+    [activeList, pool, poolById, setlists, recentlyPlayedIds]
+  )
+  const currentSetlist = resolved?.editable ? resolved.setlist : null
+  const currentPlaylist = resolved && !resolved.editable ? resolved.playlist : null
 
   // Opens onto whatever's already loaded in the engine (`preferId`, e.g.
   // Gig Mode's activeSongId) when nothing is selected yet, falling back to
@@ -43,19 +60,21 @@ export default function SongLibrarySidebar({
     if (pick) onSelect?.(pick)
   }, [autoSelectFirst, selectedId, preferId, pool, poolById, onSelect])
 
+  // Searching always runs within whatever's active — the whole catalog for
+  // "All tunes" or a built-in playlist, nothing for a setlist (that has its
+  // own "add tunes" search further down, since a setlist is a picked set of
+  // songIds rather than something to filter into).
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    if (!q) return pool
-    return pool.filter(s =>
+    const base = currentPlaylist ? resolved.songs : pool
+    if (!q) return base
+    return base.filter(s =>
       s.title.toLowerCase().includes(q) ||
       (s.refArtist || "").toLowerCase().includes(q) ||
       (s.source || "").toLowerCase().includes(q))
-  }, [pool, query])
+  }, [pool, query, currentPlaylist, resolved])
 
-  const currentSetlist = setlists.find(s => s.id === activeSetlist) || null
-  const setlistSongs = currentSetlist
-    ? currentSetlist.songIds.map(id => poolById[id]).filter(Boolean)
-    : null
+  const setlistSongs = currentSetlist ? resolved.songs : null
   const listForPool = setlistSongs ?? filtered
 
   // ── Setlist mutations (persist through the synced library) ──
@@ -64,11 +83,11 @@ export default function SongLibrarySidebar({
     if (!name?.trim()) return
     const id = `sl-${Date.now()}`
     setLibrary(lib => ({ ...lib, setlists: [...(lib.setlists || []), { id, name: name.trim(), songIds: [], updatedAt: Date.now() }] }))
-    setActiveSetlist(id)
+    setActiveList(`setlist:${id}`)
   }
   function deleteSetlist(id) {
     setLibrary(lib => ({ ...lib, setlists: (lib.setlists || []).filter(s => s.id !== id) }))
-    if (activeSetlist === id) setActiveSetlist(null)
+    if (currentSetlist?.id === id) setActiveList("")
   }
   function toggleInSetlist(songId) {
     if (!currentSetlist) return
@@ -107,18 +126,46 @@ export default function SongLibrarySidebar({
     <div style={{ minWidth: 0 }}>
       <div style={{ display: "flex", gap: "6px", alignItems: "center", marginBottom: "8px" }}>
         <select
-          value={activeSetlist ?? ""}
-          onChange={e => setActiveSetlist(e.target.value || null)}
+          value={activeList}
+          onChange={e => setActiveList(e.target.value)}
           style={{ ...selectStyle, flex: 1, padding: "6px 8px", background: theme.panel, color: theme.ink, border: `1px solid ${theme.line}` }}
         >
           <option value="">All tunes ({pool.length})</option>
-          {setlists.map(s => <option key={s.id} value={s.id}>{s.name} ({s.songIds.length})</option>)}
+          <optgroup label="Playlists">
+            {BUILTIN_PLAYLISTS.map(p => <option key={p.id} value={`playlist:${p.id}`}>{p.label}</option>)}
+          </optgroup>
+          {setlists.length > 0 && (
+            <optgroup label="Your setlists">
+              {setlists.map(s => <option key={s.id} value={`setlist:${s.id}`}>{s.name} ({s.songIds.length})</option>)}
+            </optgroup>
+          )}
         </select>
-        <button onClick={addSetlist} style={ghostBtn(theme)} aria-label="Create a new setlist" title="New setlist">＋</button>
+        <button onClick={addSetlist} style={ghostBtn(theme)} aria-label="Create a new playlist" title="New playlist">＋</button>
         {currentSetlist && (
           <button onClick={() => deleteSetlist(currentSetlist.id)} style={ghostBtn(theme)} aria-label={`Delete setlist ${currentSetlist.name}`} title="Delete this setlist">🗑</button>
         )}
       </div>
+
+      {/* One tap per playlist instead of opening the dropdown — the built-ins
+          first (Songbook's five FORM_CATEGORIES slices among them), then
+          whatever setlists exist, then a shortcut to start a new one. Short
+          labels + wrap keep this to about two rows at the sidebar's width. */}
+      {showPills && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", marginBottom: "8px" }}>
+          <PlaylistPill active={activeList === ""} onClick={() => setActiveList("")} theme={theme}>All</PlaylistPill>
+          {BUILTIN_PLAYLISTS.map(p => (
+            <PlaylistPill key={p.id} active={activeList === `playlist:${p.id}`} onClick={() => setActiveList(`playlist:${p.id}`)} theme={theme}>
+              {p.label}
+            </PlaylistPill>
+          ))}
+          {setlists.map(s => (
+            <PlaylistPill key={s.id} active={activeList === `setlist:${s.id}`} onClick={() => setActiveList(`setlist:${s.id}`)} theme={theme}>
+              {s.name}
+            </PlaylistPill>
+          ))}
+          <PlaylistPill onClick={addSetlist} theme={theme} title="Create a new playlist">＋ New</PlaylistPill>
+        </div>
+      )}
 
       {!currentSetlist && (
         <input
@@ -134,6 +181,12 @@ export default function SongLibrarySidebar({
       {currentSetlist && (
         <div style={{ fontSize: "0.72rem", color: theme.muted, marginBottom: "6px" }}>
           Drag to reorder tonight&apos;s set. Add tunes from “All tunes”.
+        </div>
+      )}
+
+      {listForPool.length === 0 && (
+        <div style={{ fontSize: "0.78rem", color: theme.muted, padding: "10px 2px" }}>
+          {currentPlaylist?.recent ? "Nothing played yet — play a tune and it'll show up here." : "No tunes in this playlist yet."}
         </div>
       )}
 
@@ -198,4 +251,23 @@ function ghostBtn(theme) {
     padding: "5px 10px", borderRadius: "8px", cursor: "pointer", fontSize: "0.8rem",
     background: "transparent", color: theme.ink, border: `1px solid ${theme.line}`,
   }
+}
+
+function PlaylistPill({ active, onClick, theme, title, children }) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      aria-pressed={active}
+      style={{
+        font: "600 10.5px 'Instrument Sans', sans-serif", whiteSpace: "nowrap",
+        padding: "4px 9px", borderRadius: "999px", cursor: "pointer",
+        background: active ? theme.accent : "transparent",
+        color: active ? "var(--accent-ink)" : theme.ink,
+        border: `1px solid ${active ? theme.accent : theme.line}`,
+      }}
+    >
+      {children}
+    </button>
+  )
 }
