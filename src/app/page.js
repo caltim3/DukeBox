@@ -493,6 +493,7 @@ export default function Home() {
     const { cells, bandRuns } = buildPentaBoard({
       rootNote: threeTwoChoice.rootNote, family: threeTwoChoice.family,
       tuningName: fretboardTuning, labelMode,
+      markBlueNote: threeTwoChoice.blueNote,
     })
     return { kind: "penta", cells, bandRuns }
   }, [threeTwoMode, threeTwoLevel, fretboardBar, threeTwoChoice, fretboardTuning, labelMode])

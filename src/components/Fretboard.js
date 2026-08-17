@@ -184,7 +184,11 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
     }))
   } else if (threeTwoActive && threeTwo.kind === "penta") {
     dots = threeTwo.cells.map((c) => {
-      const strong = c.group === "red" ? "var(--n-32-red)" : "var(--n-32-blue)"
+      // The blue note (b3 of a minor pentatonic chased onto a dominant
+      // chord's own root) gets called out in light green instead of its
+      // usual blue/red group color — everything else on the board is
+      // untouched.
+      const strong = c.isBlueNote ? "var(--n-32-green)" : c.group === "red" ? "var(--n-32-red)" : "var(--n-32-blue)"
       const band = c.group === "red" ? "var(--n-32-red-band)" : "var(--n-32-blue-band)"
       return {
         key: `32p${c.si}-${c.f}`,
