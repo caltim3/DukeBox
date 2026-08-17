@@ -6,7 +6,7 @@ import { DESERT_NOIR_FORMS, DESERT_NOIR_META } from "./desertNoir"
 // ─── bar helpers ──────────────────────────────────────────────────────────────
 function b(root, quality, section = "A") {
   const sym = {
-    maj7: "maj7", min7: "m7", "7": "7", min7b5: "m7b5",
+    maj: "", min: "m", maj7: "maj7", min7: "m7", "7": "7", min7b5: "m7b5",
     dim7: "dim7", "7alt": "7alt", maj6: "6", min6: "m6",
   }
   return { root, quality, symbol: `${root}${sym[quality] ?? quality}`, section }
@@ -19,7 +19,7 @@ const EH = {
 }
 
 const QSYM = {
-  maj7:"maj7", min7:"m7", "7":"7", min7b5:"m7b5",
+  maj:"", min:"m", maj7:"maj7", min7:"m7", "7":"7", min7b5:"m7b5",
   dim7:"dim7", "7alt":"7alt", maj6:"6", min6:"m6",
 }
 
@@ -29,7 +29,12 @@ function qual(suffix) {
     .replace(/\/[A-G][b#]?\d*$/, "") // strip slash bass like /G or /Eb
     .trim()
 
-  if (!s || s === "maj" || s === "sus" || s === "sus4" || s === "sus2"
+  // A bare letter or bare "m" — "C", "Am" — means exactly that: a plain
+  // triad. Nothing here asked for a 7th; writing "Cmaj7"/"Am7" explicitly
+  // is how a chart asks for one. Silently promoting the bare form to one
+  // was the bug behind "everything sounds like a 7th chord now."
+  if (!s || s === "maj") return "maj"
+  if (s === "sus" || s === "sus4" || s === "sus2"
          || s === "add9" || s === "add2") return "maj7"
   if (s === "6" || s === "maj6" || s === "6/9") return "maj6"
   if (s === "m6" || s === "min6") return "min6"
@@ -39,7 +44,7 @@ function qual(suffix) {
   if ((s.includes("m") || s.startsWith("-")) && (s.includes("b5") || s.includes("ø"))) return "min7b5"
   if (s.includes("alt") || (s.includes("7") && s.includes("#9"))
       || (s.includes("7") && s.includes("#5"))) return "7alt"
-  if (s === "m" || s === "min" || s === "-") return "min7"
+  if (s === "m" || s === "min" || s === "-") return "min"
   if (s.startsWith("m") && !s.startsWith("ma")) return "min7"
   if (s.startsWith("min")) return "min7"
   if (s.includes("7") || s.includes("9") || s.includes("11") || s.includes("13")) return "7"
@@ -787,18 +792,18 @@ const LIMEHOUSE_BLUES = {
 const SOMETHING_BEATLES = {
   keyRoot: "C", keyMode: "major", tempo: 66,
   bars: [
-    ...s("C"),    ...s("Cmaj7"),...s("C7"),   ...s("F"),
-    ...s("D7"),   ...s("G"),    ...s("Am"),   ...s("Am7"),
-    ...s("Am7"),  ...s("D7"),   ...s("F"),    ...s("Eb G"),
+    ...s("C"),    ...s("C"),    ...s("C7"),   ...s("F"),
+    ...s("D7"),   ...s("G"),    ...s("Am"),   ...s("Am"),
+    ...s("Am"),   ...s("D7"),   ...s("F"),    ...s("Eb G"),
   ],
 }
 
 const LET_IT_BE = {
   keyRoot: "C", keyMode: "major", tempo: 143,
   bars: [
-    ...s("C"),  ...s("G"),    ...s("Am Am7"), ...s("Fmaj7 F6"),
+    ...s("C"),  ...s("G"),    ...s("Am"),     ...s("F F6"),
     ...s("C"),  ...s("G"),    ...s("F"),      ...s("C"),
-    ...s("C"),  ...s("G"),    ...s("Am Am7"), ...s("Fmaj7 F6"),
+    ...s("C"),  ...s("G"),    ...s("Am"),     ...s("F F6"),
     ...s("C"),  ...s("G"),    ...s("F"),      ...s("C"),
     ...s("Am"), ...s("G"),    ...s("F"),      ...s("C"),
     ...s("C"),  ...s("G"),    ...s("F"),      ...s("C"),
@@ -824,8 +829,8 @@ const HEY_JUDE = {
 const BLACK_MAGIC_WOMAN = {
   keyRoot: "D", keyMode: "minor", tempo: 120,
   bars: [
-    ...s("Dm7"), ...s("Am7"), ...s("Dm7"), ...s("Gm"),
-    ...s("Dm7"), ...s("A7"),  ...s("Dm7"),
+    ...s("Dm"),  ...s("Am"),  ...s("Dm"),  ...s("Gm"),
+    ...s("Dm"),  ...s("A7"),  ...s("Dm"),
   ],
 }
 
@@ -900,10 +905,10 @@ const BB_SAME_OLD_BLUES = {
   keyRoot: "D", keyMode: "major", tempo: 100,
   bars: [
     ...s("D"), ...s("F#7"), ...s("Bm"), ...s("Bm"),
-    ...s("D"), ...s("F#7"), ...s("Bm"), ...s("Am7 D9"),
+    ...s("D"), ...s("F#7"), ...s("Bm"), ...s("Am D9"),
     ...s("G"), ...s("G#dim"),
-    { root: "D", quality: "maj7", symbol: "Dmaj7/A", section: "A", beats: 2, bass: "A" },
-    { root: "D", quality: "maj7", symbol: "Dmaj7/C", section: "A", beats: 2, bass: "C" },
+    { root: "D", quality: "maj", symbol: "D/A", section: "A", beats: 2, bass: "A" },
+    { root: "D", quality: "maj", symbol: "D/C", section: "A", beats: 2, bass: "C" },
     ...s("B7"),
     ...s("E7"), ...s("A7"), ...s("D"), ...s("A7"),
   ],
