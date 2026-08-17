@@ -143,6 +143,7 @@
   --n-32-blue:#1D9BF0; --n-32-blue-band:#C4E5FB;
   --n-32-red:#E2402F; --n-32-red-band:#F8CCC5;
   --n-32-tension:#FBFAF6; --n-32-tension-stroke:#9AA0A6; --n-32-tension-text:#6B7075;
+  --n-32-green:#5FE08C; /* the blue note: b3 of a minor pentatonic chased onto a dominant chord's own root */
 
   /* Melody Paths — always dark navy */
   --mp-bg:#0F172A; --mp-surface:#1E293B; --mp-line:#334155;

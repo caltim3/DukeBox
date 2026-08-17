@@ -162,6 +162,13 @@ export function resolvePentaChoice({ bar, ctxEntry, levelId, formType, tonicBar 
 
   const bluesy = BLUES_TYPES.has(formType)
 
+  // The blue note: a minor pentatonic rooted on the dominant chord's own
+  // root has a b3 that's the classic "worried" third — the flat 3rd bent
+  // toward the major 3rd baked into the chord itself. True only when the
+  // shape is actually chasing this chord's own root (not a color/altered
+  // shape rooted somewhere else), and only over a dominant-quality chord.
+  const isBlueNote = (family, rNote) => family === "m" && bucket === "dominant" && rNote === root
+
   function chase() {
     if (bucket === "major") {
       return { family: "M", rootNote: root, why: `${root} major pentatonic — the chord's own shape.` }
@@ -201,6 +208,7 @@ export function resolvePentaChoice({ bar, ctxEntry, levelId, formType, tonicBar 
     return {
       usable: true, family, rootNote: tRoot,
       why: `${tRoot} ${family === "M" ? "major" : "minor"} pentatonic — the I chord's shape, blanketed over the whole form.`,
+      blueNote: isBlueNote(family, tRoot),
     }
   }
 
@@ -209,7 +217,7 @@ export function resolvePentaChoice({ bar, ctxEntry, levelId, formType, tonicBar 
   else if (levelId === 2) choice = bluesy ? chase() : color()
   else choice = altered()
 
-  return { usable: true, ...choice }
+  return { usable: true, ...choice, blueNote: isBlueNote(choice.family, choice.rootNote) }
 }
 
 // ─── Fretboard geometry ─────────────────────────────────────────────────────
@@ -240,7 +248,7 @@ export const PENTA_LEGEND = {
  * matches (naturally tiling every octave, no manual position table needed),
  * then group consecutive same-color frets on a string into a band.
  */
-export function buildPentaBoard({ rootNote, family, tuningName = "Standard", labelMode = "names", fretCount = FRETBOARD_FRETS }) {
+export function buildPentaBoard({ rootNote, family, tuningName = "Standard", labelMode = "names", fretCount = FRETBOARD_FRETS, markBlueNote = false }) {
   const ivs = PENTA_IVS[family]
   const rootChroma = Note.chroma(rootNote)
   if (!ivs || rootChroma == null) return { cells: [], bandRuns: [] }
@@ -263,6 +271,10 @@ export function buildPentaBoard({ rootNote, family, tuningName = "Standard", lab
       cells.push({
         si, f: p.f, group: def.group, isRoot: !!def.root,
         noteName: p.note, text: labelMode === "degrees" ? def.deg : p.note,
+        // The b3 of a minor pentatonic chased onto a dominant chord's own
+        // root — the blue note, called out so the player leans into
+        // bending/tweaking it rather than reading it as a plain color tone.
+        isBlueNote: markBlueNote && family === "m" && iv === 3,
       })
       if (run && run.group === def.group && p.f - run.lastF <= 4) {
         run.toF = p.f; run.lastF = p.f
