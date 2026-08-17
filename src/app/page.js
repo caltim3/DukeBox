@@ -30,6 +30,7 @@ import { downloadImprovGuide, buildImprovMapData } from "@/lib/music/improvGuide
 import { DRUM_KIT_NAMES, DEFAULT_DRUM_KIT } from "@/lib/music/samples"
 import { parseTonalUserSongs } from "@/lib/music/importTonal"
 import { parseGigChord, GIGBOOK_SONGS, gigSongToBars, parseGigKey, gigTempoNumber } from "@/lib/music/gigbook"
+import { upsertLibrarySong, catalogEntryToPlayable, OPEN_LIBRARY_EVENT, ENTER_FOCUS_EVENT, GO_GIG_EVENT } from "@/lib/music/songSource"
 import { guidedPrescription, drillStage, nextKeyInCycle, DRILL_LOOPS_PER_STAGE, PENA_DRILLS } from "@/lib/music/penaDrills"
 import { STARTER_PRESETS, STARTER_STRIP, LOAD_STARTER_EVENT } from "@/lib/music/starters"
 import Fretboard, { fretPositions, FRETBOARD_FRETS } from "@/components/Fretboard"
@@ -290,6 +291,13 @@ export default function Home() {
     document.body.classList.toggle("db-focus-mode", focusStage)
     return () => document.body.classList.remove("db-focus-mode")
   }, [focusStage])
+
+  // Stamped on <body> so KeyboardShortcuts.jsx — a standalone component with
+  // no props into this one — can tell whether "1" should jump into Focus
+  // (playing) or behave as a plain workspace switch (not playing).
+  useEffect(() => {
+    document.body.dataset.dbPlaying = isPlaying ? "true" : "false"
+  }, [isPlaying])
 
   const exitFocusMode = useCallback(() => {
     choosePracticeView("cockpit")
@@ -837,16 +845,20 @@ export default function Home() {
     if (selectedIndex > index) setSelectedIndex((s) => s + 1)
   }
 
+  // Sets activeGigSongId to the same `form:`/`user:` id buildCatalog() would
+  // give this tune, rather than always nulling it — otherwise a chart
+  // loaded here (Songbook forms, the starter strip's named presets) doesn't
+  // show as loaded when you switch to Gig, even though it's in the catalog.
   function loadForm(formName, { exitPractice = false } = {}) {
     setSelectedForm(formName)
-    setActiveGigSongId(null)
-    setActiveSongTitle(null)
     if (exitPractice) {
       practiceModeRef.current = false
       setPracticeMode(false)
     }
     const form = FORMS[formName]
     if (form) {
+      setActiveGigSongId(`form:${formName}`)
+      setActiveSongTitle(formName)
       setBars(form.bars)
       setKeyRoot(form.keyRoot)
       setChartKey(form.keyRoot)
@@ -861,6 +873,8 @@ export default function Home() {
     }
     const userEntry = userLibrary.find((e) => e.name === formName)
     if (userEntry) {
+      setActiveGigSongId(`user:${formName}`)
+      setActiveSongTitle(formName)
       setBars(userEntry.bars)
       setKeyRoot(userEntry.keyRoot || "C")
       setChartKey(userEntry.keyRoot || "C")
@@ -871,7 +885,12 @@ export default function Home() {
       const t = userEntry.tempo || 110
       setTempo(t)
       setOriginalTempo(t)
+      return
     }
+    // Neither a known Songbook form nor a saved song (e.g. "Custom") —
+    // nothing catalog-backed is loaded.
+    setActiveGigSongId(null)
+    setActiveSongTitle(null)
   }
 
   // A search hit can be a Songbook form, a library chart, or a Gig Book tune.
@@ -883,7 +902,7 @@ export default function Home() {
       const bars = gigSongToBars(row.gig)
       if (!bars.length) { showToast(`No changes stored for "${row.name}"`); return }
       const { keyRoot: k, keyMode: m } = parseGigKey(row.gig.key)
-      loadGigSong({
+      loadSong({
         bars, keyRoot: k, keyMode: m,
         tempo: gigTempoNumber(row.gig.tempo),
         songId: `gig:${row.gig.id}`,
@@ -893,6 +912,17 @@ export default function Home() {
       return
     }
     loadForm(name, { exitPractice: true })
+  }
+
+  // The unified library's pick handler (SongLibrarySidebar, via the "/"
+  // drawer) — same job as loadSearchPick above, but for a catalog entry
+  // (My Library / Gig Book / Tavern Set / Songbook, whichever it came from)
+  // instead of a Songbook-form name + Gig Book row pair.
+  function loadCatalogEntry(entry, opts) {
+    const { bars, keyRoot, keyMode, tempo } = catalogEntryToPlayable(entry)
+    if (!bars.length) { showToast(`No changes stored for "${entry.title}"`); return }
+    logActivity({ label: entry.title, subtitle: entry.source, art: "changes", action: { type: "songbook" } })
+    loadSong({ bars, keyRoot, keyMode, tempo, title: entry.title, songId: entry.id, ...opts })
   }
 
   function handleTransposeChart() {
@@ -1036,27 +1066,15 @@ export default function Home() {
   }
 
   function saveSongSheetToLibrary(draft) {
-    const name = draft.title.trim()
-    if (!name || !draft.bars.length) return
-    const entry = {
-      name,
-      bars: draft.bars.map((bar) => ({ ...bar })),
-      keyRoot: draft.keyRoot,
-      keyMode: draft.keyMode,
-      tempo: draft.tempo,
-      updatedAt: Date.now(),
-    }
-    setLibrary((lib) => ({
-      ...lib,
-      songs: [...(lib.songs || []).filter((song) => song.name !== entry.name), entry],
-    }))
+    const entry = upsertLibrarySong(setLibrary, draft)
+    if (!entry) return
     setSelectedForm(entry.name)
     setSongSheetDraft((current) => current ? { ...current, updatedAt: entry.updatedAt } : current)
     showToast(`Saved ${entry.name} to My Library`)
   }
 
   function openSongSheetInPractice(draft) {
-    loadGigSong({
+    loadSong({
       bars: draft.bars.map((bar) => ({ ...bar })),
       keyRoot: draft.keyRoot,
       keyMode: draft.keyMode,
@@ -1068,16 +1086,28 @@ export default function Home() {
     })
   }
 
-  function removeFromLibrary(name) {
-    setLibrary(lib => ({ ...lib, songs: lib.songs.filter(e => e.name !== name) }))
-    setSelectedForm("Custom")
-  }
-
-  // Load any Gig Mode / setlist tune into the editor and engine.
+  // The one path every song load funnels through — Practice's loadForm/
+  // loadSearchPick, the "/" library's loadCatalogEntry, Gig Mode's Load/
+  // Play/Save-and-reopen, SongSheet's "Open in Practice" — so
+  // activeGigSongId/activeSongTitle are always set consistently and Gig
+  // Mode's live-measure highlight (which keys off activeGigSongId) lights up
+  // no matter which tab the song was loaded from.
+  //
   // Gig Mode deliberately STAYS OPEN so you can read the stage chart while it
   // plays — the open chart lights the current measure via activeGigSongId.
-  function loadGigSong({ bars, keyRoot, keyMode, tempo, autoplay, songId, title, toMode }) {
-    if (toMode) chooseMode(toMode)
+  //
+  // toFocus: true is how "hit Play" becomes "Focus mode begins" — the
+  // library's Play action passes it (from Gig Mode included — Play always
+  // drops you into Focus, even when Play was clicked from the Gig tab
+  // itself), landing on Practice's Focus stage on the tune you just started.
+  // Implies toMode "practice": a caller asking for Focus by definition wants
+  // to be on Practice, so it can't forget to ask for both and end up with
+  // practiceView flipped to "focus" while mode is still stuck elsewhere.
+  // Space/the sticky transport resuming whatever's already loaded don't go
+  // through here, so they don't fight it.
+  function loadSong({ bars, keyRoot, keyMode, tempo, autoplay, songId, title, toMode, toFocus }) {
+    if (toFocus) { chooseMode("practice"); enterFocusMode() }
+    else if (toMode) chooseMode(toMode)
     if (playingRef.current) stopPlayback()
     practiceModeRef.current = false
     setPracticeMode(false)
@@ -1334,6 +1364,10 @@ export default function Home() {
     }
   }
 
+  // Deliberately touches nothing about mode/practiceView: Stop must leave
+  // you exactly where you were — the editable sheet if that's Gig (its
+  // live-measure highlight just turns off with isPlaying), the Focus
+  // fretboard if that's where Focus mode had you. Don't add navigation here.
   function stopPlayback() {
     playingRef.current = false
     _audioMod?.stopAll()   // no-op if audio hasn't been loaded yet
@@ -1433,6 +1467,31 @@ export default function Home() {
     window.addEventListener(LOAD_STARTER_EVENT, onLoadStarter)
     return () => window.removeEventListener(LOAD_STARTER_EVENT, onLoadStarter)
   }, [])
+
+  // "/" opens the song library from anywhere the same way — KeyboardShortcuts
+  // has no access to this component's state, so it asks by event too.
+  useEffect(() => {
+    function onOpenLibrary() { setSongbookOpen(true) }
+    window.addEventListener(OPEN_LIBRARY_EVENT, onOpenLibrary)
+    return () => window.removeEventListener(OPEN_LIBRARY_EVENT, onOpenLibrary)
+  }, [])
+
+  // "1" while playing asks for Focus the same way (see loadSong's toFocus,
+  // which fires this same jump from the library's Play button).
+  useEffect(() => {
+    function onEnterFocus() { chooseMode("practice"); enterFocusMode() }
+    window.addEventListener(ENTER_FOCUS_EVENT, onEnterFocus)
+    return () => window.removeEventListener(ENTER_FOCUS_EVENT, onEnterFocus)
+  }, [enterFocusMode]) // eslint-disable-line react-hooks/exhaustive-deps -- chooseMode closes over only stable setters
+
+  // "2" asks for Gig the same way, always (not just while playing) — see
+  // GO_GIG_EVENT's doc comment for why goWorkspace()'s DOM-click can't be
+  // trusted to work here.
+  useEffect(() => {
+    function onGoGig() { chooseMode("gig") }
+    window.addEventListener(GO_GIG_EVENT, onGoGig)
+    return () => window.removeEventListener(GO_GIG_EVENT, onGoGig)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps -- chooseMode closes over only stable setters
 
   // Spacebar = universal play / stop
   useEffect(() => {
@@ -2118,7 +2177,7 @@ export default function Home() {
             <GigMode
               library={library}
               setLibrary={setLibrary}
-              onLoadSong={loadGigSong}
+              onLoadSong={loadSong}
               activeSongId={activeGigSongId}
               playheadIndex={playheadIndex}
               isPlaying={isPlaying}
@@ -2221,24 +2280,17 @@ export default function Home() {
             through LOAD_STARTER_EVENT, wired up below. */}
 
 
-        {/* ── Songbook + Timer drawers (spec §5.6) ────────────────
-            Every handler below is the exact one the old inline "SONGBOOK"
-            panel called — nothing here was reimplemented, only re-housed. */}
-        {inMode("practice") && (
-          <SongbookDrawer
+        {/* ── Song library drawer ("/" from anywhere) + Timer drawer ──────
+            Renders unconditionally (not gated to Practice) so "/" opens the
+            same picker Gig Mode uses no matter which tab you're on. */}
+        <SongbookDrawer
             open={songbookOpen}
             onClose={() => setSongbookOpen(false)}
-            formCategories={FORM_CATEGORIES}
-            userLibrary={userLibrary}
-            gigSongs={GIGBOOK_SONGS}
-            selectedForm={selectedForm}
-            onLoadForm={(name) => {
-              loadForm(name, { exitPractice: true })
-              setSongbookOpen(false)
-              if (name !== "Custom") logActivity({ label: name, subtitle: "Songbook", art: "changes", action: { type: "songbook" } })
-            }}
-            onPickSong={(name, row) => { loadSearchPick(name, row); setSongbookOpen(false) }}
-            onRemoveFromLibrary={removeFromLibrary}
+            library={library}
+            setLibrary={setLibrary}
+            selectedId={activeGigSongId}
+            selectStyle={selectStyle}
+            onPick={(entry) => { loadCatalogEntry(entry); setSongbookOpen(false) }}
             onExportPdf={() => exportLeadSheet({ bars, title: selectedForm, tempo: originalTempo }).catch(console.error)}
             onExportMusicXml={() => exportMusicXML({ bars, approachLines, title: selectedForm, tempo: originalTempo })}
             onExportImprovGuide={() => downloadImprovGuide({ bars, title: selectedForm, keyRoot, keyMode, tempo: originalTempo })}
@@ -2320,7 +2372,6 @@ export default function Home() {
               </div>
             )}
           />
-        )}
 
         {inMode("practice") && (
           <TimerDrawer

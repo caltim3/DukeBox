@@ -18,14 +18,15 @@
 
 import { useEffect, useState } from "react"
 import { goHome as requestHome } from "@/lib/homeNav"
+import { OPEN_LIBRARY_EVENT, ENTER_FOCUS_EVENT, GO_GIG_EVENT } from "@/lib/music/songSource"
 
 const GROUPS = [
   {
     title: "Workspaces",
     items: [
       ["0", "Home"],
-      ["1", "Practice"],
-      ["2", "Gig"],
+      ["1", "Practice — Focus, while playing"],
+      ["2", "Gig — live chart, while playing"],
       ["3", "Create"],
       ["4", "Reference"],
       ["5", "Tonal"],
@@ -34,7 +35,7 @@ const GROUPS = [
   {
     title: "Jump to",
     items: [
-      ["/", "Song library in Practice"],
+      ["/", "Song library, from anywhere"],
       ["G", "Song library in Gig"],
       ["F", "Fretboard"],
       ["L", "Licktionary"],
@@ -190,7 +191,18 @@ export default function KeyboardShortcuts() {
       if (workspaces[event.key]) {
         event.preventDefault()
         event.stopPropagation()
-        goWorkspace(workspaces[event.key])
+        // While a song is playing, "1" means "back to Focus" specifically —
+        // not just Practice, wherever practiceView last happened to be.
+        // "2" always goes by event, not goWorkspace()'s DOM-click — Focus's
+        // phone-first stage renders no [role="tab"] chrome to click, so
+        // pressing "2" to leave Focus for Gig would silently no-op otherwise.
+        if (event.key === "1" && document.body.dataset.dbPlaying === "true") {
+          window.dispatchEvent(new CustomEvent(ENTER_FOCUS_EVENT))
+        } else if (event.key === "2") {
+          window.dispatchEvent(new CustomEvent(GO_GIG_EVENT))
+        } else {
+          goWorkspace(workspaces[event.key])
+        }
         return
       }
 
@@ -203,15 +215,14 @@ export default function KeyboardShortcuts() {
 
       const key = event.key.toLowerCase()
 
-      // Practice's Songbook drawer focuses its own search box on open.
+      // The song library drawer renders at the app root and opens by event
+      // (page.js has no props into this component), so it works from
+      // wherever you are — no workspace jump needed first. It focuses its
+      // own search box on open.
       if (key === "/") {
         event.preventDefault()
         event.stopPropagation()
-        goWorkspace("Practice")
-        waitFor(
-          () => document.querySelector('[aria-label="Open Songbook"]'),
-          (btn) => btn.click(),
-        )
+        window.dispatchEvent(new CustomEvent(OPEN_LIBRARY_EVENT))
         return
       }
 

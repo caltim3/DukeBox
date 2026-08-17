@@ -271,15 +271,16 @@ export default function PickupPracticeHome() {
   // "Jump back in" reads whatever page.js has logged to localStorage.
   // Re-read every time the home screen is about to show, since it's a plain
   // module (not shared React state) written from the real action sites.
-  // Adjusted during render (React's documented pattern for "reset/refresh
-  // state when a value changes") rather than in an effect, so there's no
-  // extra render pass just to sync it.
+  // This has to be an effect, not a render-phase adjustment: localStorage
+  // isn't available on the server, and reading it during render would make
+  // the first client paint (used for hydration) disagree with the server
+  // HTML — exactly the "Hydrating from localStorage has to happen after
+  // mount" reasoning planOrder documents below, which recent didn't
+  // previously follow.
   const [recent, setRecent] = useState([])
-  const [recentSyncedFor, setRecentSyncedFor] = useState(false)
-  if (homeOpen !== recentSyncedFor) {
-    setRecentSyncedFor(homeOpen)
+  useEffect(() => {
     if (homeOpen) setRecent(getRecentActivity())
-  }
+  }, [homeOpen])
 
   // Drag-reorderable plan cards. planOrder holds each row's card ids; unknown
   // ids are dropped and new ones appended, so editing PLAN_ROWS in code never
