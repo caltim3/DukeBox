@@ -95,17 +95,24 @@ export default function GigMode({
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(220px, 300px) 1fr", gap: "16px" }} className="gig-grid">
-        <SongLibrarySidebar
-          library={library}
-          setLibrary={setLibrary}
-          selectedId={openSong?.id ?? null}
-          onSelect={setOpenSong}
-          autoSelectFirst
-          preferId={activeSongId}
-          selectStyle={selectStyle}
-          searchShortcutHook="gig-search"
-        />
+      {/* The picker (dropdowns, playlist pills, search, setlists) is chrome —
+          the moment this tune is actually playing, gig mode goes bandstand:
+          nothing but the locked lead sheet. It comes back the instant Stop
+          is hit or a different tune is opened. */}
+      <div style={{ display: "grid", gridTemplateColumns: stageMode ? "1fr" : "minmax(220px, 320px) 1fr", gap: "16px" }} className="gig-grid">
+        {!stageMode && (
+          <SongLibrarySidebar
+            library={library}
+            setLibrary={setLibrary}
+            selectedId={openSong?.id ?? null}
+            onSelect={setOpenSong}
+            autoSelectFirst
+            preferId={activeSongId}
+            selectStyle={selectStyle}
+            searchShortcutHook="gig-search"
+            showPills
+          />
+        )}
 
         {/* ── Lead sheet: locked stage chart while playing, full editor otherwise ── */}
         <div style={{ minWidth: 0 }}>
