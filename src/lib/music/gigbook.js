@@ -1335,9 +1335,12 @@ export const GIGBOOK_SONG_NAMES = GIGBOOK_SONGS.map(s => s.title)
  * The book writes them as musicians do — "C major", "Am", "Cm", "Gm / Bb" —
  * so the root has to be split off its quality before it can go in the Key
  * select, and sharps spelled the flat way the app uses everywhere else.
+ * Tavern Set adds parenthetical annotations ("Em (modal)", "Am (roadmap)")
+ * that have to be stripped first, or "m (modal)" fails the minor check and
+ * silently resolves to major.
  */
 export function parseGigKey(key) {
-  const first = String(key || "C").split("/")[0].trim()
+  const first = String(key || "C").split("/")[0].replace(/\([^)]*\)/g, "").trim()
   const m = first.match(/^([A-G][b#]?)/)
   const keyRoot = m ? (EH[m[1]] || m[1]) : "C"
   const rest = m ? first.slice(m[1].length).trim().toLowerCase() : ""

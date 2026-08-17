@@ -86,7 +86,7 @@ function flattenSections(sections) {
     measure.map((bar) => ({ ...bar, section: section.label }))))
 }
 
-export default function SongSheet({ draft, onChange, onSave, onOpenPractice, onStartFromChart }) {
+export default function SongSheet({ draft, onChange, onSave, onOpenPractice, onStartFromChart, activeIndex = null }) {
   const [draggedMeasure, setDraggedMeasure] = useState(null)
   const [draggedSection, setDraggedSection] = useState(null)
   const [newSectionLabel, setNewSectionLabel] = useState("")
@@ -292,22 +292,33 @@ export default function SongSheet({ draft, onChange, onSave, onOpenPractice, onS
                   </div>
 
                   <div style={{ display: "grid", gridTemplateColumns: `repeat(${measure.length}, minmax(0, 1fr))`, gap: "6px" }}>
-                    {measure.map(({ bar, index }, chordIndex) => (
-                      <div key={index} style={{ minWidth: 0 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "4px", marginBottom: "5px" }}>
-                          <input value={bar.symbol || ""} onChange={(event) => updateChord(index, event.target.value)} aria-label={`Measure ${measureIndex + 1} chord ${chordIndex + 1}`} style={{ ...fieldStyle, minWidth: 0, padding: "6px 7px", color: "var(--db-text)", fontWeight: 850, fontSize: "var(--db-fs-lg)" }} />
-                          {measure.length > 1 && <button type="button" onClick={() => removeHalfBar(sectionIndex, measureIndex, chordIndex)} title="Remove this half-bar chord" style={{ ...smallButtonStyle, color: "var(--db-c-salmon)", padding: "2px 6px" }}>×</button>}
+                    {measure.map(({ bar, index }, chordIndex) => {
+                      const isActive = activeIndex === index
+                      return (
+                        <div
+                          key={index}
+                          ref={isActive ? (el) => el?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" }) : null}
+                          style={{
+                            minWidth: 0, borderRadius: "var(--db-r-md)", padding: "2px",
+                            boxShadow: isActive ? "0 0 0 2px var(--db-accent), 0 0 14px var(--db-accent)" : "none",
+                            transition: "box-shadow 0.12s",
+                          }}
+                        >
+                          <div style={{ display: "flex", alignItems: "center", gap: "4px", marginBottom: "5px" }}>
+                            <input value={bar.symbol || ""} onChange={(event) => updateChord(index, event.target.value)} aria-label={`Measure ${measureIndex + 1} chord ${chordIndex + 1}`} style={{ ...fieldStyle, minWidth: 0, padding: "6px 7px", color: "var(--db-text)", fontWeight: 850, fontSize: "var(--db-fs-lg)" }} />
+                            {measure.length > 1 && <button type="button" onClick={() => removeHalfBar(sectionIndex, measureIndex, chordIndex)} title="Remove this half-bar chord" style={{ ...smallButtonStyle, color: "var(--db-c-salmon)", padding: "2px 6px" }}>×</button>}
+                          </div>
+                          <div style={{ display: "grid", gridTemplateColumns: "0.8fr 1.2fr", gap: "4px" }}>
+                            <select value={bar.root || "C"} onChange={(event) => updateChordParts(index, { root: event.target.value })} aria-label="Chord root" style={{ ...fieldStyle, padding: "5px" }}>
+                              {ROOTS.map((root) => <option key={root} value={root}>{root}</option>)}
+                            </select>
+                            <select value={bar.quality || "maj7"} onChange={(event) => updateChordParts(index, { quality: event.target.value })} aria-label="Chord quality" style={{ ...fieldStyle, padding: "5px" }}>
+                              {QUALITIES.map((quality) => <option key={quality.value} value={quality.value}>{quality.label}</option>)}
+                            </select>
+                          </div>
                         </div>
-                        <div style={{ display: "grid", gridTemplateColumns: "0.8fr 1.2fr", gap: "4px" }}>
-                          <select value={bar.root || "C"} onChange={(event) => updateChordParts(index, { root: event.target.value })} aria-label="Chord root" style={{ ...fieldStyle, padding: "5px" }}>
-                            {ROOTS.map((root) => <option key={root} value={root}>{root}</option>)}
-                          </select>
-                          <select value={bar.quality || "maj7"} onChange={(event) => updateChordParts(index, { quality: event.target.value })} aria-label="Chord quality" style={{ ...fieldStyle, padding: "5px" }}>
-                            {QUALITIES.map((quality) => <option key={quality.value} value={quality.value}>{quality.label}</option>)}
-                          </select>
-                        </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                   {measure.length === 1 && <button type="button" onClick={() => addHalfBar(sectionIndex, measureIndex)} style={{ ...smallButtonStyle, width: "100%", marginTop: "7px", borderStyle: "dashed", color: "var(--db-muted)" }}>+ second chord</button>}
                 </div>
