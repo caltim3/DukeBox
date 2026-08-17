@@ -1319,13 +1319,30 @@ export function parseGigChord(text, section = "A", beats = 4) {
   return bar
 }
 
-// Convert a Gig Book song into DukeBox playback bars (one chord = one bar).
+// A grid cell can hold more than one chord — "Gm7 C7", "F/A D7", "Dm7 / G7"
+// (Real Book shorthand for a chord that changes partway through the bar).
+// Splits on whitespace and gives each surviving chord an equal share of the
+// bar's 4 beats — the same beats:2 half-bar SongSheet's own "+ second
+// chord" button produces, so playback, the measure count, and the editor
+// all agree on what's there. A lone "/" token (the middle of "Dm7 / G7")
+// parses to null via parseGigChord's own repeat-marker check and drops out
+// naturally. Previously only the first token was kept — the rest played
+// nothing, silently.
+function gigCellToBars(text, section) {
+  const tokens = String(text || "").trim().split(/\s+/).filter(Boolean)
+  const parsed = tokens.map((t) => parseGigChord(t, section, 4)).filter(Boolean)
+  if (!parsed.length) return []
+  const beats = parsed.length === 1 ? 4 : Math.max(1, Math.floor(4 / parsed.length))
+  return parsed.map((bar) => ({ ...bar, beats }))
+}
+
+// Convert a Gig Book song into DukeBox playback bars (one grid cell = one
+// measure, one or more bars each — see gigCellToBars).
 export function gigSongToBars(song) {
   const bars = []
   for (const sec of song.sections) {
     for (const chord of sec.chords) {
-      const bar = parseGigChord(chord, sec.name)
-      if (bar) bars.push(bar)
+      bars.push(...gigCellToBars(chord, sec.name))
     }
   }
   return bars
