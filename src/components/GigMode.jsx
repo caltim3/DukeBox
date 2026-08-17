@@ -18,6 +18,7 @@ import SongLibrarySidebar from "@/components/SongLibrarySidebar"
 const THEME = {
   bg: "var(--bg)", panel: "var(--surface)", ink: "var(--text)", muted: "var(--muted)",
   line: "var(--line)", accent: "var(--accent)", accentInk: "var(--accent-ink)",
+  chordBg: "var(--surface2)", chordBorder: "var(--line)",
 }
 
 export default function GigMode({
@@ -78,6 +79,13 @@ export default function GigMode({
   // Only light the chart that's actually loaded into the engine
   const liveHere = openSong && activeSongId === openSong.id && playheadIndex != null
 
+  // While *this* tune is the one playing, the sheet collapses into a clean,
+  // locked stage chart — tight pills, moving highlight, nothing to
+  // accidentally edit mid-song. Stop (or opening a different tune) brings
+  // the full editor back. This is what "hit Play in Gig, hit 2" should look
+  // like: the bandstand view, not the editor.
+  const stageMode = liveHere && isPlaying
+
   return (
     <div style={{ ...panelStyle, background: theme.bg, color: theme.ink, border: `1px solid ${theme.line}` }}>
       <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "12px", flexWrap: "wrap" }}>
@@ -99,17 +107,22 @@ export default function GigMode({
           searchShortcutHook="gig-search"
         />
 
-        {/* ── Editable lead sheet ── */}
+        {/* ── Lead sheet: locked stage chart while playing, full editor otherwise ── */}
         <div style={{ minWidth: 0 }}>
           {openSong && draft ? (
-            <div className="gig-song-editor" style={{ background: theme.panel, border: `1px solid ${theme.line}`, borderRadius: "14px", padding: "20px" }}>
+            <div className={stageMode ? "gig-stage" : "gig-song-editor"} style={{ background: theme.panel, border: `1px solid ${theme.line}`, borderRadius: "14px", padding: "20px" }}>
               <div style={{ display: "flex", alignItems: "baseline", gap: "12px", flexWrap: "wrap", marginBottom: "4px" }}>
+                {stageMode && <h2 style={{ margin: 0, fontSize: "1.6rem", color: theme.ink }}>{draft.title}</h2>}
                 {openSong.credit && <span style={{ color: theme.muted, fontStyle: "italic" }}>{openSong.credit}</span>}
-                <span style={{ color: theme.muted, fontSize: "0.72rem", textTransform: "uppercase", letterSpacing: "0.08em" }}>{openSong.source}</span>
+                {!stageMode && <span style={{ color: theme.muted, fontSize: "0.72rem", textTransform: "uppercase", letterSpacing: "0.08em" }}>{openSong.source}</span>}
                 <div style={{ marginLeft: "auto", display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                  <button onClick={() => transposeDraft(-1)} style={ghostBtn(theme)} title="Transpose the draft down a half step">Transpose −1</button>
-                  <button onClick={() => transposeDraft(1)} style={ghostBtn(theme)} title="Transpose the draft up a half step">Transpose +1</button>
-                  <button onClick={() => loadDraft(false)} style={solidBtn(theme)} title="Load this draft into the engine, without playing">Load</button>
+                  {!stageMode && (
+                    <>
+                      <button onClick={() => transposeDraft(-1)} style={ghostBtn(theme)} title="Transpose the draft down a half step">Transpose −1</button>
+                      <button onClick={() => transposeDraft(1)} style={ghostBtn(theme)} title="Transpose the draft up a half step">Transpose +1</button>
+                      <button onClick={() => loadDraft(false)} style={solidBtn(theme)} title="Load this draft into the engine, without playing">Load</button>
+                    </>
+                  )}
                   {liveHere && isPlaying ? (
                     <button onClick={() => onStop?.()} style={solidBtn(theme)} title="Stop playback">⏹ Stop</button>
                   ) : (
@@ -117,9 +130,11 @@ export default function GigMode({
                   )}
                 </div>
               </div>
-              {openSong.feel && (
+              {(stageMode || openSong.feel) && (
                 <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", fontSize: "0.82rem", color: theme.muted, marginBottom: "10px" }}>
-                  <span><b style={{ color: theme.ink }}>Feel</b> {openSong.feel}</span>
+                  {stageMode && <span><b style={{ color: theme.ink }}>Key</b> {draft.keyRoot} {draft.keyMode}</span>}
+                  {openSong.feel && <span><b style={{ color: theme.ink }}>Feel</b> {openSong.feel}</span>}
+                  {stageMode && <span><b style={{ color: theme.ink }}>Tempo</b> {draft.tempo}</span>}
                   {openSong.form && <span><b style={{ color: theme.ink }}>Form</b> {openSong.form}</span>}
                   {openSong.refArtist && <span><b style={{ color: theme.ink }}>Ref</b> {openSong.refArtist}</span>}
                 </div>
@@ -130,14 +145,17 @@ export default function GigMode({
                 </div>
               )}
 
-              <SongSheet
-                draft={draft}
-                onChange={setDraft}
-                onSave={saveDraft}
-                onOpenPractice={openDraftInPractice}
-                onStartFromChart={() => {}}
-                activeIndex={liveHere ? playheadIndex : null}
-              />
+              {stageMode ? (
+                <StageChart draft={draft} activeIndex={playheadIndex} theme={theme} />
+              ) : (
+                <SongSheet
+                  draft={draft}
+                  onChange={setDraft}
+                  onSave={saveDraft}
+                  onOpenPractice={openDraftInPractice}
+                  onStartFromChart={() => {}}
+                />
+              )}
             </div>
           ) : (
             <div style={{ color: theme.muted, padding: "40px", textAlign: "center" }}>No tune selected.</div>
@@ -155,7 +173,61 @@ export default function GigMode({
            room here — pin to 2 columns (SongSheet's own <520px rule still
            drops to 1) so measures never get clipped by the narrower shell. */
         .gig-song-editor .songsheet-measure-grid { grid-template-columns: repeat(2, minmax(210px, 1fr)) !important; }
+        @media (max-width: 480px) {
+          .gig-stage-chord-grid { grid-template-columns: repeat(2, 1fr) !important; }
+        }
       `}</style>
+    </div>
+  )
+}
+
+// The read-only "on the bandstand" chart shown while the open tune is the
+// one actually playing — tight pills, moving highlight, nothing to
+// accidentally edit mid-song. Reads draft.bars (not the catalog original),
+// so an unsaved edit you just made is exactly what's on the stand.
+function StageChart({ draft, activeIndex, theme }) {
+  const sections = []
+  let cur = null
+  let index = 0
+  for (const bar of draft.bars) {
+    const name = bar.section || "A"
+    if (!cur || cur.name !== name) { cur = { name, bars: [] }; sections.push(cur) }
+    cur.bars.push({ symbol: bar.symbol, index })
+    index++
+  }
+
+  return (
+    <div>
+      {sections.map((sec, si) => (
+        <div key={si} style={{ marginBottom: "16px" }}>
+          <div style={{ fontSize: "0.72rem", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: theme.accent, marginBottom: "6px" }}>
+            {sec.name}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "8px" }} className="gig-stage-chord-grid">
+            {sec.bars.map(({ symbol, index: i }) => {
+              const isNow = i === activeIndex
+              return (
+                <div
+                  key={i}
+                  ref={isNow ? (el) => el?.scrollIntoView({ block: "nearest", behavior: "smooth" }) : null}
+                  style={{
+                    background: isNow ? `color-mix(in srgb, ${theme.accent} 78%, ${theme.panel})` : theme.chordBg,
+                    border: `2px solid ${isNow ? theme.accent : theme.chordBorder}`,
+                    borderRadius: "8px",
+                    padding: "14px 8px", textAlign: "center", fontWeight: 700,
+                    color: isNow ? theme.accentInk : theme.ink,
+                    fontSize: "1.3rem", lineHeight: 1.1,
+                    boxShadow: isNow ? `0 0 18px ${theme.accent}` : "none",
+                    transition: "background 0.12s, color 0.12s, box-shadow 0.12s",
+                  }}
+                >
+                  {symbol}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      ))}
     </div>
   )
 }
