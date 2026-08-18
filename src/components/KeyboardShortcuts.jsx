@@ -37,7 +37,7 @@ const GROUPS = [
     items: [
       ["/", "Song library, from anywhere"],
       ["G", "Song library in Gig"],
-      ["F", "Fretboard"],
+      ["F", "Fretboard — Freeze, once you're in Practice"],
       ["L", "Licktionary"],
       ["B", "BeatForge Library"],
       ["Y", "5 minute practice timer"],
@@ -52,6 +52,9 @@ const GROUPS = [
       ["⌘/Ctrl C", "Copy selected bar"],
       ["⌘/Ctrl V", "Paste selected bar"],
       ["Double-click", "Loop one chord"],
+      ["F", "Freeze on / off"],
+      ["I", "3:2 System on / off"],
+      ["V", "Voice Leading on / off"],
     ],
   },
   {
@@ -237,7 +240,12 @@ export default function KeyboardShortcuts() {
         return
       }
 
+      // In Practice, "F" is Freeze instead — see page.js's own keydown
+      // handler, where that state lives. Don't preventDefault/stopPropagation
+      // here; let the keydown fall through to page.js's bubble-phase listener
+      // untouched. Everywhere else, "F" still jumps to the fretboard.
       if (key === "f") {
+        if (document.body.dataset.dbMode === "practice") return
         event.preventDefault()
         event.stopPropagation()
         goWorkspace("Practice")

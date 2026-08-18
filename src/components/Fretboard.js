@@ -240,9 +240,31 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
         ghosts.push({ key: `g${si}-${f}`, cx: dotX(f), cy: strY(si), si, f, label: noteName, text: ghostText })
       }
     })
+  } else if (threeTwoActive && threeTwo.voiceLeadTarget) {
+    // 3:2 System + Voice Leading (src/lib/music/threeTwoSystem.js's
+    // chordThird): every fret/string carrying the 3rd of the chord coming
+    // up, ghosted the same way as the ordinary board's next-chord guide
+    // tones — just one note instead of a 3rd/7th pair, since a pentatonic
+    // shape doesn't reliably contain the chord's 7th to pair it with.
+    const targetNorm = norm(threeTwo.voiceLeadTarget)
+    strings.forEach((open, si) => {
+      const openChroma = NOTES_FLAT.indexOf(norm(open))
+      if (openChroma === -1) return
+      for (let f = 0; f <= FRET_COUNT; f++) {
+        const noteName = NOTES_FLAT[(openChroma + f) % 12]
+        if (noteName !== targetNorm) continue
+        const ghostText = labelMode === "degrees" && ghostRootNote
+          ? degreeOf(noteName, norm(ghostRootNote))
+          : noteName
+        ghosts.push({ key: `g32-${si}-${f}`, cx: dotX(f), cy: strY(si), si, f, label: noteName, text: ghostText })
+      }
+    })
   }
 
   // ── Routes: the shortest playable path from each live guide tone to a ghost ─
+  // (a no-op under the 3:2 System — its dots never set isGuide, see the two
+  // dots.map() branches above — so the block below only ever fires for the
+  // ordinary board; the 3:2 board's own single route is built separately.)
   const routes = []
   if (ghosts.length && guideToneDirections) {
     for (const d of dots) {
@@ -267,6 +289,33 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
         startFret: d.f, endFret: best.f,
         d: `M${d.cx},${d.cy} Q${mx},${my} ${best.cx},${best.cy}`,
         from: d.label, to: destNorm, semis,
+      })
+    }
+  }
+
+  // ── 3:2 System's own route: the single shortest playable hop from the
+  // current shape to the ghosted 3rd, rather than one arrow per lit note —
+  // the pentatonic shape doesn't have discrete guide-tone roles to route
+  // from, so this picks whichever one of its notes is actually closest.
+  if (threeTwoActive && ghosts.length && threeTwo.voiceLeadTarget) {
+    let best = null, bestCost = Infinity
+    for (const d of dots) {
+      for (const g of ghosts) {
+        const df = Math.abs(g.f - d.f), ds = Math.abs(g.si - d.si)
+        if (df > MAX_ROUTE_FRETS || ds > MAX_ROUTE_STRINGS) continue
+        const cost = df + ds * 2.2
+        if (cost < bestCost) { bestCost = cost; best = { d, g } }
+      }
+    }
+    if (best) {
+      const { d, g } = best
+      const mx = (d.cx + g.cx) / 2
+      const my = (d.cy + g.cy) / 2 - (d.si === g.si ? 15 : 10)
+      routes.push({
+        key: `r32-${d.key}`, fromKey: d.key,
+        startFret: d.f, endFret: g.f,
+        d: `M${d.cx},${d.cy} Q${mx},${my} ${g.cx},${g.cy}`,
+        from: d.label, to: g.label, semis: null,
       })
     }
   }
@@ -422,7 +471,12 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
             opacity={(inFocus(r.startFret) || inFocus(r.endFret)) ? 0.95 : 0}
             pathLength={1} strokeDasharray="1 1" strokeDashoffset={0}
             className={phaseOn ? "dbfb-route" : undefined} style={phaseOn ? phaseDur : undefined}>
-            <title>{`${r.from} → ${r.to} · ${Math.abs(r.semis) === 1 ? "a semitone" : "a whole tone"} ${r.semis > 0 ? "up" : "down"}`}</title>
+            {/* The 3:2 System's route (semis: null — see above) isn't a
+                semitone/whole-tone resolution the way the ordinary board's
+                guide-tone routes are, so its tooltip just names the hop. */}
+            <title>{r.semis == null
+              ? `${r.from} → ${r.to} · shortest way to the next chord's 3rd`
+              : `${r.from} → ${r.to} · ${Math.abs(r.semis) === 1 ? "a semitone" : "a whole tone"} ${r.semis > 0 ? "up" : "down"}`}</title>
           </path>
         ))}
       </g>
