@@ -311,6 +311,13 @@ export default function Home() {
     document.body.dataset.dbPlaying = isPlaying ? "true" : "false"
   }, [isPlaying])
 
+  // Same idea, for "F" — in Practice, "F" is Freeze (this file, below)
+  // instead of KeyboardShortcuts.jsx's global "jump to Fretboard": jumping
+  // would be a no-op, since Practice is already exactly where you'd land.
+  useEffect(() => {
+    document.body.dataset.dbMode = mode
+  }, [mode])
+
   const exitFocusMode = useCallback(() => {
     choosePracticeView("cockpit")
     try {
@@ -602,6 +609,28 @@ export default function Home() {
       setAnticipateOn(true)           // anticipation is part of voice leading, not a separate switch
     }
   }, [])
+
+  // The "V" keyboard shortcut's on/off toggle for Voice Leading. chooseGuideMode
+  // itself is a three-way pick (Voice/Melody/Off) — this collapses it to the
+  // two states the shortcut promises, so pressing V from Melody goes straight
+  // to Voice Leading rather than needing a second press to get past Off.
+  const toggleVoiceLeadingMode = useCallback(() => {
+    chooseGuideMode(guideMode === "voice" ? "off" : "voice")
+  }, [chooseGuideMode, guideMode])
+
+  // The "I" keyboard shortcut's on/off toggle for the 3:2 System — same
+  // "turn 3:2 on, drop the 5-filter row" step the Systems panel's own button
+  // does, shared here so the two don't drift. 3:2 shapes only exist in
+  // standard tuning (see the button's own disabled state), so this is a
+  // silent no-op otherwise, exactly like clicking the disabled button would be.
+  const toggleThreeTwoMode = useCallback(() => {
+    if (fretboardTuning !== "Standard") return
+    setThreeTwoMode(v => {
+      const next = !v
+      if (next) setScaleFilter(null)
+      return next
+    })
+  }, [fretboardTuning])
 
 
   // The fretboard consumes Melody Paths' selected line directly. This keeps
@@ -1735,6 +1764,29 @@ export default function Home() {
         return
       }
 
+      // Playback shortcuts for the three Systems-panel toggles — Practice
+      // only, same gate "O" uses above. "F" is Freeze here rather than
+      // KeyboardShortcuts.jsx's global "jump to Fretboard" (see that file's
+      // own "f" branch, which stands down once document.body.dataset.dbMode
+      // reads "practice" so this handler gets the keydown instead).
+      if (!meta && !e.altKey && mode === "practice") {
+        if (e.key === "i" || e.key === "I") {
+          e.preventDefault()
+          toggleThreeTwoMode()
+          return
+        }
+        if (e.key === "f" || e.key === "F") {
+          e.preventDefault()
+          toggleFreeze()
+          return
+        }
+        if (e.key === "v" || e.key === "V") {
+          e.preventDefault()
+          toggleVoiceLeadingMode()
+          return
+        }
+      }
+
       if (meta && (e.key === "c" || e.key === "C")) {
         const b = bars[selectedIndex]
         if (b) { e.preventDefault(); setClipboardBar({ root: b.root, quality: b.quality, bass: b.bass }) }
@@ -1781,11 +1833,15 @@ export default function Home() {
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-    // freezeStep/startFreezeChordLoop/stopFreezeChordLoop are plain functions
-    // redeclared every render, closing over bars/selectedIndex/freezeChordIndices/
-    // freezeLoopOn — all four are already listed above, which is what actually
-    // keeps onKey's closure fresh; the functions themselves don't need to be.
-  }, [bars, selectedIndex, clipboardBar, updateBar, cyclePalette, toggleColorMode, mode, practiceView, choosePracticeView, nudgeTempo, restoreTempo, freezeMode, focusStage, freezeChordIndices, freezeLoopOn]) // eslint-disable-line react-hooks/exhaustive-deps
+    // freezeStep/startFreezeChordLoop/stopFreezeChordLoop/toggleFreeze are
+    // plain functions redeclared every render, closing over reactive state
+    // (bars, selectedIndex, freezeChordIndices, freezeLoopOn, isPlaying,
+    // fretboardBarIndex, upcomingBarIndices) that's listed below instead —
+    // that's what actually keeps onKey's closure fresh; the functions
+    // themselves don't need to be. toggleThreeTwoMode/toggleVoiceLeadingMode
+    // ARE listed directly — both are real useCallbacks, so this only
+    // re-subscribes when what they depend on actually changes.
+  }, [bars, selectedIndex, clipboardBar, updateBar, cyclePalette, toggleColorMode, mode, practiceView, choosePracticeView, nudgeTempo, restoreTempo, freezeMode, focusStage, freezeChordIndices, freezeLoopOn, isPlaying, fretboardBarIndex, upcomingBarIndices, toggleThreeTwoMode, toggleVoiceLeadingMode]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Library hydration + cloud sync is handled by useCloudLibrary; here we only
   // ensure audio stops if the component unmounts mid-playback.
@@ -2838,16 +2894,12 @@ export default function Home() {
                         (--n-32-* in globals.css), not the app's usual note-role
                         palette — see Fretboard.js's threeTwo prop. */}
                     <button
-                      onClick={() => setThreeTwoMode(v => {
-                        const next = !v
-                        if (next) setScaleFilter(null)
-                        return next
-                      })}
+                      onClick={toggleThreeTwoMode}
                       disabled={fretboardTuning !== "Standard"}
                       aria-pressed={threeTwoMode}
                       title={fretboardTuning !== "Standard"
                         ? "3:2 shapes are built for standard tuning only"
-                        : "The full leveled 3:2 System, matched to this song's chords"}
+                        : "The full leveled 3:2 System, matched to this song's chords — also \"I\""}
                       style={{
                         padding: "4px 10px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-sm)",
                         cursor: fretboardTuning === "Standard" ? "pointer" : "not-allowed",
@@ -2957,7 +3009,7 @@ export default function Home() {
                       +Bebop Chromatic
                     </button>
                     {[
-                      ["voice",  "Voice Leading", "3rds and 7ths lit, the next chord ghosted onto the neck, and the route into it drawn as the bar turns over"],
+                      ["voice",  "Voice Leading", "3rds and 7ths lit, the next chord ghosted onto the neck, and the route into it drawn as the bar turns over — also \"V\""],
                       ["melody", "Melody",        "Light the melody you drew in Melody Paths below"],
                       ["off",    "Off",           "Chord and scale tones only"],
                     ].map(([id, label, hint]) => (
@@ -3199,8 +3251,8 @@ export default function Home() {
                   onClick={toggleFreeze}
                   aria-pressed={freezeMode}
                   title={freezeMode
-                    ? "Unfreeze — picks the band back up at the tempo that just stopped"
-                    : "Freeze — stop the band, tap any of the 5 chords above to hold its scale on the neck"}
+                    ? "Unfreeze — picks the band back up at the tempo that just stopped (also \"F\")"
+                    : "Freeze — stop the band, tap any of the 5 chords above to hold its scale on the neck (also \"F\")"}
                   style={{
                     display: "flex", alignItems: "center", justifyContent: "center",
                     width: "38px", height: "38px", flexShrink: 0, alignSelf: "center",
@@ -3214,6 +3266,45 @@ export default function Home() {
                   ❄
                 </button>
               )}
+
+              {/* Playback shortcuts, kept where the eye already is instead of
+                  behind "?" — the three Systems toggles always apply, the
+                  frozen-nav row only once Freeze is actually on (those keys
+                  do nothing otherwise, so showing them before then would be
+                  a promise the board can't keep yet). */}
+              {focusStage && (() => {
+                const kbdStyle = {
+                  display: "inline-block", padding: "1px 5px", marginRight: "3px",
+                  borderRadius: "4px", border: "1px solid var(--db-panel-border)",
+                  background: "var(--db-input-bg)", color: "var(--db-accent)",
+                  font: "700 9px 'IBM Plex Mono', monospace",
+                }
+                const rowStyle = { display: "flex", gap: "9px", font: "600 9.5px 'Instrument Sans', sans-serif" }
+                return (
+                  <div
+                    title="Keyboard shortcuts — playback"
+                    style={{
+                      display: "flex", flexDirection: "column", justifyContent: "center", gap: "4px",
+                      padding: "6px 10px", borderRadius: "var(--db-r-md)",
+                      border: "1px solid var(--line)", background: "var(--surface)",
+                      flexShrink: 0, alignSelf: "center", color: "var(--muted)",
+                    }}
+                  >
+                    <div style={rowStyle}>
+                      <span><kbd style={kbdStyle}>F</kbd>freeze</span>
+                      <span><kbd style={kbdStyle}>I</kbd>3:2</span>
+                      <span><kbd style={kbdStyle}>V</kbd>voice</span>
+                    </div>
+                    {freezeMode && (
+                      <div style={rowStyle}>
+                        <span><kbd style={kbdStyle}>← →</kbd>measure</span>
+                        <span><kbd style={kbdStyle}>↑</kbd>play</span>
+                        <span><kbd style={kbdStyle}>↓</kbd>stop</span>
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
             </div>
 
             {/* What you're playing, named, immediately above the neck. The
