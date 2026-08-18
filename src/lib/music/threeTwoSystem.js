@@ -11,26 +11,31 @@
 // rest of DukeBox already uses to pick scales (getRecommendedScalesFromQuality
 // and harmony.js's cadence/function analysis) rather than re-deriving it.
 //
-// Levels (matching the reference page's own "Chord scales / Inside / Color /
-// Altered" ladder, generalized to any chord instead of four rehearsed ones):
+// Levels — a fixed "blues-thinking" ladder applied to any chart, not just
+// blues ones: pick a tonal color, and hold it across every chord change
+// instead of re-deriving a new scale from each chord's own quality.
 //   0 — Chord scales: the full 7-note recommended scale, root/chord-tone/
 //       tension colored. Same primary scale getRecommendedScalesFromQuality
-//       already hands the rest of the app for this chord.
-//   1 — Home base (blues forms) or Inside (everything else): one pentatonic
-//       per chord, or a single blanket pentatonic over the whole form for
-//       blues, where that's how the reference page teaches it.
-//   2 — Chase the chord (blues) or Color (everything else): color choices —
-//       the chord's own root pentatonic for blues forms that started on a
-//       blanket, or the "off the 5th / off the 3rd" upper-structure trick
-//       everywhere else.
-//   3 — Altered: chords pulling hard into the next one (a resolving V7, a
-//       half-diminished) get the b3-up pentatonic trick that spells the
-//       altered/half-diminished sound in one shape; everything else keeps
-//       its Level 2 color choice.
+//       already hands the rest of the app for this chord. Unchanged by any
+//       of this — the one level that's still genuinely per-chord-quality.
+//   1 — Blues scale: one minor pentatonic, off the tune's own tonic (see
+//       classifySongForm's tonicBar), blanketed over the whole form — same
+//       shape start to finish, no matter what the chart's own chords are.
+//   2 — Minor: every chord gets a minor-family shape off its OWN root —
+//       Dorian, or minor pentatonic/hexatonic with those density filters on
+//       — regardless of whether that chord is actually minor. The 3rd is
+//       tinted green (buildPentaBoard/buildScaleBoardFromNotes's
+//       markBlueNote/markThirdDegree) whenever the real chord doesn't have
+//       a minor 3rd of its own: a deliberately "worried" note to bend.
+//   3 — Major: the same idea, major family — Mixolydian, or major
+//       pentatonic/hexatonic.
+//   4 — Altered: identical to Major, except a chord actually functioning as
+//       a dominant resolution (analyzeProgressionContext's cadence read)
+//       swaps in the altered scale instead, ignoring the density filter.
 
-import { Note, Interval } from "@tonaljs/tonal"
+import { Note } from "@tonaljs/tonal"
 import { fretPositions, FRETBOARD_FRETS } from "@/components/Fretboard"
-import { getRecommendedScalesFromQuality, scaleNotes, chordNotes, buildChordSymbol, chordInfo } from "@/lib/music/tonal"
+import { getRecommendedScalesFromQuality, scaleNotes, chordNotes, buildChordSymbol, chordInfo, fretFlowScaleNotes } from "@/lib/music/tonal"
 import { analyzeProgressionContext } from "@/lib/music/harmony"
 
 // Exact hex from the reference page — a fixed sub-system, like the maple
@@ -41,10 +46,6 @@ export const THREE_TWO_HEX = {
   blue: "#1D9BF0", blueBand: "#C4E5FB",
   red: "#E2402F", redBand: "#F8CCC5",
   tension: "#FBFAF6", tensionStroke: "#9AA0A6", tensionText: "#6B7075",
-}
-
-function up(note, semitones) {
-  return Note.simplify(Note.transpose(note, Interval.fromSemitones(semitones)))
 }
 
 // Collapses DukeBox's ~20 quality strings (tonal.js QUALITIES) down to the
@@ -61,35 +62,31 @@ function bucketOf(quality) {
 
 // ─── Level defs ─────────────────────────────────────────────────────────────
 
-const BLUES_TYPES = new Set(["blues-major", "blues-minor", "jazz-blues"])
-
-export function getLevelDefs(formType) {
-  const bluesy = BLUES_TYPES.has(formType)
+export function getLevelDefs() {
   return [
     { id: 0, name: "Chord scales",
-      note: "The full seven-note scale behind each chord — chord tones solid, tensions hollow. This is the same scale DukeBox already recommends for it; Levels 1–3 are the five-note heart of it, moved around." },
-    { id: 1, name: bluesy ? "Home base" : "Inside",
-      note: bluesy
-        ? "One pentatonic — the I chord's own — blanketed over the whole form. Simple, and it always works; everything past this level is optional color."
-        : "Each chord gets its own matching pentatonic. Through a diatonic run like a ii–V–I these are usually the same five notes anyway, so the shape barely moves." },
-    { id: 2, name: bluesy ? "Chase the chord" : "Color",
-      note: bluesy
-        ? "Each chord's own root pentatonic instead of the blanket — same fingering, sliding to meet the chord as it changes."
-        : "Pentatonic off the 5th (dominants and minors) or off the 3rd (major 7ths) instead of the root — same shape, aimed at the chord's upper structure." },
-    { id: 3, name: bluesy ? "Altered turnarounds" : "Altered",
-      note: "Chords pulling hard into the next one — a resolving V7, a half-diminished — get the b3-up pentatonic trick, which spells the altered/half-diminished sound in one shape. Everything else keeps its Level 2 color." },
+      note: "The full seven-note scale behind each chord — chord tones solid, tensions hollow. This is the same scale DukeBox already recommends for it." },
+    { id: 1, name: "Blues scale",
+      note: "One minor pentatonic — off the tune's own tonic — blanketed over every chord, start to finish. Voice Leading ghosts each chord's own notes on top of it as the bar turns over, so you can see what's \"outside\" the box and what isn't." },
+    { id: 2, name: "Minor",
+      note: "Every chord gets a minor-family shape off its own root — Dorian by default, or minor pentatonic / minor hexatonic with the Shape filter below set to match. The 3rd glows green wherever the chord doesn't actually have one — lean into bending it." },
+    { id: 3, name: "Major",
+      note: "Every chord gets a major-family shape off its own root — Mixolydian by default, or major pentatonic / major hexatonic with the Shape filter below." },
+    { id: 4, name: "Altered",
+      note: "Same as Major, except any chord actually functioning as a dominant resolution swaps in the altered scale instead." },
   ]
 }
 
 // ─── Form classification ────────────────────────────────────────────────────
 
 /**
- * Heuristic read of the loaded chart's form — enough to pick which of the
- * four levels above is "home base" vs "color," and to label the toggle with
- * something a player recognizes (blues vs standard vs a static vamp), not to
- * pin down a music-theory taxonomy. Reuses harmony.js's cadence detection
- * (the same engine driving the rest of the app's chord-scale suggestions)
- * rather than re-deriving cadence logic here.
+ * Heuristic read of the loaded chart's form — the levels above no longer
+ * branch on it, but it still names the tonic Level 1 blankets the whole
+ * form with (tonicBar) and labels the song-form chip next to the level
+ * buttons with something a player recognizes (blues vs standard vs a static
+ * vamp), not to pin down a music-theory taxonomy. Reuses harmony.js's
+ * cadence detection (the same engine driving the rest of the app's
+ * chord-scale suggestions) rather than re-deriving cadence logic here.
  */
 export function classifySongForm(bars) {
   const sounding = (bars || []).filter((b) => b && b.quality !== "NC")
@@ -141,83 +138,88 @@ export function classifySongForm(bars) {
 
 // ─── Per-chord, per-level resolution ────────────────────────────────────────
 
+// Buckets that genuinely have their own minor 3rd — nothing to bend when a
+// minor-family shape lands there, so the tweakable-3rd highlight (Level 2)
+// only fires outside this set (major, dominant, altered — the "worried"
+// third's classic home).
+const HAS_OWN_MINOR_THIRD = new Set(["minor", "halfdim"])
+
 /**
- * Which pentatonic (root + family) Levels 1–3 show for one bar. Level 0
- * doesn't call this — it always shows the 7-note chord-scale board instead
- * (see buildScaleBoard). `ctxEntry` is the bars[index] entry from
- * analyzeProgressionContext(bars) — the same functional read (dominant /
- * subdominant / tonic / cadence) already driving the rest of the app.
+ * Which shape (root + family + kind, or an explicit scale note list) Levels
+ * 1–4 show for one bar. Level 0 doesn't call this — it always shows the
+ * 7-note chord-scale board instead (see buildScaleBoard). `ctxEntry` is the
+ * bars[index] entry from analyzeProgressionContext(bars) — the same
+ * functional read (dominant / subdominant / tonic / cadence) already
+ * driving the rest of the app. `density` is the Shape filter next to the
+ * level buttons: "mode" (the level's 7-note mode) | "pentatonic" |
+ * "hexatonic" — Level 1 ignores it (always minor pentatonic).
  */
-export function resolvePentaChoice({ bar, ctxEntry, levelId, formType, tonicBar }) {
+export function resolvePentaChoice({ bar, ctxEntry, levelId, tonicBar, density = "mode" }) {
   const bucket = bucketOf(bar?.quality)
   const root = bar?.userTonic ?? bar?.root
   if (!root || bucket === "dim") {
     return {
-      usable: false, family: null, rootNote: null,
+      usable: false, kind: null, family: null, rootNote: null, scaleNoteList: null,
       why: bucket === "dim"
         ? "Diminished 7 doesn't sit in a major-or-minor pentatonic box — Level 0 shows the diminished scale instead."
         : "No chord to work from.",
+      blueNote: false,
     }
   }
 
-  const bluesy = BLUES_TYPES.has(formType)
-
-  // The blue note: a minor pentatonic rooted on the dominant chord's own
-  // root has a b3 that's the classic "worried" third — the flat 3rd bent
-  // toward the major 3rd baked into the chord itself. True only when the
-  // shape is actually chasing this chord's own root (not a color/altered
-  // shape rooted somewhere else), and only over a dominant-quality chord.
-  const isBlueNote = (family, rNote) => family === "m" && bucket === "dominant" && rNote === root
-
-  function chase() {
-    if (bucket === "major") {
-      return { family: "M", rootNote: root, why: `${root} major pentatonic — the chord's own shape.` }
+  // Level 1 — Blues scale: one minor pentatonic off the tune's own tonic,
+  // the same shape on every single bar regardless of what that bar's own
+  // chord actually is.
+  if (levelId === 1) {
+    if (!tonicBar) {
+      return { usable: false, kind: null, family: null, rootNote: null, scaleNoteList: null, why: "No chart loaded.", blueNote: false }
     }
-    if (bucket === "halfdim" || bucket === "altered") {
-      const r = up(root, 3)
-      return {
-        family: "m", rootNote: r,
-        why: `${r} minor pentatonic, a b3 above ${root} — spells the ${bucket === "halfdim" ? "half-diminished" : "altered"} sound in one shape.`,
-      }
-    }
-    return { family: "m", rootNote: root, why: `${root} minor pentatonic — the chord's own shape.` }
-  }
-
-  function color() {
-    if (bucket === "major") {
-      const r = up(root, 4)
-      return { family: "m", rootNote: r, why: `${r} minor pentatonic, a 3rd above ${root} — upper-structure color (3 5 6 7 9).` }
-    }
-    const r = up(root, 7)
-    return { family: "m", rootNote: r, why: `${r} minor pentatonic, a 5th above ${root} — upper-structure color (5 b7 1 9 11).` }
-  }
-
-  function altered() {
-    const resolving = ctxEntry?.functionLabel === "dominant" && ctxEntry?.hasCadence
-    if (resolving || bucket === "halfdim" || bucket === "altered") {
-      const r = up(root, 3)
-      return { family: "m", rootNote: r, why: `${r} minor pentatonic, a b3 above ${root} — the altered/half-diminished trick.` }
-    }
-    return color()
-  }
-
-  if (levelId === 1 && bluesy && tonicBar) {
-    const tb = bucketOf(tonicBar.quality)
     const tRoot = tonicBar.userTonic ?? tonicBar.root
-    const family = tb === "major" ? "M" : "m"
     return {
-      usable: true, family, rootNote: tRoot,
-      why: `${tRoot} ${family === "M" ? "major" : "minor"} pentatonic — the I chord's shape, blanketed over the whole form.`,
-      blueNote: isBlueNote(family, tRoot),
+      usable: true, kind: "penta", family: "m", rootNote: tRoot, scaleNoteList: null,
+      why: `${tRoot} minor pentatonic — blanketed over the whole form.`,
+      blueNote: false,
     }
   }
 
-  let choice
-  if (levelId === 1) choice = chase()
-  else if (levelId === 2) choice = bluesy ? chase() : color()
-  else choice = altered()
+  // Levels 2–4 — a forced family (minor / major) rooted at THIS chord's own
+  // root, regardless of the chord's real quality. Level 4 swaps in the
+  // altered scale over chords actually functioning as a dominant resolution.
+  const isMinorFamily = levelId === 2
+  const resolving = levelId === 4 && ctxEntry?.functionLabel === "dominant" && ctxEntry?.hasCadence
+  const tweakThird = isMinorFamily && !HAS_OWN_MINOR_THIRD.has(bucket)
 
-  return { usable: true, ...choice, blueNote: isBlueNote(choice.family, choice.rootNote) }
+  if (resolving) {
+    return {
+      usable: true, kind: "scale", family: "M", rootNote: root,
+      scaleNoteList: scaleNotes("altered", root),
+      why: `${root} altered — resolving dominant.`,
+      blueNote: false,
+    }
+  }
+
+  if (density === "pentatonic") {
+    return {
+      usable: true, kind: "penta", family: isMinorFamily ? "m" : "M", rootNote: root, scaleNoteList: null,
+      why: `${root} ${isMinorFamily ? "minor" : "major"} pentatonic.`,
+      blueNote: tweakThird,
+    }
+  }
+  if (density === "hexatonic") {
+    return {
+      usable: true, kind: "scale", family: isMinorFamily ? "m" : "M", rootNote: root,
+      scaleNoteList: fretFlowScaleNotes(isMinorFamily ? "hex:minor" : "hex:major", root),
+      why: `${root} ${isMinorFamily ? "minor" : "major"} hexatonic.`,
+      blueNote: tweakThird,
+    }
+  }
+  const modeName = isMinorFamily ? "dorian" : "mixolydian"
+  return {
+    usable: true, kind: "scale", family: isMinorFamily ? "m" : "M", rootNote: root,
+    scaleNoteList: scaleNotes(modeName, root),
+    why: `${root} ${isMinorFamily ? "Dorian" : "Mixolydian"}.`,
+    blueNote: tweakThird,
+  }
 }
 
 // ─── Voice leading into the 3:2 board ───────────────────────────────────────
@@ -314,20 +316,30 @@ export function buildPentaBoard({ rootNote, family, tuningName = "Standard", lab
 const DEGREE_NAMES = ["1", "b9", "9", "b3", "3", "11", "#11", "5", "b13", "13", "b7", "7"]
 
 /**
- * Level 0's 7-note board: the chord's recommended parent scale (the same
- * pick getRecommendedScalesFromQuality already hands the rest of the app),
- * with root / chord-tone / tension tiers for the reference page's red / blue
- * / white-outline coloring.
+ * A tiered board — root / chord-tone / tension, the reference page's red /
+ * blue / white-outline coloring — for an EXPLICIT scale note list draped
+ * over an explicit chord. Generalizes what used to be buildScaleBoard's own
+ * body: Level 0 still picks its scale straight from the chord's own quality
+ * (see buildScaleBoard below), but Levels 2–4's Mode/Hexatonic density drape
+ * a forced-family scale (Dorian, Mixolydian, altered, a hexatonic reduction)
+ * over a chord that doesn't necessarily belong to that family at all, so
+ * they need to pass their own note list in rather than have one derived
+ * from the chord's real quality.
+ *
+ * `markThirdDegree`, when set, colors the b3 (3 semitones above root) green
+ * instead of its usual tier — Level 2's tweakable 3rd, a deliberately bent
+ * note against a chord that doesn't actually have a minor 3rd. Level 0 never
+ * sets this.
  */
-export function buildScaleBoard({ rootNote, quality, tuningName = "Standard", labelMode = "names", fretCount = FRETBOARD_FRETS }) {
+export function buildScaleBoardFromNotes({ rootNote, scaleNoteList, chordSymbol, tuningName = "Standard", labelMode = "names", fretCount = FRETBOARD_FRETS, markThirdDegree = false }) {
   const rootChroma = Note.chroma(rootNote)
-  const scaleName = getRecommendedScalesFromQuality(quality)[0]
-  if (rootChroma == null || !scaleName) return { scaleName, cells: [] }
+  if (rootChroma == null || !scaleNoteList?.length) return { cells: [] }
 
-  const scaleChromas = new Set(scaleNotes(scaleName, rootNote).map((n) => Note.chroma(n)).filter((c) => c != null))
+  const scaleChromas = new Set(scaleNoteList.map((n) => Note.chroma(n)).filter((c) => c != null))
   const chordChromas = new Set(
-    chordNotes(buildChordSymbol(rootNote, quality)).map((n) => Note.chroma(n)).filter((c) => c != null)
+    (chordSymbol ? chordNotes(chordSymbol) : []).map((n) => Note.chroma(n)).filter((c) => c != null)
   )
+  const thirdChroma = (rootChroma + 3) % 12
 
   const cells = []
   fretPositions(tuningName).forEach((p) => {
@@ -336,8 +348,27 @@ export function buildScaleBoard({ rootNote, quality, tuningName = "Standard", la
     if (c == null || !scaleChromas.has(c)) return
     const tier = c === rootChroma ? "root" : chordChromas.has(c) ? "chord" : "tension"
     const degree = DEGREE_NAMES[((c - rootChroma) % 12 + 12) % 12]
-    cells.push({ si: p.si, f: p.f, tier, noteName: p.note, text: labelMode === "degrees" ? degree : p.note })
+    cells.push({
+      si: p.si, f: p.f, tier, noteName: p.note, text: labelMode === "degrees" ? degree : p.note,
+      isTweakThird: markThirdDegree && c === thirdChroma,
+    })
   })
 
+  return { cells }
+}
+
+/**
+ * Level 0's 7-note board: the chord's recommended parent scale (the same
+ * pick getRecommendedScalesFromQuality already hands the rest of the app),
+ * tiered by buildScaleBoardFromNotes above.
+ */
+export function buildScaleBoard({ rootNote, quality, tuningName = "Standard", labelMode = "names", fretCount = FRETBOARD_FRETS }) {
+  const scaleName = getRecommendedScalesFromQuality(quality)[0]
+  if (!scaleName) return { scaleName, cells: [] }
+  const { cells } = buildScaleBoardFromNotes({
+    rootNote, scaleNoteList: scaleNotes(scaleName, rootNote),
+    chordSymbol: buildChordSymbol(rootNote, quality),
+    tuningName, labelMode, fretCount,
+  })
   return { scaleName, cells }
 }
