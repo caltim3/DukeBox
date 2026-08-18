@@ -573,8 +573,11 @@ export default function Home() {
     }
     const raw   = fretboardScaleData[0]?.notes ?? []
     const tonic = fretboardBar.userTonic ?? fretboardBar.root
-    return applyScaleFilter(raw, tonic, fretboardBar.quality, scaleFilter)
-  }, [fretboardScaleData, fretboardBar, scaleFilter, martinoMap])
+    // ctxEntry (harmony.js's own functional read) only changes anything for
+    // the "hexatonic" filter's minor-chord case — see applyScaleFilter's doc
+    // comment — so it's harmless to always pass it through here.
+    return applyScaleFilter(raw, tonic, fretboardBar.quality, scaleFilter, harmonicContext[fretboardBarIndex])
+  }, [fretboardScaleData, fretboardBar, fretboardBarIndex, harmonicContext, scaleFilter, martinoMap])
 
   // Bebop: chromatic passing tones shown in green over the current scale.
   // Hexatonic, Hex·Chord and Martino modes use dedicated two-note passing
@@ -592,7 +595,12 @@ export default function Home() {
     const effectiveQuality = martinoMap ? martinoMap.displayQuality : fretboardBar.quality
 
     if (scaleFilter === "hexatonic" || scaleFilter === "hexchord" || martinoMap) {
-      const base    = applyScaleFilter([], effectiveRoot, effectiveQuality, scaleFilter === "hexchord" ? "hexchord" : "hexatonic")
+      // martinoMap's own displayQuality is always the fixed "min7"/"min7b5"
+      // martinoMapper picks — not a real chord's own minor-vs-tonic role —
+      // so ctxEntry (which only means anything for a genuine minor chord's
+      // ii-vs-tonic read) is withheld on that path; passing it through would
+      // read Martino's remapped root as if IT were the thing resolving.
+      const base    = applyScaleFilter([], effectiveRoot, effectiveQuality, scaleFilter === "hexchord" ? "hexchord" : "hexatonic", martinoMap ? null : harmonicContext[fretboardBarIndex])
       const baseSet = new Set(base)
       return getHexatonicBebopNotes(effectiveRoot, effectiveQuality).filter(n => n && !baseSet.has(n))
     }
@@ -602,7 +610,7 @@ export default function Home() {
     const withBebop = applyScaleFilter(base, effectiveRoot, effectiveQuality, "bebop")
     const baseSet   = new Set(base)
     return withBebop.filter(n => !baseSet.has(n))
-  }, [bebopOverlay, fretboardScaleData, fretboardBar, scaleFilter, martinoMap])
+  }, [bebopOverlay, fretboardScaleData, fretboardBar, fretboardBarIndex, harmonicContext, scaleFilter, martinoMap])
 
   // One concept, three states. The board used to expose 7→3, Smooth, Melody,
   // 3rd Hunter, Enclosure and Anticipate as six separate switches you had to
