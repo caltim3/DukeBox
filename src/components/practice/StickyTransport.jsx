@@ -48,6 +48,8 @@ export default function StickyTransport({
   practiceMode = false,
   onTogglePracticeMode,
   originalTempo,
+  countInBeats = 0,
+  onCycleCountIn,
 }) {
   const lo = Math.min(loopStart, loopEnd) + 1
   const hi = Math.max(loopStart, loopEnd) + 1
@@ -92,6 +94,32 @@ export default function StickyTransport({
       >
         {isPlaying ? "⏹" : "▶"}
       </button>
+      {/* Count-in — a woodblock click track before Play actually starts the
+          band (metronome.js's playCountIn, run from page.js's startPlayback).
+          Cycles off -> 4 beats -> 8 beats -> off; the digit is the whole
+          readout, same economy of space as LOOP/TEMPO next to it. */}
+      {onCycleCountIn && (
+        <button
+          onClick={onCycleCountIn}
+          aria-pressed={countInBeats > 0}
+          title={
+            countInBeats === 0 ? "Count-in off — tap for a 4-beat woodblock count-in before Play"
+            : countInBeats === 4 ? "4-beat count-in — tap for 8"
+            : "8-beat count-in — tap to turn off"
+          }
+          style={{
+            width: "42px", height: "42px", borderRadius: "10px", flexShrink: 0,
+            border: "1px solid var(--hot)", background: countInBeats > 0 ? "var(--hot)" : "transparent",
+            color: countInBeats > 0 ? "#FFF" : "var(--hot)", cursor: "pointer",
+            display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "1px",
+          }}
+        >
+          <span style={{ fontSize: "13px", lineHeight: 1 }}>♩</span>
+          <span style={{ font: "800 9.5px 'IBM Plex Mono', monospace", letterSpacing: "0.06em" }}>
+            {countInBeats || "OFF"}
+          </span>
+        </button>
+      )}
       <button
         onClick={onToggleLoop}
         aria-pressed={loopEnabled}
