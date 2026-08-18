@@ -1120,7 +1120,7 @@ export default function PickupPracticeHome() {
             <div className="db-pickup-section-heading">
               <div>
                 <h2>Start practicing</h2>
-                <p>Load a starter chart and begin at slow tempo — ideal for building muscle memory.</p>
+                <p>A fully loaded scenario — chart, scale/system, and slow tempo — straight into Focus after an 8-beat count-in.</p>
               </div>
             </div>
 

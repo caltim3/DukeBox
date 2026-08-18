@@ -35,7 +35,7 @@ import { parseTonalUserSongs } from "@/lib/music/importTonal"
 import { parseGigChord, GIGBOOK_SONGS, gigSongToBars, parseGigKey, gigTempoNumber } from "@/lib/music/gigbook"
 import { upsertLibrarySong, catalogEntryToPlayable, OPEN_LIBRARY_EVENT, ENTER_FOCUS_EVENT, GO_GIG_EVENT } from "@/lib/music/songSource"
 import { guidedPrescription, drillStage, nextKeyInCycle, DRILL_LOOPS_PER_STAGE, PENA_DRILLS } from "@/lib/music/penaDrills"
-import { STARTER_PRESETS, STARTER_STRIP, LOAD_STARTER_EVENT } from "@/lib/music/starters"
+import { STARTER_PRESETS, STARTER_STRIP, SCENARIO_CONFIG, LOAD_STARTER_EVENT } from "@/lib/music/starters"
 import Fretboard, { fretPositions, FRETBOARD_FRETS } from "@/components/Fretboard"
 import { classifySongForm, getLevelDefs, resolvePentaChoice, buildPentaBoard, buildScaleBoard, buildScaleBoardFromNotes, PENTA_LEGEND, chordThird } from "@/lib/music/threeTwoSystem"
 import MetronomePanel from "@/components/MetronomePanel"
@@ -64,6 +64,16 @@ let _audioMod = null
 async function loadAudio() {
   if (!_audioMod) _audioMod = await import("@/lib/music/audio")
   return _audioMod
+}
+
+// Same lazy-load pattern, for the count-in's woodblock click (playCountIn) —
+// same reasoning as loadAudio above, and the same shared Tone.Transport
+// MetronomePanel.jsx already uses, so a count-in and chart playback can
+// never both be scheduled on it at once.
+let _metroMod = null
+async function loadMetronome() {
+  if (!_metroMod) _metroMod = await import("@/lib/music/metronome")
+  return _metroMod
 }
 
 const PALETTES = [
@@ -124,6 +134,15 @@ export default function Home() {
   const [tempo, setTempo] = useState(110)
   const [originalTempo, setOriginalTempo] = useState(110)  // song's natural BPM, restored on Play Mode
   const [isPlaying, setIsPlaying] = useState(false)
+  // Count-in — a woodblock click track (metronome.js's playCountIn) that
+  // runs before Play actually starts the band. 0 | 4 | 8 beats, cycled by
+  // the transport's own count-in button (StickyTransport); startPlayback
+  // reads it directly unless a caller passes its own override (loadStarter's
+  // scenarios always want 8, regardless of what this is set to).
+  const [countInBeats, setCountInBeats] = useState(0)
+  const cycleCountIn = useCallback(() => {
+    setCountInBeats((n) => (n === 0 ? 4 : n === 4 ? 8 : 0))
+  }, [])
   const [playChords, setPlayChords] = useState(true)
   const [playBass, setPlayBass] = useState(true)
   const [bassStyle, setBassStyle] = useState(DEFAULT_BASS_STYLE)
@@ -283,9 +302,6 @@ export default function Home() {
   // piece of client state the spec allows (§6): which top-canvas layout is
   // showing. Persisted so a reload keeps your last choice.
   const [practiceView, setPracticeView] = useState("cockpit")
-  // Which view the Start-practicing starter buttons open into. Separate from
-  // practiceView so arming it does not yank you out of the view you are in.
-  const [starterView, setStarterView] = useState("cockpit")
   useEffect(() => {
     const saved = window.localStorage.getItem("dukebox.practiceView")
     if (saved === "cockpit" || saved === "focus") setPracticeView(saved)
@@ -413,6 +429,7 @@ export default function Home() {
   const loopSigRef        = useRef(null)   // last loop range the transport was started with
   const stopPlaybackRef   = useRef(null)   // always points to latest stopPlayback
   const pendingStartRef   = useRef(false)  // set by loadStarter → fires after bars state commits
+  const pendingCountInRef = useRef(undefined)  // scenario starters force an 8-beat count-in for that one auto-play; undefined = use the transport's own countInBeats
   const loadStarterRef    = useRef(null)   // latest loadStarter, for the cross-tree starter event
   const toastTimer        = useRef(null)   // auto-dismiss handle for the toast
   const themePickerRef    = useRef(null)   // wraps the palette/mode dropdown, for click-outside close
@@ -1413,7 +1430,16 @@ export default function Home() {
     // Stop any current playback before loading
     if (playingRef.current) stopPlayback()
 
-    switch (starterId) {
+    // Scenario starters (STARTER_STRIP now) name a plain chart id below
+    // (chartId) plus their own Fretboard/3:2 System setup — see
+    // SCENARIO_CONFIG's own doc comment in starters.js. A plain id (the
+    // learning-plan cards' own, or an old recent-activity entry) has no
+    // scenario and just loads its chart exactly as it always did — this
+    // function doesn't force Focus or a count-in on those, only on scenarios.
+    const scenario = SCENARIO_CONFIG[starterId]
+    const chartId = scenario?.chartId ?? starterId
+
+    switch (chartId) {
       case "jazz-blues-bb":
         loadForm("12-Bar Jazz Blues (Bb)")
         break
@@ -1425,6 +1451,9 @@ export default function Home() {
         break
       case "black-orpheus":
         loadForm("Black Orpheus (Am)")
+        break
+      case "minor-blues-dm":
+        loadForm("Minor Blues (Dm)")
         break
       case "dark-eyes":
         loadForm("Dark Eyes (Dm)")
@@ -1511,8 +1540,31 @@ export default function Home() {
     setPracticeMode(true)
     setTempo(50)
 
-    // Trigger auto-play after React commits the new bars to state
+    // Scenario starters replace the Fretboard/3:2 System setup wholesale —
+    // a clean slate every time, not whatever was left on from before, so
+    // the exact thing that was clicked is exactly what's showing. Anything
+    // a scenario doesn't mention (see SCENARIO_CONFIG) resets to off here.
+    if (scenario) {
+      setFretboardTuning("Standard")   // 3:2 System's own levels only exist in Standard tuning
+      setBebopOverlay(false)
+      setScaleFilter(scenario.scaleFilter ?? null)
+      setFretboardView(scenario.scaleFilter || scenario.threeTwo ? "scale" : "chord")
+      setAlteredOverlay(!!scenario.altered)
+      setThreeTwoMode(!!scenario.threeTwo)
+      if (scenario.threeTwo) {
+        setThreeTwoLevel(scenario.threeTwo.level)
+        if (scenario.threeTwo.density) setThreeTwoDensity(scenario.threeTwo.density)
+      }
+      chooseGuideMode(scenario.guideMode ?? "off")
+      chooseMode("practice")
+      enterFocusMode()
+    }
+
+    // Trigger auto-play after React commits the new bars to state. Scenarios
+    // always get their own 8-beat count-in, whatever the transport's own
+    // count-in button happens to be set to.
     pendingStartRef.current = true
+    pendingCountInRef.current = scenario ? 8 : undefined
     setActiveGigSongId(null)
     const starterLabel = STARTER_PRESETS.find((preset) => preset.id === starterId)?.label ?? null
     setActiveSongTitle(starterLabel)
@@ -1684,6 +1736,7 @@ export default function Home() {
   function stopPlayback() {
     playingRef.current = false
     _audioMod?.stopAll()   // no-op if audio hasn't been loaded yet
+    _metroMod?.stopMetronome()   // no-op if it hasn't been loaded — halts a count-in in progress
     setIsPlaying(false)
     setPlayheadIndex(null)
     setBeatInBar(null)
@@ -1691,7 +1744,10 @@ export default function Home() {
 
   // loopOverride ({start, end}) forces a loop over an explicit bar range without
   // waiting for loop state to commit — used by per-bar "loop just this chord".
-  async function startPlayback(overrideTempo = null, loopOverride = null) {
+  // countInOverride forces a specific count-in length (loadStarter's
+  // scenarios always want 8, whatever the transport's own count-in button is
+  // set to); omitted, this reads that button's own countInBeats state.
+  async function startPlayback(overrideTempo = null, loopOverride = null, countInOverride = undefined) {
     playingRef.current = false  // cancel any pending repeats from previous run
     stopPlayback()
     playingRef.current = true
@@ -1705,7 +1761,21 @@ export default function Home() {
     // setPracticeModeAndTempo calls startPlayback before setTempo() has committed)
     const effectiveTempo = practiceModeRef.current ? 50 : (overrideTempo ?? tempo)
 
+    // isPlaying goes true immediately — including through the count-in — so
+    // the transport already reads as "Stop" and pressing it cancels cleanly
+    // (the playingRef check right after the count-in catches that).
     setIsPlaying(true)
+
+    const countIn = countInOverride !== undefined ? countInOverride : countInBeats
+    if (countIn > 0) {
+      try {
+        const metro = await loadMetronome()
+        await metro.playCountIn(countIn, effectiveTempo)
+      } catch (err) {
+        console.error("Count-in audio error:", err)
+      }
+      if (!playingRef.current) return   // Stop was pressed during the count-in
+    }
 
     // Load Tone.js lazily — AudioContext is only created here, after user gesture
     const { startPlayback: audioStart } = await loadAudio()
@@ -2006,7 +2076,9 @@ export default function Home() {
   useEffect(() => {
     if (pendingStartRef.current) {
       pendingStartRef.current = false
-      startPlaybackRef.current().catch(console.error)
+      const countIn = pendingCountInRef.current
+      pendingCountInRef.current = undefined
+      startPlaybackRef.current(null, null, countIn).catch(console.error)
     }
   }, [bars])
 
@@ -2528,10 +2600,12 @@ export default function Home() {
           {MODES.find(m => m.id === mode)?.blurb}
         </p>
 
-        {/* Start practicing — the same starter charts as the Home strip, but
-            reachable without going home first. Each button loads the chart,
-            drops to practice tempo and starts the band (loadStarter already
-            does all three), after switching to whichever view is armed. */}
+        {/* Start practicing — the same fully loaded scenarios as the Home
+            strip, but reachable without going home first. Each one is a
+            chart plus its own Fretboard/3:2 System setup (SCENARIO_CONFIG
+            in starters.js); loadStarter drops to practice tempo, jumps to
+            Focus, and starts the band behind an 8-beat count-in — all on
+            its own, no view picker needed here anymore. */}
         {inMode("practice") && (
           <div style={{
             marginBottom: "20px", padding: "12px 14px",
@@ -2542,33 +2616,15 @@ export default function Home() {
                 Start practicing
               </span>
               <span style={{ fontSize: "var(--db-fs-xs)", color: "var(--muted)" }}>
-                Loads at 50 BPM and starts the band — pick the view first
+                Loads at 50 BPM into Focus, band and count-in included
               </span>
-              <div style={{ marginLeft: "auto", display: "flex", gap: 0, background: "var(--surface2)", border: "1px solid var(--line)", borderRadius: "9px", padding: "3px" }}>
-                {[["cockpit", "Practice"], ["focus", "Focus"]].map(([id, label]) => (
-                  <button
-                    key={id}
-                    onClick={() => setStarterView(id)}
-                    aria-pressed={starterView === id}
-                    title={`Starter charts open in ${label} view`}
-                    style={{
-                      font: "700 11.5px 'Instrument Sans', sans-serif", padding: "5px 11px", borderRadius: "6px",
-                      border: "none", letterSpacing: "0.02em", cursor: "pointer",
-                      background: starterView === id ? "var(--accent)" : "transparent",
-                      color: starterView === id ? "var(--accent-ink)" : "var(--muted)",
-                    }}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
             </div>
             <div style={{ display: "flex", gap: "7px", flexWrap: "wrap" }}>
               {STARTER_STRIP.map((preset) => (
                 <button
                   key={preset.id}
-                  onClick={() => { (starterView === "focus" ? enterFocusMode : () => choosePracticeView(starterView))(); loadStarter(preset.id) }}
-                  title={`Load ${preset.label} and start playing in ${starterView === "focus" ? "Focus" : "Practice"} view`}
+                  onClick={() => loadStarter(preset.id)}
+                  title={`Load ${preset.label} and start playing in Focus, after an 8-beat count-in`}
                   style={{
                     padding: "7px 14px", borderRadius: "999px", cursor: "pointer",
                     font: "600 13px 'Instrument Sans', sans-serif",
@@ -3650,6 +3706,8 @@ export default function Home() {
                 onTogglePracticeMode={setPracticeModeAndTempo}
                 originalTempo={originalTempo}
                 onOpenSettings={openBandPanel}
+                countInBeats={countInBeats}
+                onCycleCountIn={cycleCountIn}
               />
             )}
 
@@ -4510,6 +4568,8 @@ export default function Home() {
           onTogglePracticeMode={setPracticeModeAndTempo}
           originalTempo={originalTempo}
           onOpenSettings={openBandPanel}
+          countInBeats={countInBeats}
+          onCycleCountIn={cycleCountIn}
         />
       )}
 

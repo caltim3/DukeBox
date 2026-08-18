@@ -197,3 +197,25 @@ export function stopMetronome() {
   _running = false
   _cellIndex = 0
 }
+
+/**
+ * A plain count-in: `beats` quarter-note woodblock clicks — accented on
+ * beat 1 of every 4-beat measure — then stops itself and resolves. Reuses
+ * startMetronome's own `rhythm` config (an empty phrase, just its "click for
+ * totalBeats, then auto-stop" scaffolding) rather than adding new scheduling
+ * logic. The transport is shared with chart playback, so callers own
+ * sequencing it before their own startPlayback — this doesn't do that itself.
+ *
+ * Resolves once the count-in has actually finished sounding. Cancel a
+ * count-in already in flight with stopMetronome() — the promise never
+ * resolves in that case, so callers race it against whatever cancels theirs.
+ */
+export function playCountIn(beats, tempo) {
+  const cells = Array.from({ length: Math.max(1, beats) }, (_, i) => (i % 4 === 0 ? 2 : 1))
+  return new Promise((resolve, reject) => {
+    startMetronome({
+      tempo, cells, subdivision: "4n", sound: "woodblock",
+      rhythm: { events: [], totalBeats: cells.length, loop: false, onDone: resolve },
+    }).catch(reject)
+  })
+}
