@@ -30,7 +30,7 @@
 
 import { Note, Interval } from "@tonaljs/tonal"
 import { fretPositions, FRETBOARD_FRETS } from "@/components/Fretboard"
-import { getRecommendedScalesFromQuality, scaleNotes, chordNotes, buildChordSymbol } from "@/lib/music/tonal"
+import { getRecommendedScalesFromQuality, scaleNotes, chordNotes, buildChordSymbol, chordInfo } from "@/lib/music/tonal"
 import { analyzeProgressionContext } from "@/lib/music/harmony"
 
 // Exact hex from the reference page — a fixed sub-system, like the maple
@@ -218,6 +218,25 @@ export function resolvePentaChoice({ bar, ctxEntry, levelId, formType, tonicBar 
   else choice = altered()
 
   return { usable: true, ...choice, blueNote: isBlueNote(choice.family, choice.rootNote) }
+}
+
+// ─── Voice leading into the 3:2 board ───────────────────────────────────────
+
+/**
+ * The 3rd of a chord symbol — same interval match tonal.js's guideTones()
+ * and MelodyPaths.jsx's analyzeChord() use (3M/3m, or a sus chord's 2M/4P
+ * stand-in), pulled out on its own because the 3:2 board's Voice Leading
+ * route (Fretboard.js's threeTwo.voiceLeadTarget) aims at a single note
+ * rather than the usual 3rd/7th guide-tone pair — a pentatonic shape doesn't
+ * reliably contain the chord's 7th at all, so there's nothing to pair it with.
+ */
+export function chordThird(symbol) {
+  if (!symbol) return null
+  const { notes, intervals } = chordInfo(symbol)
+  const idx = (intervals || []).findIndex(
+    (iv) => iv === "3M" || iv === "3m" || iv === "2M" || iv === "4P"
+  )
+  return idx >= 0 ? (notes?.[idx] ?? null) : null
 }
 
 // ─── Fretboard geometry ─────────────────────────────────────────────────────

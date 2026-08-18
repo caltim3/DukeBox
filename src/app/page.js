@@ -34,7 +34,7 @@ import { upsertLibrarySong, catalogEntryToPlayable, OPEN_LIBRARY_EVENT, ENTER_FO
 import { guidedPrescription, drillStage, nextKeyInCycle, DRILL_LOOPS_PER_STAGE, PENA_DRILLS } from "@/lib/music/penaDrills"
 import { STARTER_PRESETS, STARTER_STRIP, LOAD_STARTER_EVENT } from "@/lib/music/starters"
 import Fretboard, { fretPositions, FRETBOARD_FRETS } from "@/components/Fretboard"
-import { classifySongForm, getLevelDefs, resolvePentaChoice, buildPentaBoard, buildScaleBoard, PENTA_LEGEND } from "@/lib/music/threeTwoSystem"
+import { classifySongForm, getLevelDefs, resolvePentaChoice, buildPentaBoard, buildScaleBoard, PENTA_LEGEND, chordThird } from "@/lib/music/threeTwoSystem"
 import MetronomePanel from "@/components/MetronomePanel"
 import BeatForgeLibrary from "@/components/BeatForgeLibrary"
 import PracticeTimer from "@/components/PracticeTimer"
@@ -155,6 +155,11 @@ export default function Home() {
   // currently toggled) is what lets "any of the 5 shown chords" stay put as
   // the thing you're choosing between, instead of reshuffling on every tap.
   const [freezeChordIndices, setFreezeChordIndices] = useState(null)
+  // Focus's frozen keyboard nav (Up/Down arrows) — the static one-chord loop
+  // that plays the frozen chord's own comping/bass/drums as if it were a
+  // single repeating measure. True only while that loop is actually sounding;
+  // Down (or unfreezing) takes it back to false and leaves freezeMode alone.
+  const [freezeLoopOn, setFreezeLoopOn] = useState(false)
 
   const [keyRoot, setKeyRoot] = useState("Bb")
   const [keyMode, setKeyMode] = useState("major")
@@ -789,6 +794,18 @@ export default function Home() {
     return melodyPathState.notesByBar[anticipateBarIndex] || []
   }, [anticipateOn, targetsOverlay, melodyPathMode, melodyPathState, anticipateBarIndex])
 
+  // 3:2 System + Voice Leading — the 3:2 board otherwise sits out every other
+  // "Connect" overlay entirely (see threeTwoActiveOnBoard usage in
+  // Fretboard.js), which used to mean clicking Voice Leading while the 3:2
+  // System is on did nothing. This gives it one thing to draw instead of
+  // nothing: the 3rd of the chord coming up, so the board can find and draw
+  // the shortest playable way from the current shape onto that note (see
+  // Fretboard.js's threeTwo.voiceLeadTarget / chordThird in threeTwoSystem.js).
+  const threeTwoVoiceLeadTarget = useMemo(() => {
+    if (!threeTwoActiveOnBoard || guideMode !== "voice" || !anticipateBar) return null
+    return chordThird(anticipateBar.symbol)
+  }, [threeTwoActiveOnBoard, guideMode, anticipateBar])
+
   // How long the bar under the playhead lasts, so the fretboard's phase
   // animation runs on the same clock as the audio. Matches Runway's tempo
   // handling, including the practice-mode override.
@@ -1399,9 +1416,15 @@ export default function Home() {
     } else {
       setFreezeMode(false)
       setFreezeChordIndices(null)
+      // The Up-arrow static loop (below) doesn't touch freezeWasPlayingRef —
+      // it's its own kind of "playing," not the transport state Freeze is
+      // trying to restore — so it needs its own explicit shutdown here.
+      setFreezeLoopOn(false)
       if (freezeWasPlayingRef.current) {
         freezeWasPlayingRef.current = false
         startPlayback().catch(console.error)
+      } else if (freezeLoopOn) {
+        stopPlayback()
       }
     }
   }
@@ -1416,6 +1439,45 @@ export default function Home() {
     const { playChordStab } = await loadAudio()
     const beats = bar.beats ?? 4
     playChordStab(bar.symbol, Math.max(0.4, beats * (60 / tempo))).catch(() => {})
+  }
+
+  // Focus freeze's keyboard nav (Left/Right arrows) — walk the frozen chord
+  // one measure at a time, silently, wrapping across the whole chart. Distinct
+  // from previewChordAt/loopJustThisBar: no sound unless the static loop
+  // (Up arrow, below) is already going, in which case it just follows along
+  // onto the new bar rather than cutting out.
+  function freezeSnapshotFrom(index) {
+    if (!bars.length) return [index]
+    return [0, 1, 2, 3, 4].map((step) => (index + step) % bars.length)
+  }
+  function freezeStep(delta) {
+    if (!bars.length) return
+    const current = freezeChordIndices?.[0] ?? selectedIndex
+    const newIndex = (current + delta + bars.length) % bars.length
+    setSelectedIndex(newIndex)
+    setFreezeChordIndices(freezeSnapshotFrom(newIndex))
+    if (freezeLoopOn) startPlayback(null, { start: newIndex, end: newIndex }).catch(console.error)
+  }
+
+  // Focus freeze's Up arrow — the frozen chord, looped with the full band
+  // (whatever comping/bass/drum styles are already dialed in) as if it were
+  // one repeating measure, same mechanism loopJustThisBar uses but without
+  // touching the loop-range state (so unfreezing hands the transport back
+  // exactly what it had before, per toggleFreeze's own contract above).
+  function startFreezeChordLoop() {
+    const idx = freezeChordIndices?.[0] ?? selectedIndex
+    const bar = bars[idx]
+    if (!bar || bar.quality === "NC") return
+    if (freezeLoopOn && playingRef.current) return   // already looping this chord
+    setFreezeLoopOn(true)
+    startPlayback(null, { start: idx, end: idx }).catch(console.error)
+  }
+
+  // Focus freeze's Down arrow — stop the static loop, stay frozen and silent.
+  function stopFreezeChordLoop() {
+    if (!freezeLoopOn) return
+    setFreezeLoopOn(false)
+    stopPlayback()
   }
 
   // Copy the chart as plain text: "| Dm7 | G7 | Cmaj7 | Cmaj7 |", 4 bars a line.
@@ -1684,6 +1746,22 @@ export default function Home() {
       }
       if (meta) return   // leave every other browser shortcut alone
 
+      // Focus's frozen fretboard claims the arrow keys for its own nav
+      // instead of the chord-editing ones below: Left/Right walk one measure
+      // at a time (freezeStep), Up starts the frozen chord looping at tempo
+      // with the full band, Down stops it, and Right — while that loop is
+      // sounding — carries it forward onto the next measure rather than just
+      // repointing the silent selection. Scoped to freezeMode && focusStage
+      // only, per Freeze's own "Cockpit-only ribbon vs Focus's snowflake"
+      // split (see toggleFreeze's doc comment above).
+      if (freezeMode && focusStage && (e.key === "ArrowLeft" || e.key === "ArrowRight" || e.key === "ArrowUp" || e.key === "ArrowDown")) {
+        e.preventDefault()
+        if (e.key === "ArrowUp") { startFreezeChordLoop(); return }
+        if (e.key === "ArrowDown") { stopFreezeChordLoop(); return }
+        freezeStep(e.key === "ArrowRight" ? 1 : -1)
+        return
+      }
+
       if (e.key === "ArrowLeft") {
         e.preventDefault()
         setSelectedIndex(i => Math.max(0, i - 1))
@@ -1703,7 +1781,11 @@ export default function Home() {
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [bars, selectedIndex, clipboardBar, updateBar, cyclePalette, toggleColorMode, mode, practiceView, choosePracticeView, nudgeTempo, restoreTempo])
+    // freezeStep/startFreezeChordLoop/stopFreezeChordLoop are plain functions
+    // redeclared every render, closing over bars/selectedIndex/freezeChordIndices/
+    // freezeLoopOn — all four are already listed above, which is what actually
+    // keeps onKey's closure fresh; the functions themselves don't need to be.
+  }, [bars, selectedIndex, clipboardBar, updateBar, cyclePalette, toggleColorMode, mode, practiceView, choosePracticeView, nudgeTempo, restoreTempo, freezeMode, focusStage, freezeChordIndices, freezeLoopOn]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Library hydration + cloud sync is handled by useCloudLibrary; here we only
   // ensure audio stops if the component unmounts mid-playback.
@@ -2856,7 +2938,7 @@ export default function Home() {
                   </span>
                   {threeTwoMode && fretboardTuning === "Standard" && (
                     <div style={{ font: "600 10.5px 'Instrument Sans', sans-serif", color: "var(--muted)", fontStyle: "italic", marginBottom: "8px" }}>
-                      The 3:2 System is drawing its own connections right now — Voice Leading and Fret Focus apply again once it&apos;s off.
+                      The 3:2 System draws its own shapes right now — Melody and Fret Focus apply again once it&apos;s off. Voice Leading still works: it finds the shortest way from the current shape to the 3rd of the next chord.
                     </div>
                   )}
 
@@ -3175,6 +3257,9 @@ export default function Home() {
                   ))
                 )}
                 <span style={{ fontStyle: "italic" }}>{threeTwoChoice.why || "3:2 System"}</span>
+                {threeTwoVoiceLeadTarget && (
+                  <span style={{ color: "var(--n-next)" }}>○ {threeTwoVoiceLeadTarget} · 3rd of the next chord · ⌒ shortest way in</span>
+                )}
               </div>
             ) : (
               <div className="db-fret-legend" style={{ display: "flex", gap: "14px", flexWrap: "wrap", marginBottom: "12px", fontSize: "12px", color: "var(--muted)" }}>
@@ -3241,6 +3326,7 @@ export default function Home() {
                   kind: threeTwoBoard.kind,
                   cells: threeTwoBoard.cells,
                   bandRuns: threeTwoBoard.bandRuns,
+                  voiceLeadTarget: threeTwoVoiceLeadTarget,
                 }}
               />
             </div>
