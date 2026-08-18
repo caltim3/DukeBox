@@ -6,6 +6,7 @@ import {
   QUALITIES,
   buildChordSymbol,
   chordInfo,
+  chordNotes,
   scaleNotes,
   generateApproachLines,
   martinoMapper,
@@ -18,6 +19,8 @@ import {
   hexChoiceForChord,
   SCALE_CATALOG,
   rankScalesForChord,
+  noteAtSemitones,
+  buildFromSemitones,
 } from "@/lib/music/tonal"
 import { analyzeProgressionContext } from "@/lib/music/harmony"
 import { FORMS, FORM_CATEGORIES, DESERT_NOIR_META } from "@/lib/music/forms"
@@ -253,6 +256,13 @@ export default function Home() {
   // while 3:2 is on. Levels 0-1 ignore this entirely.
   const [threeTwoDensity, setThreeTwoDensity] = useState("mode")  // "mode" | "pentatonic" | "hexatonic"
   const [scaleFilter, setScaleFilter] = useState(null)  // null | "pentatonic" | "hexatonic" | "martino" | "hexchord" | "barry"
+  // "Altered" — independent of the eight-way PALETTE set above (like
+  // +Bebop Chromatic, a modifier that sits alongside whichever PALETTE
+  // choice is active, not a member of it). Only touches a chord that's
+  // actually FUNCTIONING as a dominant resolution (see alteredMap below);
+  // everything else about it — which views it changes, which it leaves
+  // alone — lives in alteredMap's own doc comment.
+  const [alteredOverlay, setAlteredOverlay] = useState(false)
   const [bebopOverlay, setBebopOverlay] = useState(false)   // adds chromatic passing tone on top
   const [targetsOverlay, setTargetsOverlay] = useState(true) // guide tones are the default practice view
   const [melodyPathMode, setMelodyPathMode] = useState("73")
@@ -554,6 +564,32 @@ export default function Home() {
     return martinoMapper(fretboardBar.root, fretboardBar.quality)
   }, [scaleFilter, fretboardBar])
 
+  // "Altered" — reharmonizes a chord that's actually FUNCTIONING as a
+  // dominant resolution (harmonicContext's own functionLabel/hasCadence
+  // read — the same signal 3:2 System's Level 4 and the rest of the app
+  // use for "is this really resolving," not just "is this dominant-quality")
+  // into its melodic-minor-derived altered color. Independent of Martino,
+  // which always uses the plain 5th regardless (see martinoMapper's own
+  // doc comment) — the two never interact.
+  //   tritoneRoot — the tritone substitute's own root (root+6). Used only
+  //     for the plain Chord view: "this dominant IS that chord."
+  //   displayRoot — melodic minor a half step above the dominant's own
+  //     root (root+1). Used for the Scale and Pentatonic views.
+  // Hexatonic already computes exactly displayRoot's melodic-minor-hex for
+  // every dominant chord unconditionally (see applyScaleFilter's own doc
+  // comment), so this needs nothing there; Hex·Chord, Barry, Martino, and
+  // the 3:2 System are untouched — each keeps its own separate rules.
+  const alteredMap = useMemo(() => {
+    if (!alteredOverlay) return null
+    const ctxEntry = harmonicContext[fretboardBarIndex]
+    if (ctxEntry?.functionLabel !== "dominant" || !ctxEntry?.hasCadence) return null
+    const root = fretboardBar.userTonic ?? fretboardBar.root
+    return {
+      tritoneRoot: noteAtSemitones(root, 6),
+      displayRoot: noteAtSemitones(root, 1),
+    }
+  }, [alteredOverlay, harmonicContext, fretboardBarIndex, fretboardBar])
+
   const fretboardScaleData = useMemo(() => {
     const tonic = fretboardBar.userTonic ?? fretboardBar.root
     if (fretboardBar.userScale) {
@@ -571,13 +607,36 @@ export default function Home() {
       const { displayRoot, displayQuality } = martinoMap
       return applyScaleFilter([], displayRoot, displayQuality, "hexatonic")
     }
+    // "Altered" — only the Scale (no filter) and Pentatonic views change;
+    // Hexatonic/Hex·Chord/Barry fall through to their own logic below,
+    // already unaffected by design (see alteredMap's own doc comment).
+    if (alteredMap && scaleFilter == null) {
+      return scaleNotes("melodic minor", alteredMap.displayRoot)
+    }
+    if (alteredMap && scaleFilter === "pentatonic") {
+      // "Melodic minor" pentatonic: 1 b3 4 5 6 — the m6-pentatonic
+      // reduction of the same melodic minor Hexatonic and Scale both use.
+      return buildFromSemitones(alteredMap.displayRoot, [0, 3, 5, 7, 9])
+    }
     const raw   = fretboardScaleData[0]?.notes ?? []
     const tonic = fretboardBar.userTonic ?? fretboardBar.root
     // ctxEntry (harmony.js's own functional read) only changes anything for
     // the "hexatonic" filter's minor-chord case — see applyScaleFilter's doc
     // comment — so it's harmless to always pass it through here.
     return applyScaleFilter(raw, tonic, fretboardBar.quality, scaleFilter, harmonicContext[fretboardBarIndex])
-  }, [fretboardScaleData, fretboardBar, fretboardBarIndex, harmonicContext, scaleFilter, martinoMap])
+  }, [fretboardScaleData, fretboardBar, fretboardBarIndex, harmonicContext, scaleFilter, martinoMap, alteredMap])
+
+  // "Altered"'s Chord-view row: the tritone substitute's own chord tones
+  // (root+6, same quality) rather than the melodic-minor color the Scale/
+  // Pentatonic views get — only actually shown when the board is in plain
+  // Chord view with no filter selected (a filter always forces Scale view,
+  // see the PALETTE buttons below, so chordNotes stops being what's drawn).
+  const effectiveChordNotes = useMemo(() => {
+    if (alteredMap && !scaleFilter && fretboardView === "chord") {
+      return chordNotes(buildChordSymbol(alteredMap.tritoneRoot, fretboardBar.quality))
+    }
+    return fretboardInfo.notes || []
+  }, [alteredMap, scaleFilter, fretboardView, fretboardBar, fretboardInfo])
 
   // Bebop: chromatic passing tones shown in green over the current scale.
   // Hexatonic, Hex·Chord and Martino modes use dedicated two-note passing
@@ -734,6 +793,10 @@ export default function Home() {
         : `3:2 System · ${threeTwoLevelDefs.find((lv) => lv.id === threeTwoLevel)?.name ?? `Level ${threeTwoLevel}`}${threeTwoChoice.why ? ` · ${threeTwoChoice.why}` : ""}`)
     : martinoMap
     ? `Martino → ${martinoMap.displayRoot}m${martinoMap.displayQuality === "min7b5" ? " (melodic)" : ""}`
+    : (alteredMap && (scaleFilter == null || scaleFilter === "pentatonic"))
+    ? (!scaleFilter && fretboardView === "chord"
+        ? `Altered → ${alteredMap.tritoneRoot}7 (tritone sub)`
+        : `Altered → ${alteredMap.displayRoot} melodic minor${scaleFilter === "pentatonic" ? " pentatonic" : ""}`)
     : scaleFilter === "hexchord"
     ? hexChoiceForChord(fretboardBar.userTonic ?? fretboardBar.root, fretboardBar.quality).label
     : scaleFilter === "barry"
@@ -741,7 +804,7 @@ export default function Home() {
     : (scaleFilter ?? fretboardScaleData[0]?.name ?? "")
   const scaleTonic = fretboardBar.userTonic ?? fretboardBar.root
   const scaleLabelFull = scaleLabel
-    ? (threeTwoActiveOnBoard || martinoMap || scaleFilter === "hexchord" || scaleFilter === "barry" ? scaleLabel : `${scaleTonic} ${scaleLabel}`)
+    ? (threeTwoActiveOnBoard || martinoMap || (alteredMap && (scaleFilter == null || scaleFilter === "pentatonic")) || scaleFilter === "hexchord" || scaleFilter === "barry" ? scaleLabel : `${scaleTonic} ${scaleLabel}`)
     : "—"
 
   // Anticipate — the next sounding bar, wrapping inside the loop range when
@@ -2945,6 +3008,26 @@ export default function Home() {
                         {label}
                       </button>
                     ))}
+                    {/* "Altered" — a modifier, not a member of the eight-way
+                        mutually-exclusive PALETTE set (same standing as
+                        +Bebop Chromatic below): it sits alongside whichever
+                        of Chord/Scale/5-filters is active and only actually
+                        does anything to a chord that's really FUNCTIONING
+                        as a dominant resolution, on Chord/Scale/Pentatonic —
+                        Hexatonic/Hex·Chord/Barry/Martino/3:2 each keep their
+                        own rules untouched (see alteredMap's doc comment). */}
+                    <button onClick={() => setAlteredOverlay(v => !v)}
+                      title="A functioning dominant reharmonizes: Chord shows its tritone sub, Scale/Pentatonic show the melodic minor a half step up. Hexatonic/Hex·Chord/Barry/Martino/3:2 System are unaffected."
+                      style={{
+                        padding: "4px 10px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-sm)", cursor: "pointer",
+                        background: alteredOverlay ? "color-mix(in srgb, var(--passing) 22%, transparent)" : "var(--db-panel-bg)",
+                        border:     alteredOverlay ? "1px solid var(--passing)" : "1px solid var(--db-panel-border)",
+                        color:      alteredOverlay ? "var(--passing)" : "var(--db-text)",
+                        fontWeight: alteredOverlay ? 700 : 400,
+                        opacity:    alteredOverlay ? 1 : 0.7,
+                      }}>
+                      Altered
+                    </button>
                     {/* The "3:2 System" — the Pickup Music 3:2 system, leveled and
                         wired to the loaded song (src/lib/music/threeTwoSystem.js).
                         Lives here now, as the 8th palette choice, rather than
@@ -3503,8 +3586,14 @@ export default function Home() {
                 board takes the width it's given, so nothing overflows. */}
             <div className={focusStage ? "db-focus-board" : undefined} style={{ overflowX: "auto", marginBottom: "4px" }}>
               <Fretboard
-                chordNotes={fretboardInfo.notes || []}
-                rootNote={martinoMap ? martinoMap.displayRoot : (fretboardBar.userTonic ?? fretboardBar.root)}
+                chordNotes={effectiveChordNotes}
+                rootNote={
+                  martinoMap ? martinoMap.displayRoot
+                  : !alteredMap ? (fretboardBar.userTonic ?? fretboardBar.root)
+                  : (!scaleFilter && fretboardView === "chord") ? alteredMap.tritoneRoot
+                  : (!scaleFilter || scaleFilter === "pentatonic") ? alteredMap.displayRoot
+                  : (fretboardBar.userTonic ?? fretboardBar.root)
+                }
                 scaleNotes={displayedScaleNotes}
                 targetNotes={enclosureDisplay.target}
                 passingNotes={[...bebopPassingNotes, ...barryPassingNotes]}
