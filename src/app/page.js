@@ -1730,7 +1730,19 @@ export default function Home() {
 
       // `?` belongs to KeyboardShortcuts (the single legend) — it handles the
       // key in the capture phase, so this page never sees it.
-      if (e.key === "Escape") { setThemePickerOpen(false); return }
+      //
+      // Escape is one press at a time, most-active-thing-first: stop the
+      // band if it's playing (first press), then — a second press, once it's
+      // already stopped — back out of Focus if that's where you are.
+      // Anywhere else, Escape falls back to its old job of closing the
+      // palette picker.
+      if (e.key === "Escape") {
+        e.preventDefault()
+        if (isPlaying) { stopPlayback(); return }
+        if (focusStage) { exitFocusMode(); return }
+        setThemePickerOpen(false)
+        return
+      }
 
       if (!meta && !e.altKey && e.key === ";") {
         e.preventDefault()
@@ -1841,7 +1853,7 @@ export default function Home() {
     // themselves don't need to be. toggleThreeTwoMode/toggleVoiceLeadingMode
     // ARE listed directly — both are real useCallbacks, so this only
     // re-subscribes when what they depend on actually changes.
-  }, [bars, selectedIndex, clipboardBar, updateBar, cyclePalette, toggleColorMode, mode, practiceView, choosePracticeView, nudgeTempo, restoreTempo, freezeMode, focusStage, freezeChordIndices, freezeLoopOn, isPlaying, fretboardBarIndex, upcomingBarIndices, toggleThreeTwoMode, toggleVoiceLeadingMode]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [bars, selectedIndex, clipboardBar, updateBar, cyclePalette, toggleColorMode, mode, practiceView, choosePracticeView, nudgeTempo, restoreTempo, freezeMode, focusStage, freezeChordIndices, freezeLoopOn, isPlaying, fretboardBarIndex, upcomingBarIndices, toggleThreeTwoMode, toggleVoiceLeadingMode, exitFocusMode]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Library hydration + cloud sync is handled by useCloudLibrary; here we only
   // ensure audio stops if the component unmounts mid-playback.
