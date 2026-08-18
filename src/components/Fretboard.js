@@ -172,16 +172,24 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
   // crowded every dot into its neighbors on both strings and frets.
   let threeTwoBands = []
   if (threeTwoActive && threeTwo.kind === "scale") {
-    dots = threeTwo.cells.map((c) => ({
-      key: `32s${c.si}-${c.f}`,
-      cx: dotX(c.f), cy: strY(c.si), r: c.tier === "tension" ? 8 : 10.5,
-      color: c.tier === "root" ? "var(--n-32-red)" : c.tier === "chord" ? "var(--n-32-blue)" : "var(--n-32-tension)",
-      thirtyTwoStroke: c.tier === "tension" ? "var(--n-32-tension-stroke)" : null,
-      textColor: c.tier === "tension" ? "var(--n-32-tension-text)" : "#fff",
-      label: c.noteName, text: c.text,
-      si: c.si, f: c.f, held: false,
-      isRoot: false, isTarget: false, isPassing: false, isGuide: false, isEnclosure: false,
-    }))
+    dots = threeTwo.cells.map((c) => {
+      // Level 2's tweakable 3rd (buildScaleBoardFromNotes's isTweakThird) —
+      // a deliberately bent note against a chord that doesn't actually have
+      // a minor 3rd — overrides the usual root/chord/tension tier color the
+      // same way the penta board's isBlueNote does below.
+      const color = c.isTweakThird ? "var(--n-32-green)"
+        : c.tier === "root" ? "var(--n-32-red)" : c.tier === "chord" ? "var(--n-32-blue)" : "var(--n-32-tension)"
+      return {
+        key: `32s${c.si}-${c.f}`,
+        cx: dotX(c.f), cy: strY(c.si), r: c.tier === "tension" && !c.isTweakThird ? 8 : 10.5,
+        color,
+        thirtyTwoStroke: c.tier === "tension" && !c.isTweakThird ? "var(--n-32-tension-stroke)" : null,
+        textColor: c.tier === "tension" && !c.isTweakThird ? "var(--n-32-tension-text)" : "#fff",
+        label: c.noteName, text: c.text,
+        si: c.si, f: c.f, held: false,
+        isRoot: false, isTarget: false, isPassing: false, isGuide: false, isEnclosure: false,
+      }
+    })
   } else if (threeTwoActive && threeTwo.kind === "penta") {
     dots = threeTwo.cells.map((c) => {
       // The blue note (b3 of a minor pentatonic chased onto a dominant
@@ -257,6 +265,26 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
           ? degreeOf(noteName, norm(ghostRootNote))
           : noteName
         ghosts.push({ key: `g32-${si}-${f}`, cx: dotX(f), cy: strY(si), si, f, label: noteName, text: ghostText })
+      }
+    })
+  } else if (threeTwoActive && threeTwo.voiceLeadChordTones?.length) {
+    // Level 1 (Blues scale) + Voice Leading: the blanket pentatonic never
+    // moves, so instead of routing anywhere, ghost the CURRENT chord's own
+    // full spelling (root/3rd/5th/b7, whichever it has) on top of the fixed
+    // box — e.g. an E7 in an A blues ghosts E G# B D over the A minor
+    // pentatonic, however much of that falls outside the box. No routes:
+    // this isn't resolving anywhere, it's showing what's here right now.
+    const targets = new Set(threeTwo.voiceLeadChordTones.map(norm))
+    strings.forEach((open, si) => {
+      const openChroma = NOTES_FLAT.indexOf(norm(open))
+      if (openChroma === -1) return
+      for (let f = 0; f <= FRET_COUNT; f++) {
+        const noteName = NOTES_FLAT[(openChroma + f) % 12]
+        if (!targets.has(noteName)) continue
+        const ghostText = labelMode === "degrees" && ghostRootNote
+          ? degreeOf(noteName, norm(ghostRootNote))
+          : noteName
+        ghosts.push({ key: `g32c-${si}-${f}`, cx: dotX(f), cy: strY(si), si, f, label: noteName, text: ghostText })
       }
     })
   }

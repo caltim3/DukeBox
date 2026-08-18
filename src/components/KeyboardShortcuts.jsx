@@ -24,11 +24,11 @@ const GROUPS = [
   {
     title: "Workspaces",
     items: [
-      ["0", "Home"],
-      ["1", "Practice — Focus, while playing"],
-      ["2", "Gig — live chart, while playing"],
-      ["3", "Create"],
-      ["4", "Reference"],
+      ["0", "Home — 3:2 System's Chord scales, once you're in Focus"],
+      ["1", "Practice — Focus, while playing; 3:2's Blues scale, in Focus"],
+      ["2", "Gig — live chart, while playing; 3:2's Minor, in Focus"],
+      ["3", "Create — 3:2's Major, in Focus"],
+      ["4", "Reference — 3:2's Altered, in Focus"],
       ["5", "Tonal"],
     ],
   },
@@ -190,8 +190,16 @@ export default function KeyboardShortcuts() {
 
       if (open || isTyping() || event.metaKey || event.ctrlKey || event.altKey) return
 
+      // In Focus, "0"-"4" pick the 3:2 System's level instead — see page.js's
+      // own keydown handler, where that state lives. Don't preventDefault/
+      // stopPropagation here; let the keydown fall through to page.js's
+      // bubble-phase listener untouched. "5" (Tonal) is untouched either way
+      // — the 3:2 System only has levels 0-4.
+      const inFocusStage = () => document.body.classList.contains("db-focus-mode")
+
       const workspaces = { "1": "Practice", "2": "Gig", "3": "Create", "4": "Reference", "5": "Tonal" }
       if (workspaces[event.key]) {
+        if (event.key !== "5" && inFocusStage()) return
         event.preventDefault()
         event.stopPropagation()
         // While a song is playing, "1" means "back to Focus" specifically —
@@ -210,6 +218,7 @@ export default function KeyboardShortcuts() {
       }
 
       if (event.key === "0") {
+        if (inFocusStage()) return
         event.preventDefault()
         event.stopPropagation()
         goHome()
