@@ -632,13 +632,18 @@ export function transposeChart(bars, fromRoot, toRoot) {
 
 const CHROMATIC_NOTES = ["C","Db","D","Eb","E","F","Gb","G","Ab","A","Bb","B"]
 
-function noteAtSemitones(root, semitones) {
+// Exported — the "Altered" overlay (page.js's alteredMap) reuses this same
+// semitone arithmetic for its own tritone-sub / melodic-minor-up-a-half-step
+// roots, rather than re-deriving it.
+export function noteAtSemitones(root, semitones) {
   const chroma = Note.chroma(root)
   if (chroma == null) return null
   return CHROMATIC_NOTES[((chroma + semitones) % 12 + 12) % 12]
 }
 
-function buildFromSemitones(root, list) {
+// Exported for the same reason — the "Altered" overlay's melodic-minor
+// pentatonic reduction is built from this.
+export function buildFromSemitones(root, list) {
   return list.map(s => noteAtSemitones(root, s)).filter(Boolean)
 }
 
@@ -648,8 +653,14 @@ function buildFromSemitones(root, list) {
  *
  *   m7 / m6          → same root,          displayQuality: "min7"   (Dorian, the chord's own root)
  *   maj7 / maj6      → relative minor +9st, displayQuality: "min7"   (e.g. C → A — a minor 3rd below, same note as +9)
- *   7 / 9 / 13 / dom → half step +1st,      displayQuality: "min7"   (e.g. G7 → Ab — Dorian a half step above the root, the melodic-minor-derived altered color)
+ *   7 / 9 / 13 / dom → 5th +7st,            displayQuality: "min7"   (e.g. G7 → D — Dorian off the 5th, the same shape every time regardless of whether the dominant is actually functioning)
  *   m7b5 / dim7      → same root,           displayQuality: "min7b5" (melodic hex)
+ *
+ * This is Martino's own fixed, unconditional rule — it always uses the 5th,
+ * whether or not the dominant is actually resolving anywhere. The "Altered"
+ * overlay (page.js's alteredMap, applied only to a chord that IS actually
+ * functioning as a dominant resolution) is the separate, situational
+ * reharmonization; the two are independent and don't interact.
  *
  * Only affects the fretboard scale display — guide tones, audio, and notation
  * all continue to use the original chord data.
@@ -665,7 +676,7 @@ export function martinoMapper(root, quality) {
   if (q.startsWith("min") || q === "m7" || q === "m6" || q === "m9")
     return { displayRoot: root, displayQuality: "min7" }
   if ((q.includes("7") || q.includes("9") || q.includes("13")) && !q.startsWith("maj"))
-    return { displayRoot: noteAtSemitones(root, 1), displayQuality: "min7" }
+    return { displayRoot: noteAtSemitones(root, 7), displayQuality: "min7" }
   return { displayRoot: root, displayQuality: "min7" }
 }
 
