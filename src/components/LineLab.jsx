@@ -27,7 +27,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import LineNotation from "@/components/LineNotation"
 import PhraseMachineTree from "@/components/PhraseMachineTree"
-import { exportLineMusicXML } from "@/lib/music/leadsheet"
+import { exportLineMusicXML, groupIntoMeasures } from "@/lib/music/leadsheet"
 import { inferLineKey, LICK_KEYS, lineFretRange, refingerLine, transposeLine } from "@/lib/music/licktionary"
 import { parseGigChord } from "@/lib/music/gigbook"
 import {
@@ -108,10 +108,20 @@ function parseBars(text) {
 }
 
 export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyle, selectStyle, onStopPlayback, playLineSection, licks = [], selectedLickId, onSelectLick, requestedLick, onSaveLick }) {
+  // `chartBars` is one entry per CHORD, not per measure — a bar split
+  // between two chords (e.g. Bm7b5 | E7b9 sharing one measure) is two
+  // consecutive entries, each with its own beats:2. Practice mode already
+  // groups those back into one measure for display (groupIntoMeasures, also
+  // used by the lead-sheet export); Line Lab needs the same grouping so its
+  // "Changes" strip shows real measures — one box per bar, multiple chords
+  // space-joined inside it — instead of one box per chord, which both
+  // inflated the apparent bar count and threw off the "max 8 bars" cap.
+  const chartMeasures = useMemo(() => groupIntoMeasures(chartBars ?? []), [chartBars])
+
   // Seed the sheet from whatever chart is loaded in DukeBox
   const chartAsSheet = useMemo(
-    () => (chartBars ?? []).map(b => b.symbol).join(" | "),
-    [chartBars]
+    () => chartMeasures.map((group) => group.map((b) => b.symbol).join(" ")).join(" | "),
+    [chartMeasures]
   )
 
   // ── Source: your chart, a triad-network preset, a saved lick, or Phrase Machine ──
@@ -458,11 +468,21 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
     const clipped = !isNetwork && selEnd - selStart + 1 > 8
 
     // Richer bar data (root/quality/beats) lets the route feed the model
-    // DukeBox's own scale recommendations and guide tones.
+    // DukeBox's own scale recommendations and guide tones. Sliced from
+    // chartMeasures (real measures), matching `section` above index-for-
+    // index — a measure with more than one chord carries all of them in
+    // `chords`, so the route's per-bar context can speak to each one, not
+    // just the first.
     const chartSlice = isNetwork
       ? netChords.map((sym) => ({ symbol: sym, quality: guessQuality(sym), beats: 4 }))
-      : (chartBars ?? []).slice(selStart, Math.min(selEnd + 1, selStart + 8))
-          .map((b) => ({ symbol: b.symbol, root: b.root, quality: b.quality, beats: b.beats }))
+      : chartMeasures.slice(selStart, Math.min(selEnd + 1, selStart + 8))
+          .map((group) => ({
+            symbol: group.map((b) => b.symbol).join(" "),
+            root: group[0]?.root,
+            quality: group[0]?.quality,
+            beats: group.reduce((sum, b) => sum + (Number(b.beats) || 4), 0),
+            chords: group.map((b) => ({ symbol: b.symbol, root: b.root, quality: b.quality, beats: b.beats })),
+          }))
 
     try {
       const res = await fetch("/api/generate-line", {
