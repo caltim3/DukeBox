@@ -495,9 +495,17 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
   // itself; the formula shown in the tree/chip strip stays exactly what
   // was clicked. A fresh random seed every call, matching how the
   // prototype re-rolled on every node click and Regenerate press alike.
+  //
+  // Strips any trailing landing block(s) first — however they got there
+  // (a saved lick's older formula, PhraseMachineTree's own now-closed
+  // landing→landing path) — then appends exactly one, matching the current
+  // Landing selector, so generation never stacks two landing notes back to
+  // back.
   function runPhraseMachine(base) {
     if (!base?.length) return
-    const eff = base[base.length - 1]?.startsWith("land") ? base : [...base, PM_LANDING_BLOCK[pmLanding] || "land_and3"]
+    let core = base
+    while (core.length > 1 && core[core.length - 1]?.startsWith("land")) core = core.slice(0, -1)
+    const eff = core[core.length - 1]?.startsWith("land") ? core : [...core, PM_LANDING_BLOCK[pmLanding] || "land_and3"]
     const seed = Math.floor(Math.random() * 0xffffff)
     try {
       const genResult = runGenerator(eff, pmKey, pmProgType, pmVariation, seed, pmLanding)
