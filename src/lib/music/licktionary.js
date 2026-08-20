@@ -204,7 +204,7 @@ function transposeChord(symbol, semitones) {
   return `${LICK_KEYS[root]}${m[3]}`
 }
 
-function guitarPosition(midi) {
+export function guitarPosition(midi) {
   const choices = []
   for (let s = 1; s <= 6; s++) {
     const fret = midi - OPEN_MIDI[s]
