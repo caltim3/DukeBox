@@ -215,6 +215,16 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
 
   const [exported, setExported] = useState(false)
 
+  // ── Notation window sizing — the engraving has no natural size limit of
+  // its own (a long line at 4 measures/row can still run to several rows),
+  // so give it its own collapse + zoom controls rather than letting it grow
+  // to dominate the panel. "Fit" caps the row height and scrolls; "Full"
+  // removes the cap for printing/screenshotting the whole thing.
+  const [notationOpen, setNotationOpen] = useState(true)
+  const [notationZoom, setNotationZoom] = useState("md")   // "sm" | "md" | "lg"
+  const [notationFit, setNotationFit] = useState(true)      // capped height + scroll, vs. full height
+  const NOTATION_SCALES = { sm: 0.72, md: 1, lg: 1.35 }
+
   const prog = TN_PROGRESSIONS[progression]
   const isMartino = !!prog?.martino
   const netChords = useMemo(
@@ -1241,9 +1251,54 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
           </div>
 
           {/* Standard notation + TAB — driven by the same timed line events as playback */}
-          <div style={{ marginTop: "14px", overflowX: "auto" }}>
-            <label style={{ fontSize: "var(--db-fs-sm)", color: "var(--db-accent)", display: "block", marginBottom: "8px" }}>Notation + TAB</label>
-            <LineNotation line={workingResult} tempo={tempo} activeIndex={soundingIdx} />
+          <div style={{ marginTop: "14px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", marginBottom: "8px" }}>
+              <button
+                type="button"
+                onClick={() => setNotationOpen((v) => !v)}
+                aria-expanded={notationOpen}
+                style={{
+                  background: "none", border: "none", cursor: "pointer", padding: 0,
+                  display: "flex", alignItems: "center", gap: "6px",
+                  fontSize: "var(--db-fs-sm)", color: "var(--db-accent)", fontWeight: 700,
+                }}
+              >
+                <span style={{ opacity: 0.6, fontSize: "0.8em", width: "0.9em", display: "inline-block" }}>{notationOpen ? "▾" : "▸"}</span>
+                Notation + TAB
+              </button>
+              {notationOpen && (
+                <>
+                  <span style={{ width: "1px", height: "14px", background: "var(--db-panel-border)" }} />
+                  <span style={{ fontSize: "var(--db-fs-xs)", opacity: 0.6 }}>Size</span>
+                  <div style={{ display: "flex", gap: "4px" }}>
+                    {[["sm", "S"], ["md", "M"], ["lg", "L"]].map(([id, label]) => (
+                      <button
+                        key={id} type="button" onClick={() => setNotationZoom(id)} aria-pressed={notationZoom === id}
+                        style={{ ...chip(notationZoom === id), padding: "3px 9px" }}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setNotationFit((v) => !v)}
+                    aria-pressed={!notationFit}
+                    title={notationFit ? "Capped height, scrolls if the line runs long" : "Uncapped — shows every row at once"}
+                    style={chip(!notationFit)}
+                  >
+                    {notationFit ? "Fit" : "Full height"}
+                  </button>
+                </>
+              )}
+            </div>
+            {notationOpen && (
+              <LineNotation
+                line={workingResult} tempo={tempo} activeIndex={soundingIdx}
+                scale={NOTATION_SCALES[notationZoom]}
+                maxHeight={notationFit ? "360px" : null}
+              />
+            )}
           </div>
 
           {/* Per-bar reasoning */}
