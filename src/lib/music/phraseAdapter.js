@@ -40,6 +40,59 @@
 import { PM_NOTES, BLOCK_LABELS } from "@/lib/music/phraseEngine"
 import { guitarPosition } from "@/lib/music/licktionary"
 
+// ─── Phrase design note: a plain-language reading of the block chain ──────
+// Each block type gets a noun-phrase fragment ending in a dangling
+// preposition ("a pivot arpeggio ascending off the 3rd of") that the chord
+// symbol completes ("...of Dm7"). summarize() below chains these into one
+// sentence — the same kind of "3 note pickup starting on the & of 3, leads
+// to a pivot arpeggio off the root of the ii..." read a teacher would give,
+// rather than the bare block-label chain ("Encl std → Pivot 3↑ → ...") this
+// used to produce. Missing types (there shouldn't be any — this covers every
+// key in BLOCK_FNS) fall back to a generic reading built from BLOCK_LABELS.
+const BLOCK_PHRASE = {
+  enclosure_std: "a standard chromatic enclosure into",
+  enclosure_dbl: "a double chromatic enclosure into",
+  enclosure_chrom: "a chromatic enclosure into",
+  enclosure_above: "an enclosure from above into",
+  pickup_scale: "a two-note scale pickup into",
+  pickup_chrom: "a two-note chromatic pickup into",
+  arp_root_up: "a root-position arpeggio ascending off",
+  arp_root_down: "a root-position arpeggio descending off",
+  arp_3rd_up: "a pivot arpeggio ascending off the 3rd of",
+  arp_3rd_down: "a pivot arpeggio descending off the 3rd of",
+  arp_dim_up: "a diminished-7 arpeggio ascending off the 3rd of",
+  arp_dim_down: "a diminished-7 arpeggio descending off the 3rd of",
+  arp_shell_up: "a shell-voicing arpeggio ascending off",
+  arp_upper_struct: "an upper-structure triad off the #11 of",
+  scale_bop_down: "a descending bebop scale run through",
+  scale_bop_up: "an ascending bebop scale run through",
+  scale_major_down: "a descending major scale run through",
+  scale_mm_down: "a descending melodic-minor run through",
+  scale_mm_up: "an ascending melodic-minor run through",
+  scale_hw_dim: "a half-whole diminished run over",
+  scale_chrom_down: "a chromatic descent into",
+  scale_pent_down: "a descending pentatonic run through",
+  cell_1235: "a 1-2-3-5 melodic cell off",
+  cell_5321: "a 5-3-2-1 melodic cell off",
+  cell_b7R53: "a b7-root-5-3 melodic cell off",
+  cell_3217: "a 3-2-1-7 melodic cell off",
+  cell_b9cell: "a b9 color cell over",
+  cell_bebop_lick: "a bebop scale lick through",
+  pivot_3rd_up: "a pivot arpeggio off the root of",
+  pivot_3rd_down: "a descending pivot off the 9th of",
+  pivot_root_up: "a root-up pivot arpeggio off",
+  triad_pair_uu: "a triad pair, stacked upper structures over",
+  triad_sub_tt: "a tritone-substitute triad over",
+  triad_mm_pair: "a melodic-minor triad pair over",
+  trip_triad_chain: "a rest-stroke triplet gallop through",
+  trip_dim_chain: "a diminished-triplet gallop over",
+  trip_burst_rest: "a triplet burst, then a rest, off",
+  land_and1: "lands on the & of 1 of",
+  land_and3: "lands on the & of 3 of",
+  land_hold: "lands and holds on the root of",
+  land_beat3_late: "lands late, on beat 3, on the root of",
+}
+
 // ─── Register: nominal notes -> MIDI, in melodic order ────────────────────
 // Direct port of notesToAbcStr's octave picker. `prev` persists across the
 // whole phrase (rests don't touch it, matching the original) so contour
@@ -155,8 +208,19 @@ function buildBars(notes, midis, timeline) {
 }
 
 // ─── Summary: the block sequence, in plain language ────────────────────────
+// "Opens with a standard chromatic enclosure into Dm7, then a pivot arpeggio
+// ascending off the 3rd of Dm7, then a descending bebop scale run through
+// G7, and lands on the & of 3 of Cmaj7." — the phrase design note shown next
+// to Line Lab's "The line" title.
 function summarize(blockLog) {
-  return blockLog.map((b) => BLOCK_LABELS[b.type] || b.type).join(" → ")
+  if (!blockLog.length) return ""
+  const clauses = blockLog.map((b, i) => {
+    const phrase = BLOCK_PHRASE[b.type] || `plays ${(BLOCK_LABELS[b.type] || b.type).toLowerCase()} over`
+    const clause = `${phrase} ${b.chord}`
+    if (i === 0) return `Opens with ${clause}`
+    return b.type.startsWith("land") ? `and ${clause}` : `then ${clause}`
+  })
+  return `${clauses.join(", ")}.`
 }
 
 // result: phraseEngine.js's runGenerator() return value,
@@ -167,9 +231,13 @@ export function phraseResultToLine(result) {
   const timeline = buildChordTimeline(prog)
   const bars = buildBars(notes, midis, timeline)
   const summary = summarize(blockLog)
+  // Short chip-chain reading for the per-bar reasoning row (every bar would
+  // otherwise repeat the exact same full sentence); the full sentence is the
+  // phrase design note, carried on `s` alone.
+  const chipChain = blockLog.map((b) => BLOCK_LABELS[b.type] || b.type).join(" → ")
 
   return {
-    bars: bars.map((bar) => ({ ...bar, d: "Phrase Machine", x: summary })),
+    bars: bars.map((bar) => ({ ...bar, d: "Phrase Machine", x: chipChain })),
     s: summary,
   }
 }

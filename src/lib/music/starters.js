@@ -27,7 +27,7 @@ export const STARTER_PRESETS = [
   // "Start practicing" strip — fully loaded scenarios: one of the plain
   // charts above plus a specific Fretboard/3:2 System setup (see
   // SCENARIO_CONFIG). Every one of these jumps straight to Focus and starts
-  // playing behind an 8-beat woodblock count-in — see page.js's loadStarter.
+  // playing behind a 4-beat woodblock count-in — see page.js's loadStarter.
   { id: "hex-black-orpheus",          label: "Hexatonics — Black Orpheus" },
   { id: "martino-jazz-blues",         label: "Martino — Jazz Blues" },
   { id: "altered-251-line",           label: "Altered ii-V-I Lines" },

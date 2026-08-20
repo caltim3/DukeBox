@@ -270,12 +270,12 @@ export default function Home() {
   // Levels 2-4's "Shape" filter — the level's own 7-note mode (Dorian /
   // Mixolydian / altered), or a pentatonic/hexatonic reduction of the same
   // family. Deliberately its own state rather than reusing scaleFilter: that
-  // one is a true eight-way mutually-exclusive PALETTE choice with 3:2 System
+  // one is a true nine-way mutually-exclusive PALETTE choice with 3:2 System
   // itself (see the PALETTE panel below), so it can't also mean something
   // while 3:2 is on. Levels 0-1 ignore this entirely.
   const [threeTwoDensity, setThreeTwoDensity] = useState("mode")  // "mode" | "pentatonic" | "hexatonic"
-  const [scaleFilter, setScaleFilter] = useState(null)  // null | "pentatonic" | "hexatonic" | "martino" | "hexchord" | "barry"
-  // "Altered" — independent of the eight-way PALETTE set above (like
+  const [scaleFilter, setScaleFilter] = useState(null)  // null | "pentatonic" | "hexatonic" | "martino" | "hexchord" | "barry" | "harmonicMinor251"
+  // "Altered" — independent of the nine-way PALETTE set above (like
   // +Bebop Chromatic, a modifier that sits alongside whichever PALETTE
   // choice is active, not a member of it). Only touches a chord that's
   // actually FUNCTIONING as a dominant resolution (see alteredMap below);
@@ -429,7 +429,7 @@ export default function Home() {
   const loopSigRef        = useRef(null)   // last loop range the transport was started with
   const stopPlaybackRef   = useRef(null)   // always points to latest stopPlayback
   const pendingStartRef   = useRef(false)  // set by loadStarter → fires after bars state commits
-  const pendingCountInRef = useRef(undefined)  // scenario starters force an 8-beat count-in for that one auto-play; undefined = use the transport's own countInBeats
+  const pendingCountInRef = useRef(undefined)  // scenario starters force a 4-beat count-in for that one auto-play; undefined = use the transport's own countInBeats
   const loadStarterRef    = useRef(null)   // latest loadStarter, for the cross-tree starter event
   const toastTimer        = useRef(null)   // auto-dismiss handle for the toast
   const themePickerRef    = useRef(null)   // wraps the palette/mode dropdown, for click-outside close
@@ -818,10 +818,17 @@ export default function Home() {
     ? hexChoiceForChord(fretboardBar.userTonic ?? fretboardBar.root, fretboardBar.quality).label
     : scaleFilter === "barry"
     ? `Barry 6th-Dim (${barryHarrisScale(fretboardBar.userTonic ?? fretboardBar.root, fretboardBar.quality).family})`
+    : scaleFilter === "harmonicMinor251"
+    ? (() => {
+        const tonic = harmonicContext[fretboardBarIndex]?.resolvesToMinorTonic
+        return tonic
+          ? `${tonic} harmonic minor · iiø7-V7alt-i · this chord's own tones`
+          : `${fretboardBar.userTonic ?? fretboardBar.root} harmonic minor · this chord's own tones`
+      })()
     : (scaleFilter ?? fretboardScaleData[0]?.name ?? "")
   const scaleTonic = fretboardBar.userTonic ?? fretboardBar.root
   const scaleLabelFull = scaleLabel
-    ? (threeTwoActiveOnBoard || martinoMap || (alteredMap && (scaleFilter == null || scaleFilter === "pentatonic")) || scaleFilter === "hexchord" || scaleFilter === "barry" ? scaleLabel : `${scaleTonic} ${scaleLabel}`)
+    ? (threeTwoActiveOnBoard || martinoMap || (alteredMap && (scaleFilter == null || scaleFilter === "pentatonic")) || scaleFilter === "hexchord" || scaleFilter === "barry" || scaleFilter === "harmonicMinor251" ? scaleLabel : `${scaleTonic} ${scaleLabel}`)
     : "—"
 
   // Anticipate — the next sounding bar, wrapping inside the loop range when
@@ -1561,10 +1568,10 @@ export default function Home() {
     }
 
     // Trigger auto-play after React commits the new bars to state. Scenarios
-    // always get their own 8-beat count-in, whatever the transport's own
+    // always get their own 4-beat count-in, whatever the transport's own
     // count-in button happens to be set to.
     pendingStartRef.current = true
-    pendingCountInRef.current = scenario ? 8 : undefined
+    pendingCountInRef.current = scenario ? 4 : undefined
     setActiveGigSongId(null)
     const starterLabel = STARTER_PRESETS.find((preset) => preset.id === starterId)?.label ?? null
     setActiveSongTitle(starterLabel)
@@ -1745,7 +1752,7 @@ export default function Home() {
   // loopOverride ({start, end}) forces a loop over an explicit bar range without
   // waiting for loop state to commit — used by per-bar "loop just this chord".
   // countInOverride forces a specific count-in length (loadStarter's
-  // scenarios always want 8, whatever the transport's own count-in button is
+  // scenarios always want 4, whatever the transport's own count-in button is
   // set to); omitted, this reads that button's own countInBeats state.
   async function startPlayback(overrideTempo = null, loopOverride = null, countInOverride = undefined) {
     playingRef.current = false  // cancel any pending repeats from previous run
@@ -2604,7 +2611,7 @@ export default function Home() {
             strip, but reachable without going home first. Each one is a
             chart plus its own Fretboard/3:2 System setup (SCENARIO_CONFIG
             in starters.js); loadStarter drops to practice tempo, jumps to
-            Focus, and starts the band behind an 8-beat count-in — all on
+            Focus, and starts the band behind a 4-beat count-in — all on
             its own, no view picker needed here anymore. */}
         {inMode("practice") && (
           <div style={{
@@ -2624,7 +2631,7 @@ export default function Home() {
                 <button
                   key={preset.id}
                   onClick={() => loadStarter(preset.id)}
-                  title={`Load ${preset.label} and start playing in Focus, after an 8-beat count-in`}
+                  title={`Load ${preset.label} and start playing in Focus, after a 4-beat count-in`}
                   style={{
                     padding: "7px 14px", borderRadius: "999px", cursor: "pointer",
                     font: "600 13px 'Instrument Sans', sans-serif",
@@ -3040,6 +3047,7 @@ export default function Home() {
                       ["martino",    "Martino"],
                       ["hexchord",   "Hex·Chord"],
                       ["barry",      "Barry 6th"],
+                      ["harmonicMinor251", "Harm min ii-V-i"],
                     ].map(([f, label]) => (
                       <button key={f} onClick={() => {
                         // Turning a filter on implies you want to see the scale, not the chord
@@ -3049,7 +3057,9 @@ export default function Home() {
                           if (next) setFretboardView("scale")
                           return next
                         })
-                      }} style={{
+                      }} title={f === "harmonicMinor251"
+                        ? "One harmonic minor over the whole iiø7-V7alt-i — only this chord's own tones from that scale light up. Select a bar inside a minor ii-V-i for the shared tonic; elsewhere, this chord's own root stands in for it."
+                        : undefined} style={{
                         padding: "4px 10px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-sm)", cursor: "pointer",
                         background: scaleFilter === f && !threeTwoMode ? "color-mix(in srgb, var(--db-c-blue) 20%, var(--db-bg))" : "var(--db-panel-bg)",
                         border:     scaleFilter === f && !threeTwoMode ? "1px solid var(--db-c-blue)" : "1px solid var(--db-panel-border)",
@@ -3060,7 +3070,7 @@ export default function Home() {
                         {label}
                       </button>
                     ))}
-                    {/* "Altered" — a modifier, not a member of the eight-way
+                    {/* "Altered" — a modifier, not a member of the nine-way
                         mutually-exclusive PALETTE set (same standing as
                         +Bebop Chromatic below): it sits alongside whichever
                         of Chord/Scale/5-filters is active and only actually
@@ -3082,7 +3092,7 @@ export default function Home() {
                     </button>
                     {/* The "3:2 System" — the Pickup Music 3:2 system, leveled and
                         wired to the loaded song (src/lib/music/threeTwoSystem.js).
-                        Lives here now, as the 8th palette choice, rather than
+                        Lives here now, as the 9th palette choice, rather than
                         beside Fret Focus's Off/Manual/Auto: it isn't a window —
                         it replaces the note-selection pipeline the same way
                         Pentatonic or Barry do, just with its own visual system
@@ -3090,7 +3100,7 @@ export default function Home() {
                         instead of the maple board's usual root/chord/scale
                         palette. Turning it on clears scaleFilter (and vice
                         versa) so the highlighted button always matches what's
-                        actually on the board — no more all-eight-look-equally-
+                        actually on the board — no more all-nine-look-equally-
                         live state while only one of them is doing anything.
                         Offers a fixed Chord scales / Blues scale / Minor /
                         Major / Altered ladder — a "blues thinking" ladder
@@ -3154,7 +3164,7 @@ export default function Home() {
                       (Dorian / Mixolydian, or Level 4's altered override) by
                       default, or a pentatonic/hexatonic reduction of the same
                       family. Doesn't touch scaleFilter — that toggle is a true
-                      eight-way mutually-exclusive PALETTE choice with 3:2
+                      nine-way mutually-exclusive PALETTE choice with 3:2
                       System itself, so it can't also mean something while 3:2
                       is on (see threeTwoDensity's own doc comment above). */}
                   {threeTwoMode && fretboardTuning === "Standard" && threeTwoLevel >= 2 && (

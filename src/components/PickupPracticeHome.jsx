@@ -208,6 +208,8 @@ function Icon({ name }) {
     gig: <><path d="M9 18V5l10-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="16" cy="16" r="3"/></>,
     reference: <><circle cx="12" cy="12" r="9"/><path d="m15 9-2 4-4 2 2-4 4-2Z"/></>,
     tonal: <><path d="M4 20V4h16v16H4Z"/><path d="M8 4v10M12 4v10M16 4v10"/><path d="M6 14h3M10 14h3M14 14h3"/></>,
+    beatforge: <><path d="M6 5h12l3 15H3L6 5Z"/><path d="M8 5V3h8v2"/><path d="M9 11h6"/></>,
+    linelab: <><path d="M3 16c3-1 3-10 6-10s3 9 6 9 3-6 6-6"/><circle cx="3" cy="16" r="1.3" fill="currentColor" stroke="none"/><circle cx="21" cy="9" r="1.3" fill="currentColor" stroke="none"/></>,
     search: <><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></>,
     help: <><circle cx="12" cy="12" r="9"/><path d="M9.6 9a2.7 2.7 0 1 1 4.4 2.1c-1 .8-2 1.3-2 2.9"/><path d="M12 18h.01"/></>,
     bell: <><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 8h18c0-1-3-1-3-8"/><path d="M10 20h4"/></>,
@@ -1071,12 +1073,18 @@ export default function PickupPracticeHome() {
           <button type="button" className="db-pickup-nav-button" onClick={() => openWorkspace("create")}>
             <Icon name="create" /><span>Create</span>
           </button>
+          <button type="button" className="db-pickup-nav-button" onClick={() => openWorkspace("beatforge")}>
+            <Icon name="beatforge" /><span>BeatForge</span>
+          </button>
           <button type="button" className="db-pickup-nav-button" onClick={() => openWorkspace("gig")}>
             <Icon name="gig" /><span>Gig mode</span>
           </button>
         </nav>
 
         <nav className="db-pickup-nav-secondary" aria-label="Additional DukeBox navigation">
+          <button type="button" className="db-pickup-nav-button" onClick={() => runAction({ type: "beatforge-section", value: "beatforge-line-lab" })}>
+            <Icon name="linelab" /><span>Line Lab</span>
+          </button>
           <button type="button" className="db-pickup-nav-button" onClick={() => openPracticeCenter("MELODY PATHS")}>
             <Icon name="practice" /><span>Melody paths</span>
           </button>
@@ -1144,7 +1152,7 @@ export default function PickupPracticeHome() {
             <div className="db-pickup-section-heading">
               <div>
                 <h2>Start practicing</h2>
-                <p>A fully loaded scenario — chart, scale/system, and slow tempo — straight into Focus after an 8-beat count-in.</p>
+                <p>A fully loaded scenario — chart, scale/system, and slow tempo — straight into Focus after a 4-beat count-in.</p>
               </div>
             </div>
 

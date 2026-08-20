@@ -141,9 +141,19 @@ export async function startMetronome({
   tr.swing = 0
   tr.loop = false
 
+  // A non-looping rhythm (a count-in, or a one-shot phrase) schedules its own
+  // stop at beatTime(leadBeats + totalBeats) below — the same transport
+  // position this repeat's (totalBeats+1)th tick lands on. Tone.js doesn't
+  // guarantee the stop runs before that tick fires, so without this guard a
+  // "4-beat" count-in could still sound a 5th (or, worse, catch a partially-
+  // cancelled repeat and sound a stray extra) click before the transport
+  // actually halts. Capped here instead of trusting the race.
+  const stopAtCell = rhythm && !rhythm.loop ? Math.max(0, Number(rhythm.totalBeats) || 0) : Infinity
+
   _repeatId = tr.scheduleRepeat((time) => {
     const list = _cfg.cells
     if (!list?.length) return
+    if (_cellIndex >= stopAtCell) return
     const i = _cellIndex % list.length
     const state = list[i]
     if (state) playCell(state, time)

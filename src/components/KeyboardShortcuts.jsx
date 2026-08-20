@@ -28,8 +28,9 @@ const GROUPS = [
       ["1", "Practice — Focus, while playing; 3:2's Blues scale, in Focus"],
       ["2", "Gig — live chart, while playing; 3:2's Minor, in Focus"],
       ["3", "Create — 3:2's Major, in Focus"],
-      ["4", "Reference — 3:2's Altered, in Focus"],
-      ["5", "Tonal"],
+      ["4 / B", "BeatForge — 3:2's Altered, in Focus"],
+      ["5", "Reference"],
+      ["6", "Tonal"],
     ],
   },
   {
@@ -38,7 +39,7 @@ const GROUPS = [
       ["/", "Song library, from anywhere"],
       ["G", "Song library in Gig"],
       ["F", "Fretboard — Freeze, once you're in Practice"],
-      ["L", "Licktionary"],
+      ["L", "Line Lab"],
       ["B", "BeatForge Library"],
       ["Y", "5 minute practice timer"],
     ],
@@ -193,13 +194,13 @@ export default function KeyboardShortcuts() {
       // In Focus, "0"-"4" pick the 3:2 System's level instead — see page.js's
       // own keydown handler, where that state lives. Don't preventDefault/
       // stopPropagation here; let the keydown fall through to page.js's
-      // bubble-phase listener untouched. "5" (Tonal) is untouched either way
-      // — the 3:2 System only has levels 0-4.
+      // bubble-phase listener untouched. "5" (Reference) and "6" (Tonal) are
+      // untouched either way — the 3:2 System only has levels 0-4.
       const inFocusStage = () => document.body.classList.contains("db-focus-mode")
 
-      const workspaces = { "1": "Practice", "2": "Gig", "3": "Create", "4": "Reference", "5": "Tonal" }
+      const workspaces = { "1": "Practice", "2": "Gig", "3": "Create", "4": "BeatForge", "5": "Reference", "6": "Tonal" }
       if (workspaces[event.key]) {
-        if (event.key !== "5" && inFocusStage()) return
+        if (event.key !== "5" && event.key !== "6" && inFocusStage()) return
         event.preventDefault()
         event.stopPropagation()
         // While a song is playing, "1" means "back to Focus" specifically —
@@ -267,7 +268,7 @@ export default function KeyboardShortcuts() {
         event.stopPropagation()
         goWorkspace("BeatForge")
         waitFor(
-          () => document.getElementById("beatforge-licktionary"),
+          () => document.getElementById("beatforge-line-lab"),
           (section) => { section.open = true; reveal(section) },
         )
         return

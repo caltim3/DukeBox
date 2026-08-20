@@ -122,6 +122,13 @@ export default function PhraseMachineTree({ formula, onFormulaChange, prog, voic
         ))}
       </div>
 
+      <div
+        style={{ fontSize: "var(--db-fs-xs)", opacity: 0.55, marginTop: "6px" }}
+        title="Grammar fit (how well this block follows the one before it) × how well its category fits the current chord's slot × the chosen Direction's bonus for its exit shape, plus a small bump every time you've actually picked that pair before."
+      >
+        The number on each block (0-100, also the fill bar) scores how well it follows the block before it — hover a block for the breakdown.
+      </div>
+
       {/* Formula chip strip */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", alignItems: "center", marginTop: "10px", minHeight: "30px" }}>
         {formula.length === 0 && (
@@ -167,6 +174,7 @@ export default function PhraseMachineTree({ formula, onFormulaChange, prog, voic
                   type="button"
                   onClick={() => pickNode(col, c.type, isBuilt)}
                   disabled={isPast}
+                  title={`${c.score}/100 — how well "${BLOCK_LABELS[c.type] || c.type}" follows ${col === 0 ? "the start of the phrase" : `"${BLOCK_LABELS[formula[col - 1]] || formula[col - 1]}"`} over ${symbol}`}
                   style={{
                     textAlign: "left", padding: "7px 9px", borderRadius: "var(--db-r-md)", cursor: "pointer",
                     border: `2px solid ${selected ? "var(--db-text)" : `color-mix(in srgb, ${color} 45%, transparent)`}`,
