@@ -1,14 +1,8 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
-import LineLab from "@/components/LineLab"
-import Licktionary from "@/components/Licktionary"
 import SongCrafter from "@/components/SongCrafter"
 import SongSheet from "@/components/SongSheet"
-import { inferLineKey, presetLicks } from "@/lib/music/licktionary"
-
-const BUILT_IN_LICKS = presetLicks()
-const SAVED_LICKS_KEY = "dukebox.licktionary.v1"
+import WorkspaceSection from "@/components/WorkspaceSection"
 
 const neutralButton = {
   padding: "8px 12px",
@@ -18,20 +12,6 @@ const neutralButton = {
   color: "var(--db-text)",
   cursor: "pointer",
   fontWeight: 700,
-}
-
-function Section({ id, title, subtitle, color, panelStyle, open = false, children }) {
-  const [expanded, setExpanded] = useState(open)
-  return (
-    <details id={id} open={expanded} onToggle={(event) => setExpanded(event.currentTarget.open)} style={panelStyle}>
-      <summary style={{ cursor: "pointer", listStyle: "none", display: "flex", alignItems: "center", gap: "10px", fontWeight: 800, flexWrap: "wrap" }}>
-        <span aria-hidden="true" style={{ fontSize: "1.35rem", color }}>＋</span>
-        <span style={{ fontSize: "var(--db-fs-lg)", letterSpacing: "0.06em", color }}>{title}</span>
-        <span style={{ fontSize: "var(--db-fs-sm)", color: "var(--db-muted)", fontWeight: 400 }}>{subtitle}</span>
-      </summary>
-      <div style={{ marginTop: "14px" }}>{children}</div>
-    </details>
-  )
 }
 
 function ChartGenerator({ generator, selectStyle }) {
@@ -98,61 +78,17 @@ export default function CreateWorkspace({
   onStartDraft,
   onSongCrafted,
   originalTempo,
-  stopPlayback,
-  playLineSection,
   panelStyle,
   eyebrowStyle,
   selectStyle,
 }) {
-  const workingBars = songSheetDraft?.bars || generator.chartBars
-  const workingTitle = songSheetDraft?.title || generator.chartTitle
-  const [savedLicks, setSavedLicks] = useState([])
-  const [selectedLickId, setSelectedLickId] = useState(BUILT_IN_LICKS[0]?.id || "")
-  const [requestedLick, setRequestedLick] = useState(null)
-  const licks = useMemo(() => [...BUILT_IN_LICKS, ...savedLicks], [savedLicks])
-
-  useEffect(() => {
-    try {
-      const saved = JSON.parse(window.localStorage.getItem(SAVED_LICKS_KEY) || "[]")
-      if (Array.isArray(saved)) setSavedLicks(saved)
-    } catch { /* corrupt local data should never break Create */ }
-  }, [])
-
-  function saveLick(entry) {
-    const lick = {
-      ...entry,
-      id: `line-lab-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      baseKey: entry.baseKey || inferLineKey(entry.line),
-      builtIn: false,
-      createdAt: new Date().toISOString(),
-    }
-    setSavedLicks((prev) => {
-      const next = [...prev, lick]
-      try { window.localStorage.setItem(SAVED_LICKS_KEY, JSON.stringify(next)) } catch {}
-      return next
-    })
-    setSelectedLickId(lick.id)
-  }
-
-  function openLickInLineLab(id, key = "C", neckPosition = null) {
-    setSelectedLickId(id)
-    setRequestedLick({ id, key, neckPosition, nonce: Date.now() })
-    window.setTimeout(() => {
-      const section = document.getElementById("create-line-lab")
-      if (section) {
-        section.open = true
-        section.scrollIntoView({ behavior: "smooth", block: "start" })
-      }
-    }, 0)
-  }
-
   return (
     <div style={{ display: "grid", gap: "16px", marginBottom: "20px" }}>
-      <Section title="AI CHART GENERATOR" subtitle="Build a chart from a description" color="var(--db-c-purple)" panelStyle={panelStyle} open>
+      <WorkspaceSection title="AI CHART GENERATOR" subtitle="Build a chart from a description" color="var(--db-c-purple)" panelStyle={panelStyle} open>
         <ChartGenerator generator={generator} selectStyle={selectStyle} />
-      </Section>
+      </WorkspaceSection>
 
-      <Section id="create-songcrafter" title="SONGCRAFTER" subtitle="Assemble progressions and send them into an editable draft" color="var(--db-c-gold)" panelStyle={panelStyle}>
+      <WorkspaceSection id="create-songcrafter" title="SONGCRAFTER" subtitle="Assemble progressions and send them into an editable draft" color="var(--db-c-gold)" panelStyle={panelStyle}>
         <SongCrafter
           onSendToChart={({ bars, keyRoot, keyMode, title, tempo }) => onSongCrafted({
             bars, keyRoot, keyMode, title,
@@ -162,9 +98,9 @@ export default function CreateWorkspace({
           eyebrowStyle={eyebrowStyle}
           selectStyle={selectStyle}
         />
-      </Section>
+      </WorkspaceSection>
 
-      <Section title="SONGSHEET" subtitle="Arrange sections and measures into a library-ready lead sheet" color="var(--db-c-amber)" panelStyle={panelStyle} open>
+      <WorkspaceSection title="SONGSHEET" subtitle="Arrange sections and measures into a library-ready lead sheet" color="var(--db-c-amber)" panelStyle={panelStyle} open>
         <SongSheet
           draft={songSheetDraft}
           onChange={onDraftChange}
@@ -172,33 +108,7 @@ export default function CreateWorkspace({
           onOpenPractice={onDraftOpenPractice}
           onStartFromChart={onStartDraft}
         />
-      </Section>
-
-      <Section id="create-line-lab" title="LINE LAB" subtitle="Develop single-note lines over the active draft" color="var(--db-c-green)" panelStyle={panelStyle}>
-        <LineLab
-          chartBars={workingBars}
-          chartTitle={workingTitle}
-          onStopPlayback={stopPlayback}
-          playLineSection={playLineSection}
-          panelStyle={{ ...panelStyle, margin: 0 }}
-          eyebrowStyle={eyebrowStyle}
-          selectStyle={selectStyle}
-          licks={licks}
-          selectedLickId={selectedLickId}
-          onSelectLick={setSelectedLickId}
-          requestedLick={requestedLick}
-          onSaveLick={saveLick}
-        />
-      </Section>
-
-      <Section id="db-licktionary" title="LICKTIONARY" subtitle="28 bebop approaches in major and minor — including the Peña set — plus your saved Line Lab licks" color="var(--db-c-pink, var(--db-c-purple))" panelStyle={panelStyle}>
-        <Licktionary
-          licks={licks}
-          selectedLickId={selectedLickId}
-          onOpenLick={openLickInLineLab}
-          selectStyle={selectStyle}
-        />
-      </Section>
+      </WorkspaceSection>
     </div>
   )
 }

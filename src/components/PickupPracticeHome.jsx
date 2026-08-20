@@ -13,6 +13,7 @@ const WORKSPACE_LABELS = {
   practice: "Practice",
   gig: "Gig",
   create: "Create",
+  beatforge: "BeatForge",
   reference: "Reference",
   tonal: "Tonal",
 }
@@ -59,7 +60,7 @@ const PLAN_ROWS = [
         title: "BeatForge",
         subtitle: "Time workout and bebop rhythm generator",
         image: "/cards/beatforge2.jpg",
-        action: { type: "practice-panel", value: "beatforge-metronome" },
+        action: { type: "beatforge-panel", value: "beatforge-metronome" },
       },
       {
         id: "linelab",
@@ -67,7 +68,7 @@ const PLAN_ROWS = [
         title: "LineLab",
         subtitle: "Develop single-note lines over the changes",
         image: "/cards/linelab2.jpg",
-        action: { type: "create-section", value: "create-line-lab" },
+        action: { type: "beatforge-section", value: "beatforge-line-lab" },
       },
       {
         id: "songcrafter",
@@ -428,6 +429,29 @@ export default function PickupPracticeHome() {
     // top of a long workspace.
     if (action.type === "create-section") {
       openWorkspace("create")
+      window.setTimeout(() => {
+        const section = document.getElementById(action.value)
+        if (!section) return
+        section.open = true
+        section.scrollIntoView({ behavior: "smooth", block: "start" })
+      }, 180)
+      return
+    }
+    // A collapsible power panel in the BeatForge tab, addressed by the
+    // data-db-shortcut hook on its header.
+    if (action.type === "beatforge-panel") {
+      openWorkspace("beatforge")
+      window.setTimeout(() => {
+        const header = document.querySelector(`[data-db-shortcut="${action.value}"]`)
+        if (!header) return
+        if (header.getAttribute("aria-expanded") === "false") header.click()
+        header.scrollIntoView({ behavior: "smooth", block: "start" })
+      }, 200)
+      return
+    }
+    // A collapsible section in the BeatForge tab, addressed by its element id.
+    if (action.type === "beatforge-section") {
+      openWorkspace("beatforge")
       window.setTimeout(() => {
         const section = document.getElementById(action.value)
         if (!section) return
@@ -1056,7 +1080,7 @@ export default function PickupPracticeHome() {
           <button type="button" className="db-pickup-nav-button" onClick={() => openPracticeCenter("MELODY PATHS")}>
             <Icon name="practice" /><span>Melody paths</span>
           </button>
-          <button type="button" className="db-pickup-nav-button" onClick={() => openPracticeCenter("LICKTIONARY")}>
+          <button type="button" className="db-pickup-nav-button" onClick={() => runAction({ type: "beatforge-section", value: "beatforge-licktionary" })}>
             <Icon name="songbook" /><span>Licktionary</span>
           </button>
           <button type="button" className="db-pickup-nav-button" onClick={() => openWorkspace("reference")}>

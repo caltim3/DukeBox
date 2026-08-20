@@ -2674,8 +2674,6 @@ export default function Home() {
               saveToLibrary,
               promptHistory,
               promptTemplates: PROMPT_TEMPLATES,
-              chartBars: bars,
-              chartTitle: selectedForm,
             }}
             songSheetDraft={songSheetDraft}
             onDraftChange={setSongSheetDraft}
@@ -2688,8 +2686,6 @@ export default function Home() {
               showToast("SongCrafter sent the arrangement to SongSheet")
             }}
             originalTempo={originalTempo}
-            stopPlayback={stopPlayback}
-            playLineSection={playLineSection}
             panelStyle={panelStyle}
             eyebrowStyle={eyebrowStyle}
             selectStyle={selectStyle}
@@ -4514,6 +4510,7 @@ export default function Home() {
         <BeatForgeWorkspace
           beatforgeRef={beatforgeRef}
           stopPlayback={stopPlayback}
+          playLineSection={playLineSection}
           onUserGenerate={() => setLoadedLibraryNum(null)}
           loadedLibraryNum={loadedLibraryNum}
           onLoadPattern={(pattern) => {
@@ -4527,6 +4524,9 @@ export default function Home() {
           libraryOpen={openControlPanels.beatforgeLibrary}
           onToggleMetronome={() => toggleControlPanel("metronome")}
           onToggleLibrary={() => toggleControlPanel("beatforgeLibrary")}
+          chartBars={bars}
+          chartTitle={selectedForm}
+          songSheetDraft={songSheetDraft}
           panelStyle={panelStyle}
           eyebrowStyle={eyebrowStyle}
           selectStyle={selectStyle}
