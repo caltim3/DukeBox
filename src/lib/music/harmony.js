@@ -155,9 +155,17 @@ export function analyzeProgressionContext(bars) {
     const prev = bars[index - 1] || null
     const next = bars[index + 1] || null
 
-    const cadenceLabels = cadences
-      .filter((c) => c.bars.includes(index))
-      .map((c) => c.type)
+    const matching = cadences.filter((c) => c.bars.includes(index))
+    const cadenceLabels = matching.map((c) => c.type)
+
+    // The tonic a local minor ii-V-i resolves to — the root of its "i" bar —
+    // surfaced on all three of that cadence's bars (not just the last one),
+    // so a chord-scale strategy that treats the whole three-bar unit as one
+    // harmonic-minor collection (tonal.js's applyScaleFilter "harmonicMinor251"
+    // case) knows which harmonic minor to reach for no matter which of the
+    // three bars is currently selected.
+    const minorCadence = matching.find((c) => c.type === "iiø–V–i")
+    const resolvesToMinorTonic = minorCadence ? (bars[minorCadence.bars[2]]?.root ?? null) : null
 
     return {
       index,
@@ -167,6 +175,7 @@ export function analyzeProgressionContext(bars) {
       functionLabel: detectLocalFunction(bar, prev, next),
       cadenceLabels,
       hasCadence: cadenceLabels.length > 0,
+      resolvesToMinorTonic,
     }
   })
 }

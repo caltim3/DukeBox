@@ -121,7 +121,11 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
   const isChart = source === "chart"
   const isPhraseMachine = source === "phrase"
   const [lickKey, setLickKey] = useState("C")
-  const [neckPosition, setNeckPosition] = useState(null)
+  // Defaults into the "middle of the barrel" — frets 3-7, away from the open
+  // strings and the dusty end alike — instead of whatever guitarPosition()'s
+  // highest-string-available rule happens to land on. "Original" is still
+  // one click away via the neck-position control's own reset button.
+  const [neckPosition, setNeckPosition] = useState(3)
   const [resultTransposeKey, setResultTransposeKey] = useState("")
 
   useEffect(() => {
@@ -1142,6 +1146,17 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
               </div>
             </div>
 
+            {/* Phrase design note — a plain-language reading of the line
+                (per-bar reasoning for Chart/Network, the block-chain sentence
+                for Phrase Machine, the guide's cue for Licktionary), next to
+                the title rather than buried after the per-bar breakdown. */}
+            {result.s && (
+              <p style={{
+                margin: "8px 0 0", fontSize: "var(--db-fs-md)", paddingLeft: "12px",
+                borderLeft: "3px solid var(--db-accent)", fontStyle: "italic", opacity: 0.9,
+              }}>{result.s}</p>
+            )}
+
             <div style={{ overflowX: "auto" }}>
               <svg
                 viewBox={`0 0 ${fbW} ${fbH}`}
@@ -1226,12 +1241,6 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
             ))}
           </div>
 
-          {result.s && (
-            <p style={{
-              fontSize: "var(--db-fs-md)", marginTop: "14px", paddingLeft: "12px",
-              borderLeft: "3px solid var(--db-accent)", fontStyle: "italic", opacity: 0.9,
-            }}>{result.s}</p>
-          )}
           {result.clipped && (
             <p style={{ fontSize: "var(--db-fs-sm)", opacity: 0.62, marginTop: "8px" }}>
               Section was longer than 8 bars, so only the first 8 were generated. Select the next

@@ -758,6 +758,32 @@ export function applyScaleFilter(notes, root, quality, filter, ctxEntry = null) 
       return buildFromSemitones(displayRoot, [0,2,3,5,7,10])    // standard hex: 1 2 b3 4 5 b7
     }
 
+    case "harmonicMinor251": {
+      // One harmonic-minor collection over the whole minor ii-V-i, not a
+      // fresh recommended scale per bar: ctxEntry.resolvesToMinorTonic (set
+      // by harmony.js's analyzeProgressionContext for every bar inside a
+      // detected iiø7-V7alt-i) names the "i" bar's root — the tonic that
+      // single scale is built from — from any of the three bars. Outside a
+      // detected cadence (no ctxEntry, or this bar isn't part of one), fall
+      // back to reading `root` as if it were that tonic, so the filter still
+      // does something sensible on an isolated minor ii, V, or i chord.
+      //
+      // Rather than showing all seven scale notes (that's plain Scale view),
+      // this shows only the ones that are also chord tones of THIS bar's own
+      // chord — the same seven-note collection lights up a different subset
+      // as the chord underneath it changes, which is the actual point: one
+      // scale, three different-looking chords. Voice Leading's ghost/route
+      // overlay (guideMode) is untouched by this — see the module doc above
+      // applyScaleFilter — so it still works on top when selected.
+      const tonic = ctxEntry?.resolvesToMinorTonic || root
+      const hmNotes = scaleNotes("harmonic minor", tonic)
+      const chordChromas = new Set(
+        chordNotes(buildChordSymbol(root, quality)).map((n) => Note.chroma(n)).filter((c) => c != null)
+      )
+      const kept = hmNotes.filter((n) => chordChromas.has(Note.chroma(n)))
+      return kept.length ? kept : hmNotes
+    }
+
     case "barry":
       // Barry Harris 6th-diminished — 8-note scale from the chord root
       return barryHarrisScale(root, quality).notes
