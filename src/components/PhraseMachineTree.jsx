@@ -80,7 +80,15 @@ export default function PhraseMachineTree({ formula, onFormulaChange, prog, voic
     color: active ? "var(--db-accent)" : "var(--db-text)", fontWeight: active ? 700 : 500,
   })
 
-  const maxCols = Math.min(formula.length + 1, TOTAL_PHRASE_SLOTS + 1)
+  // Nothing plays after the landing note — once the formula already ends on
+  // a landing block, don't offer a column for "the next block after that".
+  // GRAMMAR has no entries keyed by a landing type, so a landing→landing
+  // transition falls through to the 30-point default score, which was
+  // ranking (and letting you click) a second landing block right after the
+  // first — the exact stacked "...and lands on the & of 3 of Cmaj7, and
+  // lands on the & of 3 of Cmaj7" bug in the phrase design note.
+  const endsOnLanding = formula.length > 0 && formula[formula.length - 1]?.startsWith("land")
+  const maxCols = endsOnLanding ? formula.length : Math.min(formula.length + 1, TOTAL_PHRASE_SLOTS + 1)
   const columns = Array.from({ length: maxCols }, (_, col) => {
     const fromType = col > 0 ? formula[col - 1] : null
     const chordData = chordAtFormulaPosition(prog, formula, col)

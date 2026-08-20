@@ -39,7 +39,7 @@ function durationUnits(beats) {
 // them with no separator, breaking the group at a rest, a quarter note or
 // longer, or the half-bar seam — same as engraving eighth notes by hand.
 function lineToAbcNotes(line) {
-  return (line?.bars || []).map((bar) => {
+  const bars = (line?.bars || []).map((bar) => {
     const chord = String(bar.c || "").trim()
     const chordToken = chord ? `"${chord.replaceAll('"', "")}"` : ""
     const notes = bar.n || []
@@ -89,7 +89,24 @@ function lineToAbcNotes(line) {
       out += (i === 0 ? "" : (joinTight ? "" : " ")) + p.text
     })
     return `${chordToken}${out} |`
-  }).join("\n") + "]"
+  })
+
+  // A bare newline in an ABC tune body starts a new staff row — it isn't
+  // just a bar separator, whatever abcjs's own responsive/wrap layout is
+  // set to. The old version put one after every single bar, so a line
+  // rendered at one measure per row no matter how much horizontal room a
+  // (now-beamed) bar actually needed — the real cause of "way too big for
+  // the space," not just the beaming this function also fixes above. This
+  // freezes it to a hard 4 measures per row instead: a space between bars
+  // within a row, a newline every 4th.
+  const MEASURES_PER_ROW = 4
+  let out = ""
+  bars.forEach((barStr, i) => {
+    out += barStr
+    const isRowBreak = i % MEASURES_PER_ROW === MEASURES_PER_ROW - 1
+    out += (i === bars.length - 1) ? "" : (isRowBreak ? "\n" : " ")
+  })
+  return out + "]"
 }
 
 function fullAbc(line, tempo) {
