@@ -10,16 +10,23 @@
 // were the same generator behind two UIs, so they're now one panel with a
 // Source switch — everything both of them could do, in one place:
 //
-//   Chart   — type or pull in changes, pick any stretch up to 8 bars
-//   Network — triad-network presets (pairs, cells, pivots, enclosures,
-//             rest-stroke triplets, Martino Mode) over a generated II-V-I,
-//             blues, modal or rhythm-bridge section
+//   Chart          — type or pull in changes, pick any stretch up to 8 bars
+//   Network        — triad-network presets (pairs, cells, pivots, enclosures,
+//                    rest-stroke triplets, Martino Mode) over a generated
+//                    II-V-I, blues, modal or rhythm-bridge section
+//   Licktionary    — pull a saved lick in to view, transpose, or re-edit
+//   Phrase Machine — build a formula by clicking scored blocks in a
+//                    compatibility-graph tree (phraseEngine.js); generates
+//                    instantly and offline, no LLM round trip
 //
-// Generation always goes through /api/generate-line, so the key, tab rendering,
-// and band/fretboard playback are identical whichever source you use.
+// Chart/Network/Licktionary generation goes through /api/generate-line;
+// Phrase Machine runs entirely client-side (phraseEngine.js + phraseAdapter.js).
+// Either way the result lands in the same line schema, so the key, tab
+// rendering, and band/fretboard playback are identical whichever source you use.
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import LineNotation from "@/components/LineNotation"
+import PhraseMachineTree from "@/components/PhraseMachineTree"
 import { exportLineMusicXML } from "@/lib/music/leadsheet"
 import { inferLineKey, LICK_KEYS, lineFretRange, refingerLine, transposeLine } from "@/lib/music/licktionary"
 import { parseGigChord } from "@/lib/music/gigbook"
@@ -27,6 +34,8 @@ import {
   TN_TONICS, TN_CHORD_TYPES, TN_PROGRESSIONS, TN_POSITIONS,
   TN_LEVEL_RULES, TN_TUTORIAL, guessQuality,
 } from "@/lib/music/triadNetwork"
+import { PM_PROGRESSIONS, transposeProgression, runGenerator } from "@/lib/music/phraseEngine"
+import { phraseResultToLine } from "@/lib/music/phraseAdapter"
 
 const DEVICES = [
   "Chromatics", "Bebop scale", "Enclosures", "Altered",
@@ -86,6 +95,8 @@ const LEVELS = [
   { n: 5, label: "Exotic",    blurb: "Altered + side-slip" },
 ]
 
+const PM_LANDING_BLOCK = { and1: "land_and1", and3: "land_and3", late3: "land_beat3_late" }
+
 function parseBars(text) {
   const raw = text.split(/\n|\|/).map(b => b.trim()).filter(Boolean)
   const bars = []
@@ -103,11 +114,12 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
     [chartBars]
   )
 
-  // ── Source: your chart, or a triad-network preset ──
+  // ── Source: your chart, a triad-network preset, a saved lick, or Phrase Machine ──
   const [source, setSource] = useState("chart")
   const isNetwork = source === "network"
   const isLicktionary = source === "licktionary"
   const isChart = source === "chart"
+  const isPhraseMachine = source === "phrase"
   const [lickKey, setLickKey] = useState("C")
   const [neckPosition, setNeckPosition] = useState(null)
   const [resultTransposeKey, setResultTransposeKey] = useState("")
@@ -143,6 +155,19 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
   const [progression, setProgression] = useState("major_251_martino")
   const [netPosition, setNetPosition] = useState("5th position (frets 3-8)")
   const [openDoc, setOpenDoc] = useState(null)
+
+  // ── Phrase Machine controls ── its own self-contained progression/key
+  // preset (like Network above), plus the tree-builder's own formula and
+  // generation settings. pmLastGen mirrors whatever produced the current
+  // `result` so a saved lick can carry enough to regenerate the exact phrase.
+  const [pmProgType, setPmProgType] = useState("major251")
+  const [pmKey, setPmKey] = useState("C")
+  const [pmVariation, setPmVariation] = useState("medium")
+  const [pmLanding, setPmLanding] = useState("and3")
+  const [pmVoicePath, setPmVoicePath] = useState("arch")
+  const [pmShowN, setPmShowN] = useState("3")
+  const [pmFormula, setPmFormula] = useState([])
+  const [pmLastGen, setPmLastGen] = useState(null)
 
   // Complexity ladder — lines cached per level so levels can be compared
   // over the same bars without regenerating.
@@ -192,7 +217,15 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
     () => selectedLick ? transposeLine(selectedLick.line, selectedLick.baseKey || "C", lickKey) : null,
     [selectedLick, lickKey]
   )
-  const bars = isLicktionary ? (lickLine?.bars || []).map((bar) => bar.c) : isNetwork ? netChords : chartChords
+  // Phrase Machine's own progression preset, transposed — the tree scores
+  // candidates against this (chordAtFormulaPosition needs the harmonic slot
+  // per chord), and it doubles as the bar strip below like Network's netChords.
+  const pmProg = useMemo(
+    () => transposeProgression(PM_PROGRESSIONS[pmProgType].chords, pmKey),
+    [pmProgType, pmKey]
+  )
+  const pmBars = useMemo(() => pmProg.map((ch) => ch.symbol), [pmProg])
+  const bars = isLicktionary ? (lickLine?.bars || []).map((bar) => bar.c) : isNetwork ? netChords : isPhraseMachine ? pmBars : chartChords
 
   useEffect(() => {
     if (!isChart) return
@@ -338,6 +371,21 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
     [netChords]
   )
 
+  // Same idea for Phrase Machine — a generated line is written over ITS OWN
+  // progression (e.g. Dm7-G7-Cmaj7), never the chart currently loaded
+  // elsewhere in DukeBox, so the band needs pmProg's own bars too. Every
+  // Phrase Machine chord symbol parses cleanly through parseGigChord (same
+  // "m7"/"7"/"maj7"/"m7b5"/"7alt"/"m6" suffixes gigQuality already handles),
+  // so this reuses the exact parser Network does rather than hand-mapping
+  // phraseEngine's own chord `type` keys to DukeBox's quality vocabulary.
+  const pmBandBars = useMemo(
+    () => pmProg.map((ch) => {
+      const beats = (ch.beats || 8) / 2 // nominal eighth-units -> real DukeBox beats
+      return parseGigChord(ch.symbol, "A", beats) ?? { root: ch.root, quality: "maj7", symbol: ch.symbol, section: "A", beats }
+    }),
+    [pmProg]
+  )
+
   function startLine() {
     if (!flatNotes.length) return
     onStopPlayback?.()      // Line Lab and the band share one Transport
@@ -355,9 +403,9 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
       setPlaying(true)
       playLineSection({
         line: workingResult,
-        barsOverride: isNetwork ? netBars : null,
-        startIndex: isNetwork ? 0 : selStart,
-        endIndex: isNetwork ? netBars.length - 1 : Math.min(selEnd, selStart + 7),
+        barsOverride: isNetwork ? netBars : isPhraseMachine ? pmBandBars : null,
+        startIndex: (isNetwork || isPhraseMachine) ? 0 : selStart,
+        endIndex: isNetwork ? netBars.length - 1 : isPhraseMachine ? pmBandBars.length - 1 : Math.min(selEnd, selStart + 7),
         practiceTempo: tempo,
         muteLine,
         onBar: onBandBar,
@@ -437,22 +485,64 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
     setLoading(false)
   }
 
+  // Runs the block-grammar generator directly — no network round trip.
+  // Appends a landing block to a COPY of the formula for generation only
+  // (same as the prototype's doGenerate) if the tree hasn't ended on one
+  // itself; the formula shown in the tree/chip strip stays exactly what
+  // was clicked. A fresh random seed every call, matching how the
+  // prototype re-rolled on every node click and Regenerate press alike.
+  function runPhraseMachine(base) {
+    if (!base?.length) return
+    const eff = base[base.length - 1]?.startsWith("land") ? base : [...base, PM_LANDING_BLOCK[pmLanding] || "land_and3"]
+    const seed = Math.floor(Math.random() * 0xffffff)
+    try {
+      const genResult = runGenerator(eff, pmKey, pmProgType, pmVariation, seed, pmLanding)
+      stopLine()
+      setError(null)
+      setPmLastGen({ formula: base, progType: pmProgType, key: pmKey, variation: pmVariation, landing: pmLanding, seed })
+      setResult(phraseResultToLine(genResult))
+      setExported(false)
+    } catch (e) {
+      setError(e.message || "Couldn't generate that phrase.")
+    }
+  }
+
+  // Auto-generate once the formula reaches 3 blocks — the same threshold
+  // and live-building feel the prototype had. `source` is a dependency too
+  // so switching into Phrase Machine with an already-built formula (from an
+  // earlier visit) generates immediately rather than showing a stale null
+  // result left over from the source-change reset below.
+  useEffect(() => {
+    if (!isPhraseMachine || pmFormula.length < 3) return
+    runPhraseMachine(pmFormula)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pmFormula, pmProgType, pmKey, pmVariation, pmLanding, source])
+
   function exportXML() {
     const title = isLicktionary
       ? `${selectedLick?.name || "Lick"} (${selectedLick?.mode || "custom"}, ${lickKey})`
       : isNetwork
       ? `${TN_PROGRESSIONS[progression].label} in ${tonic}`
+      : isPhraseMachine
+      ? `${PM_PROGRESSIONS[pmProgType].label} in ${pmKey} (Phrase Machine)`
       : (chartTitle && chartTitle !== "Custom" ? chartTitle : "Line Lab")
-    const ok = exportLineMusicXML({ line: workingResult, title, tempo, level: isLicktionary ? null : level })
+    const ok = exportLineMusicXML({ line: workingResult, title, tempo, level: (isLicktionary || isPhraseMachine) ? null : level })
     setExported(ok)
   }
 
   function saveCurrentLick() {
     if (!result || !onSaveLick) return
-    const suggested = `${chartTitle && chartTitle !== "Custom" ? chartTitle : "Line Lab"} L${level}`
+    const suggested = isPhraseMachine
+      ? `Phrase Machine — ${PM_PROGRESSIONS[pmProgType].label} in ${pmKey}`
+      : `${chartTitle && chartTitle !== "Custom" ? chartTitle : "Line Lab"} L${level}`
     const name = window.prompt("Name this lick:", suggested)?.trim()
     if (!name) return
-    onSaveLick({ name, line: workingResult, baseKey: null, mode: "custom", device: Array.from(devices).join(" · "), cue: extra || result.s || "Saved from Line Lab" })
+    onSaveLick({
+      name, line: workingResult, baseKey: null, mode: "custom",
+      device: isPhraseMachine ? "Phrase Machine" : Array.from(devices).join(" · "),
+      cue: isPhraseMachine ? (result.s || "Saved from Phrase Machine") : (extra || result.s || "Saved from Line Lab"),
+      phraseMachine: isPhraseMachine ? pmLastGen : undefined,
+    })
   }
 
   // ─── Fretboard geometry ───────────────────────────────────────────────────
@@ -478,13 +568,13 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
       <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "4px", flexWrap: "wrap" }}>
         <div style={{ ...eyebrowStyle, marginBottom: 0 }}>LINE LAB</div>
         <div style={{ fontSize: "var(--db-fs-sm)", opacity: 0.62 }}>
-              Improvised single-note lines — as notation + TAB, with per-bar reasoning, over your chart or the triad network
+              Improvised single-note lines — as notation + TAB, with per-bar reasoning, over your chart, the triad network, or a Phrase Machine formula
         </div>
       </div>
 
       {/* Source switch */}
       <div style={{ display: "flex", gap: "6px", marginTop: "12px", flexWrap: "wrap" }}>
-        <button onClick={() => setSource("chart")} aria-pressed={!isNetwork} style={chip(!isNetwork)}>
+        <button onClick={() => setSource("chart")} aria-pressed={isChart} style={chip(isChart)}>
           Chart changes
         </button>
         <button onClick={() => setSource("network")} aria-pressed={isNetwork} style={chip(isNetwork)}>
@@ -492,6 +582,9 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
         </button>
         <button onClick={() => setSource("licktionary")} aria-pressed={isLicktionary} style={chip(isLicktionary)}>
           Licktionary
+        </button>
+        <button onClick={() => setSource("phrase")} aria-pressed={isPhraseMachine} style={chip(isPhraseMachine)}>
+          Phrase Machine
         </button>
       </div>
 
@@ -629,7 +722,48 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
         </div>
       )}
 
-      {/* Bars — clickable in Chart mode, the preset section in Network mode */}
+      {/* ── Phrase Machine source: its own progression preset ── */}
+      {isPhraseMachine && (
+        <>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "10px", marginTop: "14px" }}>
+            <label style={{ fontSize: "var(--db-fs-xs)", opacity: 0.7 }}>Progression
+              <select value={pmProgType} onChange={(e) => setPmProgType(e.target.value)} style={{ ...selectStyle, width: "100%", marginTop: "4px" }}>
+                {Object.entries(PM_PROGRESSIONS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+              </select>
+            </label>
+            <label style={{ fontSize: "var(--db-fs-xs)", opacity: 0.7 }}>Key
+              <select value={pmKey} onChange={(e) => setPmKey(e.target.value)} style={{ ...selectStyle, width: "100%", marginTop: "4px" }}>
+                {LICK_KEYS.map((key) => <option key={key} value={key}>{key}</option>)}
+              </select>
+            </label>
+            <label style={{ fontSize: "var(--db-fs-xs)", opacity: 0.7 }}>Landing
+              <select value={pmLanding} onChange={(e) => setPmLanding(e.target.value)} style={{ ...selectStyle, width: "100%", marginTop: "4px" }}>
+                <option value="and1">&amp; of 1</option>
+                <option value="and3">&amp; of 3 (Galper)</option>
+                <option value="late3">Late (beat 3)</option>
+              </select>
+            </label>
+            <div style={{ fontSize: "var(--db-fs-xs)", opacity: 0.7 }}>Variation
+              <div style={{ display: "flex", gap: "4px", marginTop: "4px" }}>
+                {["shallow", "medium", "deep"].map((v) => (
+                  <button
+                    key={v} type="button" onClick={() => setPmVariation(v)} aria-pressed={pmVariation === v}
+                    style={{ ...chip(pmVariation === v), padding: "6px 10px", flex: 1, textTransform: "capitalize" }}
+                  >
+                    {v}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div style={{ fontSize: "var(--db-fs-xs)", opacity: 0.6, margin: "10px 0 7px" }}>
+            Click a block below to start a phrase — it generates automatically once you have three. Click a built
+            column again to replace the phrase from there on.
+          </div>
+        </>
+      )}
+
+      {/* Bars — clickable in Chart mode, the preset section otherwise */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
         {bars.map((b, i) => {
           const inSel = !isChart ? true : (i >= selStart && i <= selEnd)
@@ -657,7 +791,7 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
       </div>
 
       {/* Devices + direction */}
-      {!isLicktionary && <div style={{ marginTop: "16px" }}>
+      {!isLicktionary && !isPhraseMachine && <div style={{ marginTop: "16px" }}>
         <label style={{ fontSize: "var(--db-fs-sm)", color: "var(--db-accent)" }}>Devices</label>
         <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "8px" }}>
           {DEVICES.map(d => (
@@ -674,7 +808,7 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
         </div>
       </div>}
 
-      {!isLicktionary && <div style={{ display: "flex", gap: "12px", marginTop: "14px", flexWrap: "wrap" }}>
+      {!isLicktionary && !isPhraseMachine && <div style={{ display: "flex", gap: "12px", marginTop: "14px", flexWrap: "wrap" }}>
         <div style={{ flex: "1 1 240px" }}>
           <label style={{ fontSize: "var(--db-fs-sm)", color: "var(--db-accent)" }} htmlFor="ll-extra">Direction (optional)</label>
           <input
@@ -706,7 +840,7 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
       </div>}
 
       {/* Complexity ladder — same bars, five readings from skeleton to exotic */}
-      {!isLicktionary && <><div style={{ fontSize: "var(--db-fs-xs)", opacity: 0.62, margin: "14px 0 7px" }}>
+      {!isLicktionary && !isPhraseMachine && <><div style={{ fontSize: "var(--db-fs-xs)", opacity: 0.62, margin: "14px 0 7px" }}>
         Complexity — generate the same bars at any level, then compare
       </div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
@@ -760,6 +894,39 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
         {loading ? "Comping…" : result ? `Regenerate L${level}` : `Generate L${level}`}
       </button>
       </>}
+
+      {isPhraseMachine && (
+        <>
+          <PhraseMachineTree
+            formula={pmFormula}
+            onFormulaChange={setPmFormula}
+            prog={pmProg}
+            voicePath={pmVoicePath}
+            onVoicePathChange={setPmVoicePath}
+            showN={pmShowN}
+            onShowNChange={setPmShowN}
+          />
+          <div style={{ display: "flex", gap: "8px", marginTop: "10px" }}>
+            <button
+              type="button"
+              onClick={() => runPhraseMachine(pmFormula)}
+              disabled={!pmFormula.length}
+              style={{ ...chip(false), opacity: pmFormula.length ? 1 : 0.5, cursor: pmFormula.length ? "pointer" : "default" }}
+            >
+              ↻ Regenerate
+            </button>
+            <button
+              type="button"
+              onClick={() => { setPmFormula([]); setResult(null); setError(null) }}
+              disabled={!pmFormula.length}
+              style={{ ...chip(false), opacity: pmFormula.length ? 1 : 0.5, cursor: pmFormula.length ? "pointer" : "default" }}
+            >
+              Clear
+            </button>
+          </div>
+        </>
+      )}
+
       {error && (
         <div style={{ marginTop: "10px", color: "var(--db-c-salmon)", fontSize: "var(--db-fs-md)" }}>{error}</div>
       )}
