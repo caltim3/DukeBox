@@ -27,7 +27,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import LineNotation from "@/components/LineNotation"
 import PhraseMachineTree from "@/components/PhraseMachineTree"
-import { exportLineMusicXML } from "@/lib/music/leadsheet"
+import { exportLineMusicXML, groupIntoMeasures } from "@/lib/music/leadsheet"
 import { inferLineKey, LICK_KEYS, lineFretRange, refingerLine, transposeLine } from "@/lib/music/licktionary"
 import { parseGigChord } from "@/lib/music/gigbook"
 import {
@@ -108,10 +108,20 @@ function parseBars(text) {
 }
 
 export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyle, selectStyle, onStopPlayback, playLineSection, licks = [], selectedLickId, onSelectLick, requestedLick, onSaveLick }) {
+  // `chartBars` is one entry per CHORD, not per measure — a bar split
+  // between two chords (e.g. Bm7b5 | E7b9 sharing one measure) is two
+  // consecutive entries, each with its own beats:2. Practice mode already
+  // groups those back into one measure for display (groupIntoMeasures, also
+  // used by the lead-sheet export); Line Lab needs the same grouping so its
+  // "Changes" strip shows real measures — one box per bar, multiple chords
+  // space-joined inside it — instead of one box per chord, which both
+  // inflated the apparent bar count and threw off the "max 8 bars" cap.
+  const chartMeasures = useMemo(() => groupIntoMeasures(chartBars ?? []), [chartBars])
+
   // Seed the sheet from whatever chart is loaded in DukeBox
   const chartAsSheet = useMemo(
-    () => (chartBars ?? []).map(b => b.symbol).join(" | "),
-    [chartBars]
+    () => chartMeasures.map((group) => group.map((b) => b.symbol).join(" ")).join(" | "),
+    [chartMeasures]
   )
 
   // ── Source: your chart, a triad-network preset, a saved lick, or Phrase Machine ──
@@ -204,6 +214,16 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
   }, [bandLevel, lineLevel])
 
   const [exported, setExported] = useState(false)
+
+  // ── Notation window sizing — the engraving has no natural size limit of
+  // its own (a long line at 4 measures/row can still run to several rows),
+  // so give it its own collapse + zoom controls rather than letting it grow
+  // to dominate the panel. "Fit" caps the row height and scrolls; "Full"
+  // removes the cap for printing/screenshotting the whole thing.
+  const [notationOpen, setNotationOpen] = useState(true)
+  const [notationZoom, setNotationZoom] = useState("md")   // "sm" | "md" | "lg"
+  const [notationFit, setNotationFit] = useState(true)      // capped height + scroll, vs. full height
+  const NOTATION_SCALES = { sm: 0.72, md: 1, lg: 1.35 }
 
   const prog = TN_PROGRESSIONS[progression]
   const isMartino = !!prog?.martino
@@ -458,11 +478,21 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
     const clipped = !isNetwork && selEnd - selStart + 1 > 8
 
     // Richer bar data (root/quality/beats) lets the route feed the model
-    // DukeBox's own scale recommendations and guide tones.
+    // DukeBox's own scale recommendations and guide tones. Sliced from
+    // chartMeasures (real measures), matching `section` above index-for-
+    // index — a measure with more than one chord carries all of them in
+    // `chords`, so the route's per-bar context can speak to each one, not
+    // just the first.
     const chartSlice = isNetwork
       ? netChords.map((sym) => ({ symbol: sym, quality: guessQuality(sym), beats: 4 }))
-      : (chartBars ?? []).slice(selStart, Math.min(selEnd + 1, selStart + 8))
-          .map((b) => ({ symbol: b.symbol, root: b.root, quality: b.quality, beats: b.beats }))
+      : chartMeasures.slice(selStart, Math.min(selEnd + 1, selStart + 8))
+          .map((group) => ({
+            symbol: group.map((b) => b.symbol).join(" "),
+            root: group[0]?.root,
+            quality: group[0]?.quality,
+            beats: group.reduce((sum, b) => sum + (Number(b.beats) || 4), 0),
+            chords: group.map((b) => ({ symbol: b.symbol, root: b.root, quality: b.quality, beats: b.beats })),
+          }))
 
     try {
       const res = await fetch("/api/generate-line", {
@@ -1221,9 +1251,54 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
           </div>
 
           {/* Standard notation + TAB — driven by the same timed line events as playback */}
-          <div style={{ marginTop: "14px", overflowX: "auto" }}>
-            <label style={{ fontSize: "var(--db-fs-sm)", color: "var(--db-accent)", display: "block", marginBottom: "8px" }}>Notation + TAB</label>
-            <LineNotation line={workingResult} tempo={tempo} activeIndex={soundingIdx} />
+          <div style={{ marginTop: "14px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", marginBottom: "8px" }}>
+              <button
+                type="button"
+                onClick={() => setNotationOpen((v) => !v)}
+                aria-expanded={notationOpen}
+                style={{
+                  background: "none", border: "none", cursor: "pointer", padding: 0,
+                  display: "flex", alignItems: "center", gap: "6px",
+                  fontSize: "var(--db-fs-sm)", color: "var(--db-accent)", fontWeight: 700,
+                }}
+              >
+                <span style={{ opacity: 0.6, fontSize: "0.8em", width: "0.9em", display: "inline-block" }}>{notationOpen ? "▾" : "▸"}</span>
+                Notation + TAB
+              </button>
+              {notationOpen && (
+                <>
+                  <span style={{ width: "1px", height: "14px", background: "var(--db-panel-border)" }} />
+                  <span style={{ fontSize: "var(--db-fs-xs)", opacity: 0.6 }}>Size</span>
+                  <div style={{ display: "flex", gap: "4px" }}>
+                    {[["sm", "S"], ["md", "M"], ["lg", "L"]].map(([id, label]) => (
+                      <button
+                        key={id} type="button" onClick={() => setNotationZoom(id)} aria-pressed={notationZoom === id}
+                        style={{ ...chip(notationZoom === id), padding: "3px 9px" }}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setNotationFit((v) => !v)}
+                    aria-pressed={!notationFit}
+                    title={notationFit ? "Capped height, scrolls if the line runs long" : "Uncapped — shows every row at once"}
+                    style={chip(!notationFit)}
+                  >
+                    {notationFit ? "Fit" : "Full height"}
+                  </button>
+                </>
+              )}
+            </div>
+            {notationOpen && (
+              <LineNotation
+                line={workingResult} tempo={tempo} activeIndex={soundingIdx}
+                scale={NOTATION_SCALES[notationZoom]}
+                maxHeight={notationFit ? "360px" : null}
+              />
+            )}
           </div>
 
           {/* Per-bar reasoning */}

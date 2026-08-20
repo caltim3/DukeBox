@@ -144,20 +144,30 @@ export async function POST(request) {
   }
 
   // Per-bar theory context, drawn from the same helpers the Improv Guide uses.
-  function barContext(i) {
-    const cb = chartBars[i]
-    if (!cb) return ""
+  // A bar that holds more than one chord (e.g. Bm7b5 | E7b9 sharing one
+  // measure) carries them all in `chords`; give each its own scale/guide-
+  // tone/beat-count note instead of only the first, so a fast-harmonic-
+  // rhythm bar gets full context for both halves.
+  function chordContext(c) {
     const parts = []
     try {
-      const scales = (getRecommendedScalesFromQuality(cb.quality) || []).slice(0, 2)
+      const scales = (getRecommendedScalesFromQuality(c.quality) || []).slice(0, 2)
       if (scales.length) parts.push(`recommended: ${scales.join(" or ")}`)
     } catch {}
     try {
-      const gt = guideTones(cb.symbol)
+      const gt = guideTones(c.symbol)
       if (gt?.length) parts.push(`guide tones ${gt.join("/")}`)
     } catch {}
-    if (cb.beats && cb.beats !== 4) parts.push(`${cb.beats}-beat bar`)
-    return parts.length ? ` (${parts.join("; ")})` : ""
+    if (c.beats && c.beats !== 4) parts.push(`${c.beats}-beat bar`)
+    return parts.join("; ")
+  }
+
+  function barContext(i) {
+    const cb = chartBars[i]
+    if (!cb) return ""
+    const chords = Array.isArray(cb.chords) && cb.chords.length ? cb.chords : [cb]
+    const parts = chords.map((c) => chordContext(c)).filter(Boolean)
+    return parts.length ? ` (${parts.join(" | ")})` : ""
   }
 
   const deviceRules = devices.map(d => DEVICE_RULES[d]).filter(Boolean)

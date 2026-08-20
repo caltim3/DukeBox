@@ -98,24 +98,31 @@ const BLOCK_PHRASE = {
 // whole phrase (rests don't touch it, matching the original) so contour
 // stays continuous across block and bar boundaries alike.
 function assignMidi(notes) {
-  let prev = 62 // D4 — same seed the prototype starts from
+  // Shifted a full octave up from the prototype's original D4 seed — Phrase
+  // Machine's lines were landing an octave below Chart mode's (which never
+  // goes through this function at all; its notes arrive from /api/generate-
+  // line already registered). Every constant below is the prototype's own,
+  // moved up 12 semitones as one unit, so the nearest-to-previous voice-
+  // leading logic and the barrel-zone/safety clamps stay internally
+  // consistent with each other.
+  let prev = 74 // D5
   return notes.map((n) => {
     if (n.note === "z") return null
     const idx = PM_NOTES.indexOf(n.note)
     if (idx < 0) return null
-    const midi4 = 60 + idx
+    const midi4 = 72 + idx
     const midi3 = midi4 - 12
     const midi5 = midi4 + 12
     let tm = [midi3, midi4, midi5].reduce((a, b) => (Math.abs(b - prev) < Math.abs(a - prev) ? b : a))
-    // Prefer the barrel zone (guitar frets ~3-8): nudge back to the middle
-    // octave if the nearest-to-previous pick landed outside it.
-    if ((tm < 53 || tm > 73) && midi4 >= 53 && midi4 <= 75) tm = midi4
+    // Prefer the barrel zone (guitar frets ~3-8, one octave up): nudge back
+    // to the middle octave if the nearest-to-previous pick landed outside it.
+    if ((tm < 65 || tm > 85) && midi4 >= 65 && midi4 <= 87) tm = midi4
     // Smooth voice-leading: a jump over an octave steps back one, same as
     // the prototype (protects against nearest-octave picking a technically-
     // closer note that reads as a register leap).
     if (Math.abs(tm - prev) > 12) {
-      if (tm > prev && midi3 >= 48) tm = midi3
-      else if (tm < prev && midi5 <= 84) tm = midi5
+      if (tm > prev && midi3 >= 60) tm = midi3
+      else if (tm < prev && midi5 <= 96) tm = midi5
     }
     prev = tm
     return tm

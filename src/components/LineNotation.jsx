@@ -114,7 +114,7 @@ function fullAbc(line, tempo) {
   return `X:1\nM:4/4\nL:1/8\nQ:1/4=${tempo}\nK:C\n${body}\n`
 }
 
-export default function LineNotation({ line, tempo = 120, activeIndex = -1, compact = false }) {
+export default function LineNotation({ line, tempo = 120, activeIndex = -1, compact = false, scale = 1, maxHeight = null }) {
   const hostRef = useRef(null)
   const [abcjs, setAbcjs] = useState(null)
   const [renderError, setRenderError] = useState(false)
@@ -142,6 +142,7 @@ export default function LineNotation({ line, tempo = 120, activeIndex = -1, comp
       abcjs.renderAbc(hostRef.current, abc, {
         responsive: "resize",
         staffwidth: compact ? 440 : 760,
+        scale,
         paddingtop: 4,
         paddingbottom: 4,
         paddingleft: 4,
@@ -173,7 +174,7 @@ export default function LineNotation({ line, tempo = 120, activeIndex = -1, comp
     } catch {
       setRenderError(true)
     }
-  }, [abcjs, abc, compact, line?.notationTranspose, explicitTab])
+  }, [abcjs, abc, compact, scale, line?.notationTranspose, explicitTab])
 
   useEffect(() => {
     const host = hostRef.current
@@ -187,6 +188,8 @@ export default function LineNotation({ line, tempo = 120, activeIndex = -1, comp
   return (
     <div className="db-line-notation" style={{
       overflowX: "auto",
+      overflowY: maxHeight ? "auto" : "visible",
+      maxHeight: maxHeight || undefined,
       border: "1px solid var(--db-panel-border)",
       borderRadius: "var(--db-r-md)",
       background: "var(--db-card-bg)",
