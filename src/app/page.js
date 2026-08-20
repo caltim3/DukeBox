@@ -38,14 +38,13 @@ import { guidedPrescription, drillStage, nextKeyInCycle, DRILL_LOOPS_PER_STAGE, 
 import { STARTER_PRESETS, STARTER_STRIP, SCENARIO_CONFIG, LOAD_STARTER_EVENT } from "@/lib/music/starters"
 import Fretboard, { fretPositions, FRETBOARD_FRETS } from "@/components/Fretboard"
 import { classifySongForm, getLevelDefs, resolvePentaChoice, buildPentaBoard, buildScaleBoard, buildScaleBoardFromNotes, PENTA_LEGEND, chordThird } from "@/lib/music/threeTwoSystem"
-import MetronomePanel from "@/components/MetronomePanel"
-import BeatForgeLibrary from "@/components/BeatForgeLibrary"
 import PracticeTimer from "@/components/PracticeTimer"
 import GigBarStrip from "@/components/GigBarStrip"
 import { lineToTransportEvents } from "@/lib/music/lines"
 import GigMode from "@/components/GigMode"
 import MelodyPaths from "@/components/MelodyPaths"
 import CreateWorkspace from "@/components/CreateWorkspace"
+import BeatForgeWorkspace from "@/components/BeatForgeWorkspace"
 import ReferenceGuides from "@/components/ReferenceGuides"
 import { useAuth, useCloudLibrary } from "@/lib/cloud"
 import { logActivity } from "@/lib/recentActivity"
@@ -108,6 +107,7 @@ const MODES = [
   { id: "practice",  label: "Practice",  icon: "🎧", blurb: "Play along, loop a section, drill it slow" },
   { id: "gig",       label: "Gig",       icon: "🎤", blurb: "Stage charts and setlists" },
   { id: "create",    label: "Create",    icon: "✍️", blurb: "Build charts, compose songs, and develop melodic lines" },
+  { id: "beatforge", label: "BeatForge", icon: "🥁", blurb: "Program rhythm, build phrases, grow your lick book" },
   { id: "reference", label: "Reference", icon: "📖", blurb: "Circle of fifths, key chart, progressions" },
   { id: "tonal",     label: "Tonal",     icon: "🎹", blurb: "The published Tonal app, embedded as-is" },
 ]
@@ -2674,8 +2674,6 @@ export default function Home() {
               saveToLibrary,
               promptHistory,
               promptTemplates: PROMPT_TEMPLATES,
-              chartBars: bars,
-              chartTitle: selectedForm,
             }}
             songSheetDraft={songSheetDraft}
             onDraftChange={setSongSheetDraft}
@@ -2688,8 +2686,6 @@ export default function Home() {
               showToast("SongCrafter sent the arrangement to SongSheet")
             }}
             originalTempo={originalTempo}
-            stopPlayback={stopPlayback}
-            playLineSection={playLineSection}
             panelStyle={panelStyle}
             eyebrowStyle={eyebrowStyle}
             selectStyle={selectStyle}
@@ -4504,50 +4500,39 @@ export default function Home() {
           )
         })()}
 
-        {inMode("practice") && (
-          <PowerPanel
-            title="BeatForge Metronome"
-            subtitle="Standalone time workout with programmable accents"
-            open={openControlPanels.metronome}
-            onToggle={() => toggleControlPanel("metronome")}
-            keepMounted
-            shortcutId="beatforge-metronome"
-          >
-            <MetronomePanel
-              apiRef={beatforgeRef}
-              onBeforeStart={stopPlayback}
-              onUserGenerate={() => setLoadedLibraryNum(null)}
-              panelStyle={{ ...panelStyle, margin: "0" }}
-              eyebrowStyle={eyebrowStyle}
-              selectStyle={selectStyle}
-              inlineLabelStyle={inlineLabelStyle}
-            />
-          </PowerPanel>
-        )}
-
-        {inMode("practice") && (
-          <PowerPanel
-            title="BeatForge Library"
-            subtitle="30 bebop rhythm patterns — tap to load and play"
-            open={openControlPanels.beatforgeLibrary}
-            onToggle={() => toggleControlPanel("beatforgeLibrary")}
-            shortcutId="beatforge-library"
-          >
-            <BeatForgeLibrary
-              loadedNum={loadedLibraryNum}
-              onLoad={(pattern) => {
-                setLoadedLibraryNum(pattern.num)
-                // Reveal the Metronome panel too — that's where the loaded
-                // sheet and Start/Stop live.
-                setOpenControlPanels((prev) => ({ ...prev, metronome: true }))
-                beatforgeRef.current?.loadPattern?.(pattern)
-              }}
-            />
-          </PowerPanel>
-        )}
-
         {dnMeta && inMode("practice") && <DesertNoirPanel meta={dnMeta} />}
       </section>
+
+      {/* ── BeatForge ─────────────────────────────────────────────
+          Pulled out of Practice into its own tab. Metronome + Library today;
+          Line Lab and Licktionary join them here in a later step. */}
+      {inMode("beatforge") && (
+        <BeatForgeWorkspace
+          beatforgeRef={beatforgeRef}
+          stopPlayback={stopPlayback}
+          playLineSection={playLineSection}
+          onUserGenerate={() => setLoadedLibraryNum(null)}
+          loadedLibraryNum={loadedLibraryNum}
+          onLoadPattern={(pattern) => {
+            setLoadedLibraryNum(pattern.num)
+            // Reveal the Metronome panel too — that's where the loaded
+            // sheet and Start/Stop live.
+            setOpenControlPanels((prev) => ({ ...prev, metronome: true }))
+            beatforgeRef.current?.loadPattern?.(pattern)
+          }}
+          metronomeOpen={openControlPanels.metronome}
+          libraryOpen={openControlPanels.beatforgeLibrary}
+          onToggleMetronome={() => toggleControlPanel("metronome")}
+          onToggleLibrary={() => toggleControlPanel("beatforgeLibrary")}
+          chartBars={bars}
+          chartTitle={selectedForm}
+          songSheetDraft={songSheetDraft}
+          panelStyle={panelStyle}
+          eyebrowStyle={eyebrowStyle}
+          selectStyle={selectStyle}
+          inlineLabelStyle={inlineLabelStyle}
+        />
+      )}
 
       {/* Sticky transport (spec §5.7) — always reachable in Practice mode,
           synced display of the same play/loop/tempo/swing/timer state the

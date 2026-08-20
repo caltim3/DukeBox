@@ -265,9 +265,9 @@ export default function KeyboardShortcuts() {
       if (key === "l") {
         event.preventDefault()
         event.stopPropagation()
-        goWorkspace("Create")
+        goWorkspace("BeatForge")
         waitFor(
-          () => document.getElementById("db-licktionary"),
+          () => document.getElementById("beatforge-licktionary"),
           (section) => { section.open = true; reveal(section) },
         )
         return
@@ -276,7 +276,7 @@ export default function KeyboardShortcuts() {
       if (key === "b") {
         event.preventDefault()
         event.stopPropagation()
-        goWorkspace("Practice")
+        goWorkspace("BeatForge")
         waitFor(() => hook("beatforge-library"), (header) => { openPanel(header); reveal(header) })
         return
       }
