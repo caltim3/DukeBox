@@ -33,8 +33,9 @@ import { downloadImprovGuide, buildImprovMapData } from "@/lib/music/improvGuide
 import { DRUM_KIT_NAMES, DEFAULT_DRUM_KIT } from "@/lib/music/samples"
 import { parseTonalUserSongs } from "@/lib/music/importTonal"
 import { parseGigChord, GIGBOOK_SONGS, gigSongToBars, parseGigKey, gigTempoNumber } from "@/lib/music/gigbook"
-import { upsertLibrarySong, catalogEntryToPlayable, OPEN_LIBRARY_EVENT, ENTER_FOCUS_EVENT, GO_GIG_EVENT } from "@/lib/music/songSource"
+import { upsertLibrarySong, catalogEntryToPlayable, buildCatalog, OPEN_LIBRARY_EVENT, ENTER_FOCUS_EVENT, GO_GIG_EVENT, LOAD_SONG_EVENT } from "@/lib/music/songSource"
 import { guidedPrescription, drillStage, nextKeyInCycle, DRILL_LOOPS_PER_STAGE, PENA_DRILLS } from "@/lib/music/penaDrills"
+import { computeVoiceLeadPath, TARGET_ROLE_LABELS } from "@/lib/music/voiceLeadPath"
 import { STARTER_PRESETS, STARTER_STRIP, SCENARIO_CONFIG, LOAD_STARTER_EVENT } from "@/lib/music/starters"
 import Fretboard, { fretPositions, FRETBOARD_FRETS } from "@/components/Fretboard"
 import { classifySongForm, getLevelDefs, resolvePentaChoice, buildPentaBoard, buildScaleBoard, buildScaleBoardFromNotes, PENTA_LEGEND, chordThird } from "@/lib/music/threeTwoSystem"
@@ -290,6 +291,11 @@ export default function Home() {
   // are inert without it. Pairs with targetsOverlay above, which is already on.
   const [anticipateOn, setAnticipateOn] = useState(true)   // ghost the next chord onto the neck
   const [enclosureOn, setEnclosureOn] = useState(false)     // chromatic cage around the 3rd Hunter target
+  // Which role of the next chord Voice Leading hunts as its ONE landing note:
+  // "nearest" (least motion, ties 3rd > root > 7th), a pinned role, or
+  // "random" — seeded per transition so a chorus can't be played from memory.
+  const [targetPref, setTargetPref] = useState("nearest")
+  const voiceLeadSeedRef = useRef((Math.random() * 0xffff) | 0)
   const [loadedLibraryNum, setLoadedLibraryNum] = useState(null)  // which BeatForge Library card is loaded, if any
   const [practiceMode, setPracticeMode] = useState(false)
   const [paletteIndex, setPaletteIndex] = useState(DEFAULT_PALETTE_INDEX)
@@ -431,6 +437,7 @@ export default function Home() {
   const pendingStartRef   = useRef(false)  // set by loadStarter → fires after bars state commits
   const pendingCountInRef = useRef(undefined)  // scenario starters force a 4-beat count-in for that one auto-play; undefined = use the transport's own countInBeats
   const loadStarterRef    = useRef(null)   // latest loadStarter, for the cross-tree starter event
+  const loadSongByIdRef   = useRef(null)   // latest loadSongById, for the cross-tree LOAD_SONG_EVENT
   const toastTimer        = useRef(null)   // auto-dismiss handle for the toast
   const themePickerRef    = useRef(null)   // wraps the palette/mode dropdown, for click-outside close
   const beatforgeRef      = useRef(null)   // BeatForge Metronome's loadPattern — bridges the sibling Library panel
@@ -697,6 +704,14 @@ export default function Home() {
     ? "off"
     : melodyPathMode === "melody" ? "melody" : "voice"
 
+  // Voice Leading proper (not 3rd Hunter, which lives under the same guideMode
+  // umbrella but keeps its own lead-in/arrow system). When this is on, the
+  // board runs the path model: current chord tones all at EQUAL weight (no lit
+  // guide tones — while the chord sounds, any chord tone is as good as any
+  // other), and the only future marks are one landing note plus, when needed,
+  // one chromatic bridge.
+  const voicePathActive = guideMode === "voice" && melodyPathMode !== "hunter3"
+
   const chooseGuideMode = useCallback((mode) => {
     if (mode === "off") {
       setTargetsOverlay(false)
@@ -744,16 +759,18 @@ export default function Home() {
   // note normally, two for a 3rd Hunter bracket (no half-step approach, so
   // both whole tones around the target get shown).
   const guideToneDisplayNotes = useMemo(() => {
-    if (!targetsOverlay) return []
+    // Voice Leading no longer lights the current 3rd/7th: emphasis spent on a
+    // decision the player is indifferent to. They render as plain chord tones.
+    if (!targetsOverlay || voicePathActive) return []
     return melodyPathState.notesByBar[fretboardBarIndex] || []
-  }, [targetsOverlay, melodyPathState, fretboardBarIndex])
+  }, [targetsOverlay, voicePathActive, melodyPathState, fretboardBarIndex])
 
   // Which of those lit notes is the 7th — the board draws it gold at the same
   // size as the 3rd, so the pair reads as a pair without merging into one note.
   const seventhDisplayNotes = useMemo(() => {
-    if (!targetsOverlay) return []
+    if (!targetsOverlay || voicePathActive) return []
     return melodyPathState.seventhsByBar?.[fretboardBarIndex] || []
-  }, [targetsOverlay, melodyPathState, fretboardBarIndex])
+  }, [targetsOverlay, voicePathActive, melodyPathState, fretboardBarIndex])
 
   // Peña enclosure overlay — the chromatic cage (half step below and above)
   // around the 3rd Hunter target, plus the target itself, both shown on the
@@ -880,6 +897,9 @@ export default function Home() {
   // matches the direction you actually move on the neck.
   const guideToneDirections = useMemo(() => {
     if (!targetsOverlay) return null
+    // Voice Leading's arrows are gone — the path (target + bridge + link) is
+    // the one encoding of motion now. 3rd Hunter and Melody keep theirs.
+    if (voicePathActive) return null
     const chroma = (n) => ({ C: 0, "C#": 1, Db: 1, D: 2, "D#": 3, Eb: 3, E: 4, F: 5, "F#": 6, Gb: 6, G: 7, "G#": 8, Ab: 8, A: 9, "A#": 10, Bb: 10, B: 11 })[n]
 
     // 3rd Hunter: the lit note is this chord's own 3rd and carries no arrow.
@@ -924,20 +944,23 @@ export default function Home() {
       if (best !== null) dirs[g] = best
     }
     return dirs
-  }, [targetsOverlay, melodyPathMode, melodyPathState, fretboardBarIndex, anticipateBarIndex])
+  }, [targetsOverlay, voicePathActive, melodyPathMode, melodyPathState, fretboardBarIndex, anticipateBarIndex])
 
-  // The next chord's path notes, ghosted onto the maple board itself when
-  // Anticipate is on, with a route drawn into each. Seeing "here" and "there"
-  // on one board removes the register-mapping between two graphics at tempo.
-  //
-  // 3rd Hunter is excluded on purpose: there the arrow already belongs to the
-  // lead-in note rather than to a guide tone, so it keeps its own second board
-  // and its own marking untouched.
-  const ghostGuideTones = useMemo(() => {
-    if (!anticipateOn || !targetsOverlay) return []
-    if (melodyPathMode === "hunter3" || anticipateBarIndex == null) return []
-    return melodyPathState.notesByBar[anticipateBarIndex] || []
-  }, [anticipateOn, targetsOverlay, melodyPathMode, melodyPathState, anticipateBarIndex])
+  // The per-transition voice-lead path (Voice Leading mode only): ONE landing
+  // note on the next chord — the role targetPref hunts — plus, only when no
+  // current chord tone sits within a half step of it, ONE chromatic bridge.
+  // This replaces the old display that ghosted both of the next chord's guide
+  // tones everywhere on the neck: the board never shows more than two future
+  // marks now. The seed keeps "random" stable per bar within a session.
+  const voiceLeadPath = useMemo(() => {
+    if (!voicePathActive || !anticipateBar) return null
+    return computeVoiceLeadPath(
+      fretboardInfo.notes || [],
+      anticipateBar,
+      targetPref,
+      voiceLeadSeedRef.current + (anticipateBarIndex ?? 0) * 31,
+    )
+  }, [voicePathActive, anticipateBar, anticipateBarIndex, fretboardInfo, targetPref])
 
   // 3:2 System + Voice Leading — the 3:2 board otherwise sits out every other
   // "Connect" overlay entirely (see threeTwoActiveOnBoard usage in
@@ -1164,7 +1187,7 @@ export default function Home() {
     const { bars, keyRoot, keyMode, tempo } = catalogEntryToPlayable(entry)
     if (!bars.length) { showToast(`No changes stored for "${entry.title}"`); return }
     logActivity({ label: entry.title, subtitle: entry.source, art: "changes", action: { type: "songbook" } })
-    loadSong({ bars, keyRoot, keyMode, tempo, title: entry.title, songId: entry.id, ...opts })
+    loadSong({ bars, keyRoot, keyMode, tempo, title: entry.title, subtitle: entry.source, songId: entry.id, ...opts })
   }
 
   function handleTransposeChart() {
@@ -1347,7 +1370,7 @@ export default function Home() {
   // practiceView flipped to "focus" while mode is still stuck elsewhere.
   // Space/the sticky transport resuming whatever's already loaded don't go
   // through here, so they don't fight it.
-  function loadSong({ bars, keyRoot, keyMode, tempo, autoplay, songId, title, toMode, toFocus }) {
+  function loadSong({ bars, keyRoot, keyMode, tempo, autoplay, songId, title, subtitle, toMode, toFocus }) {
     if (toFocus) { chooseMode("practice"); enterFocusMode() }
     else if (toMode) chooseMode(toMode)
     if (playingRef.current) stopPlayback()
@@ -1375,6 +1398,28 @@ export default function Home() {
           return { ...lib, prefs: { ...lib.prefs, recentlyPlayedIds: next } }
         })
       }
+    }
+    // Home's "Most Popular" rail — counts a real catalog tune every time it's
+    // loaded. Not gated on autoplay like recentlyPlayedIds above: nothing
+    // currently passes autoplay:true, and opening a tune to practice it is
+    // itself the popularity signal this rail wants. Denormalized (title and
+    // subtitle stored alongside the count) so Home can render the rail
+    // without rebuilding the whole catalog just to resolve an id.
+    if (songId) {
+      setLibrary(lib => {
+        const prevCounts = lib.prefs?.playCounts ?? {}
+        const existing = prevCounts[songId]
+        const nextCounts = {
+          ...prevCounts,
+          [songId]: {
+            count: (existing?.count ?? 0) + 1,
+            title: title ?? existing?.title ?? songId,
+            subtitle: subtitle ?? existing?.subtitle ?? "",
+            at: Date.now(),
+          },
+        }
+        return { ...lib, prefs: { ...lib.prefs, playCounts: nextCounts } }
+      })
     }
   }
 
@@ -1841,10 +1886,23 @@ export default function Home() {
     }
   }
 
+  // Home's "Most Popular" rail asks for one specific catalog song by id the
+  // same cross-tree way the starter strip does below, since a most-played
+  // song can be a Gig Book tune, a Tavern Set song, a Songbook form, or
+  // something in My Library — buildCatalog is the one place that already
+  // knows how to find any of those by id. A plain function (not inlined in
+  // the effect) so it can go through the same current-render-closure-via-ref
+  // pattern as loadStarter just below, and always search the latest catalog.
+  function loadSongById(id) {
+    const entry = buildCatalog(userLibrary).find((e) => e.id === id)
+    if (entry) loadCatalogEntry(entry, { toMode: "practice" })
+  }
+
   // Keep function refs current every render so keyboard handler never goes stale
   startPlaybackRef.current = startPlayback
   stopPlaybackRef.current  = stopPlayback
   loadStarterRef.current   = loadStarter
+  loadSongByIdRef.current  = loadSongById
 
   // The starter strip lives on the Practice home screen, which renders in a
   // separate tree (mounted from layout.js), so it asks for a chart by event
@@ -1856,6 +1914,16 @@ export default function Home() {
     }
     window.addEventListener(LOAD_STARTER_EVENT, onLoadStarter)
     return () => window.removeEventListener(LOAD_STARTER_EVENT, onLoadStarter)
+  }, [])
+
+  // Same pattern, for loadSongById above.
+  useEffect(() => {
+    function onLoadSong(event) {
+      const id = event.detail
+      if (id) loadSongByIdRef.current?.(id)
+    }
+    window.addEventListener(LOAD_SONG_EVENT, onLoadSong)
+    return () => window.removeEventListener(LOAD_SONG_EVENT, onLoadSong)
   }, [])
 
   // "/" opens the song library from anywhere the same way — KeyboardShortcuts
@@ -3255,7 +3323,7 @@ export default function Home() {
                       +Bebop Chromatic
                     </button>
                     {[
-                      ["voice",  "Voice Leading", "3rds and 7ths lit, the next chord ghosted onto the neck, and the route into it drawn as the bar turns over — also \"V\""],
+                      ["voice",  "Voice Leading", "Chord tones to bounce on, all at equal weight — then one landing note (and its chromatic bridge when needed) appears as the bar turns over — also \"V\""],
                       ["melody", "Melody",        "Light the melody you drew in Melody Paths below"],
                       ["off",    "Off",           "Chord and scale tones only"],
                     ].map(([id, label, hint]) => (
@@ -3271,6 +3339,34 @@ export default function Home() {
                       </button>
                     ))}
                   </div>
+
+                  {/* Which role of the next chord Voice Leading hunts as its one
+                      landing note. "Nearest" is the default (7→3 falls out of it
+                      on every ii–V); pin a role to drill it through the form, or
+                      "Surprise" to defeat second-chorus memorization. */}
+                  {voicePathActive && (
+                    <div style={{ display: "flex", gap: "4px", alignItems: "center", flexWrap: "wrap", marginBottom: "10px" }}>
+                      <span style={{ font: "700 10px 'IBM Plex Mono', monospace", color: "var(--muted)", letterSpacing: "0.14em", textTransform: "uppercase", marginRight: "2px" }}>Hunt</span>
+                      {[
+                        ["nearest", "Nearest",  "Land whichever of the next chord's 3rd / root / 7th needs the least motion — the classic 7→3 falls out of this"],
+                        ["third",   "3rds",     "Always land the next chord's 3rd"],
+                        ["root",    "Roots",    "Always land the next chord's root"],
+                        ["seventh", "7ths",     "Always land the next chord's 7th"],
+                        ["random",  "Surprise", "A different role each transition, stable within the session — keeps you reading instead of memorizing"],
+                      ].map(([id, label, hint]) => (
+                        <button key={id} onClick={() => setTargetPref(id)} aria-pressed={targetPref === id} title={hint} style={{
+                          padding: "3px 9px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-xs)", cursor: "pointer",
+                          background: targetPref === id ? "color-mix(in srgb, var(--target) 22%, transparent)" : "var(--surface)",
+                          border:     targetPref === id ? "1px solid var(--target)" : "1px solid var(--line)",
+                          color:      targetPref === id ? "var(--target)" : "var(--text)",
+                          fontWeight: targetPref === id ? 700 : 400,
+                          opacity:    targetPref === id ? 1 : 0.7,
+                        }}>
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
 
                   {/* Fret focus — off by default so the whole neck stays live. */}
                   <div>
@@ -3617,21 +3713,23 @@ export default function Home() {
                 </span>
                 <span style={{ opacity: targetsOverlay ? 1 : 0.5 }}>
                   <span style={{ color: "var(--n-target)" }}>●</span>{" "}
-                  {guideMode === "melody" ? "Melody note" : "3rd of this chord"}
+                  {guideMode === "melody" ? "Melody note" : voicePathActive ? "Land here on beat 1" : "3rd of this chord"}
                 </span>
-                <span style={{ opacity: targetsOverlay ? 1 : 0.5 }}>
-                  <span style={{ color: "var(--n-seventh)" }}>●</span> 7th of this chord
-                </span>
+                {!voicePathActive && (
+                  <span style={{ opacity: targetsOverlay ? 1 : 0.5 }}>
+                    <span style={{ color: "var(--n-seventh)" }}>●</span> 7th of this chord
+                  </span>
+                )}
+                {voicePathActive && voiceLeadPath?.bridge && (
+                  <span><span style={{ color: "var(--n-bridge)" }}>◌</span> Chromatic bridge — the springboard in</span>
+                )}
                 {targetsOverlay && melodyPathMode === "hunter3" && (
                   <span><span style={{ color: "var(--n-enclosure)" }}>◌</span> Leads into the next 3rd →</span>
                 )}
                 {enclosureOn && (
                   <span><span style={{ color: "var(--n-enclosure)" }}>◌</span> Enclosure (½ step around next target)</span>
                 )}
-                {ghostGuideTones.length > 0 && (
-                  <span style={{ color: "var(--n-next)" }}>○ next chord · ⌒ route in · ◎ held tone, stay put</span>
-                )}
-                {targetsOverlay && (anticipateOn || melodyPathMode === "hunter3") && ghostGuideTones.length === 0 && (
+                {targetsOverlay && melodyPathMode === "hunter3" && (
                   <span style={{ color: "var(--n-target)" }}>→ up a semitone · →→ up a whole tone · ← ←← down · = stays</span>
                 )}
               </div>
@@ -3657,12 +3755,14 @@ export default function Home() {
                   : (fretboardBar.userTonic ?? fretboardBar.root)
                 }
                 scaleNotes={displayedScaleNotes}
-                targetNotes={enclosureDisplay.target}
+                targetNotes={voicePathActive
+                  ? (voiceLeadPath ? [voiceLeadPath.target] : [])
+                  : enclosureDisplay.target}
+                bridgeNotes={voicePathActive && voiceLeadPath?.bridge ? [voiceLeadPath.bridge] : []}
                 passingNotes={[...bebopPassingNotes, ...barryPassingNotes]}
                 guideToneNotes={guideToneDisplayNotes}
                 guideToneDirections={guideToneDirections}
                 enclosureNotes={enclosureDisplay.notes}
-                ghostNotes={ghostGuideTones}
                 seventhNotes={seventhDisplayNotes}
                 labelMode={labelMode}
                 ghostRootNote={
@@ -3717,28 +3817,33 @@ export default function Home() {
               />
             )}
 
-            {/* Anticipate — when the ghosts are on the board above they already
-                say where the next chord is, so this collapses to a readout.
-                3rd Hunter (which the ghosts skip) keeps the full second maple
-                board, dimmed to read as "coming up" rather than "now". */}
-            {anticipateOn && anticipateBar && ghostGuideTones.length > 0 && (
+            {/* The path readout — the same sentence the board is drawing, in
+                words: land on THIS note, via THAT bridge (or hold, or slide).
+                3rd Hunter (which has its own lead-in system) keeps the full
+                second maple board below instead. */}
+            {voicePathActive && anticipateBar && voiceLeadPath && (
               <div className="db-anticipate-readout" style={{
                 marginTop: "6px", padding: "6px 10px",
                 borderRadius: "var(--db-r-sm)",
-                border: "1px solid color-mix(in srgb, var(--n-next) 45%, transparent)",
-                background: "color-mix(in srgb, var(--n-next) 8%, transparent)",
+                border: "1px solid color-mix(in srgb, var(--n-target) 45%, transparent)",
+                background: "color-mix(in srgb, var(--n-target) 8%, transparent)",
                 display: "flex", alignItems: "baseline", gap: "10px", flexWrap: "wrap",
               }}>
-                <div style={{ fontSize: "var(--db-fs-xs)", fontWeight: 700, letterSpacing: "0.12em", color: "var(--n-next)", textTransform: "uppercase" }}>
+                <div style={{ fontSize: "var(--db-fs-xs)", fontWeight: 700, letterSpacing: "0.12em", color: "var(--n-target)", textTransform: "uppercase" }}>
                   Next · Bar {barLabels[anticipateBarIndex] ?? anticipateBarIndex + 1}
                 </div>
                 <div style={{ fontSize: "var(--db-fs-lg)", fontWeight: 700 }}>{anticipateBar.symbol}</div>
-                <div style={{ fontSize: "var(--db-fs-xs)", opacity: 0.75 }}>
-                  guide tones {ghostGuideTones.join(" / ") || "—"}
+                <div style={{ fontSize: "var(--db-fs-xs)", opacity: 0.85 }}>
+                  land on <strong style={{ color: "var(--n-target)" }}>{voiceLeadPath.target}</strong> ({TARGET_ROLE_LABELS[voiceLeadPath.targetRole]})
+                  {voiceLeadPath.held
+                    ? " — already under your fingers, hold it"
+                    : voiceLeadPath.bridge
+                    ? <> · via <strong style={{ color: "var(--n-bridge)" }}>{voiceLeadPath.bridge}</strong></>
+                    : " — a half step away, slide in"}
                 </div>
               </div>
             )}
-            {anticipateOn && anticipateBar && ghostGuideTones.length === 0 && (
+            {!voicePathActive && anticipateOn && anticipateBar && (
               <div style={{ marginTop: "10px", paddingTop: "10px", borderTop: "1px dashed var(--db-panel-border)", opacity: 0.6 }}>
                 <div style={{ display: "flex", alignItems: "baseline", gap: "10px", marginBottom: "4px" }}>
                   <div style={{ fontSize: "var(--db-fs-xs)", fontWeight: 700, letterSpacing: "0.12em", color: "var(--muted)", textTransform: "uppercase" }}>

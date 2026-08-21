@@ -20,9 +20,15 @@ import { useEffect, useState } from "react"
 import { goHome as requestHome } from "@/lib/homeNav"
 import { OPEN_LIBRARY_EVENT, ENTER_FOCUS_EVENT, GO_GIG_EVENT } from "@/lib/music/songSource"
 
+// Grouped by what you're trying to do, not by loose technical category —
+// the old split had Tempo sitting oddly apart from Chart & Playback even
+// though you reach for both mid-performance, hands already busy at the
+// fretboard. They're one group now: "While you're playing". No key in this
+// file changed meaning anywhere in this pass — this array only changed
+// which section each one is filed under.
 const GROUPS = [
   {
-    title: "Workspaces",
+    title: "Get around",
     items: [
       ["0", "Home — 3:2 System's Chord scales, once you're in Focus"],
       ["1", "Practice — Focus, while playing; 3:2's Blues scale, in Focus"],
@@ -31,12 +37,13 @@ const GROUPS = [
       ["4 / B", "BeatForge — 3:2's Altered, in Focus"],
       ["5", "Reference"],
       ["6", "Tonal"],
+      ["/", "Song library, from anywhere"],
+      ["?", "Show or hide this sheet"],
     ],
   },
   {
-    title: "Jump to",
+    title: "Open a tool",
     items: [
-      ["/", "Song library, from anywhere"],
       ["G", "Song library in Gig"],
       ["F", "Fretboard — Freeze, once you're in Practice"],
       ["L", "Line Lab"],
@@ -45,7 +52,7 @@ const GROUPS = [
     ],
   },
   {
-    title: "Chart & playback",
+    title: "While you're playing",
     items: [
       ["Space", "Play or stop"],
       ["←  →", "Previous or next bar"],
@@ -53,28 +60,22 @@ const GROUPS = [
       ["⌘/Ctrl C", "Copy selected bar"],
       ["⌘/Ctrl V", "Paste selected bar"],
       ["Double-click", "Loop one chord"],
+      ["[", "Tempo slower by 5"],
+      ["]", "Tempo faster by 5"],
+      ["P", "Tempo slower by 10"],
+      ["\\", "Tempo faster by 10"],
+      ["=", "Tempo back to where you were"],
       ["F", "Freeze on / off"],
       ["I", "3:2 System on / off"],
       ["V", "Voice Leading on / off"],
     ],
   },
   {
-    title: "Tempo",
-    items: [
-      ["P", "Slower by 10 BPM"],
-      ["[", "Slower by 5 BPM"],
-      ["]", "Faster by 5 BPM"],
-      ["\\", "Faster by 10 BPM"],
-      ["=", "Back to where you were"],
-    ],
-  },
-  {
-    title: "Views",
+    title: "Look & feel",
     items: [
       [";", "Cycle color palette"],
       ["'", "Light / dark toggle"],
       ["O", "Cockpit / Focus view"],
-      ["?", "Show or hide shortcuts"],
       ["Esc", "Close the current overlay"],
     ],
   },
@@ -318,7 +319,10 @@ export default function KeyboardShortcuts() {
       role="presentation"
       onMouseDown={() => setOpen(false)}
       style={{
-        position: "fixed", inset: 0, zIndex: 1000,
+        // Above PickupPracticeHome's fixed shell (z-index 10000) and its
+        // drawers (10080/10090, see practice/Drawer.jsx) — "?" is meant to
+        // work from anywhere, Home included.
+        position: "fixed", inset: 0, zIndex: 10100,
         display: "grid", placeItems: "center",
         padding: "20px", background: "var(--overlay)",
       }}

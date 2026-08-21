@@ -31,6 +31,17 @@ export const ENTER_FOCUS_EVENT = "dukebox:enter-focus"
 // there's no tab button in the DOM to find. This bypasses that entirely.
 export const GO_GIG_EVENT = "dukebox:go-gig"
 
+// Home's "Most Popular" rail loads one specific catalog song by id — same
+// cross-tree reasoning as LOAD_STARTER_EVENT, but by catalog id (any
+// "user:"/"gig:"/"form:"/"tavern:" entry) instead of a fixed starter preset,
+// since a most-played song can be any of those.
+export const LOAD_SONG_EVENT = "dukebox:load-song"
+
+export function requestLoadSong(id) {
+  if (typeof window === "undefined" || !id) return
+  window.dispatchEvent(new CustomEvent(LOAD_SONG_EVENT, { detail: id }))
+}
+
 // A Songbook form's `bars` are flat (one DukeBox bar per entry, no chord
 // grouping); the catalog displays everything as named sections, so group
 // consecutive bars sharing a `section` label the same way the stage chart

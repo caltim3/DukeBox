@@ -122,6 +122,11 @@
   --n-root:#DC2626; --n-chord:#16A34A; --n-scale:#047857;
   --n-passing:#57534E; --n-target:#2563EB; --n-target-glow:rgba(37,99,235,.45);
   --n-enclosure:#9333EA;
+  /* The chromatic bridge — the springboard a half step from the target. Same
+     purple family as the enclosure (both mean "chromatic approach") but pale:
+     a stepping stone, never a destination. Text/stroke #6B21A8 on the lavender
+     fill measures ~7:1; the fill itself sits quietly on both wood stops. */
+  --n-bridge:#A855F7; --n-bridge-fill:rgba(233,213,255,.9); --n-bridge-text:#6B21A8;
   /* The 7th, gold — same weight as the 3rd (--n-target), different hue, so the
      pair reads as a pair while you can still tell which is which. The old gold
      was #FFD54F, picked against the dark board; on maple it measures 1.13:1

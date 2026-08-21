@@ -9,7 +9,10 @@ export function DrawerScrim({ open, onClose }) {
       onClick={onClose}
       aria-hidden={!open}
       style={{
-        position: "fixed", inset: 0, zIndex: 80, background: "rgba(0,0,0,.5)",
+        // Above PickupPracticeHome's fixed shell (z-index 10000, see
+        // PickupPracticeHome.jsx) — this drawer is meant to work from
+        // anywhere, Home included, not just from inside a workspace.
+        position: "fixed", inset: 0, zIndex: 10080, background: "rgba(0,0,0,.5)",
         opacity: open ? 1 : 0, pointerEvents: open ? "all" : "none", transition: "opacity .25s",
       }}
     />
@@ -24,7 +27,7 @@ export default function Drawer({ open, onClose, side = "left", title, footer, ch
       aria-modal="true"
       aria-label={title}
       style={{
-        position: "fixed", top: 0, bottom: 0, zIndex: 90,
+        position: "fixed", top: 0, bottom: 0, zIndex: 10090,
         [isLeft ? "left" : "right"]: 0,
         background: "var(--bg)",
         borderLeft: isLeft ? "none" : "1px solid var(--line)",
