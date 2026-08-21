@@ -37,12 +37,15 @@
   }
 
   *{ box-sizing:border-box; }
+  [hidden]{ display:none !important; }
   body{
     margin:0; background:var(--bg); color:var(--text);
     font:15px/1.55 "Instrument Sans", "Segoe UI", system-ui, sans-serif;
     padding:34px 18px 72px;
   }
-  .page{ max-width:960px; margin:0 auto; }
+  .page{ max-width:1360px; margin:0 auto; }
+  .page > .eyebrow, .page > h1, .page > .lede, .notes{ max-width:960px; margin-left:auto; margin-right:auto; }
+  .notes{ margin-top:40px; }
 
   /* ── Page framing ─────────────────────────────────────────── */
   .eyebrow{
@@ -81,29 +84,29 @@
   }
   #summary b{ color:var(--accent); font-weight:700; }
 
-  .rows{ display:flex; flex-direction:column; }
-  .row{
-    display:grid; grid-template-columns:118px 1fr; gap:8px 18px;
-    padding:16px 18px; border-bottom:1px solid var(--line); align-items:start;
+  /* One short band, three columns — the panel sits above an edge-to-edge
+     fretboard, so it spends the width it's given, not the player's height. */
+  .cols{ display:grid; grid-template-columns:2fr 1.3fr 1.35fr; }
+  .col{
+    padding:10px 16px 12px; border-left:1px solid var(--line);
+    display:flex; flex-direction:column; gap:8px; min-width:0;
   }
-  .row:last-child{ border-bottom:none; }
-  .row-label{ padding-top:5px; }
-  .row-label .q{
-    font:800 11px/1.2 "IBM Plex Mono", monospace; letter-spacing:.14em;
-    text-transform:uppercase; color:var(--text); display:block;
+  .col:first-child{ border-left:none; }
+  .col-label{
+    font:800 10px/1.2 "IBM Plex Mono", monospace; letter-spacing:.14em;
+    text-transform:uppercase; color:var(--text);
   }
-  .row-label .sub{
-    display:block; font:500 11px/1.35 "Instrument Sans", sans-serif;
-    color:var(--muted); margin-top:3px;
+  .col-label em{
+    font:500 10.5px/1.2 "Instrument Sans", sans-serif; font-style:normal;
+    color:var(--muted); text-transform:none; letter-spacing:0; margin-left:4px;
   }
-  .row-body{ display:flex; flex-direction:column; gap:10px; min-width:0; }
-  .chip-line{ display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+  .chip-line{ display:flex; flex-wrap:wrap; gap:5px; align-items:center; }
 
   /* Radio chips: the ONE selected choice is filled solid — unmistakable. */
   .chip{
     appearance:none; border:1px solid var(--line); background:var(--surface);
-    color:var(--text); font:500 13px/1 "Instrument Sans", sans-serif;
-    padding:7px 13px; border-radius:999px; cursor:pointer;
+    color:var(--text); font:500 12.5px/1 "Instrument Sans", sans-serif;
+    padding:5px 11px; border-radius:999px; cursor:pointer;
     transition:background .12s, border-color .12s, color .12s;
   }
   .chip:hover{ border-color:var(--accent); }
@@ -124,8 +127,8 @@
   }
   .seg button{
     appearance:none; border:none; background:transparent; cursor:pointer;
-    font:600 12.5px/1 "Instrument Sans", sans-serif; color:var(--muted);
-    padding:7px 13px; border-right:1px solid var(--line);
+    font:600 12px/1 "Instrument Sans", sans-serif; color:var(--muted);
+    padding:5px 10px; border-right:1px solid var(--line);
   }
   .seg button:last-child{ border-right:none; }
   .seg button[aria-checked="true"]{ background:var(--accent); color:var(--accent-ink); font-weight:700; }
@@ -136,25 +139,24 @@
   .switch{ display:inline-flex; align-items:center; gap:8px; cursor:pointer; user-select:none; }
   .switch input{ position:absolute; opacity:0; width:1px; height:1px; }
   .switch .track{
-    width:34px; height:20px; border-radius:999px; background:var(--surface2);
+    width:30px; height:18px; border-radius:999px; background:var(--surface2);
     border:1px solid var(--line); position:relative; transition:background .15s; flex-shrink:0;
   }
   .switch .track::after{
-    content:""; position:absolute; top:2px; left:2px; width:14px; height:14px;
+    content:""; position:absolute; top:2px; left:2px; width:12px; height:12px;
     border-radius:50%; background:var(--surface); border:1px solid var(--line);
     transition:transform .15s;
   }
   .switch input:checked + .track{ background:var(--accent); border-color:var(--accent); }
-  .switch input:checked + .track::after{ transform:translateX(14px); border-color:var(--accent); }
-  .switch .lbl{ font:600 13px/1.2 "Instrument Sans", sans-serif; }
-  .switch .hint{ font:500 11.5px/1.2 "Instrument Sans", sans-serif; color:var(--muted); }
+  .switch input:checked + .track::after{ transform:translateX(12px); border-color:var(--accent); }
+  .switch .lbl{ font:600 12.5px/1.2 "Instrument Sans", sans-serif; }
   .switch.disabled{ opacity:.4; cursor:not-allowed; }
 
   /* Conditional sub-rows hang off an indent rail: they belong to the choice
      directly above, and appear/disappear with it. */
   .subrow{
-    display:flex; flex-wrap:wrap; gap:8px 14px; align-items:center;
-    margin-left:10px; padding:8px 0 2px 16px; border-left:2px solid var(--rail);
+    display:flex; flex-wrap:wrap; gap:6px 12px; align-items:center;
+    margin-left:6px; padding:2px 0 2px 12px; border-left:2px solid var(--rail);
   }
   .subrow .k{
     font:700 10px/1 "IBM Plex Mono", monospace; letter-spacing:.12em;
@@ -199,9 +201,10 @@
   .note p{ margin:0; font-size:13px; color:var(--muted); }
   .note p b{ color:var(--text); }
 
-  @media (max-width:640px){
-    .row{ grid-template-columns:1fr; gap:8px; }
-    .row-label .sub{ display:inline; margin-left:6px; }
+  @media (max-width:860px){
+    .cols{ grid-template-columns:1fr; }
+    .col{ border-left:none; border-top:1px solid var(--line); }
+    .col:first-child{ border-top:none; }
   }
   @media (prefers-reduced-motion: reduce){
     *{ transition:none !important; }
@@ -210,11 +213,12 @@
 
 <div class="page">
   <p class="eyebrow">DukeBox · Practice · Mockup</p>
-  <h1>Focus settings, one decision per row</h1>
+  <h1>Focus settings, one short band</h1>
   <p class="lede">The same controls as today's <strong>Palette / Connect</strong> boxes, regrouped
-    around the three questions a player actually answers — every control is live below, so click
-    around: sub-settings fold out of the choice they belong to, and the header reads the whole
-    state back in one sentence.</p>
+    around the three questions a player actually answers. The panel sits above an edge-to-edge
+    fretboard, so it spends width, not height: three columns in one thin band. Every control is
+    live below — click around: sub-settings fold out of the choice they belong to, and the header
+    reads the whole state back in one sentence.</p>
 
   <div class="panel" id="panel">
     <div class="panel-head">
@@ -222,14 +226,10 @@
       <span id="summary"></span>
     </div>
 
-    <div class="rows">
+    <div class="cols">
       <!-- ── LENS ─────────────────────────────────────────── -->
-      <div class="row">
-        <div class="row-label">
-          <span class="q">Lens</span>
-          <span class="sub">what the board shows over this chord — pick one</span>
-        </div>
-        <div class="row-body">
+      <div class="col">
+        <span class="col-label">Lens <em>· what's on the board — pick one</em></span>
           <div class="chip-line" role="radiogroup" aria-label="Lens" id="lens">
             <button class="chip" data-v="chord">Chord</button>
             <button class="chip" data-v="scale">Scale</button>
@@ -261,30 +261,23 @@
             </span>
           </div>
 
-          <div class="chip-line" id="mods">
-            <label class="switch" id="altSwitch">
+          <div class="chip-line" id="mods" style="gap:6px 18px">
+            <label class="switch" id="altSwitch" title="A functioning dominant reharmonizes — tritone sub / altered scale">
               <input type="checkbox" id="altered">
               <span class="track"></span>
               <span class="lbl">Altered</span>
-              <span class="hint">functioning dominants reharmonize</span>
             </label>
-            <label class="switch" id="bebopSwitch">
+            <label class="switch" id="bebopSwitch" title="Adds the bebop passing tone">
               <input type="checkbox" id="bebop">
               <span class="track"></span>
               <span class="lbl">Bebop chromatic</span>
-              <span class="hint" id="bebopHint">adds the passing tone</span>
             </label>
           </div>
-        </div>
       </div>
 
       <!-- ── CONNECT ──────────────────────────────────────── -->
-      <div class="row">
-        <div class="row-label">
-          <span class="q">Connect</span>
-          <span class="sub">how this chord leads into the next one</span>
-        </div>
-        <div class="row-body">
+      <div class="col">
+        <span class="col-label">Connect <em>· into the next chord</em></span>
           <div class="chip-line">
             <div class="seg q" role="radiogroup" aria-label="Connect mode" id="connect">
               <button data-v="voice">Voice Leading</button>
@@ -303,17 +296,12 @@
               <button data-v="random">Surprise</button>
             </div>
           </div>
-        </div>
       </div>
 
       <!-- ── BOARD ────────────────────────────────────────── -->
-      <div class="row">
-        <div class="row-label">
-          <span class="q">Board</span>
-          <span class="sub">the neck itself — survives every lens change</span>
-        </div>
-        <div class="row-body">
-          <div class="chip-line" style="gap:18px">
+      <div class="col">
+        <span class="col-label">Board <em>· the neck itself</em></span>
+          <div class="chip-line" style="gap:8px 16px">
             <span class="chip-line" style="gap:8px">
               <span class="k" style="font:700 10px/1 'IBM Plex Mono',monospace;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)">Tuning</span>
               <select id="tuning" aria-label="Tuning">
@@ -328,7 +316,8 @@
                 <button data-v="degrees">Degrees</button>
               </div>
             </span>
-            <span class="chip-line" style="gap:8px" id="focusWrap">
+          </div>
+          <div class="chip-line" style="gap:8px" id="focusWrap">
               <span class="k" style="font:700 10px/1 'IBM Plex Mono',monospace;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)">Fret focus</span>
               <div class="seg" id="ffocus">
                 <button data-v="off">Off</button>
@@ -341,9 +330,7 @@
                 <button id="ffR" aria-label="Move window toward the body">▶</button>
                 <button id="ffSpan" title="Window width">5 fr</button>
               </span>
-            </span>
           </div>
-        </div>
       </div>
     </div>
   </div>
@@ -352,10 +339,10 @@
     <h2>What changed, and why</h2>
     <div class="note-grid">
       <div class="note">
-        <h3>Three questions, three rows</h3>
+        <h3>Three questions, three columns</h3>
         <p><b>Lens</b> (what's on the board), <b>Connect</b> (into the next chord), <b>Board</b>
           (the instrument). Tuning and Labels move out of "Palette" — they were never a
-          chord-scale decision — and the fixed label rail makes the panel scannable top to bottom.</p>
+          chord-scale decision — and one thin band leaves the vertical space to the neck below it.</p>
       </div>
       <div class="note">
         <h3>Radios look like radios, modifiers like switches</h3>
@@ -415,7 +402,7 @@
     const barry = S.lens === "barry";
     $("bebopSwitch").classList.toggle("disabled", barry);
     $("bebop").disabled = barry;
-    $("bebopHint").textContent = barry ? "Barry 6th already has one" : "adds the passing tone";
+    $("bebopSwitch").title = barry ? "Barry 6th already carries its own passing tone" : "Adds the bebop passing tone";
     $("altered").checked = S.altered;
     $("bebop").checked = S.bebop && !barry;
 
