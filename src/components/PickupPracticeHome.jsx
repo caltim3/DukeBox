@@ -623,12 +623,6 @@ export default function PickupPracticeHome() {
     )
   }
 
-  // The adaptive hero: whatever you touched last, of whatever kind it was.
-  // Falls back to a plain invitation for a first-ever visit, when there's no
-  // recent entry yet to resume.
-  const heroEntry = recent[0] || null
-  const heroKind = heroEntry ? entryKind(heroEntry) : null
-
   return (
     <div className="db-pickup-shell">
       <style>{`
@@ -923,47 +917,10 @@ export default function PickupPracticeHome() {
           color: var(--pickup-accent);
         }
 
-        /* ---------- adaptive hero ("right where you clicked off") ---------- */
-        .db-pickup-hero {
-          margin-top: 22px;
-          padding: 26px 26px 24px;
-          border: 1px solid var(--pickup-line);
-          background:
-            radial-gradient(ellipse 560px 260px at 8% -20%, rgba(215,162,74,.16), transparent 60%),
-            var(--pickup-raised);
-          display: grid;
-          grid-template-columns: 1.4fr 1fr;
-          gap: 30px;
-          align-items: center;
-        }
-        .db-pickup-hero-type {
-          display: inline-block;
-          margin-bottom: 10px;
-          padding: 2px 8px;
-          font-family: 'IBM Plex Mono', ui-monospace, monospace;
-          font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase;
-          color: var(--pickup-teal);
-          border: 1px solid var(--pickup-teal-soft);
-          background: var(--pickup-teal-soft);
-        }
-        .db-pickup-hero-row { display: flex; align-items: center; gap: 16px; }
-        .db-pickup-hero-icon {
-          flex: 0 0 auto; width: 52px; height: 52px; display: grid; place-items: center;
-          border: 1px solid var(--pickup-line); background: var(--pickup-ink); color: var(--pickup-accent);
-        }
-        .db-pickup-hero-icon svg { width: 24px; height: 24px; }
-        .db-pickup-hero-title {
-          font-size: clamp(1.5rem, 2.4vw, 2.1rem);
-          line-height: 1.05;
-          letter-spacing: -0.01em;
-          color: var(--pickup-text);
-        }
-        .db-pickup-hero-meta {
-          margin-top: 7px;
-          display: flex; flex-wrap: wrap; gap: 4px 12px;
-          font-family: 'IBM Plex Mono', ui-monospace, monospace;
-          font-size: 12px; color: var(--pickup-muted);
-        }
+        /* The hero card ("right where you clicked off") is gone — it was
+           saying the same thing "Jump back in" already says lower on the
+           page. .db-pickup-hero-actions/play-btn/ghost-btn survive: they're
+           shared with "Practice this lick" and the empty states below. */
         .db-pickup-hero-actions { margin-top: 20px; display: flex; flex-wrap: wrap; gap: 10px; }
         .db-pickup-play-btn {
           display: inline-flex; align-items: center; gap: 9px;
@@ -982,22 +939,6 @@ export default function PickupPracticeHome() {
         .db-pickup-ghost-btn:hover { border-color: var(--pickup-accent); color: var(--pickup-accent-bright); }
         .db-pickup-ghost-btn kbd {
           padding: 1px 6px; border: 1px solid var(--pickup-line); border-radius: 4px; font-size: 11px; color: var(--pickup-muted);
-        }
-        .db-pickup-hero-stubs { display: grid; gap: 8px; }
-        .db-pickup-hero-stub {
-          display: flex; align-items: center; gap: 10px;
-          padding: 9px 12px; border: 1px solid var(--pickup-line); background: var(--pickup-ink);
-          cursor: pointer; text-align: left; transition: border-color 140ms ease;
-        }
-        .db-pickup-hero-stub:hover { border-color: var(--pickup-accent); }
-        .db-pickup-hero-stub-key {
-          flex: 0 0 auto; width: 22px; height: 22px; display: grid; place-items: center;
-          border: 1px solid var(--pickup-accent); color: var(--pickup-accent-bright);
-          font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 11px; font-weight: 700;
-        }
-        .db-pickup-hero-stub strong { display: block; font-size: 13px; color: var(--pickup-text); }
-        @media (max-width: 900px) {
-          .db-pickup-hero { grid-template-columns: 1fr; }
         }
 
         .db-pickup-starter-row {
@@ -1419,107 +1360,14 @@ export default function PickupPracticeHome() {
       <main className="db-pickup-main">
         <div className="db-pickup-main-inner">
 
-          {/* Adaptive hero — resumes whatever you last touched, tagged by
-              what kind of thing it was. Falls back to a plain invitation
-              when there's no recent activity yet. */}
-          <section className="db-pickup-hero">
-            <div>
-              {heroEntry ? (
-                <>
-                  {heroKind && <span className="db-pickup-hero-type">{heroKind}</span>}
-                  <div className="db-pickup-hero-row">
-                    <span className="db-pickup-hero-icon"><Icon name={recentIconName(heroEntry)} /></span>
-                    <div>
-                      <h1 className="db-pickup-hero-title">{heroEntry.label}</h1>
-                      <div className="db-pickup-hero-meta">
-                        {heroEntry.subtitle && <span>{heroEntry.subtitle}</span>}
-                        <span>{timeAgo(heroEntry.at)}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="db-pickup-hero-actions">
-                    <button type="button" className="db-pickup-play-btn" onClick={() => runAction(heroEntry.action)}>
-                      <Icon name="play" /> Jump back in
-                    </button>
-                    <button type="button" className="db-pickup-ghost-btn" onClick={() => openSongbookSearch()}>
-                      Something else <kbd>/</kbd>
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <span className="db-pickup-hero-type">New here</span>
-                  <h1 className="db-pickup-hero-title">Let&apos;s find your first tune</h1>
-                  <div className="db-pickup-hero-meta"><span>Open the songbook, or pick a starter chart below</span></div>
-                  <div className="db-pickup-hero-actions">
-                    <button type="button" className="db-pickup-play-btn" onClick={() => openSongbookSearch()}>
-                      <Icon name="play" /> Open the songbook
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-            <div className="db-pickup-hero-stubs">
-              {GET_STARTED.map((item) => (
-                <button type="button" key={item.title} className="db-pickup-hero-stub" onClick={() => runAction(item.action)}>
-                  <span className="db-pickup-hero-stub-key db-pickup-mono">{item.shortcut}</span>
-                  <span>
-                    <strong>{item.title}</strong>
-                    <span style={{ fontSize: "12px", color: "var(--pickup-muted)" }}>{item.subtitle}</span>
-                  </span>
-                </button>
-              ))}
-            </div>
-          </section>
-
-          <section className="db-pickup-section">
-            <div className="db-pickup-section-heading">
-              <div>
-                <div className="db-pickup-eyebrow">Get started</div>
-              </div>
-              <button type="button" className="db-pickup-text-button" onClick={() => openPracticeCenter()}>Open practice center</button>
-            </div>
-
-            <div className="db-pickup-progress-grid">
-              {GET_STARTED.map((item) => (
-                <button type="button" key={item.title} className="db-pickup-progress-card" onClick={() => runAction(item.action)}>
-                  <div className="db-pickup-progress-art">
-                    <img src={item.image} alt="" />
-                  </div>
-                  <div className="db-pickup-progress-copy">
-                    <small>{item.eyebrow}</small>
-                    <strong>{item.title}</strong>
-                    <span>{item.subtitle}</span>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </section>
-
-          <section className="db-pickup-section">
-            <div className="db-pickup-section-heading">
-              <div>
-                <div className="db-pickup-eyebrow">Start practicing</div>
-                <h2>Starter charts</h2>
-                <p>A fully loaded scenario — chart, scale/system, and slow tempo — straight into Focus after a 4-beat count-in.</p>
-              </div>
-            </div>
-
-            <div className="db-pickup-starter-row">
-              {STARTER_STRIP.map(({ id, label }) => (
-                <button
-                  type="button"
-                  key={id}
-                  className="db-pickup-starter-chip"
-                  onClick={() => runAction({ type: "starter", value: id })}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </section>
-
-          <section className="db-pickup-section">
+          {/* Your learning plan — the photo cards — leads the page now. It
+              was buried between the starter chips and "Jump back in";
+              this is the best-looking, most-loved part of Home, so it
+              shouldn't need scrolling to reach. The old hero card here said
+              the same thing "Jump back in" already says lower down, just
+              with worse odds of being right about which one thing you
+              wanted — deleted rather than kept as a redundant first stop. */}
+          <section className="db-pickup-section" style={{ paddingTop: 0 }}>
             <div className="db-pickup-section-heading">
               <div>
                 <div className="db-pickup-eyebrow">Your set list</div>
@@ -1573,6 +1421,53 @@ export default function PickupPracticeHome() {
                 ))}
               </div>
             ))}
+          </section>
+
+          <section className="db-pickup-section">
+            <div className="db-pickup-section-heading">
+              <div>
+                <div className="db-pickup-eyebrow">Get started</div>
+              </div>
+              <button type="button" className="db-pickup-text-button" onClick={() => openPracticeCenter()}>Open practice center</button>
+            </div>
+
+            <div className="db-pickup-progress-grid">
+              {GET_STARTED.map((item) => (
+                <button type="button" key={item.title} className="db-pickup-progress-card" onClick={() => runAction(item.action)}>
+                  <div className="db-pickup-progress-art">
+                    <img src={item.image} alt="" />
+                  </div>
+                  <div className="db-pickup-progress-copy">
+                    <small>{item.eyebrow}</small>
+                    <strong>{item.title}</strong>
+                    <span>{item.subtitle}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <section className="db-pickup-section">
+            <div className="db-pickup-section-heading">
+              <div>
+                <div className="db-pickup-eyebrow">Start practicing</div>
+                <h2>Starter charts</h2>
+                <p>A fully loaded scenario — chart, scale/system, and slow tempo — straight into Focus after a 4-beat count-in.</p>
+              </div>
+            </div>
+
+            <div className="db-pickup-starter-row">
+              {STARTER_STRIP.map(({ id, label }) => (
+                <button
+                  type="button"
+                  key={id}
+                  className="db-pickup-starter-chip"
+                  onClick={() => runAction({ type: "starter", value: id })}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </section>
 
           <section className="db-pickup-section">
