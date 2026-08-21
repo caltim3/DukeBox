@@ -76,17 +76,18 @@ async function loadMetronome() {
   return _metroMod
 }
 
+// The three SharePoint-palette schemes (globals.css). The Practice home
+// page (PickupPracticeHome.jsx) keeps its own fixed --pickup-* colors and
+// ignores this choice entirely.
 const PALETTES = [
-  { id: "studio", name: "Studio", emoji: "🎛️" },
-  { id: "regatta", name: "Regatta", emoji: "⛵" },
-  { id: "ember", name: "Ember", emoji: "🔥" },
-  { id: "kiln", name: "Kiln", emoji: "🏺" },
-  { id: "harbor", name: "Harbor", emoji: "⚓" },
+  { id: "cobalt", name: "Cobalt", emoji: "🔷" },
+  { id: "sequoia", name: "Sequoia", emoji: "🌲" },
+  { id: "hearth", name: "Hearth", emoji: "🔥" },
 ]
 
 // What a first-time visitor gets. The no-flash boot script in app/layout.js
 // paints this same pair before hydration, so the two must agree.
-const DEFAULT_PALETTE = "harbor"
+const DEFAULT_PALETTE = "cobalt"
 const DEFAULT_PALETTE_INDEX = Math.max(0, PALETTES.findIndex((p) => p.id === DEFAULT_PALETTE))
 
 const INITIAL_BARS = [

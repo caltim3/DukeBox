@@ -21,10 +21,17 @@ export default function RootLayout({ children }) {
     (() => {
       // Keep this list and the default in step with PALETTES / DEFAULT_PALETTE
       // in app/page.js — this runs before hydration, so it can't import them.
-      const palettes = ['studio','regatta','ember','kiln','harbor'];
-      const savedPalette = localStorage.getItem('dukebox-palette');
+      const palettes = ['cobalt','sequoia','hearth'];
+      // Pre-SharePoint scheme ids — carry a visitor's saved choice onto its
+      // nearest new scheme instead of silently resetting it.
+      const legacy = { studio:'cobalt', regatta:'cobalt', ember:'hearth', kiln:'hearth', harbor:'sequoia' };
+      let savedPalette = localStorage.getItem('dukebox-palette');
+      if (legacy[savedPalette]) {
+        savedPalette = legacy[savedPalette];
+        localStorage.setItem('dukebox-palette', savedPalette);
+      }
       const savedMode = localStorage.getItem('dukebox-mode');
-      const palette = palettes.includes(savedPalette) ? savedPalette : 'harbor';
+      const palette = palettes.includes(savedPalette) ? savedPalette : 'cobalt';
       const mode = savedMode === 'light' || savedMode === 'dark'
         ? savedMode
         : 'light';
@@ -35,7 +42,7 @@ export default function RootLayout({ children }) {
   `;
 
   return (
-    <html lang="en" data-palette="harbor" data-mode="light" suppressHydrationWarning>
+    <html lang="en" data-palette="cobalt" data-mode="light" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
         {/* Home's marquee redesign (PickupPracticeHome.jsx) — display face for

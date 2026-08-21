@@ -38,7 +38,7 @@ Three consequences:
 2. **Size carries the same ranking as color**, so the hierarchy survives in
    peripheral vision and for anyone who can't separate the hues.
 3. **The palette never changes.** All note-role colors are fixed `--n-*`
-   tokens, deliberately independent of the app's six switchable UI palettes —
+   tokens, deliberately independent of the app's three switchable UI schemes —
    a Bb7 diagram looks identical whichever palette is active
    (`globals.css` "Constant sub-systems", spec `PRACTICE_REDESIGN_V3.md` §4.7).
 
@@ -235,6 +235,11 @@ transition** — the board never shows more than two future marks:
 The board has a general "next chord" drawing system, all in `--n-next`
 plum so future material can never be confused with present material:
 
+- **Target intervals** — every plum mark says which interval of the *coming*
+  chord it is, in both label modes: degrees mode labels the dot itself
+  against the next chord's root (`ghostRootNote` — never the current root,
+  which would misname it), and names mode keeps the note name on the dot
+  and floats the interval (3, b3, b7, R…) above it.
 - **Ghosts** — hollow plum-ringed dots for next-chord notes, drawn on
   *this same neck* rather than on a second board, so there is no mental
   register-mapping between two graphics at tempo: at the bar change they are

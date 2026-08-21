@@ -9,7 +9,7 @@ const NOTES_FLAT = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", 
 
 // Melody Paths is always dark navy — these read the constant --mp-* tokens
 // (globals.css :root), never the active palette, so the panel looks identical
-// no matter which of the six palettes is selected (spec §4.8).
+// no matter which of the three schemes is selected (spec §4.8).
 const DEFAULT_COLOR_TOKENS = {
   root: "--mp-root",
   third: "--mp-third",

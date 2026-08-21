@@ -1,85 +1,66 @@
 /* DukeBox themes: every application color resolves through this contract. */
 
-/* Studio (default) — white cards, green accents, blue info. Matches the Tonal tab. */
-[data-palette="studio"][data-mode="light"]{
-  --bg:#F3F4F6; --surface:#FFFFFF; --surface2:#F9FAFB; --line:#E5E7EB;
-  --text:#111827; --muted:#6B7280;
-  --accent:#16A34A; --accent-ink:#FFFFFF; --hot:#DC2626; --info:#2563EB;
-  --root:#DC2626; --chord:#16A34A; --scale:#059669; --passing:#6B7280; --target:#2563EB;
-  --loop:rgba(220,38,38,.09); --sel:rgba(37,99,235,.10); --glow:rgba(37,99,235,.42);
+/* Three schemes, all drawn from the SharePoint theme palette (Red #A4262C ·
+   Orange #CA5010 · Gold #8F7034 · Green #407855 · Teal #007780 · Blue
+   #0078D4 · Dark Blue #40587C · Indigo #4052AB · Plum #854085 · Purple
+   #8764B8 · Cool Grey #737373 · Warm Grey #867365). Accents are raw palette
+   hexes; every neutral is a tint/shade of one, so light and dark both carry
+   the scheme's temperature. The legacy --root/--chord/--scale/--passing/
+   --target tokens (fed to --db-c-* below) point at the constant SharePoint
+   note-role family, identical in every scheme, matching the maple board.
+   The Practice home page (PickupPracticeHome.jsx) runs on its own fixed
+   --pickup-* colors and is untouched by all of this. */
+
+/* Cobalt (default) — cool and studio-neutral. Blue accent, teal info,
+   dark-blue-seeded neutrals. */
+[data-palette="cobalt"][data-mode="light"]{
+  --bg:#EFF1F4; --surface:#FBFCFD; --surface2:#E7EBF0; --line:#CFD7E1;
+  --text:#1E2A3C; --muted:#5E6E83;
+  --accent:#0078D4; --accent-ink:#FFFFFF; --hot:#A4262C; --info:#007780;
+  --root:#A4262C; --chord:#8F7034; --scale:#407855; --passing:#737373; --target:#854085;
+  --loop:rgba(164,38,44,.09); --sel:rgba(0,120,212,.10); --glow:rgba(0,120,212,.40);
+}
+[data-palette="cobalt"][data-mode="dark"]{
+  --bg:#10161F; --surface:#1A2330; --surface2:#242F40; --line:#37455C;
+  --text:#E8EDF4; --muted:#93A2B8;
+  --accent:#0078D4; --accent-ink:#FFFFFF; --hot:#A4262C; --info:#007780;
+  --root:#A4262C; --chord:#8F7034; --scale:#407855; --passing:#737373; --target:#854085;
+  --loop:rgba(164,38,44,.22); --sel:rgba(0,120,212,.16); --glow:rgba(0,120,212,.50);
 }
 
-/* Slate — grey-driven dark counterpart to Studio */
-[data-palette="studio"][data-mode="dark"]{
-  --bg:#111827; --surface:#1F2937; --surface2:#374151; --line:#4B5563;
-  --text:#F9FAFB; --muted:#9CA3AF;
-  --accent:#22C55E; --accent-ink:#052E16; --hot:#EF4444; --info:#60A5FA;
-  --root:#EF4444; --chord:#22C55E; --scale:#10B981; --passing:#9CA3AF; --target:#60A5FA;
-  --loop:rgba(239,68,68,.18); --sel:rgba(96,165,250,.14); --glow:rgba(96,165,250,.55);
+/* Sequoia — warm woodshed green. Green accent, teal info, warm-grey
+   neutrals. */
+[data-palette="sequoia"][data-mode="light"]{
+  --bg:#F3F1EF; --surface:#FCFBFA; --surface2:#EAE6E2; --line:#D5CDC5;
+  --text:#2B2622; --muted:#7C7166;
+  --accent:#407855; --accent-ink:#FFFFFF; --hot:#CA5010; --info:#007780;
+  --root:#A4262C; --chord:#8F7034; --scale:#407855; --passing:#737373; --target:#854085;
+  --loop:rgba(202,80,16,.09); --sel:rgba(64,120,85,.11); --glow:rgba(64,120,85,.40);
+}
+[data-palette="sequoia"][data-mode="dark"]{
+  --bg:#171412; --surface:#211D1A; --surface2:#2C2723; --line:#453D36;
+  --text:#F0EBE6; --muted:#A5988B;
+  --accent:#407855; --accent-ink:#FFFFFF; --hot:#CA5010; --info:#007780;
+  --root:#A4262C; --chord:#8F7034; --scale:#407855; --passing:#737373; --target:#854085;
+  --loop:rgba(202,80,16,.20); --sel:rgba(64,120,85,.18); --glow:rgba(64,120,85,.55);
 }
 
-/* Regatta: #780000 #C1121F #FDF0D5 #003049 #669BBC */
-[data-palette="regatta"][data-mode="dark"]{
-  --bg:#071825; --surface:#003049; --surface2:#0B3E5C; --line:#1A4E70;
-  --text:#FDF0D5; --muted:#8FA5B8;
-  --accent:#C1121F; --accent-ink:#FDF0D5; --hot:#780000; --info:#669BBC;
-  --root:#C1121F; --chord:#669BBC; --scale:#4A6A82; --passing:#FDF0D5; --target:#F0C878;
-  --loop:rgba(120,0,0,.28); --sel:rgba(102,155,188,.16); --glow:rgba(240,200,120,.55);
+/* Hearth — amber club-light warmth. Orange accent; info is Dark Blue in
+   light mode, Gold in dark (Dark Blue text won't read on the espresso
+   ground). */
+[data-palette="hearth"][data-mode="light"]{
+  --bg:#F6F2EB; --surface:#FDFBF6; --surface2:#EFE8DA; --line:#DBD0BB;
+  --text:#33291C; --muted:#82755F;
+  --accent:#CA5010; --accent-ink:#FFFFFF; --hot:#A4262C; --info:#40587C;
+  --root:#A4262C; --chord:#8F7034; --scale:#407855; --passing:#737373; --target:#854085;
+  --loop:rgba(164,38,44,.09); --sel:rgba(202,80,16,.10); --glow:rgba(202,80,16,.40);
 }
-[data-palette="regatta"][data-mode="light"]{
-  --bg:#FDF0D5; --surface:#FFF9E6; --surface2:#F0E4C4; --line:#D8CDA8;
-  --text:#003049; --muted:#4A6A80;
-  --accent:#C1121F; --accent-ink:#FDF0D5; --hot:#780000; --info:#003049;
-  --root:#C1121F; --chord:#003049; --scale:#669BBC; --passing:#4A6A80; --target:#780000;
-  --loop:rgba(120,0,0,.11); --sel:rgba(0,48,73,.10); --glow:rgba(120,0,0,.35);
-}
-
-/* Ember: #A41623 #F85E00 #FFB563 #FFD29D #918450 */
-[data-palette="ember"][data-mode="dark"]{
-  --bg:#1A0F07; --surface:#26180C; --surface2:#302010; --line:#4A2E15;
-  --text:#FFECD0; --muted:#A88760;
-  --accent:#F85E00; --accent-ink:#1A0F07; --hot:#A41623; --info:#FFB563;
-  --root:#F85E00; --chord:#FFB563; --scale:#918450; --passing:#FFD29D; --target:#FFECD0;
-  --loop:rgba(164,22,35,.20); --sel:rgba(248,94,0,.14); --glow:rgba(255,236,208,.55);
-}
-[data-palette="ember"][data-mode="light"]{
-  --bg:#FFF8EA; --surface:#FFFCF3; --surface2:#F5E2C2; --line:#E8CBA0;
-  --text:#3D1808; --muted:#918450;
-  --accent:#F85E00; --accent-ink:#FFF8EA; --hot:#A41623; --info:#B85028;
-  --root:#F85E00; --chord:#B85028; --scale:#918450; --passing:#FFD29D; --target:#FFB563;
-  --loop:rgba(164,22,35,.11); --sel:rgba(248,94,0,.10); --glow:rgba(255,181,99,.55);
-}
-
-/* Kiln: #606C38 #283618 #FEFAE0 #DDA15E #BC6C25 */
-[data-palette="kiln"][data-mode="dark"]{
-  --bg:#131810; --surface:#283618; --surface2:#33421E; --line:#4A5528;
-  --text:#FEFAE0; --muted:#9CA678;
-  --accent:#DDA15E; --accent-ink:#131810; --hot:#BC6C25; --info:#7A8548;
-  --root:#DDA15E; --chord:#7A8548; --scale:#606C38; --passing:#FEFAE0; --target:#FFC898;
-  --loop:rgba(188,108,37,.20); --sel:rgba(221,161,94,.15); --glow:rgba(255,200,152,.55);
-}
-[data-palette="kiln"][data-mode="light"]{
-  --bg:#FEFAE0; --surface:#FFFDF0; --surface2:#F0EAC8; --line:#D8CFA8;
-  --text:#283618; --muted:#6A6548;
-  --accent:#BC6C25; --accent-ink:#FEFAE0; --hot:#7A3010; --info:#283618;
-  --root:#BC6C25; --chord:#283618; --scale:#606C38; --passing:#A8946A; --target:#DDA15E;
-  --loop:rgba(122,48,16,.11); --sel:rgba(188,108,37,.11); --glow:rgba(221,161,94,.55);
-}
-
-/* Harbor: #C9E4CA #87BBA2 #55828B #3B6064 #364958 */
-[data-palette="harbor"][data-mode="dark"]{
-  --bg:#0F1618; --surface:#1A2528; --surface2:#253538; --line:#364958;
-  --text:#E5EEE7; --muted:#7A9088;
-  --accent:#87BBA2; --accent-ink:#0F1618; --hot:#C08575; --info:#55828B;
-  --root:#87BBA2; --chord:#55828B; --scale:#3B6064; --passing:#C9E4CA; --target:#E8D68A;
-  --loop:rgba(192,133,117,.18); --sel:rgba(135,187,162,.14); --glow:rgba(232,214,138,.55);
-}
-[data-palette="harbor"][data-mode="light"]{
-  --bg:#F0F5F1; --surface:#FBFDFC; --surface2:#E5EFE6; --line:#C9E4CA;
-  --text:#364958; --muted:#55828B;
-  --accent:#3B6064; --accent-ink:#F0F5F1; --hot:#A85F50; --info:#55828B;
-  --root:#3B6064; --chord:#364958; --scale:#55828B; --passing:#87BBA2; --target:#B8933A;
-  --loop:rgba(168,95,80,.10); --sel:rgba(59,96,100,.10); --glow:rgba(184,147,58,.45);
+[data-palette="hearth"][data-mode="dark"]{
+  --bg:#181310; --surface:#231C15; --surface2:#2F261C; --line:#4A3D2C;
+  --text:#F2ECE2; --muted:#A79878;
+  --accent:#CA5010; --accent-ink:#FFFFFF; --hot:#A4262C; --info:#8F7034;
+  --root:#A4262C; --chord:#8F7034; --scale:#407855; --passing:#737373; --target:#854085;
+  --loop:rgba(164,38,44,.22); --sel:rgba(202,80,16,.16); --glow:rgba(202,80,16,.50);
 }
 
 :root {
@@ -111,7 +92,7 @@
      These never change with palette or mode. The maple fretboard and the
      Melody Paths panel read only from these, never from --bg/--surface/etc,
      so a Bb7 diagram (or a guide-tone chart) looks identical no matter which
-     of the six palettes above is active. */
+     of the three schemes above is active. */
 
   /* Maple fretboard */
   --fb-wood-1:#EEC788; --fb-wood-2:#DDA85A;
