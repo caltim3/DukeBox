@@ -118,27 +118,36 @@
   --fb-nut:#5C3C1A; --fb-fret:rgba(70,45,20,.5); --fb-fret-strong:rgba(70,45,20,.75);
   --fb-string:rgba(40,25,10,.55); --fb-inlay:#3E2810; --fb-labels:#3E2810;
 
-  /* Note roles on the maple, constant regardless of palette */
-  --n-root:#DC2626; --n-chord:#16A34A; --n-scale:#047857;
-  --n-passing:#57534E; --n-target:#2563EB; --n-target-glow:rgba(37,99,235,.45);
-  --n-enclosure:#9333EA;
-  /* The chromatic bridge — the springboard a half step from the target. Same
-     purple family as the enclosure (both mean "chromatic approach") but pale:
-     a stepping stone, never a destination. Text/stroke #6B21A8 on the lavender
-     fill measures ~7:1; the fill itself sits quietly on both wood stops. */
-  --n-bridge:#A855F7; --n-bridge-fill:rgba(233,213,255,.9); --n-bridge-text:#6B21A8;
-  /* The 7th, gold — same weight as the 3rd (--n-target), different hue, so the
-     pair reads as a pair while you can still tell which is which. The old gold
-     was #FFD54F, picked against the dark board; on maple it measures 1.13:1
-     and disappears. This scores 3.47/2.59 against the two wood stops, which
-     beats --n-target's own 3.24/2.42. */
-  --n-seventh:#8A6100;
-  /* The NEXT chord — ghost guide tones and the routes into them. Hue 315 sits
-     in the only real gap left on the role wheel: 44deg from its nearest
-     neighbour (enclosure 271, root 0), where amber would have landed 7deg from
-     --n-passing and any teal within 46deg of --n-target. 5.8:1 and 4.3:1
-     against the two maple stops. */
-  --n-next:#821767; --n-next-fill:rgba(255,255,255,.78);
+  /* Note roles on the maple, constant regardless of palette.
+     Hues drawn from the SharePoint theme palette so the board and the app's
+     UI schemes come from one family:
+       Red #A4262C · Orange #CA5010 · Gold #8F7034 · Green #407855 ·
+       Plum #854085 · Purple #8764B8 · Cool Grey #737373.
+     Role map: root = red; 3rd & 7th (the guide-tone pair) = orange; the 5th
+     and any other chord tone = gold; in-scale-but-not-in-chord = green;
+     the upcoming landing target = plum (it "turns orange" at the bar change
+     simply because it becomes the new chord's own 3rd/7th); anything
+     chromatic aimed at a target (bridge, enclosure) = purple. */
+  --n-root:#A4262C;
+  --n-guide:#CA5010; --n-guide-glow:rgba(202,80,16,.42);
+  /* The 7th shares the guide orange with the 3rd — the pair is one role now.
+     Kept as its own token so the seventhNotes plumbing stays relabel-only. */
+  --n-seventh:#CA5010;
+  --n-fifth:#8F7034; --n-chord:var(--n-fifth);
+  --n-scale:#407855;
+  --n-passing:#737373;
+  /* The upcoming landing target — plum, same family as --n-next below:
+     everything that belongs to the NEXT chord reads plum until it arrives. */
+  --n-target:#854085; --n-target-glow:rgba(133,64,133,.45);
+  /* Chromatic-approach purple: the enclosure cage and the bridge share one
+     hue (both mean "chromatic, aimed at a target"); the bridge stays pale —
+     a stepping stone, never a destination. Text/stroke on the pale fill is
+     the same purple darkened for ~7:1. */
+  --n-enclosure:#8764B8;
+  --n-bridge:#8764B8; --n-bridge-fill:rgba(232,226,243,.9); --n-bridge-text:#4E3877;
+  /* The NEXT chord — ghosts, routes, and the hold-ring. Same plum as the
+     landing target: future material is plum, wherever it appears. */
+  --n-next:#854085; --n-next-fill:rgba(255,255,255,.78);
 
   /* The "3:2 System" panel (Practice → Fretboard) — the leveled, song-aware
      version of the Pentatonic 3:2 Navigator (src/lib/music/threeTwoSystem.js).

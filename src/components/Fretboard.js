@@ -90,6 +90,31 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
   const strings     = TUNINGS[tuningName] || TUNINGS.Standard
   const numStrings  = strings.length
 
+  // SharePoint-palette role split inside the chord: root red, 3rd & 7th
+  // orange (one role — the guide-tone pair), the 5th and any other chord
+  // tone gold. Pure relabeling by chroma from the board's root — no role
+  // set or overlay changes hands here. Sus stand-ins follow analyzeChord's
+  // reading (2/4 for a missing 3rd, a 6th for a missing 7th) so the board
+  // and the guide-tone layer never disagree about what counts as a 3rd.
+  const rootChroma   = NOTES_FLAT.indexOf(root)
+  const chordIvs     = new Set(
+    rootChroma < 0 ? [] :
+    [...chordSet].map(n => {
+      const i = NOTES_FLAT.indexOf(n)
+      return i < 0 ? -1 : (i - rootChroma + 12) % 12
+    })
+  )
+  const chordHasThird   = chordIvs.has(3) || chordIvs.has(4)
+  const chordHasSeventh = chordIvs.has(10) || chordIvs.has(11)
+  function chordToneColor(noteName) {
+    const i = NOTES_FLAT.indexOf(noteName)
+    if (rootChroma < 0 || i < 0) return "var(--n-fifth)"
+    const iv = (i - rootChroma + 12) % 12
+    if (iv === 3 || iv === 4 || (!chordHasThird && (iv === 2 || iv === 5))) return "var(--n-guide)"
+    if (iv === 10 || iv === 11 || (!chordHasSeventh && iv === 9)) return "var(--n-guide)"
+    return "var(--n-fifth)"
+  }
+
   // SVG coordinate constants
   const W          = 680
   const H          = 136
@@ -130,26 +155,29 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
       const isPassing = !isTarget && !isGuide && !isBridge && inPassing
       const isEnclosure = !isTarget && !isGuide && !isBridge && !isPassing && inEnclosure
       const isRoot    = !isTarget && !isGuide && !isBridge && !isPassing && !isEnclosure && noteName === root
-      // Color priority: resolution target > guide tone > bridge > bebop passing > enclosure > root > scale/chord
+      // Color priority: resolution target > guide tone > bridge > bebop passing > enclosure > root > scale/chord-role
       // Fixed maple-note-role tokens (--n-*), never palette tokens — the board reads
       // the same on every palette (see docs/PRACTICE_REDESIGN_V3.md §4.7).
-      // The 7th is a guide tone like the 3rd and the same size; only the hue
-      // differs, so the pair reads as a pair without collapsing into one note.
+      // The target is plum (--n-target): it belongs to the NEXT chord, and it
+      // "turns orange" at the bar change only because it becomes the new
+      // chord's own 3rd/7th. The lit guide-tone pair — 3rd and 7th alike —
+      // is orange (--n-guide); size and the note label tell the two apart.
       const isSeventh = (isGuide || isTarget) && seventhSet.has(noteName)
-      const color = isSeventh ? "var(--n-seventh)"
-                  : isTarget  ? "var(--n-target)"
-                  : isGuide   ? "var(--n-target)"
+      const color = isTarget  ? "var(--n-target)"
+                  : isSeventh ? "var(--n-seventh)"
+                  : isGuide   ? "var(--n-guide)"
                   : isBridge  ? "var(--n-bridge-fill)"
                   : isPassing ? "var(--n-passing)"
                   : isEnclosure ? "var(--n-enclosure)"
                   : isRoot    ? "var(--n-root)"
                   : view === "scale" && !chordSet.has(noteName) ? "var(--n-scale)"
-                  : "var(--n-chord)"
+                  : chordToneColor(noteName)
       // Size carries the same ranking as colour, so the hierarchy survives in
-      // peripheral vision and for anyone who can't separate the hues. Guide
-      // tones and targets share --n-target, so size is what tells them apart.
-      // The bridge is deliberately the smallest marked note on the board — a
-      // stepping stone, not a destination.
+      // peripheral vision and for anyone who can't separate the hues. (Hue
+      // already splits guide from target now — orange vs plum — but the size
+      // ranking stays as a second channel.) The bridge is deliberately the
+      // smallest marked note on the board — a stepping stone, not a
+      // destination.
       const r = isGuide ? 11 : isTarget ? 10 : isBridge ? 7 : isEnclosure ? 8 : 8.5
       // A guide tone the next chord also contains: nothing to move, so it gets
       // a ring rather than a route. "Stay put" is information worth drawing.
@@ -630,8 +658,9 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
           : semis === 0 ? "stays"
           : `${Math.abs(semis) === 1 ? "a semitone" : "a whole tone"} ${semis > 0 ? "up" : "down"}`
         // Target/guide-tone dots pulse with a soft glow, same as every palette —
-        // the glow color is a constant token too (--n-target-glow). The bridge
-        // never glows: glow is reserved for the one landing note.
+        // the glow colors are constant tokens too (plum --n-target-glow for
+        // the landing note, orange --n-guide-glow for the lit pair). The
+        // bridge never glows: glow is reserved for notes you aim at.
         const glows = d.isTarget || d.isGuide
         // Guide tones and targets hold their brightness through the bar; they
         // are what you are aiming at. Everything else steps back on beat 4.
@@ -650,7 +679,9 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
             opacity={(threeTwoActive || inFocus(d.f)) ? 1 : OUT_OF_FOCUS}
             className={phaseClass} style={phaseClass ? phaseDur : undefined}>
             {glows && (
-              <circle cx={d.cx} cy={d.cy} r={d.r + 4} fill="var(--n-target-glow)" filter="url(#fb-target-glow)" />
+              <circle cx={d.cx} cy={d.cy} r={d.r + 4}
+                fill={d.isTarget ? "var(--n-target-glow)" : "var(--n-guide-glow)"}
+                filter="url(#fb-target-glow)" />
             )}
             <circle cx={d.cx} cy={d.cy} r={d.r} fill={d.color}
               stroke={d.thirtyTwoStroke || (d.isBridge ? "var(--n-bridge)" : "#3D2A12")}

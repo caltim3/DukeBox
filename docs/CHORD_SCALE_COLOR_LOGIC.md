@@ -46,30 +46,30 @@ Three consequences:
 
 ## 2. The color vocabulary
 
-All tokens live in `globals.css`; the hues were chosen for contrast against
-the two maple wood stops (`--fb-wood-1: #EEC788`, `--fb-wood-2: #DDA85A`),
-which is why several "obvious" colors (bright gold, amber, teal) were rejected
-— the comments in `globals.css` record the measured contrast ratios.
+All tokens live in `globals.css`. The hues are drawn from the **SharePoint
+theme palette** (Red `#A4262C`, Orange `#CA5010`, Gold `#8F7034`, Green
+`#407855`, Plum `#854085`, Purple `#8764B8`, Cool Grey `#737373`), so the
+note roles and the app's UI schemes come from one color family.
 
 ### Current-chord roles
 
 | Token | Hex | Role | Meaning to the player |
 |---|---|---|---|
-| `--n-root` | `#DC2626` red | Root of the current chord | Home base — but ranked *below* guide tones (the bass has it covered) |
-| `--n-chord` | `#16A34A` green | Chord tone (3-5-7, and the root when a higher role claims red away) | Safe to land on any beat |
-| `--n-scale` | `#047857` deep teal-green | Scale tone that is **not** a chord tone | Pass-through material — connect, don't sit |
-| `--n-target` | `#2563EB` blue | The lit guide tone (the current chord's **3rd**) — and, in Voice Leading path mode, the one landing note | The note that defines the chord's quality |
-| `--n-seventh` | `#8A6100` gold-bronze | The current chord's **7th**, when guide tones are lit | The 3rd's partner; same size, different hue, so the pair reads as a pair |
-| `--n-passing` | `#57534E` warm gray | Chromatic **bebop / Barry passing tone** added by an overlay | Chromatic glue between scale tones — never a resting place |
-| `--n-enclosure` | `#9333EA` purple | Enclosure notes (½ step either side of a target) and 3rd Hunter's lead-in | The chromatic cage / walk-in around a target |
-| `--n-bridge` / `--n-bridge-fill` | `#A855F7` on pale lavender | The **chromatic bridge** — the springboard a half step from the landing note | Same purple family as enclosure (both mean "chromatic approach") but deliberately pale: a stepping stone, never a destination |
+| `--n-root` | `#A4262C` red | Root of the current chord | Home base — but ranked *below* guide tones (the bass has it covered) |
+| `--n-guide` / `--n-seventh` | `#CA5010` orange | The **3rd and 7th** — one role, one hue, whether lit as the guide-tone layer or sitting as plain chord tones | The pair that defines the chord's quality and carries the voice leading |
+| `--n-fifth` (alias `--n-chord`) | `#8F7034` gold | The **5th** and any other chord tone (extensions, added 6ths) | Safe to land on, but not quality-defining |
+| `--n-scale` | `#407855` green | Scale tone that is **not** a chord tone | Pass-through material — connect, don't sit |
+| `--n-passing` | `#737373` cool grey | Chromatic **bebop / Barry passing tone** added by an overlay | Chromatic glue between scale tones — never a resting place |
+| `--n-enclosure` | `#8764B8` purple | Enclosure notes (½ step either side of a target) and 3rd Hunter's lead-in | Chromatic, aimed at a target — the cage / walk-in |
+| `--n-bridge` / `--n-bridge-fill` | `#8764B8` on pale lavender | The **chromatic bridge** — the springboard a half step from the landing note | Same purple as the enclosure (both mean "chromatic approach") but deliberately pale: a stepping stone, never a destination |
 
 ### Upcoming-chord marks
 
 | Token | Hex | Role |
 |---|---|---|
-| `--n-next` / `--n-next-fill` | `#821767` magenta, near-white fill | Everything that belongs to the **next** chord: ghost dots, the routes drawn into them, and the "hold this note" ring. Hue 315 was picked because it sits in the only real gap left on the role wheel (44° from its nearest neighbors, enclosure at 271° and root at 0°) |
-| `--n-target-glow` | `rgba(37,99,235,.45)` | The soft pulse behind targets and guide tones — glow is reserved for landing notes only; the bridge never glows |
+| `--n-target` | `#854085` plum | The **upcoming landing target** previewed on the current board. It "turns orange" at the bar change simply because it stops being future material and becomes the new chord's own 3rd/7th |
+| `--n-next` / `--n-next-fill` | `#854085` plum, near-white fill | Everything else that belongs to the **next** chord: ghost dots, the routes drawn into them, and the "hold this note" ring — future material is plum wherever it appears |
+| `--n-target-glow` / `--n-guide-glow` | plum / orange rgba | The soft pulse behind the landing target (plum) and the lit guide pair (orange); the bridge never glows |
 
 ### The 3:2 System's separate world
 
@@ -100,49 +100,59 @@ resolution target  >  guide tone  >  chromatic bridge  >  bebop passing
 Concretely (`Fretboard.js`, the dot-building loop):
 
 ```js
-const color = isSeventh ? "var(--n-seventh)"     // guide-tone 7th: gold
-            : isTarget  ? "var(--n-target)"      // landing note: blue
-            : isGuide   ? "var(--n-target)"      // guide-tone 3rd: blue
+const color = isTarget  ? "var(--n-target)"      // upcoming landing note: plum
+            : isSeventh ? "var(--n-seventh)"     // guide-tone 7th: orange
+            : isGuide   ? "var(--n-guide)"       // guide-tone 3rd: orange
             : isBridge  ? "var(--n-bridge-fill)" // chromatic springboard
             : isPassing ? "var(--n-passing)"     // bebop/Barry chromatic
             : isEnclosure ? "var(--n-enclosure)" // chromatic cage / lead-in
             : isRoot    ? "var(--n-root)"        // root, red
             : view === "scale" && !chordSet.has(noteName)
                         ? "var(--n-scale)"       // non-chord scale tone
-            : "var(--n-chord)"                   // chord tone
+            : chordToneColor(noteName)           // 3rd/7th orange, 5th+ gold
 ```
+
+`chordToneColor` is a pure relabeling pass: it classifies each remaining
+chord tone by chroma from the board's root — 3/4 semitones (or the sus
+stand-ins 2/5 when the chord has no real 3rd) → orange; 10/11 (or a 6th
+standing in for a missing 7th) → orange; everything else → the gold
+5th-and-friends bucket. The interval reading matches `analyzeChord` in
+`MelodyPaths.jsx`, so the base coloring and the guide-tone layer never
+disagree about what counts as a 3rd.
 
 Notes on the deliberate choices in that ladder:
 
-- **Guide tones and targets share blue** (`--n-target`); **size** is what
-  tells them apart — guide tone r=11, target r=10, everything ordinary r=8.5,
-  enclosure r=8, bridge r=7. The bridge is intentionally the smallest marked
-  note on the board: a stepping stone, not a destination.
-- **The 7th is a guide tone like the 3rd and the same size; only the hue
-  differs** — so the 3rd/7th pair reads as a pair without collapsing into one
-  note. The `seventhNotes` set only recolors a dot that is already a guide
-  tone or target.
+- **The target is plum, the guide pair is orange** — future vs. present is
+  now a hue split, not just a size split. **Size still carries the ranking**
+  as a second channel — guide tone r=11, target r=10, everything ordinary
+  r=8.5, enclosure r=8, bridge r=7. The bridge is intentionally the smallest
+  marked note on the board: a stepping stone, not a destination.
+- **The 3rd and the 7th are one role and one hue.** The `seventhNotes`
+  plumbing survives (the 7th keeps its own token), but the token now points
+  at the same orange — the pair reads as a unit.
+- **A target that happens to be the next chord's 7th stays plum** until the
+  bar change — the plum-to-orange handoff at the downbeat is the point.
 - **The bridge outranks a coinciding bebop passing tone.** Both mean
   "chromatic", but the bridge is *this transition's* springboard.
 - **The root loses red whenever a higher role claims the same pitch** — e.g.
   when the next chord's landing target happens to be the current root, the
-  dot is blue, not red. Function over identity.
+  dot is plum, not red. Function over identity.
 - **Paint order repeats the ranking**: dots are sorted so targets and guide
   tones are drawn last and always paint over lesser dots; routes and ghosts
   are drawn *under* the dots so a line never hides a note.
-- **Glow repeats it again**: only targets and guide tones pulse with
-  `--n-target-glow`.
+- **Glow repeats it again**: the landing target pulses plum
+  (`--n-target-glow`), the lit guide pair pulses orange (`--n-guide-glow`).
 
 ### Chord tones vs. non-chord tones
 
 - **Chord view** (`view="chord"`): only the chord's own spelling is lit —
-  root red, the rest green (or blue/gold if guide tones are lit on top).
+  root red, 3rd/7th orange, the 5th and any other chord tone gold.
 - **Scale view** (`view="scale"`): the full recommended scale (or the active
   filter's subset — pentatonic, hexatonic, Martino, Hex·Chord, Barry) is
-  drawn, but chord tones **stay green inside the scale carpet** while
-  non-chord scale tones drop to the darker `--n-scale`. The intended reading:
-  *chord tones to bounce around, scale tones to pass through* — two colors on
-  purpose, even in scale view.
+  drawn, but chord tones **keep their role colors inside the scale carpet**
+  (red/orange/gold) while non-chord scale tones read green (`--n-scale`).
+  The intended reading: *chord tones to bounce around, scale tones to pass
+  through* — distinct colors on purpose, even in scale view.
 - **Chromatic non-scale tones** only appear via an explicit overlay, each
   with its own color: bebop/Barry passing tones (gray), enclosure notes
   (purple), the voice-lead bridge (pale lavender). Gray = "generic chromatic
@@ -160,8 +170,9 @@ stand in for a missing 3rd, a 6th stands in for a missing 7th.
   equal weight: they are the pair that spells the chord's quality and the
   pair that voice-leads (7→3 one way, 3→7 the other). Emphasizing one over
   the other hid half of every resolution, so the board doesn't.
-- **`seventhsByBar`** — which of those is the 7th, so it renders gold
-  (`--n-seventh`) instead of blue at the same size.
+- **`seventhsByBar`** — which of those is the 7th. Both halves of the pair
+  render in the same guide orange now; the map survives so the plumbing (and
+  any future re-split of the hues) stays a token change, not a logic change.
 - The chart line above the board still picks a single strand per bar
   (**7/3 mode** alternates sevenths and thirds; **smooth mode** minimizes
   degree movement bar-to-bar, with a small built-in bonus for the classic
@@ -189,7 +200,7 @@ one you will actually hear next.
 the next chord's guide tones everywhere" display into **one path per
 transition** — the board never shows more than two future marks:
 
-- **One landing note** (`--n-target` blue, glowing): a role of the *next*
+- **One landing note** (`--n-target` plum, glowing): a role of the *next*
   chord — its **3rd, root, or 7th** — chosen by `targetPref`:
   - `nearest` (default): the role reachable by the smallest *real* motion
     from any current chord tone. Weighting: **half step beats whole step
@@ -222,16 +233,16 @@ transition** — the board never shows more than two future marks:
 ### 5.2 Ghosts, routes, arrows, and the held ring
 
 The board has a general "next chord" drawing system, all in `--n-next`
-magenta so future material can never be confused with present material:
+plum so future material can never be confused with present material:
 
-- **Ghosts** — hollow magenta-ringed dots for next-chord notes, drawn on
+- **Ghosts** — hollow plum-ringed dots for next-chord notes, drawn on
   *this same neck* rather than on a second board, so there is no mental
   register-mapping between two graphics at tempo: at the bar change they are
   already where your eye is. A ghost's degree label is computed against the
   **next** chord's root (`ghostRootNote`), not the current one — labelling
   the next chord's 3rd against the current root would name it something you'd
   never call it.
-- **Routes** — magenta curves from a live guide tone to its ghost: literally
+- **Routes** — plum curves from a live guide tone to its ghost: literally
   the shortest *playable* voice-leading path. A route is only drawn within
   3 frets / 1 string crossing (crossing a string costs more than sliding a
   fret); beyond that the "shortest path" stops being a path you'd actually
@@ -246,7 +257,7 @@ magenta so future material can never be confused with present material:
   already shows the resolution, the arrow is suppressed for that dot — it
   would only repeat the information.
 - **The held ring** — a guide tone the next chord *also* contains gets a
-  magenta ring drawn inside the dot: nothing to move, so it gets a ring
+  plum ring drawn inside the dot: nothing to move, so it gets a ring
   rather than a route. "Stay put" is information worth drawing.
 
 ### 5.3 3rd Hunter and the enclosure cage
@@ -254,7 +265,7 @@ magenta so future material can never be confused with present material:
 3rd Hunter re-purposes the same layers for a targeting drill
 (`computeHunter3` in `MelodyPaths.jsx`):
 
-- The lit blue guide tone is **this chord's own 3rd** (no arrow on it).
+- The lit orange guide tone is **this chord's own 3rd** (no arrow on it).
 - The **lead-in** — the note over *this* chord that walks into the *next*
   bar's 3rd — draws in enclosure purple and carries the arrow. Candidate
   lead-ins are the chord's own tones, 7th considered first so the classic
@@ -264,8 +275,8 @@ magenta so future material can never be confused with present material:
 - **+Enclosure** adds the Peña chromatic cage: the half step below *and*
   above the next bar's target 3rd, both purple with a dashed halo ring, shown
   on the **current** bar's board so the cage is visible before the chord
-  arrives. The previewed target itself renders blue so the arrow has
-  somewhere to point.
+  arrives. The previewed target itself renders plum — it is still the *next*
+  bar's note — so the arrow has somewhere to point.
 
 ### 5.4 The bar-phase animation — *when* colors appear
 
@@ -321,17 +332,17 @@ so the same chord symbol colors differently depending on what it is doing.
   (`resolvesToMinorTonic`) is surfaced on **all three** bars, so the
   harmonic-minor-251 scale strategy colors the whole three-bar unit as one
   harmonic-minor collection — whichever of the three bars is selected, the
-  scale carpet (and therefore the green/teal chord-vs-scale split) is built
+  scale carpet (and therefore the chord-role vs. green-scale split) is built
   from the *i* chord's harmonic minor.
 - **Voice-lead targets across a ii–V**: because a ii–V shares tones
   constantly, the `nearest` weighting's demotion of common tones (§5.1) is
-  what keeps the blue landing note showing the 7→3 half-step move instead of
+  what keeps the plum landing note showing the 7→3 half-step move instead of
   repeatedly saying "hold".
 
 ### Scale recommendation per quality (the base carpet)
 
 `getRecommendedScalesFromQuality` picks the default scale whose non-chord
-tones become the teal layer: maj7 → major/Lydian; min7 → Dorian first;
+tones become the green layer: maj7 → major/Lydian; min7 → Dorian first;
 min(maj7) → melodic minor; min7b5 → Locrian/Locrian ♮2; dim7 → diminished;
 7alt/7b9 → altered; plain 7/9 → Mixolydian. A per-bar user override
 (`userScale`/`userTonic`) beats all of it.
@@ -352,7 +363,7 @@ blues, major/minor standard, modal vamp) and its level ladder decides the
 board per bar:
 
 - **Level 1 (blues)** — one blanket pentatonic colored over the entire form;
-  with Voice Leading on, the *current* chord's own spelling ghosts in magenta
+  with Voice Leading on, the *current* chord's own spelling ghosts in plum
   over the fixed box (an E7 in an A blues ghosts E–G#–B–D over A minor
   pentatonic). No routes — nothing is resolving, it is showing what's here.
 - **Levels 2–3** — per-chord pentatonics; a **resolving dominant** (function
@@ -370,13 +381,14 @@ board per bar:
 The on-screen legend under the board is the compressed version of this whole
 document:
 
-> ● Root · ● Chord tone · ● Scale tone · ● Bebop/Barry passing ·
-> ● 3rd of this chord (blue) / Land here on beat 1 · ● 7th of this chord
-> (gold) · ◌ Chromatic bridge — the springboard in · ◌ Enclosure (½ step
-> around next target) · ○ magenta = next chord (ghosts, routes, hold-ring) ·
-> → up a semitone · →→ up a whole tone · ← ←← down · = stays
+> ● Root (red) · ● 3rd & 7th (orange) · ● 5th / other chord tone (gold) ·
+> ● Scale tone (green) · ● Bebop/Barry passing (grey) ·
+> ● Upcoming target / Land here on beat 1 (plum) ·
+> ◌ Chromatic bridge — the springboard in (purple) · ◌ Enclosure (½ step
+> around next target, purple) · ○ plum = next chord (ghosts, routes,
+> hold-ring) · → up a semitone · →→ up a whole tone · ← ←← down · = stays
 
-One sentence to remember it by: **green/teal is now, blue/gold is what
-defines now, purple is how you sneak in, magenta is what's coming, red is
-where home is — and the more saturated and larger the dot, the more the next
-note you play should care about it.**
+One sentence to remember it by: **red is home, orange defines now, gold and
+green are safe ground, plum is what's coming (and turns orange the moment it
+arrives), purple is how you sneak in — and the more saturated and larger the
+dot, the more the next note you play should care about it.**
