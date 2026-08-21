@@ -90,6 +90,31 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
   const strings     = TUNINGS[tuningName] || TUNINGS.Standard
   const numStrings  = strings.length
 
+  // SharePoint-palette role split inside the chord: root red, 3rd & 7th
+  // orange (one role — the guide-tone pair), the 5th and any other chord
+  // tone gold. Pure relabeling by chroma from the board's root — no role
+  // set or overlay changes hands here. Sus stand-ins follow analyzeChord's
+  // reading (2/4 for a missing 3rd, a 6th for a missing 7th) so the board
+  // and the guide-tone layer never disagree about what counts as a 3rd.
+  const rootChroma   = NOTES_FLAT.indexOf(root)
+  const chordIvs     = new Set(
+    rootChroma < 0 ? [] :
+    [...chordSet].map(n => {
+      const i = NOTES_FLAT.indexOf(n)
+      return i < 0 ? -1 : (i - rootChroma + 12) % 12
+    })
+  )
+  const chordHasThird   = chordIvs.has(3) || chordIvs.has(4)
+  const chordHasSeventh = chordIvs.has(10) || chordIvs.has(11)
+  function chordToneColor(noteName) {
+    const i = NOTES_FLAT.indexOf(noteName)
+    if (rootChroma < 0 || i < 0) return "var(--n-fifth)"
+    const iv = (i - rootChroma + 12) % 12
+    if (iv === 3 || iv === 4 || (!chordHasThird && (iv === 2 || iv === 5))) return "var(--n-guide)"
+    if (iv === 10 || iv === 11 || (!chordHasSeventh && iv === 9)) return "var(--n-guide)"
+    return "var(--n-fifth)"
+  }
+
   // SVG coordinate constants
   const W          = 680
   const H          = 136
@@ -130,31 +155,43 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
       const isPassing = !isTarget && !isGuide && !isBridge && inPassing
       const isEnclosure = !isTarget && !isGuide && !isBridge && !isPassing && inEnclosure
       const isRoot    = !isTarget && !isGuide && !isBridge && !isPassing && !isEnclosure && noteName === root
-      // Color priority: resolution target > guide tone > bridge > bebop passing > enclosure > root > scale/chord
+      // Color priority: resolution target > guide tone > bridge > bebop passing > enclosure > root > scale/chord-role
       // Fixed maple-note-role tokens (--n-*), never palette tokens — the board reads
       // the same on every palette (see docs/PRACTICE_REDESIGN_V3.md §4.7).
-      // The 7th is a guide tone like the 3rd and the same size; only the hue
-      // differs, so the pair reads as a pair without collapsing into one note.
+      // The target is plum (--n-target): it belongs to the NEXT chord, and it
+      // "turns orange" at the bar change only because it becomes the new
+      // chord's own 3rd/7th. The lit guide-tone pair — 3rd and 7th alike —
+      // is orange (--n-guide); size and the note label tell the two apart.
       const isSeventh = (isGuide || isTarget) && seventhSet.has(noteName)
-      const color = isSeventh ? "var(--n-seventh)"
-                  : isTarget  ? "var(--n-target)"
-                  : isGuide   ? "var(--n-target)"
+      const color = isTarget  ? "var(--n-target)"
+                  : isSeventh ? "var(--n-seventh)"
+                  : isGuide   ? "var(--n-guide)"
                   : isBridge  ? "var(--n-bridge-fill)"
                   : isPassing ? "var(--n-passing)"
                   : isEnclosure ? "var(--n-enclosure)"
                   : isRoot    ? "var(--n-root)"
                   : view === "scale" && !chordSet.has(noteName) ? "var(--n-scale)"
-                  : "var(--n-chord)"
+                  : chordToneColor(noteName)
       // Size carries the same ranking as colour, so the hierarchy survives in
-      // peripheral vision and for anyone who can't separate the hues. Guide
-      // tones and targets share --n-target, so size is what tells them apart.
-      // The bridge is deliberately the smallest marked note on the board — a
-      // stepping stone, not a destination.
+      // peripheral vision and for anyone who can't separate the hues. (Hue
+      // already splits guide from target now — orange vs plum — but the size
+      // ranking stays as a second channel.) The bridge is deliberately the
+      // smallest marked note on the board — a stepping stone, not a
+      // destination.
       const r = isGuide ? 11 : isTarget ? 10 : isBridge ? 7 : isEnclosure ? 8 : 8.5
       // A guide tone the next chord also contains: nothing to move, so it gets
       // a ring rather than a route. "Stay put" is information worth drawing.
       const held = isGuide && ghostSet.has(noteName)
         && guideToneDirections?.[noteName] === 0
+      // A target belongs to the NEXT chord, so its interval reads against
+      // that chord's root (ghostRootNote), never this one's — the same rule
+      // the ghosts follow. Degrees mode puts it on the dot itself; names
+      // mode keeps the note name on the dot and floats the interval above
+      // it, so both modes say which note of the coming chord you're aiming
+      // at (its 3rd, its b3, its root…).
+      const targetInterval = isTarget && ghostRootNote
+        ? degreeOf(noteName, norm(ghostRootNote))
+        : null
       dots.push({
         key:  `${si}-${f}`,
         cx:   dotX(f),
@@ -162,7 +199,10 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
         r,
         color,
         label: noteName,
-        text: labelMode === "degrees" ? degreeOf(noteName, root) : noteName,
+        text: labelMode === "degrees"
+          ? (targetInterval ?? degreeOf(noteName, root))
+          : noteName,
+        targetInterval,
         si, f, held,
         isRoot, isTarget, isPassing, isGuide, isEnclosure, isBridge,
         textColor: isBridge ? "var(--n-bridge-text)" : undefined,
@@ -297,7 +337,9 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
         const ghostText = labelMode === "degrees" && ghostRootNote
           ? degreeOf(noteName, norm(ghostRootNote))
           : noteName
-        ghosts.push({ key: `g32c-${si}-${f}`, cx: dotX(f), cy: strY(si), si, f, label: noteName, text: ghostText })
+        // own: these ghosts are THIS chord's spelling over the fixed box, not
+        // the next chord's — the interval badge and tooltip say "this chord".
+        ghosts.push({ key: `g32c-${si}-${f}`, cx: dotX(f), cy: strY(si), si, f, label: noteName, text: ghostText, own: true })
       }
     })
   }
@@ -421,7 +463,7 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
     <svg viewBox={`0 0 ${W} ${H + 24}`} style={{ width: "100%", display: "block" }}>
       {/* Maple wood + note-role colors below all read from the constant --fb- and --n-
           tokens (globals.css :root), never from the active palette — the board looks
-          identical no matter which of the six palettes is selected (spec §4.7). */}
+          identical no matter which of the three schemes is selected (spec §4.7). */}
       <defs>
         <linearGradient id="fb-maple" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="var(--fb-wood-1)" />
@@ -586,7 +628,16 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
               textAnchor="middle" fill="var(--n-next)"
               fontSize={g.text.length > 2 ? 7 : 8} fontWeight="bold" fontFamily="Arial, sans-serif"
             >{g.text}</text>
-            <title>{`${g.label} — guide tone of the next chord`}</title>
+            {/* Names mode: which interval of the COMING chord this ghost is
+                (degrees mode already labels the dot itself that way). */}
+            {labelMode === "names" && ghostRootNote && (
+              <text x={g.cx} y={g.cy - 12}
+                textAnchor="middle" fontSize={8.5} fontWeight="bold"
+                fontFamily="Arial, sans-serif"
+                fill="var(--n-next)" stroke="var(--fb-wood-1)" strokeWidth="0.9" paintOrder="stroke"
+              >{degreeOf(g.label, norm(ghostRootNote))}</text>
+            )}
+            <title>{`${g.label} — ${ghostRootNote ? `the ${degreeOf(g.label, norm(ghostRootNote))} of` : "guide tone of"} ${g.own ? "this chord" : "the next chord"}`}</title>
           </g>
         ))}
       </g>
@@ -630,8 +681,9 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
           : semis === 0 ? "stays"
           : `${Math.abs(semis) === 1 ? "a semitone" : "a whole tone"} ${semis > 0 ? "up" : "down"}`
         // Target/guide-tone dots pulse with a soft glow, same as every palette —
-        // the glow color is a constant token too (--n-target-glow). The bridge
-        // never glows: glow is reserved for the one landing note.
+        // the glow colors are constant tokens too (plum --n-target-glow for
+        // the landing note, orange --n-guide-glow for the lit pair). The
+        // bridge never glows: glow is reserved for notes you aim at.
         const glows = d.isTarget || d.isGuide
         // Guide tones and targets hold their brightness through the bar; they
         // are what you are aiming at. Everything else steps back on beat 4.
@@ -650,7 +702,9 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
             opacity={(threeTwoActive || inFocus(d.f)) ? 1 : OUT_OF_FOCUS}
             className={phaseClass} style={phaseClass ? phaseDur : undefined}>
             {glows && (
-              <circle cx={d.cx} cy={d.cy} r={d.r + 4} fill="var(--n-target-glow)" filter="url(#fb-target-glow)" />
+              <circle cx={d.cx} cy={d.cy} r={d.r + 4}
+                fill={d.isTarget ? "var(--n-target-glow)" : "var(--n-guide-glow)"}
+                filter="url(#fb-target-glow)" />
             )}
             <circle cx={d.cx} cy={d.cy} r={d.r} fill={d.color}
               stroke={d.thirtyTwoStroke || (d.isBridge ? "var(--n-bridge)" : "#3D2A12")}
@@ -671,6 +725,9 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
               </circle>
             )}
             {glyph && <title>{`${d.label} → ${goesTo ?? "?"} · ${motionWord}`}</title>}
+            {!glyph && d.targetInterval && (
+              <title>{`${d.label} — the ${d.targetInterval} of the next chord`}</title>
+            )}
             <text x={d.cx} y={d.cy + 3.5}
               textAnchor="middle" fill={d.textColor || "#FFFFFF"}
               fontSize={d.text.length > 2 ? 7 : d.isRoot ? 9 : 8}
@@ -682,6 +739,16 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
                 fontFamily="Arial, sans-serif" letterSpacing="-1.5"
                 fill="var(--n-target)" stroke="var(--fb-wood-1)" strokeWidth="0.9" paintOrder="stroke"
               >{glyph}</text>
+            )}
+            {/* Names mode: the target's interval in the COMING chord, floated
+                above the dot (degrees mode already puts it on the dot). Sits
+                out when an arrow glyph owns the same spot. */}
+            {!glyph && d.targetInterval && labelMode === "names" && (
+              <text x={d.cx} y={d.cy - d.r - 2.5}
+                textAnchor="middle" fontSize={9.5} fontWeight="bold"
+                fontFamily="Arial, sans-serif"
+                fill="var(--n-target)" stroke="var(--fb-wood-1)" strokeWidth="0.9" paintOrder="stroke"
+              >{d.targetInterval}</text>
             )}
           </g>
         )

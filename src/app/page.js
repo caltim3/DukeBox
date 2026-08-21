@@ -76,17 +76,18 @@ async function loadMetronome() {
   return _metroMod
 }
 
+// The three SharePoint-palette schemes (globals.css). The Practice home
+// page (PickupPracticeHome.jsx) keeps its own fixed --pickup-* colors and
+// ignores this choice entirely.
 const PALETTES = [
-  { id: "studio", name: "Studio", emoji: "🎛️" },
-  { id: "regatta", name: "Regatta", emoji: "⛵" },
-  { id: "ember", name: "Ember", emoji: "🔥" },
-  { id: "kiln", name: "Kiln", emoji: "🏺" },
-  { id: "harbor", name: "Harbor", emoji: "⚓" },
+  { id: "cobalt", name: "Cobalt", emoji: "🔷" },
+  { id: "sequoia", name: "Sequoia", emoji: "🌲" },
+  { id: "hearth", name: "Hearth", emoji: "🔥" },
 ]
 
 // What a first-time visitor gets. The no-flash boot script in app/layout.js
 // paints this same pair before hydration, so the two must agree.
-const DEFAULT_PALETTE = "harbor"
+const DEFAULT_PALETTE = "cobalt"
 const DEFAULT_PALETTE_INDEX = Math.max(0, PALETTES.findIndex((p) => p.id === DEFAULT_PALETTE))
 
 const INITIAL_BARS = [
@@ -3706,20 +3707,16 @@ export default function Home() {
             ) : (
               <div className="db-fret-legend" style={{ display: "flex", gap: "14px", flexWrap: "wrap", marginBottom: "12px", fontSize: "12px", color: "var(--muted)" }}>
                 <span><span style={{ color: "var(--n-root)" }}>●</span> Root</span>
-                <span><span style={{ color: "var(--n-chord)" }}>●</span> Chord tone</span>
+                <span><span style={{ color: "var(--n-guide)" }}>●</span> 3rd &amp; 7th</span>
+                <span><span style={{ color: "var(--n-fifth)" }}>●</span> 5th · other chord tone</span>
                 <span><span style={{ color: "var(--n-scale)" }}>●</span> Scale tone</span>
                 <span style={{ opacity: bebopOverlay || scaleFilter === "barry" ? 1 : 0.5 }}>
                   <span style={{ color: "var(--n-passing)" }}>●</span> {scaleFilter === "barry" ? "Barry passing tone" : "Bebop passing"}
                 </span>
                 <span style={{ opacity: targetsOverlay ? 1 : 0.5 }}>
-                  <span style={{ color: "var(--n-target)" }}>●</span>{" "}
-                  {guideMode === "melody" ? "Melody note" : voicePathActive ? "Land here on beat 1" : "3rd of this chord"}
+                  <span style={{ color: guideMode === "melody" ? "var(--n-guide)" : "var(--n-target)" }}>●</span>{" "}
+                  {guideMode === "melody" ? "Melody note" : voicePathActive ? "Land here on beat 1" : "Upcoming target (next chord)"}
                 </span>
-                {!voicePathActive && (
-                  <span style={{ opacity: targetsOverlay ? 1 : 0.5 }}>
-                    <span style={{ color: "var(--n-seventh)" }}>●</span> 7th of this chord
-                  </span>
-                )}
                 {voicePathActive && voiceLeadPath?.bridge && (
                   <span><span style={{ color: "var(--n-bridge)" }}>◌</span> Chromatic bridge — the springboard in</span>
                 )}
