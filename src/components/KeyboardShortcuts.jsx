@@ -301,7 +301,10 @@ export default function KeyboardShortcuts() {
       role="presentation"
       onMouseDown={() => setOpen(false)}
       style={{
-        position: "fixed", inset: 0, zIndex: 1000,
+        // Above PickupPracticeHome's fixed shell (z-index 10000) and its
+        // drawers (10080/10090, see practice/Drawer.jsx) — "?" is meant to
+        // work from anywhere, Home included.
+        position: "fixed", inset: 0, zIndex: 10100,
         display: "grid", placeItems: "center",
         padding: "20px", background: "var(--overlay)",
       }}

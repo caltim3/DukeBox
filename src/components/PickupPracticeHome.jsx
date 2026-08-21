@@ -6,7 +6,8 @@ import { getRecentActivity, entryKind, logActivity } from "@/lib/recentActivity"
 import { getLastLine, requestResumeLastLine } from "@/lib/music/lastLine"
 import { STARTER_STRIP, requestStarter } from "@/lib/music/starters"
 import { GO_HOME_EVENT } from "@/lib/homeNav"
-import { OPEN_LIBRARY_EVENT } from "@/lib/music/songSource"
+import { OPEN_LIBRARY_EVENT, requestLoadSong } from "@/lib/music/songSource"
+import { readLocalLibrary } from "@/lib/cloud"
 import BuildStamp from "./BuildStamp"
 
 const BRAND_ICON = "/dukebox-jazzmaster.png"
@@ -208,6 +209,22 @@ function timeAgo(at) {
   return days === 1 ? "yesterday" : `${days}d ago`
 }
 
+// The rail's "Most Popular" list — page.js's loadSong() bumps a per-song
+// count in the synced library's prefs every time a real catalog tune (one
+// with a songId) is loaded, denormalized with its own title/subtitle so
+// this doesn't need the whole catalog rebuilt just to show a ranked list.
+// readLocalLibrary() is the same localStorage mirror useCloudLibrary keeps
+// even while signed in — Home has no props into page.js's library state,
+// same reasoning as recentActivity.js and lastLine.js.
+function getMostPlayed(limit = 5) {
+  const counts = readLocalLibrary()?.prefs?.playCounts
+  if (!counts) return []
+  return Object.entries(counts)
+    .map(([id, entry]) => ({ id, ...entry }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, limit)
+}
+
 // A last-touched Line Lab line, boiled down to (string, fret) dots for a
 // compact tab strip. Trimmed to a representative excerpt — a home-page
 // preview card, not the real notation — with a "+N more" tag if the line
@@ -279,14 +296,14 @@ function Icon({ name }) {
   )
 }
 
-function DukeMark() {
+function DukeMark({ onClick }) {
   return (
-    <div className="db-pickup-logo" aria-label="DukeBox">
+    <button type="button" className="db-pickup-logo" aria-label="DukeBox — Home" onClick={onClick}>
       <span className="db-pickup-logo-mark" aria-hidden="true">
         <i /><i /><i />
       </span>
       <span>duke<span>box</span></span>
-    </div>
+    </button>
   )
 }
 
@@ -336,10 +353,12 @@ export default function PickupPracticeHome() {
   // disagree with the server HTML.
   const [recent, setRecent] = useState([])
   const [lastLine, setLastLineState] = useState(null)
+  const [mostPlayed, setMostPlayed] = useState([])
   useEffect(() => {
     if (homeOpen) {
       setRecent(getRecentActivity())
       setLastLineState(getLastLine())
+      setMostPlayed(getMostPlayed())
     }
   }, [homeOpen])
 
@@ -538,6 +557,14 @@ export default function PickupPracticeHome() {
     }, 220)
   }
 
+  // "Most Popular" rail — loads one specific catalog song by id (see
+  // LOAD_SONG_EVENT in songSource.js / the listener in page.js). Same
+  // navigate-then-act delay as every other cross-tree action here.
+  function openPopularSong(id) {
+    openPracticeCenter()
+    window.setTimeout(() => requestLoadSong(id), 180)
+  }
+
   if (!homeOpen) {
     if (workspace !== "practice") return null
     // The full .db-pickup-return-home styling lives in the <style> block
@@ -599,8 +626,8 @@ export default function PickupPracticeHome() {
           position: fixed;
           inset: 0;
           z-index: 10000;
-          display: grid;
-          grid-template-columns: 230px minmax(0, 1fr);
+          display: flex;
+          flex-direction: column;
           overflow: hidden;
           background: var(--pickup-ink);
           color: var(--pickup-text);
@@ -618,22 +645,25 @@ export default function PickupPracticeHome() {
           font-family: 'IBM Plex Mono', ui-monospace, monospace;
         }
 
-        .db-pickup-sidebar {
-          min-width: 0;
-          height: 100vh;
-          padding: 20px 14px 16px;
-          border-right: 1px solid var(--pickup-line);
-          background: var(--pickup-raised);
+        /* ---------- top bar — search-first nav, replaces the old sidebar ---------- */
+        .db-pickup-topbar {
+          flex: 0 0 auto;
           display: flex;
-          flex-direction: column;
-          overflow-y: auto;
+          align-items: center;
+          gap: 22px;
+          padding: 12px 24px;
+          border-bottom: 1px solid var(--pickup-line);
+          background: var(--pickup-raised);
         }
 
         .db-pickup-logo {
           display: flex;
           align-items: center;
           gap: 8px;
-          padding: 0 7px;
+          flex: 0 0 auto;
+          border: 0;
+          background: none;
+          cursor: pointer;
           color: var(--pickup-accent);
           font-family: 'Big Shoulders Display', Arial, Helvetica, sans-serif;
           font-size: 19px;
@@ -664,44 +694,51 @@ export default function PickupPracticeHome() {
         .db-pickup-logo-mark i:nth-child(2) { top: 8px; width: 14px; }
         .db-pickup-logo-mark i:nth-child(3) { top: 14px; width: 10px; }
 
-        .db-pickup-instrument {
-          margin: 22px 5px 20px;
-          padding: 8px 5px;
-          color: var(--pickup-text);
-          font-size: 14px;
-          font-weight: 600;
+        .db-pickup-search {
+          flex: 1 1 auto;
+          min-width: 0;
+          max-width: 480px;
+          margin: 0 auto;
+          display: flex;
+          align-items: center;
+          gap: 9px;
+          padding: 8px 12px;
+          border: 1px solid var(--pickup-line);
+          background: var(--pickup-ink);
+          color: var(--pickup-muted);
+          cursor: pointer;
+          transition: border-color 140ms ease, background 140ms ease;
+        }
+        .db-pickup-search:hover { border-color: var(--pickup-accent); background: var(--pickup-raised-2); }
+        .db-pickup-search svg { width: 16px; height: 16px; flex: 0 0 auto; color: var(--pickup-muted-dim); }
+        .db-pickup-search span { flex: 1; text-align: left; font-size: 13.5px; }
+        .db-pickup-search kbd {
+          padding: 1px 6px; border: 1px solid var(--pickup-line); border-radius: 4px;
+          font-size: 11px; color: var(--pickup-muted-dim);
         }
 
-        .db-pickup-nav,
-        .db-pickup-nav-secondary {
-          display: grid;
-          gap: 4px;
+        .db-pickup-navpills {
+          flex: 0 0 auto;
+          display: flex;
+          align-items: center;
+          gap: 2px;
         }
-
-        .db-pickup-nav-secondary {
-          margin-top: 18px;
-          padding-top: 18px;
-          border-top: 1px solid var(--pickup-line);
-        }
-
-        .db-pickup-nav-spacer { flex: 1; min-height: 28px; }
 
         .db-pickup-nav-button {
-          width: 100%;
-          min-height: 42px;
           border: 0;
-          border-left: 2px solid transparent;
+          border-bottom: 2px solid transparent;
           border-radius: 0;
           background: transparent;
           color: var(--pickup-muted);
           display: flex;
           align-items: center;
-          gap: 11px;
-          padding: 8px 10px;
+          gap: 7px;
+          padding: 8px 11px;
           text-align: left;
           cursor: pointer;
-          font-size: 15px;
+          font-size: 13.5px;
           font-weight: 600;
+          white-space: nowrap;
           transition: background 140ms ease, color 140ms ease, border-color 140ms ease;
         }
 
@@ -712,17 +749,86 @@ export default function PickupPracticeHome() {
 
         .db-pickup-nav-button.is-active {
           color: var(--pickup-text);
-          background: var(--pickup-raised-2);
-          border-left-color: var(--pickup-accent);
+          border-bottom-color: var(--pickup-accent);
           font-weight: 750;
         }
 
         .db-pickup-nav-button.is-active svg { color: var(--pickup-accent); }
-        .db-pickup-nav-button svg { width: 22px; height: 22px; flex: 0 0 22px; }
+        .db-pickup-nav-button svg { width: 17px; height: 17px; flex: 0 0 17px; }
+
+        .db-pickup-topbar-actions { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; }
+
+        /* ---------- body: left rail (Most Popular) + main ---------- */
+        .db-pickup-body {
+          flex: 1 1 auto;
+          min-height: 0;
+          display: grid;
+          grid-template-columns: 250px minmax(0, 1fr);
+          overflow: hidden;
+        }
+
+        .db-pickup-rail {
+          min-width: 0;
+          height: 100%;
+          padding: 20px 16px;
+          border-right: 1px solid var(--pickup-line);
+          background: var(--pickup-raised);
+          overflow-y: auto;
+        }
+
+        .db-pickup-rail h3 {
+          margin: 6px 0 0;
+          font-family: 'Big Shoulders Display', Arial, Helvetica, sans-serif;
+          font-weight: 800;
+          font-size: 17px;
+          color: var(--pickup-text);
+        }
+        .db-pickup-rail-sub { margin: 3px 0 0; color: var(--pickup-muted); font-size: 11.5px; }
+
+        .db-pickup-popular-list { margin-top: 14px; display: grid; gap: 2px; }
+        .db-pickup-popular-row {
+          display: flex; align-items: center; gap: 10px;
+          padding: 8px 6px; border: 0; background: none; color: inherit;
+          text-align: left; cursor: pointer; width: 100%;
+          transition: background 140ms ease;
+        }
+        .db-pickup-popular-row:hover { background: var(--pickup-raised-2); }
+        .db-pickup-popular-rank {
+          flex: 0 0 20px;
+          font-family: 'IBM Plex Mono', ui-monospace, monospace;
+          font-size: 12px; font-weight: 700; color: var(--pickup-accent);
+        }
+        .db-pickup-popular-copy { min-width: 0; }
+        .db-pickup-popular-copy strong {
+          display: block; font-size: 13px; color: var(--pickup-text);
+          overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .db-pickup-popular-copy span {
+          display: block; margin-top: 2px; font-size: 11px; color: var(--pickup-muted-dim);
+          font-family: 'IBM Plex Mono', ui-monospace, monospace;
+          overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .db-pickup-popular-empty {
+          margin-top: 14px; padding: 12px; border: 1px dashed var(--pickup-line);
+          color: var(--pickup-muted-dim); font-size: 12px; line-height: 1.5;
+        }
+
+        .db-pickup-rail-more {
+          margin-top: 26px; padding-top: 16px; border-top: 1px solid var(--pickup-line);
+          display: grid; gap: 2px;
+        }
+        .db-pickup-rail-more-link {
+          display: flex; align-items: center; gap: 9px;
+          padding: 7px 6px; border: 0; background: none; color: var(--pickup-muted);
+          text-align: left; cursor: pointer; font-size: 13px; font-weight: 600;
+          transition: color 140ms ease, background 140ms ease;
+        }
+        .db-pickup-rail-more-link:hover { color: var(--pickup-text); background: var(--pickup-raised-2); }
+        .db-pickup-rail-more-link svg { width: 16px; height: 16px; flex: 0 0 16px; }
 
         .db-pickup-main {
           min-width: 0;
-          height: 100vh;
+          height: 100%;
           overflow-y: auto;
           background: var(--pickup-ink);
         }
@@ -733,56 +839,19 @@ export default function PickupPracticeHome() {
           padding: 26px 32px 70px 40px;
         }
 
-        .db-pickup-header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 20px;
-          padding-bottom: 16px;
-          border-bottom: 1px solid var(--pickup-line);
+        /* Shortcuts button + build stamp + bell now live in the top bar's
+           actions cluster (search-first nav replaced the old sidebar, and
+           took the "Welcome back" header with it — the nav pills and search
+           bar are the visible affordance now, not a text legend). */
+        .db-pickup-shortcuts-btn {
+          display: inline-flex; align-items: center; gap: 7px;
+          border: 0; background: none; padding: 7px 9px; cursor: pointer;
+          color: var(--pickup-muted); font-size: 13px; font-weight: 600;
         }
-
-        /* Subtle shortcut legend — replaces the old "Welcome back, Tim!"
-           heading. Deliberately quiet: navigation keys only (Home, search,
-           workspaces, the full sheet). Space, arrows and tempo keys don't
-           belong here — they only mean something once you're already
-           playing, and live in the "While you're playing" group of the
-           full sheet instead. */
-        .db-pickup-legend {
-          display: flex;
-          align-items: center;
-          gap: 9px;
-          flex-wrap: wrap;
-          font-size: 12.5px;
-          color: var(--pickup-muted-dim);
-        }
-        .db-pickup-legend kbd {
-          padding: 1px 6px;
-          border: 1px solid var(--pickup-line);
-          border-radius: 4px;
-          font-size: 11px;
-          color: var(--pickup-muted);
-        }
-        .db-pickup-legend-sep { color: var(--pickup-line); }
-        .db-pickup-legend button.db-pickup-legend-action {
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          border: 0;
-          background: none;
-          padding: 0;
-          color: var(--pickup-muted-dim);
-          cursor: pointer;
-        }
-        .db-pickup-legend button.db-pickup-legend-action:hover { color: var(--pickup-accent-bright); }
-
-        /* Build stamp + bell, top right. The stamp moved here from the
-           Practice header — provenance belongs on the screen you land on. */
-        .db-pickup-header-right {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          flex-shrink: 0;
+        .db-pickup-shortcuts-btn:hover { color: var(--pickup-accent-bright); }
+        .db-pickup-shortcuts-btn kbd {
+          padding: 1px 6px; border: 1px solid var(--pickup-line); border-radius: 4px;
+          font-size: 11px; color: var(--pickup-muted-dim);
         }
 
         .db-pickup-bell {
@@ -1195,46 +1264,30 @@ export default function PickupPracticeHome() {
         .db-pickup-return-home svg { width: 18px; height: 18px; color: var(--db-accent, #4c20e8); }
         .db-pickup-return-home-mark { width: 28px; height: 28px; object-fit: contain; display: block; }
 
-        @media (max-width: 760px) {
-          .db-pickup-shell { grid-template-columns: 72px minmax(0, 1fr); }
-          .db-pickup-sidebar { padding: 16px 9px; align-items: center; }
-          .db-pickup-logo { padding: 0; }
-          .db-pickup-logo > span:last-child,
-          .db-pickup-instrument,
-          .db-pickup-nav-button span { display: none; }
-          .db-pickup-nav,
-          .db-pickup-nav-secondary { width: 100%; }
-          .db-pickup-nav-button { justify-content: center; padding: 8px; border-left: 0; }
-          .db-pickup-main-inner { padding: 22px 18px 60px; }
-          .db-pickup-header { padding-bottom: 14px; }
+        /* Nav lives in the top bar now, not a sidebar column, so the rail
+           (Most Popular) is the only thing that needs to give up its own
+           column on a narrow screen — it stacks above main instead. */
+        @media (max-width: 980px) {
+          .db-pickup-body { display: block; overflow-y: auto; }
+          .db-pickup-rail { height: auto; border-right: 0; border-bottom: 1px solid var(--pickup-line); }
+          .db-pickup-main { height: auto; overflow-y: visible; }
+        }
+
+        /* Logo + search + 5 pills + actions don't fit one row below ~1150px
+           — wrap well before that actually starts clipping/overlapping,
+           not exactly at the pixel it first breaks. */
+        @media (max-width: 1150px) {
+          .db-pickup-topbar { flex-wrap: wrap; row-gap: 10px; }
+          .db-pickup-search { order: 3; flex-basis: 100%; max-width: none; }
+          .db-pickup-navpills { order: 4; flex-basis: 100%; overflow-x: auto; }
+        }
+
+        @media (max-width: 720px) {
+          .db-pickup-main-inner { padding: 20px 16px 56px; }
           .db-pickup-section { padding-top: 30px; }
         }
 
         @media (max-width: 540px) {
-          .db-pickup-shell { grid-template-columns: 1fr; }
-          .db-pickup-sidebar {
-            position: fixed;
-            z-index: 3;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            width: auto;
-            height: 64px;
-            padding: 7px 10px;
-            border-right: 0;
-            border-top: 1px solid var(--pickup-line);
-            flex-direction: row;
-            overflow: visible;
-          }
-          .db-pickup-logo,
-          .db-pickup-instrument,
-          .db-pickup-nav-secondary,
-          .db-pickup-nav-spacer { display: none; }
-          .db-pickup-nav { width: 100%; display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
-          .db-pickup-nav-button { min-height: 48px; }
-          .db-pickup-nav-button:nth-child(n+6) { display: none; }
-          .db-pickup-main { padding-bottom: 64px; }
-          .db-pickup-main-inner { padding: 18px 14px 52px; }
           .db-pickup-section-heading { align-items: end; }
           .db-pickup-progress-card { height: 122px; grid-template-columns: 102px minmax(0, 1fr); gap: 12px; }
           .db-pickup-progress-copy strong { margin-top: 5px; font-size: 16px; }
@@ -1243,34 +1296,32 @@ export default function PickupPracticeHome() {
         }
       `}</style>
 
-      <aside className="db-pickup-sidebar">
-        <DukeMark />
-        <div className="db-pickup-instrument">🤘 Let&apos;s play <span style={{ color: "var(--pickup-accent)" }}>guitar⌄</span></div>
+      <header className="db-pickup-topbar">
+        <DukeMark onClick={() => openWorkspace("practice")} />
 
-        <nav className="db-pickup-nav" aria-label="DukeBox home navigation">
-          <button type="button" className="db-pickup-nav-button is-active" onClick={() => openWorkspace("practice")}>
-            <Icon name="home" /><span>Home</span>
-          </button>
+        {/* Search-first nav: this is the primary way into a song now, not a
+            sidebar link — front and center, "/" from anywhere opens the same
+            drawer. Workspaces still get their own pills alongside it; a
+            search box can't replace "take me to Gig mode". */}
+        <button
+          type="button"
+          className="db-pickup-search"
+          onClick={() => window.dispatchEvent(new CustomEvent(OPEN_LIBRARY_EVENT))}
+        >
+          <Icon name="search" />
+          <span>Jump to a song, a system, anywhere…</span>
+          <kbd>/</kbd>
+        </button>
+
+        <nav className="db-pickup-navpills" aria-label="DukeBox workspaces">
           <button type="button" className="db-pickup-nav-button" onClick={() => openPracticeCenter()}>
-            <Icon name="practice" /><span>Practice center</span>
-          </button>
-          <button type="button" className="db-pickup-nav-button" onClick={() => openPracticeCenter("SONGBOOK")}>
-            <Icon name="songbook" /><span>Songbook</span>
+            <Icon name="practice" /><span>Practice</span>
           </button>
           <button type="button" className="db-pickup-nav-button" onClick={() => openWorkspace("create")}>
             <Icon name="create" /><span>Create</span>
           </button>
           <button type="button" className="db-pickup-nav-button" onClick={() => openWorkspace("gig")}>
-            <Icon name="gig" /><span>Gig mode</span>
-          </button>
-        </nav>
-
-        <nav className="db-pickup-nav-secondary" aria-label="Additional DukeBox navigation">
-          <button type="button" className="db-pickup-nav-button" onClick={() => openPracticeCenter("MELODY PATHS")}>
-            <Icon name="practice" /><span>Melody paths</span>
-          </button>
-          <button type="button" className="db-pickup-nav-button" onClick={() => openPracticeCenter("LICKTIONARY")}>
-            <Icon name="songbook" /><span>Licktionary</span>
+            <Icon name="gig" /><span>Gig</span>
           </button>
           <button type="button" className="db-pickup-nav-button" onClick={() => openWorkspace("reference")}>
             <Icon name="reference" /><span>Reference</span>
@@ -1280,48 +1331,61 @@ export default function PickupPracticeHome() {
           </button>
         </nav>
 
-        <div className="db-pickup-nav-spacer" />
-        <nav className="db-pickup-nav" aria-label="Support navigation">
-          <button type="button" className="db-pickup-nav-button" onClick={() => openPracticeCenter("SONGBOOK")}>
-            <Icon name="search" /><span>Search songs</span>
+        <div className="db-pickup-topbar-actions">
+          <BuildStamp />
+          {/* Reuses KeyboardShortcuts.jsx's own click-delegate (it matches
+              any button titled "Keyboard shortcuts") — nothing new to wire. */}
+          <button type="button" className="db-pickup-shortcuts-btn" title="Keyboard shortcuts (?)">
+            <kbd>?</kbd> Shortcuts
           </button>
-          <button type="button" className="db-pickup-nav-button" onClick={() => openWorkspace("reference")}>
-            <Icon name="help" /><span>Support</span>
+          <button type="button" className="db-pickup-bell" aria-label="Notifications" title="Notifications">
+            <Icon name="bell" />
           </button>
-        </nav>
-      </aside>
+        </div>
+      </header>
+
+      <div className="db-pickup-body">
+        <aside className="db-pickup-rail">
+          <div className="db-pickup-eyebrow">Most popular</div>
+          <h3>Your top tunes</h3>
+          <p className="db-pickup-rail-sub">Ranked by how often you&apos;ve loaded them.</p>
+
+          {mostPlayed.length ? (
+            <div className="db-pickup-popular-list">
+              {mostPlayed.map((song, i) => (
+                <button
+                  type="button"
+                  key={song.id}
+                  className="db-pickup-popular-row"
+                  onClick={() => openPopularSong(song.id)}
+                >
+                  <span className="db-pickup-popular-rank">{i + 1}</span>
+                  <span className="db-pickup-popular-copy">
+                    <strong title={song.title}>{song.title}</strong>
+                    <span>{song.subtitle ? `${song.subtitle} · ` : ""}{song.count} {song.count === 1 ? "play" : "plays"}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="db-pickup-popular-empty">Load a few tunes and your most-played will show up here.</div>
+          )}
+
+          <nav className="db-pickup-rail-more" aria-label="More">
+            <button type="button" className="db-pickup-rail-more-link" onClick={() => openPracticeCenter("MELODY PATHS")}>
+              <Icon name="practice" /><span>Melody paths</span>
+            </button>
+            <button type="button" className="db-pickup-rail-more-link" onClick={() => openPracticeCenter("LICKTIONARY")}>
+              <Icon name="songbook" /><span>Licktionary</span>
+            </button>
+            <button type="button" className="db-pickup-rail-more-link" onClick={() => openWorkspace("reference")}>
+              <Icon name="help" /><span>Support</span>
+            </button>
+          </nav>
+        </aside>
 
       <main className="db-pickup-main">
         <div className="db-pickup-main-inner">
-          <header className="db-pickup-header">
-            {/* Subtle shortcut legend — navigation only. "?" reuses
-                KeyboardShortcuts.jsx's own click-delegate (it matches any
-                button titled "Keyboard shortcuts"), so nothing new has to be
-                wired for it to open the real sheet. */}
-            <div className="db-pickup-legend">
-              <span className="db-pickup-mono"><kbd>0</kbd> Home</span>
-              <span className="db-pickup-legend-sep">·</span>
-              <button
-                type="button"
-                className="db-pickup-legend-action db-pickup-mono"
-                onClick={() => window.dispatchEvent(new CustomEvent(OPEN_LIBRARY_EVENT))}
-              >
-                <kbd>/</kbd> Search
-              </button>
-              <span className="db-pickup-legend-sep">·</span>
-              <span className="db-pickup-mono"><kbd>1</kbd>–<kbd>5</kbd> Workspaces</span>
-              <span className="db-pickup-legend-sep">·</span>
-              <button type="button" className="db-pickup-legend-action db-pickup-mono" title="Keyboard shortcuts (?)">
-                <kbd>?</kbd> All shortcuts
-              </button>
-            </div>
-            <div className="db-pickup-header-right">
-              <BuildStamp />
-              <button type="button" className="db-pickup-bell" aria-label="Notifications" title="Notifications">
-                <Icon name="bell" />
-              </button>
-            </div>
-          </header>
 
           {/* Adaptive hero — resumes whatever you last touched, tagged by
               what kind of thing it was. Falls back to a plain invitation
@@ -1587,6 +1651,7 @@ export default function PickupPracticeHome() {
           </section>
         </div>
       </main>
+      </div>
     </div>
   )
 }

@@ -30,7 +30,7 @@ import { downloadImprovGuide, buildImprovMapData } from "@/lib/music/improvGuide
 import { DRUM_KIT_NAMES, DEFAULT_DRUM_KIT } from "@/lib/music/samples"
 import { parseTonalUserSongs } from "@/lib/music/importTonal"
 import { parseGigChord, GIGBOOK_SONGS, gigSongToBars, parseGigKey, gigTempoNumber } from "@/lib/music/gigbook"
-import { upsertLibrarySong, catalogEntryToPlayable, OPEN_LIBRARY_EVENT, ENTER_FOCUS_EVENT, GO_GIG_EVENT } from "@/lib/music/songSource"
+import { upsertLibrarySong, catalogEntryToPlayable, buildCatalog, OPEN_LIBRARY_EVENT, ENTER_FOCUS_EVENT, GO_GIG_EVENT, LOAD_SONG_EVENT } from "@/lib/music/songSource"
 import { guidedPrescription, drillStage, nextKeyInCycle, DRILL_LOOPS_PER_STAGE, PENA_DRILLS } from "@/lib/music/penaDrills"
 import { computeVoiceLeadPath, TARGET_ROLE_LABELS } from "@/lib/music/voiceLeadPath"
 import { STARTER_PRESETS, STARTER_STRIP, LOAD_STARTER_EVENT } from "@/lib/music/starters"
@@ -391,6 +391,7 @@ export default function Home() {
   const stopPlaybackRef   = useRef(null)   // always points to latest stopPlayback
   const pendingStartRef   = useRef(false)  // set by loadStarter → fires after bars state commits
   const loadStarterRef    = useRef(null)   // latest loadStarter, for the cross-tree starter event
+  const loadSongByIdRef   = useRef(null)   // latest loadSongById, for the cross-tree LOAD_SONG_EVENT
   const toastTimer        = useRef(null)   // auto-dismiss handle for the toast
   const themePickerRef    = useRef(null)   // wraps the palette/mode dropdown, for click-outside close
   const beatforgeRef      = useRef(null)   // BeatForge Metronome's loadPattern — bridges the sibling Library panel
@@ -1010,7 +1011,7 @@ export default function Home() {
     const { bars, keyRoot, keyMode, tempo } = catalogEntryToPlayable(entry)
     if (!bars.length) { showToast(`No changes stored for "${entry.title}"`); return }
     logActivity({ label: entry.title, subtitle: entry.source, art: "changes", action: { type: "songbook" } })
-    loadSong({ bars, keyRoot, keyMode, tempo, title: entry.title, songId: entry.id, ...opts })
+    loadSong({ bars, keyRoot, keyMode, tempo, title: entry.title, subtitle: entry.source, songId: entry.id, ...opts })
   }
 
   function handleTransposeChart() {
@@ -1193,7 +1194,7 @@ export default function Home() {
   // practiceView flipped to "focus" while mode is still stuck elsewhere.
   // Space/the sticky transport resuming whatever's already loaded don't go
   // through here, so they don't fight it.
-  function loadSong({ bars, keyRoot, keyMode, tempo, autoplay, songId, title, toMode, toFocus }) {
+  function loadSong({ bars, keyRoot, keyMode, tempo, autoplay, songId, title, subtitle, toMode, toFocus }) {
     if (toFocus) { chooseMode("practice"); enterFocusMode() }
     else if (toMode) chooseMode(toMode)
     if (playingRef.current) stopPlayback()
@@ -1221,6 +1222,28 @@ export default function Home() {
           return { ...lib, prefs: { ...lib.prefs, recentlyPlayedIds: next } }
         })
       }
+    }
+    // Home's "Most Popular" rail — counts a real catalog tune every time it's
+    // loaded. Not gated on autoplay like recentlyPlayedIds above: nothing
+    // currently passes autoplay:true, and opening a tune to practice it is
+    // itself the popularity signal this rail wants. Denormalized (title and
+    // subtitle stored alongside the count) so Home can render the rail
+    // without rebuilding the whole catalog just to resolve an id.
+    if (songId) {
+      setLibrary(lib => {
+        const prevCounts = lib.prefs?.playCounts ?? {}
+        const existing = prevCounts[songId]
+        const nextCounts = {
+          ...prevCounts,
+          [songId]: {
+            count: (existing?.count ?? 0) + 1,
+            title: title ?? existing?.title ?? songId,
+            subtitle: subtitle ?? existing?.subtitle ?? "",
+            at: Date.now(),
+          },
+        }
+        return { ...lib, prefs: { ...lib.prefs, playCounts: nextCounts } }
+      })
     }
   }
 
@@ -1589,10 +1612,23 @@ export default function Home() {
     }
   }
 
+  // Home's "Most Popular" rail asks for one specific catalog song by id the
+  // same cross-tree way the starter strip does below, since a most-played
+  // song can be a Gig Book tune, a Tavern Set song, a Songbook form, or
+  // something in My Library — buildCatalog is the one place that already
+  // knows how to find any of those by id. A plain function (not inlined in
+  // the effect) so it can go through the same current-render-closure-via-ref
+  // pattern as loadStarter just below, and always search the latest catalog.
+  function loadSongById(id) {
+    const entry = buildCatalog(userLibrary).find((e) => e.id === id)
+    if (entry) loadCatalogEntry(entry, { toMode: "practice" })
+  }
+
   // Keep function refs current every render so keyboard handler never goes stale
   startPlaybackRef.current = startPlayback
   stopPlaybackRef.current  = stopPlayback
   loadStarterRef.current   = loadStarter
+  loadSongByIdRef.current  = loadSongById
 
   // The starter strip lives on the Practice home screen, which renders in a
   // separate tree (mounted from layout.js), so it asks for a chart by event
@@ -1604,6 +1640,16 @@ export default function Home() {
     }
     window.addEventListener(LOAD_STARTER_EVENT, onLoadStarter)
     return () => window.removeEventListener(LOAD_STARTER_EVENT, onLoadStarter)
+  }, [])
+
+  // Same pattern, for loadSongById above.
+  useEffect(() => {
+    function onLoadSong(event) {
+      const id = event.detail
+      if (id) loadSongByIdRef.current?.(id)
+    }
+    window.addEventListener(LOAD_SONG_EVENT, onLoadSong)
+    return () => window.removeEventListener(LOAD_SONG_EVENT, onLoadSong)
   }, [])
 
   // "/" opens the song library from anywhere the same way — KeyboardShortcuts
