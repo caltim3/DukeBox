@@ -38,6 +38,14 @@ export default function RootLayout({ children }) {
     <html lang="en" data-palette="harbor" data-mode="light" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
+        {/* Home's marquee redesign (PickupPracticeHome.jsx) — display face for
+            its headings, mono for its shortcut chips and eyebrows. Scoped by
+            use, not by page: nothing outside that component reaches for them. */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800;900&family=Work+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600;700&display=swap"
+        />
         <style>{`
           .db-pickup-logo-mark {
             width: 34px !important;

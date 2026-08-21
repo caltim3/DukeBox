@@ -2,9 +2,11 @@
 
 import { useEffect, useRef, useState } from "react"
 import { GUIDES } from "./ReferenceGuides"
-import { getRecentActivity } from "@/lib/recentActivity"
+import { getRecentActivity, entryKind, logActivity } from "@/lib/recentActivity"
+import { getLastLine, requestResumeLastLine } from "@/lib/music/lastLine"
 import { STARTER_STRIP, requestStarter } from "@/lib/music/starters"
 import { GO_HOME_EVENT } from "@/lib/homeNav"
+import { OPEN_LIBRARY_EVENT } from "@/lib/music/songSource"
 import BuildStamp from "./BuildStamp"
 
 const BRAND_ICON = "/dukebox-jazzmaster.png"
@@ -17,15 +19,16 @@ const WORKSPACE_LABELS = {
   tonal: "Tonal",
 }
 
-// Replaces the old "In progress" row. Those completion bars didn't track
-// anything real, so rather than fake progress this is three ways to start —
-// each backed by the app's actual practice/create/gig entry points.
+// Three ways to start a session from scratch — shown below the adaptive
+// hero, not instead of it. Each backed by the app's actual practice/create/
+// gig entry points; `shortcut` is display-only, for the corner stamp.
 const GET_STARTED = [
   {
     eyebrow: "Practice",
     title: "Practice a Song",
     subtitle: "Open the songbook and start playing",
     image: "/practice.png",
+    shortcut: "/",
     action: { type: "songbook" },
   },
   {
@@ -33,6 +36,7 @@ const GET_STARTED = [
     title: "Write a Song",
     subtitle: "Build a chart, generate changes, or start from scratch",
     image: "/compose.png",
+    shortcut: "3",
     action: { type: "workspace", value: "create" },
   },
   {
@@ -40,6 +44,7 @@ const GET_STARTED = [
     title: "Play a Gig",
     subtitle: "Stage charts and setlists",
     image: "/gig.png",
+    shortcut: "2",
     action: { type: "workspace", value: "gig" },
   },
 ]
@@ -59,6 +64,7 @@ const PLAN_ROWS = [
         title: "BeatForge",
         subtitle: "Time workout and bebop rhythm generator",
         image: "/cards/beatforge2.jpg",
+        shortcut: "B",
         action: { type: "practice-panel", value: "beatforge-metronome" },
       },
       {
@@ -83,6 +89,7 @@ const PLAN_ROWS = [
         title: "Song Library",
         subtitle: "Every chart in the songbook",
         image: "/cards/song-library2.jpg",
+        shortcut: "/",
         action: { type: "songbook", value: "Jazz Standards" },
       },
     ],
@@ -182,8 +189,11 @@ function findSectionByText(label) {
 // map that to one of Icon's existing glyphs rather than inventing new art
 // for every possible thing a user might have just done.
 function recentIconName(entry) {
-  if (entry.action?.type === "workspace") return entry.action.value || "practice"
-  if (entry.action?.type === "songbook") return "songbook"
+  const { type, value } = entry.action || {}
+  if (type === "workspace") return value || "practice"
+  if (type === "songbook" || type === "starter") return "songbook"
+  if (type === "create-section" && value === "create-line-lab") return "lick"
+  if (type === "reference") return "reference"
   return "practice"
 }
 
@@ -196,6 +206,53 @@ function timeAgo(at) {
   if (hours < 24) return `${hours}h ago`
   const days = Math.floor(hours / 24)
   return days === 1 ? "yesterday" : `${days}d ago`
+}
+
+// A last-touched Line Lab line, boiled down to (string, fret) dots for a
+// compact tab strip. Trimmed to a representative excerpt — a home-page
+// preview card, not the real notation — with a "+N more" tag if the line
+// runs longer than that.
+const MAX_TAB_NOTES = 9
+function tabPointsFor(line) {
+  const all = []
+  for (const bar of line?.bars || []) {
+    for (const [s, f] of bar.n || []) all.push({ s, f })
+  }
+  const shown = all.slice(0, MAX_TAB_NOTES)
+  const PAD = 30, W = 480
+  const step = shown.length > 1 ? (W - PAD * 2) / (shown.length - 1) : 0
+  return {
+    more: Math.max(0, all.length - shown.length),
+    points: shown.map((p, i) => ({ ...p, x: PAD + i * step, y: 10 + (5 - p.s) * 19 })),
+  }
+}
+
+function LickTabStrip({ line }) {
+  const { points, more } = tabPointsFor(line)
+  if (!points.length) return null
+  const path = points.map((p, i) => `${i === 0 ? "M" : "L"}${p.x},${p.y}`).join(" ")
+  const strings = ["e", "B", "G", "D", "A", "E"]
+  return (
+    <svg viewBox="0 0 510 118" className="db-pickup-lick-svg" role="img" aria-label="Tab preview of the line">
+      {strings.map((name, i) => (
+        <text key={name} x="4" y={14 + i * 19} className="db-pickup-lick-stringlabel">{name}</text>
+      ))}
+      {strings.map((_, i) => (
+        <line key={i} x1="18" y1={10 + i * 19} x2="494" y2={10 + i * 19} className="db-pickup-lick-line" />
+      ))}
+      <path d={path} className="db-pickup-lick-path" />
+      {points.map((p, i) => {
+        const last = i === points.length - 1
+        return (
+          <g key={i}>
+            <circle cx={p.x} cy={p.y} r={last ? 10.5 : 9} className={last ? "db-pickup-lick-note is-last" : "db-pickup-lick-note"} />
+            <text x={p.x} y={p.y + 3.5} className={last ? "db-pickup-lick-fret is-last" : "db-pickup-lick-fret"}>{p.f}</text>
+          </g>
+        )
+      })}
+      {more > 0 && <text x="494" y="112" className="db-pickup-lick-more" textAnchor="end">+{more} more</text>}
+    </svg>
+  )
 }
 
 function Icon({ name }) {
@@ -211,6 +268,8 @@ function Icon({ name }) {
     help: <><circle cx="12" cy="12" r="9"/><path d="M9.6 9a2.7 2.7 0 1 1 4.4 2.1c-1 .8-2 1.3-2 2.9"/><path d="M12 18h.01"/></>,
     bell: <><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 8h18c0-1-3-1-3-8"/><path d="M10 20h4"/></>,
     chevron: <path d="m9 18 6-6-6-6"/>,
+    play: <path d="M8 5v14l11-7z" fill="currentColor" stroke="none"/>,
+    lick: <path d="M3 12c2-4 4 4 6 0s4 4 6 0 4 4 6 0"/>,
   }
 
   return (
@@ -268,18 +327,20 @@ export default function PickupPracticeHome() {
     return () => document.body.classList.remove("db-pickup-home-open")
   }, [homeOpen])
 
-  // "Jump back in" reads whatever page.js has logged to localStorage.
-  // Re-read every time the home screen is about to show, since it's a plain
-  // module (not shared React state) written from the real action sites.
-  // This has to be an effect, not a render-phase adjustment: localStorage
-  // isn't available on the server, and reading it during render would make
-  // the first client paint (used for hydration) disagree with the server
-  // HTML — exactly the "Hydrating from localStorage has to happen after
-  // mount" reasoning planOrder documents below, which recent didn't
-  // previously follow.
+  // "Jump back in" reads whatever's been logged to localStorage (recent
+  // activity) and the last Line Lab line, if any — both plain modules (not
+  // shared React state) written from the real action sites, re-read every
+  // time the home screen is about to show. Effect, not render-phase, for the
+  // same reason as planOrder below: localStorage isn't available on the
+  // server, and reading it during render would make the first client paint
+  // disagree with the server HTML.
   const [recent, setRecent] = useState([])
+  const [lastLine, setLastLineState] = useState(null)
   useEffect(() => {
-    if (homeOpen) setRecent(getRecentActivity())
+    if (homeOpen) {
+      setRecent(getRecentActivity())
+      setLastLineState(getLastLine())
+    }
   }, [homeOpen])
 
   // Drag-reorderable plan cards. planOrder holds each row's card ids; unknown
@@ -445,11 +506,36 @@ export default function PickupPracticeHome() {
       window.setTimeout(() => requestStarter(action.value), 180)
       return
     }
+    // A reference guide, opened the same way its Core Curriculum card does.
+    if (action.type === "reference") {
+      window.open(action.value, "_blank", "noopener,noreferrer")
+      return
+    }
 
     openPracticeCenter()
     window.setTimeout(() => {
       findClickableByText(action.value)?.click()
     }, 180)
+  }
+
+  // "Practice this lick" — not just a jump to Line Lab (that's what the
+  // empty-state's "Open Line Lab" button still does via runAction), but a
+  // request to actually reload this exact line there. Line Lab only exists
+  // in the DOM while Create is the active workspace (page.js unmounts it
+  // otherwise), so the resume event is dispatched after the same navigate
+  // delay every other cross-tree "go there and act" call in this file uses
+  // — by then it's mounted and its own listener (lastLine.js /
+  // RESUME_LAST_LINE_EVENT) is registered.
+  function resumeLastLine() {
+    openWorkspace("create")
+    window.setTimeout(() => {
+      const section = document.getElementById("create-line-lab")
+      if (section) {
+        section.open = true
+        section.scrollIntoView({ behavior: "smooth", block: "start" })
+      }
+      requestResumeLastLine()
+    }, 220)
   }
 
   if (!homeOpen) {
@@ -484,38 +570,60 @@ export default function PickupPracticeHome() {
     )
   }
 
+  // The adaptive hero: whatever you touched last, of whatever kind it was.
+  // Falls back to a plain invitation for a first-ever visit, when there's no
+  // recent entry yet to resume.
+  const heroEntry = recent[0] || null
+  const heroKind = heroEntry ? entryKind(heroEntry) : null
+
   return (
     <div className="db-pickup-shell">
       <style>{`
         body.db-pickup-home-open { overflow: hidden !important; }
 
         .db-pickup-shell {
-          --pickup-purple: #4c20e8;
-          --pickup-purple-dark: #2c0ca5;
-          --pickup-navy: #070b31;
-          --pickup-muted: #676a79;
-          --pickup-line: #e7e7ed;
-          --pickup-panel: #f7f7fb;
+          /* Marquee palette — a warm-black jazz-club ground with a brass
+             accent, replacing the earlier white/purple Coursera-style skin.
+             Same structure and behavior throughout; colors and type only. */
+          --pickup-ink: #0b0a10;
+          --pickup-raised: #17131e;
+          --pickup-raised-2: #1e1828;
+          --pickup-line: #2c2536;
+          --pickup-text: #f2ebdd;
+          --pickup-muted: #a79eb5;
+          --pickup-muted-dim: #726a83;
+          --pickup-accent: #d7a24a;
+          --pickup-accent-bright: #eec174;
+          --pickup-teal: #5b9aa0;
+          --pickup-teal-soft: rgba(91,154,160,.16);
           position: fixed;
           inset: 0;
           z-index: 10000;
           display: grid;
           grid-template-columns: 230px minmax(0, 1fr);
           overflow: hidden;
-          background: #ffffff;
-          color: var(--pickup-navy);
-          font-family: Arial, Helvetica, sans-serif;
+          background: var(--pickup-ink);
+          color: var(--pickup-text);
+          font-family: 'Work Sans', Arial, Helvetica, sans-serif;
         }
 
         .db-pickup-shell * { box-sizing: border-box; }
-        .db-pickup-shell button { font: inherit; }
+        .db-pickup-shell button { font: inherit; color: inherit; }
+
+        .db-pickup-shell h1, .db-pickup-shell h2 {
+          font-family: 'Big Shoulders Display', Arial, Helvetica, sans-serif;
+          font-weight: 800;
+        }
+        .db-pickup-mono {
+          font-family: 'IBM Plex Mono', ui-monospace, monospace;
+        }
 
         .db-pickup-sidebar {
           min-width: 0;
           height: 100vh;
           padding: 20px 14px 16px;
           border-right: 1px solid var(--pickup-line);
-          background: #ffffff;
+          background: var(--pickup-raised);
           display: flex;
           flex-direction: column;
           overflow-y: auto;
@@ -526,13 +634,14 @@ export default function PickupPracticeHome() {
           align-items: center;
           gap: 8px;
           padding: 0 7px;
-          color: var(--pickup-purple);
-          font-size: 18px;
+          color: var(--pickup-accent);
+          font-family: 'Big Shoulders Display', Arial, Helvetica, sans-serif;
+          font-size: 19px;
           font-weight: 800;
-          letter-spacing: -0.04em;
+          letter-spacing: -0.01em;
         }
 
-        .db-pickup-logo > span:last-child > span { color: var(--pickup-navy); }
+        .db-pickup-logo > span:last-child > span { color: var(--pickup-text); }
 
         .db-pickup-logo-mark {
           width: 22px;
@@ -558,7 +667,7 @@ export default function PickupPracticeHome() {
         .db-pickup-instrument {
           margin: 22px 5px 20px;
           padding: 8px 5px;
-          color: var(--pickup-navy);
+          color: var(--pickup-text);
           font-size: 14px;
           font-weight: 600;
         }
@@ -581,9 +690,10 @@ export default function PickupPracticeHome() {
           width: 100%;
           min-height: 42px;
           border: 0;
-          border-radius: 10px;
+          border-left: 2px solid transparent;
+          border-radius: 0;
           background: transparent;
-          color: #6a6d7a;
+          color: var(--pickup-muted);
           display: flex;
           align-items: center;
           gap: 11px;
@@ -592,35 +702,35 @@ export default function PickupPracticeHome() {
           cursor: pointer;
           font-size: 15px;
           font-weight: 600;
-          transition: background 140ms ease, color 140ms ease, transform 140ms ease;
+          transition: background 140ms ease, color 140ms ease, border-color 140ms ease;
         }
 
         .db-pickup-nav-button:hover {
-          color: var(--pickup-navy);
-          background: #f4f3fa;
-          transform: translateX(1px);
+          color: var(--pickup-text);
+          background: var(--pickup-raised-2);
         }
 
         .db-pickup-nav-button.is-active {
-          color: var(--pickup-navy);
-          background: #f0eff5;
+          color: var(--pickup-text);
+          background: var(--pickup-raised-2);
+          border-left-color: var(--pickup-accent);
           font-weight: 750;
         }
 
-        .db-pickup-nav-button.is-active svg { color: var(--pickup-purple); }
+        .db-pickup-nav-button.is-active svg { color: var(--pickup-accent); }
         .db-pickup-nav-button svg { width: 22px; height: 22px; flex: 0 0 22px; }
 
         .db-pickup-main {
           min-width: 0;
           height: 100vh;
           overflow-y: auto;
-          background: #fff;
+          background: var(--pickup-ink);
         }
 
         .db-pickup-main-inner {
           width: 100%;
           min-width: 0;
-          padding: 50px 32px 70px 40px;
+          padding: 26px 32px 70px 40px;
         }
 
         .db-pickup-header {
@@ -628,19 +738,43 @@ export default function PickupPracticeHome() {
           align-items: center;
           justify-content: space-between;
           gap: 20px;
-          padding-bottom: 42px;
+          padding-bottom: 16px;
           border-bottom: 1px solid var(--pickup-line);
         }
 
-        .db-pickup-header h1 {
-          margin: 0;
-          color: var(--pickup-navy);
-          font-size: clamp(28px, 2.4vw, 38px);
-          line-height: 1;
-          letter-spacing: -0.045em;
+        /* Subtle shortcut legend — replaces the old "Welcome back, Tim!"
+           heading. Deliberately quiet: navigation keys only (Home, search,
+           workspaces, the full sheet). Space, arrows and tempo keys don't
+           belong here — they only mean something once you're already
+           playing, and live in the "While you're playing" group of the
+           full sheet instead. */
+        .db-pickup-legend {
+          display: flex;
+          align-items: center;
+          gap: 9px;
+          flex-wrap: wrap;
+          font-size: 12.5px;
+          color: var(--pickup-muted-dim);
         }
-
-        .db-pickup-header h1 span { color: var(--pickup-purple); }
+        .db-pickup-legend kbd {
+          padding: 1px 6px;
+          border: 1px solid var(--pickup-line);
+          border-radius: 4px;
+          font-size: 11px;
+          color: var(--pickup-muted);
+        }
+        .db-pickup-legend-sep { color: var(--pickup-line); }
+        .db-pickup-legend button.db-pickup-legend-action {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          border: 0;
+          background: none;
+          padding: 0;
+          color: var(--pickup-muted-dim);
+          cursor: pointer;
+        }
+        .db-pickup-legend button.db-pickup-legend-action:hover { color: var(--pickup-accent-bright); }
 
         /* Build stamp + bell, top right. The stamp moved here from the
            Practice header — provenance belongs on the screen you land on. */
@@ -657,13 +791,13 @@ export default function PickupPracticeHome() {
           border: 0;
           border-radius: 50%;
           background: transparent;
-          color: #6f7280;
+          color: var(--pickup-muted);
           display: grid;
           place-items: center;
           cursor: pointer;
         }
 
-        .db-pickup-bell:hover { background: #f3f2f8; color: var(--pickup-purple); }
+        .db-pickup-bell:hover { background: var(--pickup-raised-2); color: var(--pickup-accent); }
         .db-pickup-bell svg { width: 24px; height: 24px; }
 
         .db-pickup-section { padding: 40px 0 0; }
@@ -681,13 +815,95 @@ export default function PickupPracticeHome() {
           align-items: center;
           gap: 4px;
           margin: 0;
-          color: var(--pickup-navy);
-          font-size: 21px;
-          letter-spacing: -0.025em;
+          color: var(--pickup-text);
+          font-size: 22px;
+          letter-spacing: -0.01em;
         }
 
         .db-pickup-section-heading h2 svg { width: 18px; height: 18px; }
         .db-pickup-section-heading p { margin: 3px 0 0; color: var(--pickup-muted); font-size: 13px; }
+        .db-pickup-eyebrow {
+          font-family: 'IBM Plex Mono', ui-monospace, monospace;
+          font-size: 11px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase;
+          color: var(--pickup-accent);
+        }
+
+        /* ---------- adaptive hero ("right where you clicked off") ---------- */
+        .db-pickup-hero {
+          margin-top: 22px;
+          padding: 26px 26px 24px;
+          border: 1px solid var(--pickup-line);
+          background:
+            radial-gradient(ellipse 560px 260px at 8% -20%, rgba(215,162,74,.16), transparent 60%),
+            var(--pickup-raised);
+          display: grid;
+          grid-template-columns: 1.4fr 1fr;
+          gap: 30px;
+          align-items: center;
+        }
+        .db-pickup-hero-type {
+          display: inline-block;
+          margin-bottom: 10px;
+          padding: 2px 8px;
+          font-family: 'IBM Plex Mono', ui-monospace, monospace;
+          font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase;
+          color: var(--pickup-teal);
+          border: 1px solid var(--pickup-teal-soft);
+          background: var(--pickup-teal-soft);
+        }
+        .db-pickup-hero-row { display: flex; align-items: center; gap: 16px; }
+        .db-pickup-hero-icon {
+          flex: 0 0 auto; width: 52px; height: 52px; display: grid; place-items: center;
+          border: 1px solid var(--pickup-line); background: var(--pickup-ink); color: var(--pickup-accent);
+        }
+        .db-pickup-hero-icon svg { width: 24px; height: 24px; }
+        .db-pickup-hero-title {
+          font-size: clamp(1.5rem, 2.4vw, 2.1rem);
+          line-height: 1.05;
+          letter-spacing: -0.01em;
+          color: var(--pickup-text);
+        }
+        .db-pickup-hero-meta {
+          margin-top: 7px;
+          display: flex; flex-wrap: wrap; gap: 4px 12px;
+          font-family: 'IBM Plex Mono', ui-monospace, monospace;
+          font-size: 12px; color: var(--pickup-muted);
+        }
+        .db-pickup-hero-actions { margin-top: 20px; display: flex; flex-wrap: wrap; gap: 10px; }
+        .db-pickup-play-btn {
+          display: inline-flex; align-items: center; gap: 9px;
+          padding: 11px 18px; border: 0; background: var(--pickup-accent); color: #1b1306;
+          font-weight: 700; font-size: 14px; cursor: pointer;
+          transition: background 140ms ease, transform 140ms ease;
+        }
+        .db-pickup-play-btn:hover { background: var(--pickup-accent-bright); transform: translateY(-1px); }
+        .db-pickup-play-btn svg { width: 13px; height: 13px; }
+        .db-pickup-ghost-btn {
+          display: inline-flex; align-items: center; gap: 9px;
+          padding: 10px 16px; border: 1px solid var(--pickup-line); background: transparent; color: var(--pickup-text);
+          font-weight: 600; font-size: 13.5px; cursor: pointer;
+          transition: border-color 140ms ease, color 140ms ease;
+        }
+        .db-pickup-ghost-btn:hover { border-color: var(--pickup-accent); color: var(--pickup-accent-bright); }
+        .db-pickup-ghost-btn kbd {
+          padding: 1px 6px; border: 1px solid var(--pickup-line); border-radius: 4px; font-size: 11px; color: var(--pickup-muted);
+        }
+        .db-pickup-hero-stubs { display: grid; gap: 8px; }
+        .db-pickup-hero-stub {
+          display: flex; align-items: center; gap: 10px;
+          padding: 9px 12px; border: 1px solid var(--pickup-line); background: var(--pickup-ink);
+          cursor: pointer; text-align: left; transition: border-color 140ms ease;
+        }
+        .db-pickup-hero-stub:hover { border-color: var(--pickup-accent); }
+        .db-pickup-hero-stub-key {
+          flex: 0 0 auto; width: 22px; height: 22px; display: grid; place-items: center;
+          border: 1px solid var(--pickup-accent); color: var(--pickup-accent-bright);
+          font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 11px; font-weight: 700;
+        }
+        .db-pickup-hero-stub strong { display: block; font-size: 13px; color: var(--pickup-text); }
+        @media (max-width: 900px) {
+          .db-pickup-hero { grid-template-columns: 1fr; }
+        }
 
         .db-pickup-starter-row {
           display: flex;
@@ -699,8 +915,8 @@ export default function PickupPracticeHome() {
           padding: 9px 15px;
           border-radius: 999px;
           border: 1px solid var(--pickup-line);
-          background: #ffffff;
-          color: var(--pickup-navy);
+          background: var(--pickup-raised);
+          color: var(--pickup-text);
           font-size: 14px;
           font-weight: 600;
           cursor: pointer;
@@ -708,16 +924,15 @@ export default function PickupPracticeHome() {
         }
 
         .db-pickup-starter-chip:hover {
-          border-color: var(--pickup-purple);
-          color: var(--pickup-purple);
+          border-color: var(--pickup-accent);
+          color: var(--pickup-accent-bright);
           transform: translateY(-1px);
-          box-shadow: 0 6px 16px rgba(17, 12, 70, 0.09);
         }
 
         .db-pickup-text-button {
           border: 0;
           background: transparent;
-          color: var(--pickup-purple);
+          color: var(--pickup-accent);
           cursor: pointer;
           font-size: 13px;
           font-weight: 750;
@@ -733,9 +948,8 @@ export default function PickupPracticeHome() {
           min-width: 0;
           height: 148px;
           padding: 8px;
-          border: 0;
-          border-radius: 10px;
-          background: var(--pickup-panel);
+          border: 1px solid var(--pickup-line);
+          background: var(--pickup-raised);
           display: grid;
           grid-template-columns: 132px minmax(0, 1fr);
           gap: 15px;
@@ -743,17 +957,15 @@ export default function PickupPracticeHome() {
           text-align: left;
           cursor: pointer;
           overflow: hidden;
-          transition: transform 160ms ease, box-shadow 160ms ease;
+          transition: transform 160ms ease, border-color 160ms ease;
         }
 
         .db-pickup-progress-card:hover {
           transform: translateY(-2px);
-          box-shadow: 0 10px 28px rgba(17, 12, 70, 0.10);
+          border-color: var(--pickup-accent);
         }
 
-        .db-pickup-progress-art,
-
-        .db-pickup-progress-art { border-radius: 6px; background: #0b1220; }
+        .db-pickup-progress-art { border-radius: 4px; background: var(--pickup-ink); }
 
         .db-pickup-progress-art img {
           width: 100%;
@@ -771,37 +983,23 @@ export default function PickupPracticeHome() {
         }
 
         .db-pickup-progress-copy small {
-          color: #4f5160;
-          font-size: 13px;
+          font-family: 'IBM Plex Mono', ui-monospace, monospace;
+          color: var(--pickup-accent);
+          font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
         }
 
         .db-pickup-progress-copy strong {
           margin-top: 8px;
-          color: var(--pickup-navy);
+          color: var(--pickup-text);
           font-size: clamp(16px, 1.15vw, 20px);
           line-height: 1.2;
-          letter-spacing: -0.025em;
+          letter-spacing: -0.01em;
         }
 
         .db-pickup-progress-copy span {
           margin-top: 14px;
-          color: #5c5f6d;
+          color: var(--pickup-muted);
           font-size: 13px;
-        }
-
-        .db-pickup-progress-track {
-          height: 5px;
-          margin-top: 9px;
-          border-radius: 999px;
-          background: #e2e2e9;
-          overflow: hidden;
-        }
-
-        .db-pickup-progress-track i {
-          display: block;
-          height: 100%;
-          border-radius: inherit;
-          background: var(--pickup-purple);
         }
 
         .db-pickup-plan-grid {
@@ -819,115 +1017,158 @@ export default function PickupPracticeHome() {
         .db-pickup-plan-card {
           position: relative;
           min-width: 0;
-          height: 210px;
+          height: auto;
+          aspect-ratio: 16 / 9;
           padding: 0;
           border: 0;
-          border-radius: 8px;
           overflow: hidden;
           color: #fff;
           text-align: left;
           cursor: pointer;
-          background: #222;
+          background: #04061c;
+          clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
           transition: transform 160ms ease, box-shadow 160ms ease;
         }
 
         .db-pickup-plan-card:hover {
           transform: translateY(-3px);
-          box-shadow: 0 13px 30px rgba(17, 12, 70, 0.16);
-        }
-        .db-pickup-plan-card::after {
-          content: "";
-          position: absolute;
-          inset: 0;
-          background: linear-gradient(180deg, rgba(4,6,28,.05), rgba(4,6,28,.08) 38%, rgba(4,6,28,.92));
+          box-shadow: 0 13px 30px rgba(0, 0, 0, .45);
         }
 
-        .db-pickup-core-grid {
-          display: grid;
-          grid-template-columns: repeat(3, minmax(220px, 1fr));
-          gap: 16px;
-          padding-bottom: 50px;
+        .db-pickup-plan-photo {
+          display: block;
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          -webkit-user-drag: none;
+          user-select: none;
+        }
+        .db-pickup-plan-stamp {
+          position: absolute; top: 8px; right: 8px; z-index: 2;
+          width: 24px; height: 24px; display: grid; place-items: center;
+          background: rgba(11,10,16,.72); border: 1px solid var(--pickup-accent);
+          color: var(--pickup-accent-bright);
+          font-family: 'IBM Plex Mono', ui-monospace, monospace; font-weight: 700; font-size: 12px;
+          backdrop-filter: blur(2px);
+        }
+
+        .db-pickup-core-strip {
+          display: flex;
+          gap: 14px;
+          overflow-x: auto;
+          padding-bottom: 8px;
         }
 
         .db-pickup-core-card {
           display: block;
-          min-height: 155px;
-          padding: 20px;
+          flex: 0 0 auto;
+          width: 240px;
+          min-height: 150px;
+          padding: 18px;
           border: 1px solid var(--pickup-line);
-          border-radius: 10px;
-          background: #fff;
+          background: var(--pickup-raised);
           color: inherit;
           text-align: left;
           text-decoration: none;
           cursor: pointer;
-          transition: border-color 140ms ease, transform 140ms ease, box-shadow 140ms ease;
+          transition: border-color 140ms ease, transform 140ms ease;
         }
 
         .db-pickup-core-card:hover {
-          border-color: rgba(76,32,232,.38);
+          border-color: var(--pickup-accent);
           transform: translateY(-2px);
-          box-shadow: 0 10px 24px rgba(17,12,70,.08);
         }
 
-        .db-pickup-core-card small { color: var(--pickup-purple); font-weight: 800; letter-spacing: .08em; }
-        .db-pickup-core-card strong { display: block; margin-top: 20px; font-size: 19px; }
+        .db-pickup-core-card small {
+          font-family: 'IBM Plex Mono', ui-monospace, monospace;
+          color: var(--pickup-accent); font-weight: 700; letter-spacing: .08em;
+        }
+        .db-pickup-core-card strong { display: block; margin-top: 18px; font-size: 17px; color: var(--pickup-text); }
         .db-pickup-core-card p { margin: 8px 0 0; color: var(--pickup-muted); font-size: 13px; line-height: 1.45; }
 
-        .db-pickup-recent-grid {
+        .db-pickup-recent-list {
           display: grid;
-          grid-template-columns: repeat(4, minmax(180px, 1fr));
-          gap: 14px;
+          gap: 1px;
+          background: var(--pickup-line);
+          border: 1px solid var(--pickup-line);
         }
 
-        .db-pickup-recent-card {
-          display: flex;
+        .db-pickup-recent-row {
+          display: grid;
+          grid-template-columns: auto auto 1fr auto;
+          gap: 14px;
           align-items: center;
-          gap: 12px;
-          min-width: 0;
-          padding: 14px;
-          border: 1px solid var(--pickup-line);
-          border-radius: 10px;
-          background: #fff;
+          padding: 13px 16px;
+          background: var(--pickup-raised);
+          border: 0;
           color: inherit;
           text-align: left;
           cursor: pointer;
-          transition: border-color 140ms ease, transform 140ms ease, box-shadow 140ms ease;
+          width: 100%;
+          transition: background 140ms ease;
         }
-
-        .db-pickup-recent-card:hover {
-          border-color: rgba(76,32,232,.38);
-          transform: translateY(-2px);
-          box-shadow: 0 10px 24px rgba(17,12,70,.08);
-        }
-
-        .db-pickup-recent-card.is-empty {
-          cursor: default;
-          color: var(--pickup-muted);
-          border-style: dashed;
-        }
-        .db-pickup-recent-card.is-empty:hover { transform: none; box-shadow: none; border-color: var(--pickup-line); }
+        .db-pickup-recent-row:hover { background: var(--pickup-raised-2); }
+        .db-pickup-recent-row.is-empty { cursor: default; color: var(--pickup-muted-dim); }
+        .db-pickup-recent-row.is-empty:hover { background: var(--pickup-raised); }
 
         .db-pickup-recent-icon {
-          flex: 0 0 38px;
-          width: 38px;
-          height: 38px;
-          border-radius: 9px;
-          background: #f0eff5;
-          color: var(--pickup-purple);
-          display: grid;
-          place-items: center;
+          flex: 0 0 34px; width: 34px; height: 34px;
+          border: 1px solid var(--pickup-line); background: var(--pickup-ink); color: var(--pickup-accent);
+          display: grid; place-items: center;
         }
-        .db-pickup-recent-icon svg { width: 19px; height: 19px; }
+        .db-pickup-recent-icon svg { width: 17px; height: 17px; }
+
+        .db-pickup-recent-kind {
+          font-family: 'IBM Plex Mono', ui-monospace, monospace;
+          font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
+          color: var(--pickup-muted-dim);
+          border: 1px solid var(--pickup-line);
+          padding: 2px 7px;
+          white-space: nowrap;
+        }
 
         .db-pickup-recent-copy { min-width: 0; }
-        .db-pickup-recent-copy strong { display: block; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .db-pickup-recent-copy strong { display: block; font-size: 14px; color: var(--pickup-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .db-pickup-recent-copy span { display: block; margin-top: 3px; color: var(--pickup-muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-        @media (max-width: 1180px) {
-          .db-pickup-recent-grid { grid-template-columns: repeat(2, minmax(180px, 1fr)); }
+        .db-pickup-recent-time {
+          font-family: 'IBM Plex Mono', ui-monospace, monospace;
+          font-size: 11.5px; color: var(--pickup-muted-dim); white-space: nowrap;
         }
-        @media (max-width: 540px) {
-          .db-pickup-recent-grid { grid-template-columns: 1fr; }
+
+        @media (max-width: 1180px) {
+          .db-pickup-progress-grid { grid-template-columns: 1fr; }
+          .db-pickup-progress-card { height: 132px; grid-template-columns: 116px minmax(0, 1fr); }
+          .db-pickup-plan-grid { grid-template-columns: repeat(2, minmax(220px, 1fr)); }
+        }
+
+        /* ---------- practice this lick ---------- */
+        .db-pickup-lick-panel {
+          display: grid;
+          grid-template-columns: 1fr 1.1fr;
+          gap: 26px;
+          align-items: center;
+          padding: 22px;
+          border: 1px solid var(--pickup-line);
+          background: var(--pickup-raised);
+        }
+        @media (max-width: 860px) { .db-pickup-lick-panel { grid-template-columns: 1fr; } }
+        .db-pickup-lick-copy strong { display: block; margin-top: 8px; font-size: 20px; color: var(--pickup-text); font-family: 'Big Shoulders Display', sans-serif; }
+        .db-pickup-lick-copy p { margin: 8px 0 0; color: var(--pickup-muted); font-size: 13px; line-height: 1.5; max-width: 42ch; }
+        .db-pickup-lick-tab { background: var(--pickup-ink); border: 1px solid var(--pickup-line); padding: 10px 6px; }
+        .db-pickup-lick-svg { width: 100%; height: auto; display: block; }
+        .db-pickup-lick-stringlabel { font: 600 9px 'IBM Plex Mono', monospace; fill: var(--pickup-muted-dim); }
+        .db-pickup-lick-line { stroke: var(--pickup-line); stroke-width: 1; }
+        .db-pickup-lick-path { fill: none; stroke: var(--pickup-muted-dim); stroke-width: 1.3; opacity: .6; }
+        .db-pickup-lick-note { fill: var(--pickup-ink); stroke: var(--pickup-accent); stroke-width: 1.2; }
+        .db-pickup-lick-note.is-last { fill: var(--pickup-accent); stroke: var(--pickup-accent-bright); }
+        .db-pickup-lick-fret { font: 700 9px 'IBM Plex Mono', monospace; fill: var(--pickup-accent-bright); text-anchor: middle; }
+        .db-pickup-lick-fret.is-last { fill: #1b1306; }
+        .db-pickup-lick-more { font: 600 9px 'IBM Plex Mono', monospace; fill: var(--pickup-muted-dim); }
+        .db-pickup-lick-empty {
+          padding: 22px; border: 1px dashed var(--pickup-line); background: var(--pickup-raised);
+          color: var(--pickup-muted); font-size: 13px;
+          display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
         }
 
         .db-pickup-return-home {
@@ -954,12 +1195,6 @@ export default function PickupPracticeHome() {
         .db-pickup-return-home svg { width: 18px; height: 18px; color: var(--db-accent, #4c20e8); }
         .db-pickup-return-home-mark { width: 28px; height: 28px; object-fit: contain; display: block; }
 
-        @media (max-width: 1180px) {
-          .db-pickup-progress-grid { grid-template-columns: 1fr; }
-          .db-pickup-progress-card { height: 132px; grid-template-columns: 116px minmax(0, 1fr); }
-          .db-pickup-plan-grid { grid-template-columns: repeat(2, minmax(220px, 1fr)); }
-        }
-
         @media (max-width: 760px) {
           .db-pickup-shell { grid-template-columns: 72px minmax(0, 1fr); }
           .db-pickup-sidebar { padding: 16px 9px; align-items: center; }
@@ -969,11 +1204,10 @@ export default function PickupPracticeHome() {
           .db-pickup-nav-button span { display: none; }
           .db-pickup-nav,
           .db-pickup-nav-secondary { width: 100%; }
-          .db-pickup-nav-button { justify-content: center; padding: 8px; }
-          .db-pickup-main-inner { padding: 32px 18px 60px; }
-          .db-pickup-header { padding-bottom: 28px; }
+          .db-pickup-nav-button { justify-content: center; padding: 8px; border-left: 0; }
+          .db-pickup-main-inner { padding: 22px 18px 60px; }
+          .db-pickup-header { padding-bottom: 14px; }
           .db-pickup-section { padding-top: 30px; }
-          .db-pickup-core-grid { grid-template-columns: 1fr; }
         }
 
         @media (max-width: 540px) {
@@ -1000,39 +1234,18 @@ export default function PickupPracticeHome() {
           .db-pickup-nav-button { min-height: 48px; }
           .db-pickup-nav-button:nth-child(n+6) { display: none; }
           .db-pickup-main { padding-bottom: 64px; }
-          .db-pickup-main-inner { padding: 26px 14px 52px; }
-          .db-pickup-header h1 { font-size: 27px; }
+          .db-pickup-main-inner { padding: 18px 14px 52px; }
           .db-pickup-section-heading { align-items: end; }
           .db-pickup-progress-card { height: 122px; grid-template-columns: 102px minmax(0, 1fr); gap: 12px; }
           .db-pickup-progress-copy strong { margin-top: 5px; font-size: 16px; }
           .db-pickup-progress-copy span { margin-top: 9px; }
           .db-pickup-plan-grid { grid-template-columns: 1fr; }
-          .db-pickup-plan-card { height: 190px; }
-        }
-
-        /* Plan cards are the supplied artwork, edge to edge. The badge and
-           title are already part of each image, so these cards carry no text
-           of their own and no scrim over the top — and they keep the art's
-           16:9 so nothing gets cropped. Declared after the media queries so
-           the fixed card heights above don't win. */
-        .db-pickup-plan-card { height: auto; aspect-ratio: 16 / 9; background: #04061c; }
-        .db-pickup-plan-card::after { content: none; }
-        .db-pickup-plan-photo {
-          display: block;
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-          -webkit-user-drag: none;
-          user-select: none;
-        }
-        @media (max-width: 540px) {
-          .db-pickup-plan-card { height: auto; }
         }
       `}</style>
 
       <aside className="db-pickup-sidebar">
         <DukeMark />
-        <div className="db-pickup-instrument">🤘 Let&apos;s play <span style={{ color: "var(--pickup-purple)" }}>guitar⌄</span></div>
+        <div className="db-pickup-instrument">🤘 Let&apos;s play <span style={{ color: "var(--pickup-accent)" }}>guitar⌄</span></div>
 
         <nav className="db-pickup-nav" aria-label="DukeBox home navigation">
           <button type="button" className="db-pickup-nav-button is-active" onClick={() => openWorkspace("practice")}>
@@ -1081,7 +1294,27 @@ export default function PickupPracticeHome() {
       <main className="db-pickup-main">
         <div className="db-pickup-main-inner">
           <header className="db-pickup-header">
-            <h1>Welcome back, <span>Tim!</span></h1>
+            {/* Subtle shortcut legend — navigation only. "?" reuses
+                KeyboardShortcuts.jsx's own click-delegate (it matches any
+                button titled "Keyboard shortcuts"), so nothing new has to be
+                wired for it to open the real sheet. */}
+            <div className="db-pickup-legend">
+              <span className="db-pickup-mono"><kbd>0</kbd> Home</span>
+              <span className="db-pickup-legend-sep">·</span>
+              <button
+                type="button"
+                className="db-pickup-legend-action db-pickup-mono"
+                onClick={() => window.dispatchEvent(new CustomEvent(OPEN_LIBRARY_EVENT))}
+              >
+                <kbd>/</kbd> Search
+              </button>
+              <span className="db-pickup-legend-sep">·</span>
+              <span className="db-pickup-mono"><kbd>1</kbd>–<kbd>5</kbd> Workspaces</span>
+              <span className="db-pickup-legend-sep">·</span>
+              <button type="button" className="db-pickup-legend-action db-pickup-mono" title="Keyboard shortcuts (?)">
+                <kbd>?</kbd> All shortcuts
+              </button>
+            </div>
             <div className="db-pickup-header-right">
               <BuildStamp />
               <button type="button" className="db-pickup-bell" aria-label="Notifications" title="Notifications">
@@ -1090,10 +1323,63 @@ export default function PickupPracticeHome() {
             </div>
           </header>
 
+          {/* Adaptive hero — resumes whatever you last touched, tagged by
+              what kind of thing it was. Falls back to a plain invitation
+              when there's no recent activity yet. */}
+          <section className="db-pickup-hero">
+            <div>
+              {heroEntry ? (
+                <>
+                  {heroKind && <span className="db-pickup-hero-type">{heroKind}</span>}
+                  <div className="db-pickup-hero-row">
+                    <span className="db-pickup-hero-icon"><Icon name={recentIconName(heroEntry)} /></span>
+                    <div>
+                      <h1 className="db-pickup-hero-title">{heroEntry.label}</h1>
+                      <div className="db-pickup-hero-meta">
+                        {heroEntry.subtitle && <span>{heroEntry.subtitle}</span>}
+                        <span>{timeAgo(heroEntry.at)}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="db-pickup-hero-actions">
+                    <button type="button" className="db-pickup-play-btn" onClick={() => runAction(heroEntry.action)}>
+                      <Icon name="play" /> Jump back in
+                    </button>
+                    <button type="button" className="db-pickup-ghost-btn" onClick={() => openSongbookSearch()}>
+                      Something else <kbd>/</kbd>
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <span className="db-pickup-hero-type">New here</span>
+                  <h1 className="db-pickup-hero-title">Let&apos;s find your first tune</h1>
+                  <div className="db-pickup-hero-meta"><span>Open the songbook, or pick a starter chart below</span></div>
+                  <div className="db-pickup-hero-actions">
+                    <button type="button" className="db-pickup-play-btn" onClick={() => openSongbookSearch()}>
+                      <Icon name="play" /> Open the songbook
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+            <div className="db-pickup-hero-stubs">
+              {GET_STARTED.map((item) => (
+                <button type="button" key={item.title} className="db-pickup-hero-stub" onClick={() => runAction(item.action)}>
+                  <span className="db-pickup-hero-stub-key db-pickup-mono">{item.shortcut}</span>
+                  <span>
+                    <strong>{item.title}</strong>
+                    <span style={{ fontSize: "12px", color: "var(--pickup-muted)" }}>{item.subtitle}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </section>
+
           <section className="db-pickup-section">
             <div className="db-pickup-section-heading">
               <div>
-                <h2>Get started</h2>
+                <div className="db-pickup-eyebrow">Get started</div>
               </div>
               <button type="button" className="db-pickup-text-button" onClick={() => openPracticeCenter()}>Open practice center</button>
             </div>
@@ -1114,12 +1400,11 @@ export default function PickupPracticeHome() {
             </div>
           </section>
 
-          {/* Moved here from the Practice tab — the starter charts are a way
-              in, so they belong on the way-in screen. */}
           <section className="db-pickup-section">
             <div className="db-pickup-section-heading">
               <div>
-                <h2>Start practicing</h2>
+                <div className="db-pickup-eyebrow">Start practicing</div>
+                <h2>Starter charts</h2>
                 <p>Load a starter chart and begin at slow tempo — ideal for building muscle memory.</p>
               </div>
             </div>
@@ -1141,6 +1426,7 @@ export default function PickupPracticeHome() {
           <section className="db-pickup-section">
             <div className="db-pickup-section-heading">
               <div>
+                <div className="db-pickup-eyebrow">Your set list</div>
                 <h2>Your learning plan <Icon name="chevron" /></h2>
                 <p>Systems on top, tunes underneath — drag any card to reorder its row.</p>
               </div>
@@ -1186,6 +1472,7 @@ export default function PickupPracticeHome() {
                     aria-label={`${item.title} — ${item.subtitle}`}
                   >
                     <img className="db-pickup-plan-photo" src={item.image} alt="" />
+                    {item.shortcut && <span className="db-pickup-plan-stamp db-pickup-mono">{item.shortcut}</span>}
                   </button>
                 ))}
               </div>
@@ -1195,28 +1482,33 @@ export default function PickupPracticeHome() {
           <section className="db-pickup-section">
             <div className="db-pickup-section-heading">
               <div>
+                <div className="db-pickup-eyebrow">Still warm · last 5</div>
                 <h2>Jump back in</h2>
                 <p>The last things you were working on.</p>
               </div>
             </div>
 
-            <div className="db-pickup-recent-grid">
-              {Array.from({ length: 4 }, (_, i) => recent[i]).map((item, i) => (
+            <div className="db-pickup-recent-list">
+              {Array.from({ length: 5 }, (_, i) => recent[i]).map((item, i) => (
                 item ? (
-                  <button type="button" key={item.label + item.at} className="db-pickup-recent-card" onClick={() => runAction(item.action)}>
+                  <button type="button" key={item.label + item.at} className="db-pickup-recent-row" onClick={() => runAction(item.action)}>
                     <span className="db-pickup-recent-icon"><Icon name={recentIconName(item)} /></span>
+                    <span className="db-pickup-recent-kind">{entryKind(item)}</span>
                     <span className="db-pickup-recent-copy">
                       <strong title={item.label}>{item.label}</strong>
                       <span>{item.subtitle}{item.subtitle ? " · " : ""}{timeAgo(item.at)}</span>
                     </span>
+                    <span className="db-pickup-recent-time">{timeAgo(item.at)}</span>
                   </button>
                 ) : (
-                  <div key={`empty-${i}`} className="db-pickup-recent-card is-empty">
-                    <span className="db-pickup-recent-icon" style={{ background: "transparent", color: "var(--pickup-muted)" }}><Icon name="practice" /></span>
+                  <div key={`empty-${i}`} className="db-pickup-recent-row is-empty">
+                    <span className="db-pickup-recent-icon" style={{ borderStyle: "dashed", color: "var(--pickup-muted-dim)" }}><Icon name="practice" /></span>
+                    <span className="db-pickup-recent-kind">—</span>
                     <span className="db-pickup-recent-copy">
-                      <strong style={{ color: "var(--pickup-muted)", fontWeight: 600 }}>Not visited yet</strong>
+                      <strong style={{ color: "var(--pickup-muted-dim)", fontWeight: 600 }}>Not visited yet</strong>
                       <span>Start practicing to fill this in</span>
                     </span>
+                    <span className="db-pickup-recent-time"> </span>
                   </div>
                 )
               ))}
@@ -1226,14 +1518,66 @@ export default function PickupPracticeHome() {
           <section className="db-pickup-section">
             <div className="db-pickup-section-heading">
               <div>
-                <h2>Core curriculum <Icon name="chevron" /></h2>
+                <div className="db-pickup-eyebrow">From Line Lab</div>
+                <h2>Practice this lick</h2>
+                <p>The most recent line you built — ready to drop back into Line Lab at a glance.</p>
+              </div>
+            </div>
+
+            {lastLine ? (
+              <div className="db-pickup-lick-panel">
+                <div className="db-pickup-lick-copy">
+                  {lastLine.context && <div className="db-pickup-eyebrow">{lastLine.context}{lastLine.keyRoot ? ` · ${lastLine.keyRoot}` : ""}</div>}
+                  <strong>{lastLine.label}</strong>
+                  <p>Built {timeAgo(lastLine.at)}. Resumes exactly as you left it — hear it, transpose it, or send it to the fretboard.</p>
+                  <div className="db-pickup-hero-actions">
+                    <button
+                      type="button"
+                      className="db-pickup-play-btn"
+                      onClick={resumeLastLine}
+                    >
+                      <Icon name="play" /> Practice this lick
+                    </button>
+                  </div>
+                </div>
+                <div className="db-pickup-lick-tab">
+                  <LickTabStrip line={lastLine.line} />
+                </div>
+              </div>
+            ) : (
+              <div className="db-pickup-lick-empty">
+                <span>Nothing here yet — build a line in Line Lab and it&apos;ll show up here.</span>
+                <button type="button" className="db-pickup-ghost-btn" onClick={() => runAction({ type: "create-section", value: "create-line-lab" })}>
+                  Open Line Lab
+                </button>
+              </div>
+            )}
+          </section>
+
+          <section className="db-pickup-section">
+            <div className="db-pickup-section-heading">
+              <div>
+                <div className="db-pickup-eyebrow">Core curriculum</div>
+                <h2>Reference guides <Icon name="chevron" /></h2>
                 <p>The interactive reference guides, straight from the Reference tab.</p>
               </div>
             </div>
 
-            <div className="db-pickup-core-grid">
+            <div className="db-pickup-core-strip">
               {CORE_CURRICULUM.map((item) => (
-                <a key={item.title} className="db-pickup-core-card" href={item.href} target="_blank" rel="noopener noreferrer">
+                <a
+                  key={item.title}
+                  className="db-pickup-core-card"
+                  href={item.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => logActivity({
+                    label: item.title,
+                    subtitle: "Reference guide",
+                    art: "reference",
+                    action: { type: "reference", value: item.href },
+                  })}
+                >
                   <small>{item.number}</small>
                   <strong>{item.title}</strong>
                   <p>{item.copy}</p>

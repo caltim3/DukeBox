@@ -27,6 +27,8 @@ import {
   TN_TONICS, TN_CHORD_TYPES, TN_PROGRESSIONS, TN_POSITIONS,
   TN_LEVEL_RULES, TN_TUTORIAL, guessQuality,
 } from "@/lib/music/triadNetwork"
+import { setLastLine, getLastLine, RESUME_LAST_LINE_EVENT } from "@/lib/music/lastLine"
+import { logActivity } from "@/lib/recentActivity"
 
 const DEVICES = [
   "Chromatics", "Bebop scale", "Enclosures", "Altered",
@@ -228,6 +230,62 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
     [keyedResult, neckPosition]
   )
   const workingFretRange = useMemo(() => lineFretRange(workingResult), [workingResult])
+
+  // Set by the resume handler below, immediately before it hands `result`
+  // the resumed line — tells the persist effect just below to skip that one
+  // cycle rather than re-derive a label from whatever source/selection
+  // happen to be currently active (which weren't touched by the resume, and
+  // so don't necessarily describe the line that just landed).
+  const resumingRef = useRef(false)
+
+  // Whatever line is currently showing — generated, transposed, refingered,
+  // or a Licktionary pick — is "the last thing you did in Line Lab" as far
+  // as Home is concerned. Persist it so the "Practice this lick" card has a
+  // real line to draw, and log it so Line Lab shows up in "Jump back in"
+  // like any other last-touched thing. Cross-tree, same pattern as
+  // recentActivity.js — Home is a decoupled remote control with no props in.
+  useEffect(() => {
+    if (!workingResult?.bars?.length) return
+    if (resumingRef.current) { resumingRef.current = false; return }
+    const label = isLicktionary
+      ? (selectedLick?.name ? `Licktionary — ${selectedLick.name}` : "Licktionary lick")
+      : isNetwork
+      ? `${TN_CHORD_TYPES[chordType]?.label || chordType} — ${TN_PROGRESSIONS[progression]?.label || progression}`
+      : (chartTitle && chartTitle !== "Custom" ? chartTitle : "Line Lab")
+    const context = isChart ? `Bars ${selStart + 1}–${selEnd + 1}` : null
+    setLastLine({ line: workingResult, label, context, keyRoot: resultTransposeKey || resultBaseKey })
+    logActivity({
+      label,
+      subtitle: context || "Line Lab",
+      art: "create",
+      action: { type: "create-section", value: "create-line-lab" },
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workingResult])
+
+  // Home's "Practice this lick" button — reload the exact saved line. Does
+  // NOT touch source/sheet/selStart/selEnd/progression/tonic/chordType:
+  // those are exactly the deps that invalidate the cache below ("A new
+  // section — or a new source — invalidates every cached level"), so
+  // changing any of them here would wipe `result` right back out on the
+  // very next render. The line resumes fully playable either way — only
+  // the Source tab selector may not match, if it wasn't "Chart" already.
+  useEffect(() => {
+    function onResume() {
+      const snap = getLastLine()
+      if (!snap?.line?.bars?.length) return
+      resumingRef.current = true
+      stopLine()
+      setWithBand(false)
+      setNeckPosition(null)
+      setResultTransposeKey("")
+      setExported(false)
+      setResult(snap.line)
+    }
+    window.addEventListener(RESUME_LAST_LINE_EVENT, onResume)
+    return () => window.removeEventListener(RESUME_LAST_LINE_EVENT, onResume)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Each note carries the chord that should be sounding under it, so the solo
   // preview can comp along. A bar's `c` may name more than one chord
