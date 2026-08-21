@@ -6,6 +6,7 @@ import {
   QUALITIES,
   buildChordSymbol,
   chordInfo,
+  chordNotes,
   scaleNotes,
   generateApproachLines,
   martinoMapper,
@@ -18,6 +19,8 @@ import {
   hexChoiceForChord,
   SCALE_CATALOG,
   rankScalesForChord,
+  noteAtSemitones,
+  buildFromSemitones,
 } from "@/lib/music/tonal"
 import { analyzeProgressionContext } from "@/lib/music/harmony"
 import { FORMS, FORM_CATEGORIES, DESERT_NOIR_META } from "@/lib/music/forms"
@@ -33,17 +36,16 @@ import { parseGigChord, GIGBOOK_SONGS, gigSongToBars, parseGigKey, gigTempoNumbe
 import { upsertLibrarySong, catalogEntryToPlayable, buildCatalog, OPEN_LIBRARY_EVENT, ENTER_FOCUS_EVENT, GO_GIG_EVENT, LOAD_SONG_EVENT } from "@/lib/music/songSource"
 import { guidedPrescription, drillStage, nextKeyInCycle, DRILL_LOOPS_PER_STAGE, PENA_DRILLS } from "@/lib/music/penaDrills"
 import { computeVoiceLeadPath, TARGET_ROLE_LABELS } from "@/lib/music/voiceLeadPath"
-import { STARTER_PRESETS, STARTER_STRIP, LOAD_STARTER_EVENT } from "@/lib/music/starters"
+import { STARTER_PRESETS, STARTER_STRIP, SCENARIO_CONFIG, LOAD_STARTER_EVENT } from "@/lib/music/starters"
 import Fretboard, { fretPositions, FRETBOARD_FRETS } from "@/components/Fretboard"
-import { classifySongForm, getLevelDefs, resolvePentaChoice, buildPentaBoard, buildScaleBoard, PENTA_LEGEND } from "@/lib/music/threeTwoSystem"
-import MetronomePanel from "@/components/MetronomePanel"
-import BeatForgeLibrary from "@/components/BeatForgeLibrary"
+import { classifySongForm, getLevelDefs, resolvePentaChoice, buildPentaBoard, buildScaleBoard, buildScaleBoardFromNotes, PENTA_LEGEND, chordThird } from "@/lib/music/threeTwoSystem"
 import PracticeTimer from "@/components/PracticeTimer"
 import GigBarStrip from "@/components/GigBarStrip"
 import { lineToTransportEvents } from "@/lib/music/lines"
 import GigMode from "@/components/GigMode"
 import MelodyPaths from "@/components/MelodyPaths"
 import CreateWorkspace from "@/components/CreateWorkspace"
+import BeatForgeWorkspace from "@/components/BeatForgeWorkspace"
 import ReferenceGuides from "@/components/ReferenceGuides"
 import { useAuth, useCloudLibrary } from "@/lib/cloud"
 import { logActivity } from "@/lib/recentActivity"
@@ -62,6 +64,16 @@ let _audioMod = null
 async function loadAudio() {
   if (!_audioMod) _audioMod = await import("@/lib/music/audio")
   return _audioMod
+}
+
+// Same lazy-load pattern, for the count-in's woodblock click (playCountIn) —
+// same reasoning as loadAudio above, and the same shared Tone.Transport
+// MetronomePanel.jsx already uses, so a count-in and chart playback can
+// never both be scheduled on it at once.
+let _metroMod = null
+async function loadMetronome() {
+  if (!_metroMod) _metroMod = await import("@/lib/music/metronome")
+  return _metroMod
 }
 
 const PALETTES = [
@@ -96,6 +108,7 @@ const MODES = [
   { id: "practice",  label: "Practice",  icon: "🎧", blurb: "Play along, loop a section, drill it slow" },
   { id: "gig",       label: "Gig",       icon: "🎤", blurb: "Stage charts and setlists" },
   { id: "create",    label: "Create",    icon: "✍️", blurb: "Build charts, compose songs, and develop melodic lines" },
+  { id: "beatforge", label: "BeatForge", icon: "🥁", blurb: "Program rhythm, build phrases, grow your lick book" },
   { id: "reference", label: "Reference", icon: "📖", blurb: "Circle of fifths, key chart, progressions" },
   { id: "tonal",     label: "Tonal",     icon: "🎹", blurb: "The published Tonal app, embedded as-is" },
 ]
@@ -122,6 +135,15 @@ export default function Home() {
   const [tempo, setTempo] = useState(110)
   const [originalTempo, setOriginalTempo] = useState(110)  // song's natural BPM, restored on Play Mode
   const [isPlaying, setIsPlaying] = useState(false)
+  // Count-in — a woodblock click track (metronome.js's playCountIn) that
+  // runs before Play actually starts the band. 0 | 4 | 8 beats, cycled by
+  // the transport's own count-in button (StickyTransport); startPlayback
+  // reads it directly unless a caller passes its own override (loadStarter's
+  // scenarios always want 8, regardless of what this is set to).
+  const [countInBeats, setCountInBeats] = useState(0)
+  const cycleCountIn = useCallback(() => {
+    setCountInBeats((n) => (n === 0 ? 4 : n === 4 ? 8 : 0))
+  }, [])
   const [playChords, setPlayChords] = useState(true)
   const [playBass, setPlayBass] = useState(true)
   const [bassStyle, setBassStyle] = useState(DEFAULT_BASS_STYLE)
@@ -156,6 +178,11 @@ export default function Home() {
   // currently toggled) is what lets "any of the 5 shown chords" stay put as
   // the thing you're choosing between, instead of reshuffling on every tap.
   const [freezeChordIndices, setFreezeChordIndices] = useState(null)
+  // Focus's frozen keyboard nav (Up/Down arrows) — the static one-chord loop
+  // that plays the frozen chord's own comping/bass/drums as if it were a
+  // single repeating measure. True only while that loop is actually sounding;
+  // Down (or unfreezing) takes it back to false and leaves freezeMode alone.
+  const [freezeLoopOn, setFreezeLoopOn] = useState(false)
 
   const [keyRoot, setKeyRoot] = useState("Bb")
   const [keyMode, setKeyMode] = useState("major")
@@ -232,16 +259,30 @@ export default function Home() {
   // The "3:2 System" — the leveled, song-aware pentatonic navigator
   // (src/lib/music/threeTwoSystem.js). A toggle that sits beside
   // Off/Manual/Auto rather than a fourth Fret-focus option among them: it
-  // swaps which notes the board draws (the reference page's Chord-scales /
-  // Home-base-or-Inside / Chase-or-Color / Altered ladder instead of
-  // chord/scale tones), not whether a fret window narrows the neck. It has
-  // no window of its own, though — the reference page draws every fret
-  // evenly at full opacity, no dimming, no windowing — so it doesn't touch
-  // focusMode at all; Fretboard.js ignores the focus window outright while
-  // it's active regardless, belt-and-suspenders.
+  // swaps which notes the board draws (the fixed Chord scales / Blues scale
+  // / Minor / Major / Altered ladder instead of chord/scale tones), not
+  // whether a fret window narrows the neck. It has no window of its own,
+  // though — the reference page draws every fret evenly at full opacity, no
+  // dimming, no windowing — so it doesn't touch focusMode at all;
+  // Fretboard.js ignores the focus window outright while it's active
+  // regardless, belt-and-suspenders.
   const [threeTwoMode, setThreeTwoMode] = useState(false)
   const [threeTwoLevel, setThreeTwoLevel] = useState(1)
-  const [scaleFilter, setScaleFilter] = useState(null)  // null | "pentatonic" | "hexatonic" | "martino" | "hexchord" | "barry"
+  // Levels 2-4's "Shape" filter — the level's own 7-note mode (Dorian /
+  // Mixolydian / altered), or a pentatonic/hexatonic reduction of the same
+  // family. Deliberately its own state rather than reusing scaleFilter: that
+  // one is a true nine-way mutually-exclusive PALETTE choice with 3:2 System
+  // itself (see the PALETTE panel below), so it can't also mean something
+  // while 3:2 is on. Levels 0-1 ignore this entirely.
+  const [threeTwoDensity, setThreeTwoDensity] = useState("mode")  // "mode" | "pentatonic" | "hexatonic"
+  const [scaleFilter, setScaleFilter] = useState(null)  // null | "pentatonic" | "hexatonic" | "martino" | "hexchord" | "barry" | "harmonicMinor251"
+  // "Altered" — independent of the nine-way PALETTE set above (like
+  // +Bebop Chromatic, a modifier that sits alongside whichever PALETTE
+  // choice is active, not a member of it). Only touches a chord that's
+  // actually FUNCTIONING as a dominant resolution (see alteredMap below);
+  // everything else about it — which views it changes, which it leaves
+  // alone — lives in alteredMap's own doc comment.
+  const [alteredOverlay, setAlteredOverlay] = useState(false)
   const [bebopOverlay, setBebopOverlay] = useState(false)   // adds chromatic passing tone on top
   const [targetsOverlay, setTargetsOverlay] = useState(true) // guide tones are the default practice view
   const [melodyPathMode, setMelodyPathMode] = useState("73")
@@ -267,9 +308,6 @@ export default function Home() {
   // piece of client state the spec allows (§6): which top-canvas layout is
   // showing. Persisted so a reload keeps your last choice.
   const [practiceView, setPracticeView] = useState("cockpit")
-  // Which view the Start-practicing starter buttons open into. Separate from
-  // practiceView so arming it does not yank you out of the view you are in.
-  const [starterView, setStarterView] = useState("cockpit")
   useEffect(() => {
     const saved = window.localStorage.getItem("dukebox.practiceView")
     if (saved === "cockpit" || saved === "focus") setPracticeView(saved)
@@ -311,6 +349,13 @@ export default function Home() {
   useEffect(() => {
     document.body.dataset.dbPlaying = isPlaying ? "true" : "false"
   }, [isPlaying])
+
+  // Same idea, for "F" — in Practice, "F" is Freeze (this file, below)
+  // instead of KeyboardShortcuts.jsx's global "jump to Fretboard": jumping
+  // would be a no-op, since Practice is already exactly where you'd land.
+  useEffect(() => {
+    document.body.dataset.dbMode = mode
+  }, [mode])
 
   const exitFocusMode = useCallback(() => {
     choosePracticeView("cockpit")
@@ -390,6 +435,7 @@ export default function Home() {
   const loopSigRef        = useRef(null)   // last loop range the transport was started with
   const stopPlaybackRef   = useRef(null)   // always points to latest stopPlayback
   const pendingStartRef   = useRef(false)  // set by loadStarter → fires after bars state commits
+  const pendingCountInRef = useRef(undefined)  // scenario starters force a 4-beat count-in for that one auto-play; undefined = use the transport's own countInBeats
   const loadStarterRef    = useRef(null)   // latest loadStarter, for the cross-tree starter event
   const loadSongByIdRef   = useRef(null)   // latest loadSongById, for the cross-tree LOAD_SONG_EVENT
   const toastTimer        = useRef(null)   // auto-dismiss handle for the toast
@@ -484,21 +530,22 @@ export default function Home() {
   // the current bar), so it only needs to recompute when the chart or key
   // actually changes, not on every chord change during playback.
   const songForm = useMemo(() => classifySongForm(bars), [bars])
-  const threeTwoLevelDefs = useMemo(() => getLevelDefs(songForm.type), [songForm.type])
-  // Per-bar pentatonic pick for Levels 1-3, reusing harmonicContext — the
-  // same cadence/function read (analyzeProgressionContext) that already
-  // drives the rest of the app's chord-scale suggestions — so "is this
-  // dominant actually resolving" isn't answered twice, two different ways.
+  const threeTwoLevelDefs = useMemo(() => getLevelDefs(), [])
+  // Per-bar shape pick for Levels 1-4, reusing harmonicContext — the same
+  // cadence/function read (analyzeProgressionContext) that already drives
+  // the rest of the app's chord-scale suggestions — so "is this dominant
+  // actually resolving" (Level 4's altered override) isn't answered twice,
+  // two different ways.
   const threeTwoChoice = useMemo(() => {
-    if (!threeTwoMode || threeTwoLevel === 0) return { usable: false, family: null, rootNote: null, why: "" }
+    if (!threeTwoMode || threeTwoLevel === 0) return { usable: false, kind: null, family: null, rootNote: null, scaleNoteList: null, why: "", blueNote: false }
     return resolvePentaChoice({
       bar: fretboardBar,
       ctxEntry: harmonicContext[fretboardBarIndex] || null,
       levelId: threeTwoLevel,
-      formType: songForm.type,
       tonicBar: songForm.tonicBar,
+      density: threeTwoDensity,
     })
-  }, [threeTwoMode, threeTwoLevel, fretboardBar, fretboardBarIndex, harmonicContext, songForm])
+  }, [threeTwoMode, threeTwoLevel, fretboardBar, fretboardBarIndex, harmonicContext, songForm, threeTwoDensity])
   const threeTwoBoard = useMemo(() => {
     if (!threeTwoMode) return { kind: null, cells: [], bandRuns: [] }
     if (threeTwoLevel === 0) {
@@ -511,13 +558,26 @@ export default function Home() {
       })
       return { kind: "scale", cells, scaleName }
     }
-    if (!threeTwoChoice.usable) return { kind: "penta", cells: [], bandRuns: [] }
-    const { cells, bandRuns } = buildPentaBoard({
-      rootNote: threeTwoChoice.rootNote, family: threeTwoChoice.family,
+    if (!threeTwoChoice.usable) return { kind: threeTwoChoice.kind || "penta", cells: [], bandRuns: [] }
+    if (threeTwoChoice.kind === "penta") {
+      const { cells, bandRuns } = buildPentaBoard({
+        rootNote: threeTwoChoice.rootNote, family: threeTwoChoice.family,
+        tuningName: fretboardTuning, labelMode,
+        markBlueNote: threeTwoChoice.blueNote,
+      })
+      return { kind: "penta", cells, bandRuns }
+    }
+    // "scale" kind — Levels 2-4's Mode/Hexatonic density, and Level 4's
+    // altered override: a forced-family scale draped over the bar's own
+    // real chord (buildChordSymbol below), tiered the same as Level 0.
+    const { cells } = buildScaleBoardFromNotes({
+      rootNote: threeTwoChoice.rootNote,
+      scaleNoteList: threeTwoChoice.scaleNoteList,
+      chordSymbol: buildChordSymbol(fretboardBar.userTonic ?? fretboardBar.root, fretboardBar.quality),
       tuningName: fretboardTuning, labelMode,
-      markBlueNote: threeTwoChoice.blueNote,
+      markThirdDegree: threeTwoChoice.blueNote,
     })
-    return { kind: "penta", cells, bandRuns }
+    return { kind: "scale", cells }
   }, [threeTwoMode, threeTwoLevel, fretboardBar, threeTwoChoice, fretboardTuning, labelMode])
   const threeTwoActiveOnBoard = threeTwoMode && fretboardTuning === "Standard" && threeTwoBoard.cells.length > 0
 
@@ -527,6 +587,32 @@ export default function Home() {
     if (scaleFilter !== "martino") return null
     return martinoMapper(fretboardBar.root, fretboardBar.quality)
   }, [scaleFilter, fretboardBar])
+
+  // "Altered" — reharmonizes a chord that's actually FUNCTIONING as a
+  // dominant resolution (harmonicContext's own functionLabel/hasCadence
+  // read — the same signal 3:2 System's Level 4 and the rest of the app
+  // use for "is this really resolving," not just "is this dominant-quality")
+  // into its melodic-minor-derived altered color. Independent of Martino,
+  // which always uses the plain 5th regardless (see martinoMapper's own
+  // doc comment) — the two never interact.
+  //   tritoneRoot — the tritone substitute's own root (root+6). Used only
+  //     for the plain Chord view: "this dominant IS that chord."
+  //   displayRoot — melodic minor a half step above the dominant's own
+  //     root (root+1). Used for the Scale and Pentatonic views.
+  // Hexatonic already computes exactly displayRoot's melodic-minor-hex for
+  // every dominant chord unconditionally (see applyScaleFilter's own doc
+  // comment), so this needs nothing there; Hex·Chord, Barry, Martino, and
+  // the 3:2 System are untouched — each keeps its own separate rules.
+  const alteredMap = useMemo(() => {
+    if (!alteredOverlay) return null
+    const ctxEntry = harmonicContext[fretboardBarIndex]
+    if (ctxEntry?.functionLabel !== "dominant" || !ctxEntry?.hasCadence) return null
+    const root = fretboardBar.userTonic ?? fretboardBar.root
+    return {
+      tritoneRoot: noteAtSemitones(root, 6),
+      displayRoot: noteAtSemitones(root, 1),
+    }
+  }, [alteredOverlay, harmonicContext, fretboardBarIndex, fretboardBar])
 
   const fretboardScaleData = useMemo(() => {
     const tonic = fretboardBar.userTonic ?? fretboardBar.root
@@ -545,10 +631,36 @@ export default function Home() {
       const { displayRoot, displayQuality } = martinoMap
       return applyScaleFilter([], displayRoot, displayQuality, "hexatonic")
     }
+    // "Altered" — only the Scale (no filter) and Pentatonic views change;
+    // Hexatonic/Hex·Chord/Barry fall through to their own logic below,
+    // already unaffected by design (see alteredMap's own doc comment).
+    if (alteredMap && scaleFilter == null) {
+      return scaleNotes("melodic minor", alteredMap.displayRoot)
+    }
+    if (alteredMap && scaleFilter === "pentatonic") {
+      // "Melodic minor" pentatonic: 1 b3 4 5 6 — the m6-pentatonic
+      // reduction of the same melodic minor Hexatonic and Scale both use.
+      return buildFromSemitones(alteredMap.displayRoot, [0, 3, 5, 7, 9])
+    }
     const raw   = fretboardScaleData[0]?.notes ?? []
     const tonic = fretboardBar.userTonic ?? fretboardBar.root
-    return applyScaleFilter(raw, tonic, fretboardBar.quality, scaleFilter)
-  }, [fretboardScaleData, fretboardBar, scaleFilter, martinoMap])
+    // ctxEntry (harmony.js's own functional read) only changes anything for
+    // the "hexatonic" filter's minor-chord case — see applyScaleFilter's doc
+    // comment — so it's harmless to always pass it through here.
+    return applyScaleFilter(raw, tonic, fretboardBar.quality, scaleFilter, harmonicContext[fretboardBarIndex])
+  }, [fretboardScaleData, fretboardBar, fretboardBarIndex, harmonicContext, scaleFilter, martinoMap, alteredMap])
+
+  // "Altered"'s Chord-view row: the tritone substitute's own chord tones
+  // (root+6, same quality) rather than the melodic-minor color the Scale/
+  // Pentatonic views get — only actually shown when the board is in plain
+  // Chord view with no filter selected (a filter always forces Scale view,
+  // see the PALETTE buttons below, so chordNotes stops being what's drawn).
+  const effectiveChordNotes = useMemo(() => {
+    if (alteredMap && !scaleFilter && fretboardView === "chord") {
+      return chordNotes(buildChordSymbol(alteredMap.tritoneRoot, fretboardBar.quality))
+    }
+    return fretboardInfo.notes || []
+  }, [alteredMap, scaleFilter, fretboardView, fretboardBar, fretboardInfo])
 
   // Bebop: chromatic passing tones shown in green over the current scale.
   // Hexatonic, Hex·Chord and Martino modes use dedicated two-note passing
@@ -566,7 +678,12 @@ export default function Home() {
     const effectiveQuality = martinoMap ? martinoMap.displayQuality : fretboardBar.quality
 
     if (scaleFilter === "hexatonic" || scaleFilter === "hexchord" || martinoMap) {
-      const base    = applyScaleFilter([], effectiveRoot, effectiveQuality, scaleFilter === "hexchord" ? "hexchord" : "hexatonic")
+      // martinoMap's own displayQuality is always the fixed "min7"/"min7b5"
+      // martinoMapper picks — not a real chord's own minor-vs-tonic role —
+      // so ctxEntry (which only means anything for a genuine minor chord's
+      // ii-vs-tonic read) is withheld on that path; passing it through would
+      // read Martino's remapped root as if IT were the thing resolving.
+      const base    = applyScaleFilter([], effectiveRoot, effectiveQuality, scaleFilter === "hexchord" ? "hexchord" : "hexatonic", martinoMap ? null : harmonicContext[fretboardBarIndex])
       const baseSet = new Set(base)
       return getHexatonicBebopNotes(effectiveRoot, effectiveQuality).filter(n => n && !baseSet.has(n))
     }
@@ -576,7 +693,7 @@ export default function Home() {
     const withBebop = applyScaleFilter(base, effectiveRoot, effectiveQuality, "bebop")
     const baseSet   = new Set(base)
     return withBebop.filter(n => !baseSet.has(n))
-  }, [bebopOverlay, fretboardScaleData, fretboardBar, scaleFilter, martinoMap])
+  }, [bebopOverlay, fretboardScaleData, fretboardBar, fretboardBarIndex, harmonicContext, scaleFilter, martinoMap])
 
   // One concept, three states. The board used to expose 7→3, Smooth, Melody,
   // 3rd Hunter, Enclosure and Anticipate as six separate switches you had to
@@ -612,6 +729,28 @@ export default function Home() {
       setAnticipateOn(true)           // anticipation is part of voice leading, not a separate switch
     }
   }, [])
+
+  // The "V" keyboard shortcut's on/off toggle for Voice Leading. chooseGuideMode
+  // itself is a three-way pick (Voice/Melody/Off) — this collapses it to the
+  // two states the shortcut promises, so pressing V from Melody goes straight
+  // to Voice Leading rather than needing a second press to get past Off.
+  const toggleVoiceLeadingMode = useCallback(() => {
+    chooseGuideMode(guideMode === "voice" ? "off" : "voice")
+  }, [chooseGuideMode, guideMode])
+
+  // The "I" keyboard shortcut's on/off toggle for the 3:2 System — same
+  // "turn 3:2 on, drop the 5-filter row" step the Systems panel's own button
+  // does, shared here so the two don't drift. 3:2 shapes only exist in
+  // standard tuning (see the button's own disabled state), so this is a
+  // silent no-op otherwise, exactly like clicking the disabled button would be.
+  const toggleThreeTwoMode = useCallback(() => {
+    if (fretboardTuning !== "Standard") return
+    setThreeTwoMode(v => {
+      const next = !v
+      if (next) setScaleFilter(null)
+      return next
+    })
+  }, [fretboardTuning])
 
 
   // The fretboard consumes Melody Paths' selected line directly. This keeps
@@ -684,18 +823,29 @@ export default function Home() {
   // docs/FRETBOARD_CHORD_SCALE_CONTROLS.md, "one live sentence" item).
   const scaleLabel = threeTwoActiveOnBoard
     ? (threeTwoLevel === 0
-        ? `3:2 System · Level 0 · ${threeTwoBoard.scaleName ?? ""}`
-        : `3:2 System · Level ${threeTwoLevel}${threeTwoChoice.why ? ` · ${threeTwoChoice.why}` : ""}`)
+        ? `3:2 System · Chord scales · ${threeTwoBoard.scaleName ?? ""}`
+        : `3:2 System · ${threeTwoLevelDefs.find((lv) => lv.id === threeTwoLevel)?.name ?? `Level ${threeTwoLevel}`}${threeTwoChoice.why ? ` · ${threeTwoChoice.why}` : ""}`)
     : martinoMap
     ? `Martino → ${martinoMap.displayRoot}m${martinoMap.displayQuality === "min7b5" ? " (melodic)" : ""}`
+    : (alteredMap && (scaleFilter == null || scaleFilter === "pentatonic"))
+    ? (!scaleFilter && fretboardView === "chord"
+        ? `Altered → ${alteredMap.tritoneRoot}7 (tritone sub)`
+        : `Altered → ${alteredMap.displayRoot} melodic minor${scaleFilter === "pentatonic" ? " pentatonic" : ""}`)
     : scaleFilter === "hexchord"
     ? hexChoiceForChord(fretboardBar.userTonic ?? fretboardBar.root, fretboardBar.quality).label
     : scaleFilter === "barry"
     ? `Barry 6th-Dim (${barryHarrisScale(fretboardBar.userTonic ?? fretboardBar.root, fretboardBar.quality).family})`
+    : scaleFilter === "harmonicMinor251"
+    ? (() => {
+        const tonic = harmonicContext[fretboardBarIndex]?.resolvesToMinorTonic
+        return tonic
+          ? `${tonic} harmonic minor · iiø7-V7alt-i · this chord's own tones`
+          : `${fretboardBar.userTonic ?? fretboardBar.root} harmonic minor · this chord's own tones`
+      })()
     : (scaleFilter ?? fretboardScaleData[0]?.name ?? "")
   const scaleTonic = fretboardBar.userTonic ?? fretboardBar.root
   const scaleLabelFull = scaleLabel
-    ? (threeTwoActiveOnBoard || martinoMap || scaleFilter === "hexchord" || scaleFilter === "barry" ? scaleLabel : `${scaleTonic} ${scaleLabel}`)
+    ? (threeTwoActiveOnBoard || martinoMap || (alteredMap && (scaleFilter == null || scaleFilter === "pentatonic")) || scaleFilter === "hexchord" || scaleFilter === "barry" || scaleFilter === "harmonicMinor251" ? scaleLabel : `${scaleTonic} ${scaleLabel}`)
     : "—"
 
   // Anticipate — the next sounding bar, wrapping inside the loop range when
@@ -811,6 +961,32 @@ export default function Home() {
       voiceLeadSeedRef.current + (anticipateBarIndex ?? 0) * 31,
     )
   }, [voicePathActive, anticipateBar, anticipateBarIndex, fretboardInfo, targetPref])
+
+  // 3:2 System + Voice Leading — the 3:2 board otherwise sits out every other
+  // "Connect" overlay entirely (see threeTwoActiveOnBoard usage in
+  // Fretboard.js), which used to mean clicking Voice Leading while the 3:2
+  // System is on did nothing. This gives it one thing to draw instead of
+  // nothing: the 3rd of the chord coming up, so the board can find and draw
+  // the shortest playable way from the current shape onto that note (see
+  // Fretboard.js's threeTwo.voiceLeadTarget / chordThird in threeTwoSystem.js).
+  // Level 1 (Blues scale) doesn't use this — its own blanket box never
+  // moves, so there's nowhere to route to; see threeTwoLevel1ChordTones below.
+  const threeTwoVoiceLeadTarget = useMemo(() => {
+    if (!threeTwoActiveOnBoard || threeTwoLevel === 1 || guideMode !== "voice" || !anticipateBar) return null
+    return chordThird(anticipateBar.symbol)
+  }, [threeTwoActiveOnBoard, threeTwoLevel, guideMode, anticipateBar])
+
+  // Level 1 + Voice Leading — the blanket minor pentatonic never moves, so
+  // instead of routing to the next chord, ghost the CURRENT chord's own full
+  // spelling on top of the fixed box (Fretboard.js's threeTwo.
+  // voiceLeadChordTones): an E7 in an A blues ghosts E G# B D over the A
+  // minor pentatonic. fretboardInfo.notes is already this bar's real chord
+  // tones — the same data chordInfo(fretboardBar.symbol) hands everything
+  // else on the board.
+  const threeTwoLevel1ChordTones = useMemo(() => {
+    if (!threeTwoActiveOnBoard || threeTwoLevel !== 1 || guideMode !== "voice") return []
+    return fretboardInfo.notes || []
+  }, [threeTwoActiveOnBoard, threeTwoLevel, guideMode, fretboardInfo])
 
   // How long the bar under the playhead lasts, so the fretboard's phase
   // animation runs on the same clock as the audio. Matches Runway's tempo
@@ -1306,7 +1482,16 @@ export default function Home() {
     // Stop any current playback before loading
     if (playingRef.current) stopPlayback()
 
-    switch (starterId) {
+    // Scenario starters (STARTER_STRIP now) name a plain chart id below
+    // (chartId) plus their own Fretboard/3:2 System setup — see
+    // SCENARIO_CONFIG's own doc comment in starters.js. A plain id (the
+    // learning-plan cards' own, or an old recent-activity entry) has no
+    // scenario and just loads its chart exactly as it always did — this
+    // function doesn't force Focus or a count-in on those, only on scenarios.
+    const scenario = SCENARIO_CONFIG[starterId]
+    const chartId = scenario?.chartId ?? starterId
+
+    switch (chartId) {
       case "jazz-blues-bb":
         loadForm("12-Bar Jazz Blues (Bb)")
         break
@@ -1318,6 +1503,9 @@ export default function Home() {
         break
       case "black-orpheus":
         loadForm("Black Orpheus (Am)")
+        break
+      case "minor-blues-dm":
+        loadForm("Minor Blues (Dm)")
         break
       case "dark-eyes":
         loadForm("Dark Eyes (Dm)")
@@ -1404,8 +1592,31 @@ export default function Home() {
     setPracticeMode(true)
     setTempo(50)
 
-    // Trigger auto-play after React commits the new bars to state
+    // Scenario starters replace the Fretboard/3:2 System setup wholesale —
+    // a clean slate every time, not whatever was left on from before, so
+    // the exact thing that was clicked is exactly what's showing. Anything
+    // a scenario doesn't mention (see SCENARIO_CONFIG) resets to off here.
+    if (scenario) {
+      setFretboardTuning("Standard")   // 3:2 System's own levels only exist in Standard tuning
+      setBebopOverlay(false)
+      setScaleFilter(scenario.scaleFilter ?? null)
+      setFretboardView(scenario.scaleFilter || scenario.threeTwo ? "scale" : "chord")
+      setAlteredOverlay(!!scenario.altered)
+      setThreeTwoMode(!!scenario.threeTwo)
+      if (scenario.threeTwo) {
+        setThreeTwoLevel(scenario.threeTwo.level)
+        if (scenario.threeTwo.density) setThreeTwoDensity(scenario.threeTwo.density)
+      }
+      chooseGuideMode(scenario.guideMode ?? "off")
+      chooseMode("practice")
+      enterFocusMode()
+    }
+
+    // Trigger auto-play after React commits the new bars to state. Scenarios
+    // always get their own 4-beat count-in, whatever the transport's own
+    // count-in button happens to be set to.
     pendingStartRef.current = true
+    pendingCountInRef.current = scenario ? 4 : undefined
     setActiveGigSongId(null)
     const starterLabel = STARTER_PRESETS.find((preset) => preset.id === starterId)?.label ?? null
     setActiveSongTitle(starterLabel)
@@ -1444,9 +1655,15 @@ export default function Home() {
     } else {
       setFreezeMode(false)
       setFreezeChordIndices(null)
+      // The Up-arrow static loop (below) doesn't touch freezeWasPlayingRef —
+      // it's its own kind of "playing," not the transport state Freeze is
+      // trying to restore — so it needs its own explicit shutdown here.
+      setFreezeLoopOn(false)
       if (freezeWasPlayingRef.current) {
         freezeWasPlayingRef.current = false
         startPlayback().catch(console.error)
+      } else if (freezeLoopOn) {
+        stopPlayback()
       }
     }
   }
@@ -1461,6 +1678,45 @@ export default function Home() {
     const { playChordStab } = await loadAudio()
     const beats = bar.beats ?? 4
     playChordStab(bar.symbol, Math.max(0.4, beats * (60 / tempo))).catch(() => {})
+  }
+
+  // Focus freeze's keyboard nav (Left/Right arrows) — walk the frozen chord
+  // one measure at a time, silently, wrapping across the whole chart. Distinct
+  // from previewChordAt/loopJustThisBar: no sound unless the static loop
+  // (Up arrow, below) is already going, in which case it just follows along
+  // onto the new bar rather than cutting out.
+  function freezeSnapshotFrom(index) {
+    if (!bars.length) return [index]
+    return [0, 1, 2, 3, 4].map((step) => (index + step) % bars.length)
+  }
+  function freezeStep(delta) {
+    if (!bars.length) return
+    const current = freezeChordIndices?.[0] ?? selectedIndex
+    const newIndex = (current + delta + bars.length) % bars.length
+    setSelectedIndex(newIndex)
+    setFreezeChordIndices(freezeSnapshotFrom(newIndex))
+    if (freezeLoopOn) startPlayback(null, { start: newIndex, end: newIndex }).catch(console.error)
+  }
+
+  // Focus freeze's Up arrow — the frozen chord, looped with the full band
+  // (whatever comping/bass/drum styles are already dialed in) as if it were
+  // one repeating measure, same mechanism loopJustThisBar uses but without
+  // touching the loop-range state (so unfreezing hands the transport back
+  // exactly what it had before, per toggleFreeze's own contract above).
+  function startFreezeChordLoop() {
+    const idx = freezeChordIndices?.[0] ?? selectedIndex
+    const bar = bars[idx]
+    if (!bar || bar.quality === "NC") return
+    if (freezeLoopOn && playingRef.current) return   // already looping this chord
+    setFreezeLoopOn(true)
+    startPlayback(null, { start: idx, end: idx }).catch(console.error)
+  }
+
+  // Focus freeze's Down arrow — stop the static loop, stay frozen and silent.
+  function stopFreezeChordLoop() {
+    if (!freezeLoopOn) return
+    setFreezeLoopOn(false)
+    stopPlayback()
   }
 
   // Copy the chart as plain text: "| Dm7 | G7 | Cmaj7 | Cmaj7 |", 4 bars a line.
@@ -1532,6 +1788,7 @@ export default function Home() {
   function stopPlayback() {
     playingRef.current = false
     _audioMod?.stopAll()   // no-op if audio hasn't been loaded yet
+    _metroMod?.stopMetronome()   // no-op if it hasn't been loaded — halts a count-in in progress
     setIsPlaying(false)
     setPlayheadIndex(null)
     setBeatInBar(null)
@@ -1539,7 +1796,10 @@ export default function Home() {
 
   // loopOverride ({start, end}) forces a loop over an explicit bar range without
   // waiting for loop state to commit — used by per-bar "loop just this chord".
-  async function startPlayback(overrideTempo = null, loopOverride = null) {
+  // countInOverride forces a specific count-in length (loadStarter's
+  // scenarios always want 4, whatever the transport's own count-in button is
+  // set to); omitted, this reads that button's own countInBeats state.
+  async function startPlayback(overrideTempo = null, loopOverride = null, countInOverride = undefined) {
     playingRef.current = false  // cancel any pending repeats from previous run
     stopPlayback()
     playingRef.current = true
@@ -1553,7 +1813,21 @@ export default function Home() {
     // setPracticeModeAndTempo calls startPlayback before setTempo() has committed)
     const effectiveTempo = practiceModeRef.current ? 50 : (overrideTempo ?? tempo)
 
+    // isPlaying goes true immediately — including through the count-in — so
+    // the transport already reads as "Stop" and pressing it cancels cleanly
+    // (the playingRef check right after the count-in catches that).
     setIsPlaying(true)
+
+    const countIn = countInOverride !== undefined ? countInOverride : countInBeats
+    if (countIn > 0) {
+      try {
+        const metro = await loadMetronome()
+        await metro.playCountIn(countIn, effectiveTempo)
+      } catch (err) {
+        console.error("Count-in audio error:", err)
+      }
+      if (!playingRef.current) return   // Stop was pressed during the count-in
+    }
 
     // Load Tone.js lazily — AudioContext is only created here, after user gesture
     const { startPlayback: audioStart } = await loadAudio()
@@ -1707,7 +1981,19 @@ export default function Home() {
 
       // `?` belongs to KeyboardShortcuts (the single legend) — it handles the
       // key in the capture phase, so this page never sees it.
-      if (e.key === "Escape") { setThemePickerOpen(false); return }
+      //
+      // Escape is one press at a time, most-active-thing-first: stop the
+      // band if it's playing (first press), then — a second press, once it's
+      // already stopped — back out of Focus if that's where you are.
+      // Anywhere else, Escape falls back to its old job of closing the
+      // palette picker.
+      if (e.key === "Escape") {
+        e.preventDefault()
+        if (isPlaying) { stopPlayback(); return }
+        if (focusStage) { exitFocusMode(); return }
+        setThemePickerOpen(false)
+        return
+      }
 
       if (!meta && !e.altKey && e.key === ";") {
         e.preventDefault()
@@ -1741,6 +2027,44 @@ export default function Home() {
         return
       }
 
+      // Playback shortcuts for the three Systems-panel toggles — Practice
+      // only, same gate "O" uses above. "F" is Freeze here rather than
+      // KeyboardShortcuts.jsx's global "jump to Fretboard" (see that file's
+      // own "f" branch, which stands down once document.body.dataset.dbMode
+      // reads "practice" so this handler gets the keydown instead).
+      if (!meta && !e.altKey && mode === "practice") {
+        if (e.key === "i" || e.key === "I") {
+          e.preventDefault()
+          toggleThreeTwoMode()
+          return
+        }
+        if (e.key === "f" || e.key === "F") {
+          e.preventDefault()
+          toggleFreeze()
+          return
+        }
+        if (e.key === "v" || e.key === "V") {
+          e.preventDefault()
+          toggleVoiceLeadingMode()
+          return
+        }
+      }
+
+      // In Focus only, "0"-"4" pick the 3:2 System's level directly (turning
+      // 3:2 on if it's off) instead of KeyboardShortcuts.jsx's global
+      // workspace jumps — that file's own digit branch stands down while
+      // document.body has the db-focus-mode class, letting the keydown fall
+      // through to here. Outside Focus, 0-4 go back to being Home/Practice/
+      // Gig/Create/Reference exactly as KeyboardShortcuts.jsx lists them.
+      if (!meta && !e.altKey && focusStage && /^[0-4]$/.test(e.key)) {
+        e.preventDefault()
+        if (fretboardTuning === "Standard") {
+          setThreeTwoMode(true)
+          setThreeTwoLevel(Number(e.key))
+        }
+        return
+      }
+
       if (meta && (e.key === "c" || e.key === "C")) {
         const b = bars[selectedIndex]
         if (b) { e.preventDefault(); setClipboardBar({ root: b.root, quality: b.quality, bass: b.bass }) }
@@ -1751,6 +2075,22 @@ export default function Home() {
         return
       }
       if (meta) return   // leave every other browser shortcut alone
+
+      // Focus's frozen fretboard claims the arrow keys for its own nav
+      // instead of the chord-editing ones below: Left/Right walk one measure
+      // at a time (freezeStep), Up starts the frozen chord looping at tempo
+      // with the full band, Down stops it, and Right — while that loop is
+      // sounding — carries it forward onto the next measure rather than just
+      // repointing the silent selection. Scoped to freezeMode && focusStage
+      // only, per Freeze's own "Cockpit-only ribbon vs Focus's snowflake"
+      // split (see toggleFreeze's doc comment above).
+      if (freezeMode && focusStage && (e.key === "ArrowLeft" || e.key === "ArrowRight" || e.key === "ArrowUp" || e.key === "ArrowDown")) {
+        e.preventDefault()
+        if (e.key === "ArrowUp") { startFreezeChordLoop(); return }
+        if (e.key === "ArrowDown") { stopFreezeChordLoop(); return }
+        freezeStep(e.key === "ArrowRight" ? 1 : -1)
+        return
+      }
 
       if (e.key === "ArrowLeft") {
         e.preventDefault()
@@ -1771,7 +2111,15 @@ export default function Home() {
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [bars, selectedIndex, clipboardBar, updateBar, cyclePalette, toggleColorMode, mode, practiceView, choosePracticeView, nudgeTempo, restoreTempo])
+    // freezeStep/startFreezeChordLoop/stopFreezeChordLoop/toggleFreeze are
+    // plain functions redeclared every render, closing over reactive state
+    // (bars, selectedIndex, freezeChordIndices, freezeLoopOn, isPlaying,
+    // fretboardBarIndex, upcomingBarIndices) that's listed below instead —
+    // that's what actually keeps onKey's closure fresh; the functions
+    // themselves don't need to be. toggleThreeTwoMode/toggleVoiceLeadingMode
+    // ARE listed directly — both are real useCallbacks, so this only
+    // re-subscribes when what they depend on actually changes.
+  }, [bars, selectedIndex, clipboardBar, updateBar, cyclePalette, toggleColorMode, mode, practiceView, choosePracticeView, nudgeTempo, restoreTempo, freezeMode, focusStage, freezeChordIndices, freezeLoopOn, isPlaying, fretboardBarIndex, upcomingBarIndices, toggleThreeTwoMode, toggleVoiceLeadingMode, exitFocusMode, fretboardTuning]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Library hydration + cloud sync is handled by useCloudLibrary; here we only
   // ensure audio stops if the component unmounts mid-playback.
@@ -1803,7 +2151,9 @@ export default function Home() {
   useEffect(() => {
     if (pendingStartRef.current) {
       pendingStartRef.current = false
-      startPlaybackRef.current().catch(console.error)
+      const countIn = pendingCountInRef.current
+      pendingCountInRef.current = undefined
+      startPlaybackRef.current(null, null, countIn).catch(console.error)
     }
   }, [bars])
 
@@ -2325,10 +2675,12 @@ export default function Home() {
           {MODES.find(m => m.id === mode)?.blurb}
         </p>
 
-        {/* Start practicing — the same starter charts as the Home strip, but
-            reachable without going home first. Each button loads the chart,
-            drops to practice tempo and starts the band (loadStarter already
-            does all three), after switching to whichever view is armed. */}
+        {/* Start practicing — the same fully loaded scenarios as the Home
+            strip, but reachable without going home first. Each one is a
+            chart plus its own Fretboard/3:2 System setup (SCENARIO_CONFIG
+            in starters.js); loadStarter drops to practice tempo, jumps to
+            Focus, and starts the band behind a 4-beat count-in — all on
+            its own, no view picker needed here anymore. */}
         {inMode("practice") && (
           <div style={{
             marginBottom: "20px", padding: "12px 14px",
@@ -2339,33 +2691,15 @@ export default function Home() {
                 Start practicing
               </span>
               <span style={{ fontSize: "var(--db-fs-xs)", color: "var(--muted)" }}>
-                Loads at 50 BPM and starts the band — pick the view first
+                Loads at 50 BPM into Focus, band and count-in included
               </span>
-              <div style={{ marginLeft: "auto", display: "flex", gap: 0, background: "var(--surface2)", border: "1px solid var(--line)", borderRadius: "9px", padding: "3px" }}>
-                {[["cockpit", "Practice"], ["focus", "Focus"]].map(([id, label]) => (
-                  <button
-                    key={id}
-                    onClick={() => setStarterView(id)}
-                    aria-pressed={starterView === id}
-                    title={`Starter charts open in ${label} view`}
-                    style={{
-                      font: "700 11.5px 'Instrument Sans', sans-serif", padding: "5px 11px", borderRadius: "6px",
-                      border: "none", letterSpacing: "0.02em", cursor: "pointer",
-                      background: starterView === id ? "var(--accent)" : "transparent",
-                      color: starterView === id ? "var(--accent-ink)" : "var(--muted)",
-                    }}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
             </div>
             <div style={{ display: "flex", gap: "7px", flexWrap: "wrap" }}>
               {STARTER_STRIP.map((preset) => (
                 <button
                   key={preset.id}
-                  onClick={() => { (starterView === "focus" ? enterFocusMode : () => choosePracticeView(starterView))(); loadStarter(preset.id) }}
-                  title={`Load ${preset.label} and start playing in ${starterView === "focus" ? "Focus" : "Practice"} view`}
+                  onClick={() => loadStarter(preset.id)}
+                  title={`Load ${preset.label} and start playing in Focus, after a 4-beat count-in`}
                   style={{
                     padding: "7px 14px", borderRadius: "999px", cursor: "pointer",
                     font: "600 13px 'Instrument Sans', sans-serif",
@@ -2415,8 +2749,6 @@ export default function Home() {
               saveToLibrary,
               promptHistory,
               promptTemplates: PROMPT_TEMPLATES,
-              chartBars: bars,
-              chartTitle: selectedForm,
             }}
             songSheetDraft={songSheetDraft}
             onDraftChange={setSongSheetDraft}
@@ -2429,8 +2761,6 @@ export default function Home() {
               showToast("SongCrafter sent the arrangement to SongSheet")
             }}
             originalTempo={originalTempo}
-            stopPlayback={stopPlayback}
-            playLineSection={playLineSection}
             panelStyle={panelStyle}
             eyebrowStyle={eyebrowStyle}
             selectStyle={selectStyle}
@@ -2785,6 +3115,7 @@ export default function Home() {
                       ["martino",    "Martino"],
                       ["hexchord",   "Hex·Chord"],
                       ["barry",      "Barry 6th"],
+                      ["harmonicMinor251", "Harm min ii-V-i"],
                     ].map(([f, label]) => (
                       <button key={f} onClick={() => {
                         // Turning a filter on implies you want to see the scale, not the chord
@@ -2794,7 +3125,9 @@ export default function Home() {
                           if (next) setFretboardView("scale")
                           return next
                         })
-                      }} style={{
+                      }} title={f === "harmonicMinor251"
+                        ? "One harmonic minor over the whole iiø7-V7alt-i — only this chord's own tones from that scale light up. Select a bar inside a minor ii-V-i for the shared tonic; elsewhere, this chord's own root stands in for it."
+                        : undefined} style={{
                         padding: "4px 10px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-sm)", cursor: "pointer",
                         background: scaleFilter === f && !threeTwoMode ? "color-mix(in srgb, var(--db-c-blue) 20%, var(--db-bg))" : "var(--db-panel-bg)",
                         border:     scaleFilter === f && !threeTwoMode ? "1px solid var(--db-c-blue)" : "1px solid var(--db-panel-border)",
@@ -2805,9 +3138,29 @@ export default function Home() {
                         {label}
                       </button>
                     ))}
+                    {/* "Altered" — a modifier, not a member of the nine-way
+                        mutually-exclusive PALETTE set (same standing as
+                        +Bebop Chromatic below): it sits alongside whichever
+                        of Chord/Scale/5-filters is active and only actually
+                        does anything to a chord that's really FUNCTIONING
+                        as a dominant resolution, on Chord/Scale/Pentatonic —
+                        Hexatonic/Hex·Chord/Barry/Martino/3:2 each keep their
+                        own rules untouched (see alteredMap's doc comment). */}
+                    <button onClick={() => setAlteredOverlay(v => !v)}
+                      title="A functioning dominant reharmonizes: Chord shows its tritone sub, Scale/Pentatonic show the melodic minor a half step up. Hexatonic/Hex·Chord/Barry/Martino/3:2 System are unaffected."
+                      style={{
+                        padding: "4px 10px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-sm)", cursor: "pointer",
+                        background: alteredOverlay ? "color-mix(in srgb, var(--passing) 22%, transparent)" : "var(--db-panel-bg)",
+                        border:     alteredOverlay ? "1px solid var(--passing)" : "1px solid var(--db-panel-border)",
+                        color:      alteredOverlay ? "var(--passing)" : "var(--db-text)",
+                        fontWeight: alteredOverlay ? 700 : 400,
+                        opacity:    alteredOverlay ? 1 : 0.7,
+                      }}>
+                      Altered
+                    </button>
                     {/* The "3:2 System" — the Pickup Music 3:2 system, leveled and
                         wired to the loaded song (src/lib/music/threeTwoSystem.js).
-                        Lives here now, as the 8th palette choice, rather than
+                        Lives here now, as the 9th palette choice, rather than
                         beside Fret Focus's Off/Manual/Auto: it isn't a window —
                         it replaces the note-selection pipeline the same way
                         Pentatonic or Barry do, just with its own visual system
@@ -2815,25 +3168,22 @@ export default function Home() {
                         instead of the maple board's usual root/chord/scale
                         palette. Turning it on clears scaleFilter (and vice
                         versa) so the highlighted button always matches what's
-                        actually on the board — no more all-eight-look-equally-
+                        actually on the board — no more all-nine-look-equally-
                         live state while only one of them is doing anything.
-                        Reads the loaded chart (bars), classifies its form (blues /
-                        jazz blues / standard / modal), and offers that form's own
-                        Chord-scales / Home-base-or-Inside / Chase-or-Color /
-                        Altered ladder. Colors are the reference page's exact hex
+                        Offers a fixed Chord scales / Blues scale / Minor /
+                        Major / Altered ladder — a "blues thinking" ladder
+                        applied to any chart, not just blues ones (see
+                        threeTwoSystem.js's own header comment for the exact
+                        rules). Colors are the reference page's exact hex
                         (--n-32-* in globals.css), not the app's usual note-role
                         palette — see Fretboard.js's threeTwo prop. */}
                     <button
-                      onClick={() => setThreeTwoMode(v => {
-                        const next = !v
-                        if (next) setScaleFilter(null)
-                        return next
-                      })}
+                      onClick={toggleThreeTwoMode}
                       disabled={fretboardTuning !== "Standard"}
                       aria-pressed={threeTwoMode}
                       title={fretboardTuning !== "Standard"
                         ? "3:2 shapes are built for standard tuning only"
-                        : "The full leveled 3:2 System, matched to this song's chords"}
+                        : "The full leveled 3:2 System, matched to this song's chords — also \"I\""}
                       style={{
                         padding: "4px 10px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-sm)",
                         cursor: fretboardTuning === "Standard" ? "pointer" : "not-allowed",
@@ -2876,6 +3226,36 @@ export default function Home() {
                           {threeTwoChoice.why}
                         </span>
                       )}
+                    </div>
+                  )}
+                  {/* Levels 2-4's own density filter — the level's 7-note mode
+                      (Dorian / Mixolydian, or Level 4's altered override) by
+                      default, or a pentatonic/hexatonic reduction of the same
+                      family. Doesn't touch scaleFilter — that toggle is a true
+                      nine-way mutually-exclusive PALETTE choice with 3:2
+                      System itself, so it can't also mean something while 3:2
+                      is on (see threeTwoDensity's own doc comment above). */}
+                  {threeTwoMode && fretboardTuning === "Standard" && threeTwoLevel >= 2 && (
+                    <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap", marginTop: "6px" }}>
+                      <span style={{ font: "700 10px 'IBM Plex Mono', monospace", color: "var(--muted)", letterSpacing: "0.1em", textTransform: "uppercase" }}>
+                        Shape
+                      </span>
+                      <div style={{ display: "inline-flex", border: "1px solid var(--line)", borderRadius: "7px", overflow: "hidden" }}>
+                        {[
+                          ["mode", threeTwoLevel === 2 ? "Dorian" : "Mixolydian"],
+                          ["pentatonic", "Pentatonic"],
+                          ["hexatonic", "Hexatonic"],
+                        ].map(([id, label]) => (
+                          <button key={id} onClick={() => setThreeTwoDensity(id)} aria-pressed={threeTwoDensity === id}
+                            style={{
+                              font: "700 11px 'Instrument Sans', sans-serif", padding: "5px 10px", border: "none", cursor: "pointer",
+                              background: threeTwoDensity === id ? "var(--accent)" : "var(--surface)",
+                              color: threeTwoDensity === id ? "var(--accent-ink)" : "var(--muted)",
+                            }}>
+                            {label}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   )}
 
@@ -2924,7 +3304,7 @@ export default function Home() {
                   </span>
                   {threeTwoMode && fretboardTuning === "Standard" && (
                     <div style={{ font: "600 10.5px 'Instrument Sans', sans-serif", color: "var(--muted)", fontStyle: "italic", marginBottom: "8px" }}>
-                      The 3:2 System is drawing its own connections right now — Voice Leading and Fret Focus apply again once it&apos;s off.
+                      The 3:2 System draws its own shapes right now — Melody and Fret Focus apply again once it&apos;s off. Voice Leading still works: it finds the shortest way from the current shape to the 3rd of the next chord.
                     </div>
                   )}
 
@@ -2943,7 +3323,7 @@ export default function Home() {
                       +Bebop Chromatic
                     </button>
                     {[
-                      ["voice",  "Voice Leading", "Chord tones to bounce on, all at equal weight — then one landing note (and its chromatic bridge when needed) appears as the bar turns over"],
+                      ["voice",  "Voice Leading", "Chord tones to bounce on, all at equal weight — then one landing note (and its chromatic bridge when needed) appears as the bar turns over — also \"V\""],
                       ["melody", "Melody",        "Light the melody you drew in Melody Paths below"],
                       ["off",    "Off",           "Chord and scale tones only"],
                     ].map(([id, label, hint]) => (
@@ -3213,8 +3593,8 @@ export default function Home() {
                   onClick={toggleFreeze}
                   aria-pressed={freezeMode}
                   title={freezeMode
-                    ? "Unfreeze — picks the band back up at the tempo that just stopped"
-                    : "Freeze — stop the band, tap any of the 5 chords above to hold its scale on the neck"}
+                    ? "Unfreeze — picks the band back up at the tempo that just stopped (also \"F\")"
+                    : "Freeze — stop the band, tap any of the 5 chords above to hold its scale on the neck (also \"F\")"}
                   style={{
                     display: "flex", alignItems: "center", justifyContent: "center",
                     width: "38px", height: "38px", flexShrink: 0, alignSelf: "center",
@@ -3228,6 +3608,48 @@ export default function Home() {
                   ❄
                 </button>
               )}
+
+              {/* Playback shortcuts, kept where the eye already is instead of
+                  behind "?" — the three Systems toggles always apply, the
+                  frozen-nav row only once Freeze is actually on (those keys
+                  do nothing otherwise, so showing them before then would be
+                  a promise the board can't keep yet). */}
+              {focusStage && (() => {
+                const kbdStyle = {
+                  display: "inline-block", padding: "1px 5px", marginRight: "3px",
+                  borderRadius: "4px", border: "1px solid var(--db-panel-border)",
+                  background: "var(--db-input-bg)", color: "var(--db-accent)",
+                  font: "700 9px 'IBM Plex Mono', monospace",
+                }
+                const rowStyle = { display: "flex", gap: "9px", font: "600 9.5px 'Instrument Sans', sans-serif" }
+                return (
+                  <div
+                    title="Keyboard shortcuts — playback"
+                    style={{
+                      display: "flex", flexDirection: "column", justifyContent: "center", gap: "4px",
+                      padding: "6px 10px", borderRadius: "var(--db-r-md)",
+                      border: "1px solid var(--line)", background: "var(--surface)",
+                      flexShrink: 0, alignSelf: "center", color: "var(--muted)",
+                    }}
+                  >
+                    <div style={rowStyle}>
+                      <span><kbd style={kbdStyle}>F</kbd>freeze</span>
+                      <span><kbd style={kbdStyle}>I</kbd>3:2</span>
+                      <span><kbd style={kbdStyle}>V</kbd>voice</span>
+                    </div>
+                    <div style={rowStyle} title="0 Chord scales · 1 Blues scale · 2 Minor · 3 Major · 4 Altered">
+                      <span><kbd style={kbdStyle}>0-4</kbd>3:2 level</span>
+                    </div>
+                    {freezeMode && (
+                      <div style={rowStyle}>
+                        <span><kbd style={kbdStyle}>← →</kbd>measure</span>
+                        <span><kbd style={kbdStyle}>↑</kbd>play</span>
+                        <span><kbd style={kbdStyle}>↓</kbd>stop</span>
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
             </div>
 
             {/* What you're playing, named, immediately above the neck. The
@@ -3257,7 +3679,7 @@ export default function Home() {
                 entries would just be describing colors that aren't on the board. */}
             {threeTwoActiveOnBoard ? (
               <div className="db-fret-legend" style={{ display: "flex", gap: "14px", flexWrap: "wrap", marginBottom: "12px", fontSize: "12px", color: "var(--muted)" }}>
-                {threeTwoLevel === 0 ? (
+                {threeTwoBoard.kind === "scale" ? (
                   <>
                     <span><span style={{ color: "var(--n-32-red)" }}>●</span> Root</span>
                     <span><span style={{ color: "var(--n-32-blue)" }}>●</span> Chord tone</span>
@@ -3270,7 +3692,16 @@ export default function Home() {
                     </span>
                   ))
                 )}
+                {threeTwoChoice.blueNote && (
+                  <span><span style={{ color: "var(--n-32-green)" }}>●</span> Tweakable 3rd — lean into bending it</span>
+                )}
                 <span style={{ fontStyle: "italic" }}>{threeTwoChoice.why || "3:2 System"}</span>
+                {threeTwoVoiceLeadTarget && (
+                  <span style={{ color: "var(--n-next)" }}>○ {threeTwoVoiceLeadTarget} · 3rd of the next chord · ⌒ shortest way in</span>
+                )}
+                {threeTwoLevel1ChordTones.length > 0 && (
+                  <span style={{ color: "var(--n-next)" }}>○ {threeTwoLevel1ChordTones.join(" ")} · this chord&apos;s own notes, ghosted over the box</span>
+                )}
               </div>
             ) : (
               <div className="db-fret-legend" style={{ display: "flex", gap: "14px", flexWrap: "wrap", marginBottom: "12px", fontSize: "12px", color: "var(--muted)" }}>
@@ -3315,8 +3746,14 @@ export default function Home() {
                 board takes the width it's given, so nothing overflows. */}
             <div className={focusStage ? "db-focus-board" : undefined} style={{ overflowX: "auto", marginBottom: "4px" }}>
               <Fretboard
-                chordNotes={fretboardInfo.notes || []}
-                rootNote={martinoMap ? martinoMap.displayRoot : (fretboardBar.userTonic ?? fretboardBar.root)}
+                chordNotes={effectiveChordNotes}
+                rootNote={
+                  martinoMap ? martinoMap.displayRoot
+                  : !alteredMap ? (fretboardBar.userTonic ?? fretboardBar.root)
+                  : (!scaleFilter && fretboardView === "chord") ? alteredMap.tritoneRoot
+                  : (!scaleFilter || scaleFilter === "pentatonic") ? alteredMap.displayRoot
+                  : (fretboardBar.userTonic ?? fretboardBar.root)
+                }
                 scaleNotes={displayedScaleNotes}
                 targetNotes={voicePathActive
                   ? (voiceLeadPath ? [voiceLeadPath.target] : [])
@@ -3328,7 +3765,15 @@ export default function Home() {
                 enclosureNotes={enclosureDisplay.notes}
                 seventhNotes={seventhDisplayNotes}
                 labelMode={labelMode}
-                ghostRootNote={anticipateBar?.userTonic ?? anticipateBar?.root ?? null}
+                ghostRootNote={
+                  // Level 1's ghosts are THIS bar's own chord tones, not the
+                  // next bar's — degree-label them against the chord they
+                  // actually belong to (an E7's G# reads as "the 3rd of E7",
+                  // not some degree of the blanket's A tonic).
+                  (threeTwoActiveOnBoard && threeTwoLevel === 1)
+                    ? (fretboardBar.userTonic ?? fretboardBar.root)
+                    : (anticipateBar?.userTonic ?? anticipateBar?.root ?? null)
+                }
                 focusStart={activeFocusStart}
                 focusSpan={focusSpan}
                 animate={isPlaying && playheadIndex !== null}
@@ -3341,6 +3786,8 @@ export default function Home() {
                   kind: threeTwoBoard.kind,
                   cells: threeTwoBoard.cells,
                   bandRuns: threeTwoBoard.bandRuns,
+                  voiceLeadTarget: threeTwoVoiceLeadTarget,
+                  voiceLeadChordTones: threeTwoLevel1ChordTones,
                 }}
               />
             </div>
@@ -3365,6 +3812,8 @@ export default function Home() {
                 onTogglePracticeMode={setPracticeModeAndTempo}
                 originalTempo={originalTempo}
                 onOpenSettings={openBandPanel}
+                countInBeats={countInBeats}
+                onCycleCountIn={cycleCountIn}
               />
             )}
 
@@ -4166,50 +4615,39 @@ export default function Home() {
           )
         })()}
 
-        {inMode("practice") && (
-          <PowerPanel
-            title="BeatForge Metronome"
-            subtitle="Standalone time workout with programmable accents"
-            open={openControlPanels.metronome}
-            onToggle={() => toggleControlPanel("metronome")}
-            keepMounted
-            shortcutId="beatforge-metronome"
-          >
-            <MetronomePanel
-              apiRef={beatforgeRef}
-              onBeforeStart={stopPlayback}
-              onUserGenerate={() => setLoadedLibraryNum(null)}
-              panelStyle={{ ...panelStyle, margin: "0" }}
-              eyebrowStyle={eyebrowStyle}
-              selectStyle={selectStyle}
-              inlineLabelStyle={inlineLabelStyle}
-            />
-          </PowerPanel>
-        )}
-
-        {inMode("practice") && (
-          <PowerPanel
-            title="BeatForge Library"
-            subtitle="30 bebop rhythm patterns — tap to load and play"
-            open={openControlPanels.beatforgeLibrary}
-            onToggle={() => toggleControlPanel("beatforgeLibrary")}
-            shortcutId="beatforge-library"
-          >
-            <BeatForgeLibrary
-              loadedNum={loadedLibraryNum}
-              onLoad={(pattern) => {
-                setLoadedLibraryNum(pattern.num)
-                // Reveal the Metronome panel too — that's where the loaded
-                // sheet and Start/Stop live.
-                setOpenControlPanels((prev) => ({ ...prev, metronome: true }))
-                beatforgeRef.current?.loadPattern?.(pattern)
-              }}
-            />
-          </PowerPanel>
-        )}
-
         {dnMeta && inMode("practice") && <DesertNoirPanel meta={dnMeta} />}
       </section>
+
+      {/* ── BeatForge ─────────────────────────────────────────────
+          Pulled out of Practice into its own tab. Metronome + Library today;
+          Line Lab and Licktionary join them here in a later step. */}
+      {inMode("beatforge") && (
+        <BeatForgeWorkspace
+          beatforgeRef={beatforgeRef}
+          stopPlayback={stopPlayback}
+          playLineSection={playLineSection}
+          onUserGenerate={() => setLoadedLibraryNum(null)}
+          loadedLibraryNum={loadedLibraryNum}
+          onLoadPattern={(pattern) => {
+            setLoadedLibraryNum(pattern.num)
+            // Reveal the Metronome panel too — that's where the loaded
+            // sheet and Start/Stop live.
+            setOpenControlPanels((prev) => ({ ...prev, metronome: true }))
+            beatforgeRef.current?.loadPattern?.(pattern)
+          }}
+          metronomeOpen={openControlPanels.metronome}
+          libraryOpen={openControlPanels.beatforgeLibrary}
+          onToggleMetronome={() => toggleControlPanel("metronome")}
+          onToggleLibrary={() => toggleControlPanel("beatforgeLibrary")}
+          chartBars={bars}
+          chartTitle={selectedForm}
+          songSheetDraft={songSheetDraft}
+          panelStyle={panelStyle}
+          eyebrowStyle={eyebrowStyle}
+          selectStyle={selectStyle}
+          inlineLabelStyle={inlineLabelStyle}
+        />
+      )}
 
       {/* Sticky transport (spec §5.7) — always reachable in Practice mode,
           synced display of the same play/loop/tempo/swing/timer state the
@@ -4230,6 +4668,8 @@ export default function Home() {
           onTogglePracticeMode={setPracticeModeAndTempo}
           originalTempo={originalTempo}
           onOpenSettings={openBandPanel}
+          countInBeats={countInBeats}
+          onCycleCountIn={cycleCountIn}
         />
       )}
 

@@ -592,9 +592,10 @@ export function exportMusicXML({ bars, title, tempo }) {
 // ─── Line Lab: a generated line as MusicXML ──────────────────────────────────
 // Lines come back from /api/generate-line in the compact tab schema
 // { bars: [{ c, n: [[string, fret, beats], …] }] }, which notation software
-// can't read. This writes the same line as a single-voice melody part with the
-// chord symbols above it and the original string/fret preserved as MusicXML
-// technical marks, so a tab staff renders the fingering the lab showed you.
+// can't read. This writes the same line as a two-staff grand staff — treble
+// clef standard notation on staff 1, a real 6-line TAB clef on staff 2 — the
+// same "Notation + TAB" pairing the lab shows on screen, not just fret/string
+// numbers annotated onto a single staff.
 
 const LINE_DIVISIONS = 12   // per quarter — divides cleanly by 2, 3, and 4
 
@@ -628,12 +629,47 @@ function lineDurationOf(beats) {
 
 const LINE_OPEN_MIDI = { 1: 64, 2: 59, 3: 55, 4: 50, 5: 45, 6: 40 }
 
+// Two beams per 4/4 bar (first 4 eighth-note-units, then the last 4) —
+// matches the beaming LineNotation.jsx's on-screen ABC view now uses, so an
+// exported eighth-note line reads the same way it looked in the lab instead
+// of importing as one flagged note per beam. Only plain (non-dotted,
+// non-triplet) eighth notes are grouped; anything else stands alone.
+function beamRolesForBar(barNotes) {
+  const roles = new Array(barNotes.length).fill(null)
+  let pos = 0
+  let runStart = -1
+  let runHalf = -1
+  const closeRun = (endExclusive) => {
+    if (runStart >= 0 && endExclusive - runStart >= 2) {
+      roles[runStart] = "begin"
+      for (let k = runStart + 1; k < endExclusive - 1; k++) roles[k] = "continue"
+      roles[endExclusive - 1] = "end"
+    }
+    runStart = -1
+  }
+  barNotes.forEach(([, , dur, wait = 0], i) => {
+    const d = Number(dur) || 0
+    const w = Number(wait) || 0
+    const start = pos + w
+    const half = Math.floor(start / 2)
+    const eligible = Math.abs(d - 0.5) < 1e-6
+    const continues = eligible && w === 0 && runStart >= 0 && half === runHalf
+    if (!continues) closeRun(i)
+    if (eligible && runStart < 0) { runStart = i; runHalf = half }
+    else if (!eligible) runStart = -1
+    pos = start + d
+  })
+  closeRun(barNotes.length)
+  return roles
+}
+
 export function exportLineMusicXML({ line, title, tempo, level }) {
   const lineBars = line?.bars ?? []
   if (!lineBars.length) return false
 
   const bpm = Math.round(tempo || 120)
   const label = [title || "Line Lab", level ? `L${level}` : null].filter(Boolean).join(" — ")
+  const MEASURE_DIVS = 4 * LINE_DIVISIONS
 
   const x = []
   x.push('<?xml version="1.0" encoding="UTF-8"?>')
@@ -652,7 +688,10 @@ export function exportLineMusicXML({ line, title, tempo, level }) {
       x.push(`        <divisions>${LINE_DIVISIONS}</divisions>`)
       x.push('        <key><fifths>0</fifths></key>')
       x.push('        <time><beats>4</beats><beat-type>4</beat-type></time>')
-      x.push('        <clef><sign>G</sign><line>2</line></clef>')
+      x.push('        <staves>2</staves>')
+      x.push('        <clef number="1"><sign>G</sign><line>2</line></clef>')
+      x.push('        <clef number="2"><sign>TAB</sign><line>5</line></clef>')
+      x.push('        <staff-details number="2"><staff-lines>6</staff-lines></staff-details>')
       x.push('      </attributes>')
       x.push('      <direction placement="above">')
       x.push(`        <direction-type><metronome parentheses="no"><beat-unit>quarter</beat-unit><per-minute>${bpm}</per-minute></metronome></direction-type>`)
@@ -673,35 +712,55 @@ export function exportLineMusicXML({ line, title, tempo, level }) {
       x.push('      </harmony>')
     })
 
-    let filled = 0   // in divisions, so a short bar can be padded with a rest
-    ;(bar.n || []).forEach(([s, f, b, wait = 0]) => {
+    // One shared rhythm/pitch event list — staff 1 (standard notation) and
+    // staff 2 (TAB) render the exact same events via <backup>, just under a
+    // different <staff> number, with the string/fret technical mark (which
+    // is what makes a TAB-clef staff actually show fret numbers) on staff 2
+    // alone.
+    const events = []
+    const beamRoles = beamRolesForBar(bar.n || [])
+    ;(bar.n || []).forEach(([s, f, b, wait = 0], ni) => {
       const waitDivs = Math.max(0, Math.round((Number(wait) || 0) * LINE_DIVISIONS))
-      if (waitDivs) {
-        filled += waitDivs
-        x.push(`      <note><rest/><duration>${waitDivs}</duration></note>`)
-      }
+      if (waitDivs) events.push({ rest: true, duration: waitDivs })
       const d = lineDurationOf(b)
       const dur = Math.max(1, Math.round(b * LINE_DIVISIONS))
       const pitch = midiToMXLPitch((LINE_OPEN_MIDI[s] ?? 64) + (Number(f) || 0))
       if (!pitch) return
-      filled += dur
-      x.push('      <note>')
-      x.push(`        <pitch><step>${pitch.step}</step>${pitch.alter !== 0 ? `<alter>${pitch.alter}</alter>` : ""}<octave>${pitch.octave}</octave></pitch>`)
-      x.push(`        <duration>${dur}</duration>`)
-      x.push(`        <type>${d.type}</type>`)
-      for (let i = 0; i < d.dots; i++) x.push('        <dot/>')
-      if (pitch.accidental) x.push(`        <accidental>${pitch.accidental}</accidental>`)
-      if (d.triplet) x.push('        <time-modification><actual-notes>3</actual-notes><normal-notes>2</normal-notes></time-modification>')
-      x.push('        <notations><technical>')
-      x.push(`          <string>${s}</string><fret>${Number(f) || 0}</fret>`)
-      x.push('        </technical></notations>')
-      x.push('      </note>')
+      events.push({
+        rest: false, duration: dur, type: d.type, dots: d.dots, triplet: d.triplet,
+        pitch, string: s, fret: Number(f) || 0, beam: beamRoles[ni],
+      })
     })
+    const filled = events.reduce((sum, e) => sum + e.duration, 0)
+    if (filled < MEASURE_DIVS) events.push({ rest: true, duration: MEASURE_DIVS - filled })
 
-    const barDivs = 4 * LINE_DIVISIONS
-    if (filled < barDivs) {
-      x.push(`      <note><rest/><duration>${barDivs - filled}</duration></note>`)
+    const emitStaff = (staffNum, withTab) => {
+      events.forEach((ev) => {
+        if (ev.rest) {
+          x.push(`      <note><rest/><duration>${ev.duration}</duration><staff>${staffNum}</staff></note>`)
+          return
+        }
+        x.push('      <note>')
+        x.push(`        <pitch><step>${ev.pitch.step}</step>${ev.pitch.alter !== 0 ? `<alter>${ev.pitch.alter}</alter>` : ""}<octave>${ev.pitch.octave}</octave></pitch>`)
+        x.push(`        <duration>${ev.duration}</duration>`)
+        x.push(`        <type>${ev.type}</type>`)
+        for (let i = 0; i < ev.dots; i++) x.push('        <dot/>')
+        if (ev.pitch.accidental) x.push(`        <accidental>${ev.pitch.accidental}</accidental>`)
+        if (ev.triplet) x.push('        <time-modification><actual-notes>3</actual-notes><normal-notes>2</normal-notes></time-modification>')
+        x.push(`        <staff>${staffNum}</staff>`)
+        if (ev.beam) x.push(`        <beam number="1">${ev.beam}</beam>`)
+        if (withTab) {
+          x.push('        <notations><technical>')
+          x.push(`          <string>${ev.string}</string><fret>${ev.fret}</fret>`)
+          x.push('        </technical></notations>')
+        }
+        x.push('      </note>')
+      })
     }
+
+    emitStaff(1, false)
+    x.push(`      <backup><duration>${MEASURE_DIVS}</duration></backup>`)
+    emitStaff(2, true)
 
     x.push('    </measure>')
   })

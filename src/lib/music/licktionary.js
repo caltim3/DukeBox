@@ -204,7 +204,7 @@ function transposeChord(symbol, semitones) {
   return `${LICK_KEYS[root]}${m[3]}`
 }
 
-function guitarPosition(midi) {
+export function guitarPosition(midi) {
   const choices = []
   for (let s = 1; s <= 6; s++) {
     const fret = midi - OPEN_MIDI[s]
@@ -332,9 +332,9 @@ export function transposeLine(line, fromKey = "C", toKey = "C") {
   }
 }
 
-function positionsForMidi(midi) {
+function positionsForMidi(midi, maxString = 6) {
   const out = []
-  for (let s = 1; s <= 6; s++) {
+  for (let s = 1; s <= maxString; s++) {
     const fret = midi - OPEN_MIDI[s]
     if (fret >= 0 && fret <= 24) out.push({ s, fret })
   }
@@ -360,8 +360,19 @@ export function refingerLine(line, positionFret, span = 5) {
 
   const center = (start + end) / 2
 
-  function solve(octaveShift) {
-    const candidates = events.map((event) => positionsForMidi(event.midi + octaveShift))
+  // A given fret window reads a full octave-plus higher on the top strings
+  // than on the wound bass ones (frets 3-7 span roughly F3-B4 across strings
+  // 1-4 alone), but the cost below only ever scored fret-window fit and
+  // note-to-note motion — nothing preferred a treble string over a bass one
+  // for an equally-in-window fret. That let a whole improvised line land on
+  // strings 5-6 whenever that happened to minimize fret jumps, which reads
+  // as "the wrong octave" even though the fret numbers were correct. `solve`
+  // now takes a string ceiling; the caller below tries strings 1-4 (the
+  // register a single-note lead line actually lives in) across every octave
+  // shift first, and only opens up strings 5-6 if nothing in that set can
+  // hold the whole phrase.
+  function solve(octaveShift, maxString) {
+    const candidates = events.map((event) => positionsForMidi(event.midi + octaveShift, maxString))
     if (candidates.some((options) => !options.length)) return null
     const costs = []
     const back = []
@@ -401,8 +412,13 @@ export function refingerLine(line, positionFret, span = 5) {
 
   // Moving a lick a long way up or down the guitar sometimes requires the
   // whole phrase to change octave. Treat that as one global displacement, not
-  // per-note octave hopping, so the melodic contour remains intact.
-  const solutions = [0, 12, -12, 24, -24].map(solve).filter(Boolean)
+  // per-note octave hopping, so the melodic contour remains intact. Try every
+  // octave shift restricted to strings 1-4 first; only widen to the full
+  // 1-6 set (for every shift) if nothing in that pass could hold the phrase
+  // — e.g. a genuinely low target position where strings 1-4 can't reach.
+  const OCTAVE_SHIFTS = [0, 12, -12, 24, -24]
+  const trebleSolutions = OCTAVE_SHIFTS.map((o) => solve(o, 4)).filter(Boolean)
+  const solutions = trebleSolutions.length ? trebleSolutions : OCTAVE_SHIFTS.map((o) => solve(o, 6)).filter(Boolean)
   const bestSolution = solutions.reduce((best, next) => !best || next.score < best.score ? next : best, null)
   if (!bestSolution) return line
   const { path, octaveShift } = bestSolution

@@ -185,16 +185,24 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
   // crowded every dot into its neighbors on both strings and frets.
   let threeTwoBands = []
   if (threeTwoActive && threeTwo.kind === "scale") {
-    dots = threeTwo.cells.map((c) => ({
-      key: `32s${c.si}-${c.f}`,
-      cx: dotX(c.f), cy: strY(c.si), r: c.tier === "tension" ? 8 : 10.5,
-      color: c.tier === "root" ? "var(--n-32-red)" : c.tier === "chord" ? "var(--n-32-blue)" : "var(--n-32-tension)",
-      thirtyTwoStroke: c.tier === "tension" ? "var(--n-32-tension-stroke)" : null,
-      textColor: c.tier === "tension" ? "var(--n-32-tension-text)" : "#fff",
-      label: c.noteName, text: c.text,
-      si: c.si, f: c.f, held: false,
-      isRoot: false, isTarget: false, isPassing: false, isGuide: false, isEnclosure: false,
-    }))
+    dots = threeTwo.cells.map((c) => {
+      // Level 2's tweakable 3rd (buildScaleBoardFromNotes's isTweakThird) —
+      // a deliberately bent note against a chord that doesn't actually have
+      // a minor 3rd — overrides the usual root/chord/tension tier color the
+      // same way the penta board's isBlueNote does below.
+      const color = c.isTweakThird ? "var(--n-32-green)"
+        : c.tier === "root" ? "var(--n-32-red)" : c.tier === "chord" ? "var(--n-32-blue)" : "var(--n-32-tension)"
+      return {
+        key: `32s${c.si}-${c.f}`,
+        cx: dotX(c.f), cy: strY(c.si), r: c.tier === "tension" && !c.isTweakThird ? 8 : 10.5,
+        color,
+        thirtyTwoStroke: c.tier === "tension" && !c.isTweakThird ? "var(--n-32-tension-stroke)" : null,
+        textColor: c.tier === "tension" && !c.isTweakThird ? "var(--n-32-tension-text)" : "#fff",
+        label: c.noteName, text: c.text,
+        si: c.si, f: c.f, held: false,
+        isRoot: false, isTarget: false, isPassing: false, isGuide: false, isEnclosure: false,
+      }
+    })
   } else if (threeTwoActive && threeTwo.kind === "penta") {
     dots = threeTwo.cells.map((c) => {
       // The blue note (b3 of a minor pentatonic chased onto a dominant
@@ -253,9 +261,51 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
         ghosts.push({ key: `g${si}-${f}`, cx: dotX(f), cy: strY(si), si, f, label: noteName, text: ghostText })
       }
     })
+  } else if (threeTwoActive && threeTwo.voiceLeadTarget) {
+    // 3:2 System + Voice Leading (src/lib/music/threeTwoSystem.js's
+    // chordThird): every fret/string carrying the 3rd of the chord coming
+    // up, ghosted the same way as the ordinary board's next-chord guide
+    // tones — just one note instead of a 3rd/7th pair, since a pentatonic
+    // shape doesn't reliably contain the chord's 7th to pair it with.
+    const targetNorm = norm(threeTwo.voiceLeadTarget)
+    strings.forEach((open, si) => {
+      const openChroma = NOTES_FLAT.indexOf(norm(open))
+      if (openChroma === -1) return
+      for (let f = 0; f <= FRET_COUNT; f++) {
+        const noteName = NOTES_FLAT[(openChroma + f) % 12]
+        if (noteName !== targetNorm) continue
+        const ghostText = labelMode === "degrees" && ghostRootNote
+          ? degreeOf(noteName, norm(ghostRootNote))
+          : noteName
+        ghosts.push({ key: `g32-${si}-${f}`, cx: dotX(f), cy: strY(si), si, f, label: noteName, text: ghostText })
+      }
+    })
+  } else if (threeTwoActive && threeTwo.voiceLeadChordTones?.length) {
+    // Level 1 (Blues scale) + Voice Leading: the blanket pentatonic never
+    // moves, so instead of routing anywhere, ghost the CURRENT chord's own
+    // full spelling (root/3rd/5th/b7, whichever it has) on top of the fixed
+    // box — e.g. an E7 in an A blues ghosts E G# B D over the A minor
+    // pentatonic, however much of that falls outside the box. No routes:
+    // this isn't resolving anywhere, it's showing what's here right now.
+    const targets = new Set(threeTwo.voiceLeadChordTones.map(norm))
+    strings.forEach((open, si) => {
+      const openChroma = NOTES_FLAT.indexOf(norm(open))
+      if (openChroma === -1) return
+      for (let f = 0; f <= FRET_COUNT; f++) {
+        const noteName = NOTES_FLAT[(openChroma + f) % 12]
+        if (!targets.has(noteName)) continue
+        const ghostText = labelMode === "degrees" && ghostRootNote
+          ? degreeOf(noteName, norm(ghostRootNote))
+          : noteName
+        ghosts.push({ key: `g32c-${si}-${f}`, cx: dotX(f), cy: strY(si), si, f, label: noteName, text: ghostText })
+      }
+    })
   }
 
   // ── Routes: the shortest playable path from each live guide tone to a ghost ─
+  // (a no-op under the 3:2 System — its dots never set isGuide, see the two
+  // dots.map() branches above — so the block below only ever fires for the
+  // ordinary board; the 3:2 board's own single route is built separately.)
   const routes = []
   if (ghosts.length && guideToneDirections) {
     for (const d of dots) {
@@ -307,6 +357,33 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
         key: `bl${b.key}`, startFret: b.f, endFret: best.f,
         d: `M${b.cx},${b.cy} Q${mx},${my} ${best.cx},${best.cy}`,
         from: b.label, to: best.label,
+      })
+    }
+  }
+
+  // ── 3:2 System's own route: the single shortest playable hop from the
+  // current shape to the ghosted 3rd, rather than one arrow per lit note —
+  // the pentatonic shape doesn't have discrete guide-tone roles to route
+  // from, so this picks whichever one of its notes is actually closest.
+  if (threeTwoActive && ghosts.length && threeTwo.voiceLeadTarget) {
+    let best = null, bestCost = Infinity
+    for (const d of dots) {
+      for (const g of ghosts) {
+        const df = Math.abs(g.f - d.f), ds = Math.abs(g.si - d.si)
+        if (df > MAX_ROUTE_FRETS || ds > MAX_ROUTE_STRINGS) continue
+        const cost = df + ds * 2.2
+        if (cost < bestCost) { bestCost = cost; best = { d, g } }
+      }
+    }
+    if (best) {
+      const { d, g } = best
+      const mx = (d.cx + g.cx) / 2
+      const my = (d.cy + g.cy) / 2 - (d.si === g.si ? 15 : 10)
+      routes.push({
+        key: `r32-${d.key}`, fromKey: d.key,
+        startFret: d.f, endFret: g.f,
+        d: `M${d.cx},${d.cy} Q${mx},${my} ${g.cx},${g.cy}`,
+        from: d.label, to: g.label, semis: null,
       })
     }
   }
@@ -476,7 +553,12 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
             opacity={(inFocus(r.startFret) || inFocus(r.endFret)) ? 0.95 : 0}
             pathLength={1} strokeDasharray="1 1" strokeDashoffset={0}
             className={phaseOn ? "dbfb-route" : undefined} style={phaseOn ? phaseDur : undefined}>
-            <title>{`${r.from} → ${r.to} · ${Math.abs(r.semis) === 1 ? "a semitone" : "a whole tone"} ${r.semis > 0 ? "up" : "down"}`}</title>
+            {/* The 3:2 System's route (semis: null — see above) isn't a
+                semitone/whole-tone resolution the way the ordinary board's
+                guide-tone routes are, so its tooltip just names the hop. */}
+            <title>{r.semis == null
+              ? `${r.from} → ${r.to} · shortest way to the next chord's 3rd`
+              : `${r.from} → ${r.to} · ${Math.abs(r.semis) === 1 ? "a semitone" : "a whole tone"} ${r.semis > 0 ? "up" : "down"}`}</title>
           </path>
         ))}
       </g>

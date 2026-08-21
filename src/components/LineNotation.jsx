@@ -29,23 +29,39 @@ function durationUnits(beats) {
   return `*${units.toFixed(3).replace(/0+$/, "").replace(/\.$/, "")}`
 }
 
+// ABC beams whatever notes aren't separated by whitespace — there's no
+// separate beam markup. The old version put a space after every single
+// token, so every eighth note rendered as its own flagged note: correct
+// pitches, but at several times the horizontal width a beamed line needs,
+// which is what pushed even a 3-4 bar line onto two cramped rows instead of
+// fitting on one. This groups eighth-or-shorter notes into the standard two
+// beams per 4/4 bar (first 4 eighth-note-units, then the last 4) by joining
+// them with no separator, breaking the group at a rest, a quarter note or
+// longer, or the half-bar seam — same as engraving eighth notes by hand.
 function lineToAbcNotes(line) {
-  return (line?.bars || []).map((bar) => {
+  const bars = (line?.bars || []).map((bar) => {
     const chord = String(bar.c || "").trim()
     const chordToken = chord ? `"${chord.replaceAll('"', "")}"` : ""
     const notes = bar.n || []
-    const tokens = []
+    const pieces = []   // { text, beamable, group }
     let tripletLeft = 0
+    let eighthPos = 0   // running eighth-note-unit position within the bar
+
+    const pushRest = (beats) => {
+      pieces.push({ text: `z${durationUnits(beats)}`, beamable: false, group: -1 })
+      eighthPos += beats * 2
+    }
 
     notes.forEach((note, index) => {
       const [s, f, dur = 0.5, wait = 0] = note
-      if (Number(wait) > 0) tokens.push(`z${durationUnits(wait)}`)
+      if (Number(wait) > 0) pushRest(Number(wait))
 
       const isTriplet = Math.abs(Number(dur) - 1 / 3) < 0.01
+      let tripletHead = false
       if (!tripletLeft && isTriplet) {
         const next = notes.slice(index, index + 3)
         if (next.length === 3 && next.every((n) => Math.abs(Number(n[2]) - 1 / 3) < 0.01 && Number(n[3] || 0) === 0)) {
-          tokens.push("(3")
+          tripletHead = true
           tripletLeft = 3
         }
       }
@@ -53,13 +69,44 @@ function lineToAbcNotes(line) {
       const midi = lineNoteMidi(Number(s), Number(f))
       // Guitar notation sounds an octave below written pitch. ABCJS's guitar
       // TAB follows that convention, so write generated line events +12 here.
-      tokens.push(`${midiToAbc(midi + 12)}${tripletLeft ? "" : durationUnits(dur)}`)
+      const text = `${tripletHead ? "(3" : ""}${midiToAbc(midi + 12)}${tripletLeft ? "" : durationUnits(dur)}`
+      const group = Math.floor(eighthPos / 4)
+      // Beamable: an eighth note or shorter (including triplet-flagged ones,
+      // which already run together inside their own "(3" group) that doesn't
+      // itself straddle the half-bar seam.
+      const beamable = Number(dur) <= 0.5 + 1e-6 && Math.floor((eighthPos + dur * 2 - 1e-6) / 4) === group
+      pieces.push({ text, beamable, group })
+      eighthPos += dur * 2
       if (tripletLeft) tripletLeft -= 1
     })
 
-    if (Number(bar.tailRest) > 0) tokens.push(`z${durationUnits(bar.tailRest)}`)
-    return `${chordToken}${tokens.join(" ")} |`
-  }).join("\n") + "]"
+    if (Number(bar.tailRest) > 0) pushRest(Number(bar.tailRest))
+
+    let out = ""
+    pieces.forEach((p, i) => {
+      const prev = pieces[i - 1]
+      const joinTight = i > 0 && prev.beamable && p.beamable && prev.group === p.group
+      out += (i === 0 ? "" : (joinTight ? "" : " ")) + p.text
+    })
+    return `${chordToken}${out} |`
+  })
+
+  // A bare newline in an ABC tune body starts a new staff row — it isn't
+  // just a bar separator, whatever abcjs's own responsive/wrap layout is
+  // set to. The old version put one after every single bar, so a line
+  // rendered at one measure per row no matter how much horizontal room a
+  // (now-beamed) bar actually needed — the real cause of "way too big for
+  // the space," not just the beaming this function also fixes above. This
+  // freezes it to a hard 4 measures per row instead: a space between bars
+  // within a row, a newline every 4th.
+  const MEASURES_PER_ROW = 4
+  let out = ""
+  bars.forEach((barStr, i) => {
+    out += barStr
+    const isRowBreak = i % MEASURES_PER_ROW === MEASURES_PER_ROW - 1
+    out += (i === bars.length - 1) ? "" : (isRowBreak ? "\n" : " ")
+  })
+  return out + "]"
 }
 
 function fullAbc(line, tempo) {
@@ -67,7 +114,7 @@ function fullAbc(line, tempo) {
   return `X:1\nM:4/4\nL:1/8\nQ:1/4=${tempo}\nK:C\n${body}\n`
 }
 
-export default function LineNotation({ line, tempo = 120, activeIndex = -1, compact = false }) {
+export default function LineNotation({ line, tempo = 120, activeIndex = -1, compact = false, scale = 1, maxHeight = null }) {
   const hostRef = useRef(null)
   const [abcjs, setAbcjs] = useState(null)
   const [renderError, setRenderError] = useState(false)
@@ -94,7 +141,8 @@ export default function LineNotation({ line, tempo = 120, activeIndex = -1, comp
       hostRef.current.innerHTML = ""
       abcjs.renderAbc(hostRef.current, abc, {
         responsive: "resize",
-        staffwidth: compact ? 390 : 760,
+        staffwidth: compact ? 440 : 760,
+        scale,
         paddingtop: 4,
         paddingbottom: 4,
         paddingleft: 4,
@@ -126,7 +174,7 @@ export default function LineNotation({ line, tempo = 120, activeIndex = -1, comp
     } catch {
       setRenderError(true)
     }
-  }, [abcjs, abc, compact, line?.notationTranspose, explicitTab])
+  }, [abcjs, abc, compact, scale, line?.notationTranspose, explicitTab])
 
   useEffect(() => {
     const host = hostRef.current
@@ -140,6 +188,8 @@ export default function LineNotation({ line, tempo = 120, activeIndex = -1, comp
   return (
     <div className="db-line-notation" style={{
       overflowX: "auto",
+      overflowY: maxHeight ? "auto" : "visible",
+      maxHeight: maxHeight || undefined,
       border: "1px solid var(--db-panel-border)",
       borderRadius: "var(--db-r-md)",
       background: "var(--db-card-bg)",

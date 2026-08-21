@@ -632,13 +632,18 @@ export function transposeChart(bars, fromRoot, toRoot) {
 
 const CHROMATIC_NOTES = ["C","Db","D","Eb","E","F","Gb","G","Ab","A","Bb","B"]
 
-function noteAtSemitones(root, semitones) {
+// Exported — the "Altered" overlay (page.js's alteredMap) reuses this same
+// semitone arithmetic for its own tritone-sub / melodic-minor-up-a-half-step
+// roots, rather than re-deriving it.
+export function noteAtSemitones(root, semitones) {
   const chroma = Note.chroma(root)
   if (chroma == null) return null
   return CHROMATIC_NOTES[((chroma + semitones) % 12 + 12) % 12]
 }
 
-function buildFromSemitones(root, list) {
+// Exported for the same reason — the "Altered" overlay's melodic-minor
+// pentatonic reduction is built from this.
+export function buildFromSemitones(root, list) {
   return list.map(s => noteAtSemitones(root, s)).filter(Boolean)
 }
 
@@ -646,10 +651,16 @@ function buildFromSemitones(root, list) {
  * Pat Martino's minor conversion: maps any chord type to the minor hexatonic
  * root and quality that represents it on the fretboard.
  *
- *   m7 / m6          → same root,          displayQuality: "min7"   (Dorian no-6)
- *   maj7 / maj6      → relative minor +9st, displayQuality: "min7"   (e.g. C → A)
- *   7 / 7alt / dom   → 5th +7st,            displayQuality: "min7"   (e.g. G → D)
+ *   m7 / m6          → same root,          displayQuality: "min7"   (Dorian, the chord's own root)
+ *   maj7 / maj6      → relative minor +9st, displayQuality: "min7"   (e.g. C → A — a minor 3rd below, same note as +9)
+ *   7 / 9 / 13 / dom → 5th +7st,            displayQuality: "min7"   (e.g. G7 → D — Dorian off the 5th, the same shape every time regardless of whether the dominant is actually functioning)
  *   m7b5 / dim7      → same root,           displayQuality: "min7b5" (melodic hex)
+ *
+ * This is Martino's own fixed, unconditional rule — it always uses the 5th,
+ * whether or not the dominant is actually resolving anywhere. The "Altered"
+ * overlay (page.js's alteredMap, applied only to a chord that IS actually
+ * functioning as a dominant resolution) is the separate, situational
+ * reharmonization; the two are independent and don't interact.
  *
  * Only affects the fretboard scale display — guide tones, audio, and notation
  * all continue to use the original chord data.
@@ -677,10 +688,17 @@ export function martinoMapper(root, quality) {
  *   all other types             → minor pentatonic  1 b3 4 5 b7
  *
  * "hexatonic" — Randy Vincent's three hexatonic families (correct root remapping):
- *   maj7 / maj6   → majorHex      1 2 3 5 6 7   from root
- *   min7 / m7     → minorHex      1 2 b3 4 5 b7 from root
- *   7 / dom       → melodicMinHex 1 2 b3 5 6 7  from root+1 (e.g. G7 → Ab hex)
- *   min7b5 / dim7 → melodicMinHex 1 2 b3 5 6 7  from root+3 (e.g. Dm7b5 → F hex)
+ *   maj7 / maj6      → majorHex      1 2 3 5 6 7   from root
+ *   min7 / m7, as ii → minorHex      1 2 b3 4 5 b7 from root — a minor chord
+ *     resolving down a fourth into a following dominant (harmony.js's
+ *     detectLocalFunction tags this "subdominant"), e.g. the ii of a major
+ *     ii-V-I: Dm7 → D minorHex.
+ *   min7 / m7, as i  → melodicMinHex 1 2 b3 5 6 7  from root — a minor chord
+ *     NOT read as a ii (a tonic, e.g. the i a minor ii-V-i resolves to):
+ *     Cm7 → C melodicMinHex. Needs ctxEntry to tell the two apart — with none
+ *     given, every minor chord defaults to the ii reading (minorHex).
+ *   7 / dom          → melodicMinHex 1 2 b3 5 6 7  from root+1 (e.g. G7 → Ab hex)
+ *   min7b5 / dim7    → melodicMinHex 1 2 b3 5 6 7  from root+3 (e.g. Dm7b5 → F hex)
  *
  * "bebop" — adds one chromatic passing tone to the existing scale:
  *   dominant (7, 7alt)             → add M7 (between b7 and root)
@@ -691,9 +709,13 @@ export function martinoMapper(root, quality) {
  * @param {string}   root    - tonic root
  * @param {string}   quality - chord quality
  * @param {string|null} filter
+ * @param {{functionLabel?: string}|null} ctxEntry - harmony.js's analyzeProgressionContext
+ *   read for this bar, the same one driving the rest of the app's chord-scale
+ *   suggestions. Only "hexatonic"'s minor-chord case reads it (see above);
+ *   every other case ignores it, and it's optional everywhere.
  * @returns {string[]}
  */
-export function applyScaleFilter(notes, root, quality, filter) {
+export function applyScaleFilter(notes, root, quality, filter, ctxEntry = null) {
   if (!filter) return notes
 
   switch (filter) {
@@ -708,10 +730,16 @@ export function applyScaleFilter(notes, root, quality, filter) {
       // e.g. Dm7b5 (root=D) → F melodicMinorHex: F G Ab C D E
       if (q === "min7b5" || q === "dim7")
         return buildFromSemitones(noteAtSemitones(root, 3), [0,2,3,7,9,11])
-      // Minor: minorHex from root (Dorian minus 6): 1 2 b3 4 5 b7
-      // e.g. Dm7 → D E F G A C
-      if (q.startsWith("min") || q === "m7" || q === "m6" || q === "m9")
-        return buildFromSemitones(root, [0,2,3,5,7,10])
+      // Minor: ii (resolving into a following dominant) gets minorHex, the
+      // Dorian-flavored ii-chord reading; anything else (no context given,
+      // or a minor chord NOT functioning as a ii — i.e. a tonic) gets
+      // melodicMinorHex instead — the sound a minor ii-V-i actually resolves
+      // to. e.g. Dm7 (the ii) → D minorHex; Cm7 (the i) → C melodicMinorHex.
+      if (q.startsWith("min") || q === "m7" || q === "m6" || q === "m9") {
+        if (ctxEntry && ctxEntry.functionLabel !== "subdominant")
+          return buildFromSemitones(root, [0,2,3,7,9,11])   // melodicMinorHex: 1 2 b3 5 6 7
+        return buildFromSemitones(root, [0,2,3,5,7,10])      // minorHex: 1 2 b3 4 5 b7
+      }
       // Dominant: melodicMinorHex from half step above root (altered family)
       // e.g. G7 → Ab melodicMinorHex: Ab Bb B Eb F G
       if ((q.includes("7") || q.includes("9") || q.includes("13")) && !q.startsWith("maj"))
@@ -728,6 +756,32 @@ export function applyScaleFilter(notes, root, quality, filter) {
       if (displayQuality === "min7b5")
         return buildFromSemitones(displayRoot, [0,2,3,7,9,11])  // melodic hex: 1 2 b3 5 6 M7
       return buildFromSemitones(displayRoot, [0,2,3,5,7,10])    // standard hex: 1 2 b3 4 5 b7
+    }
+
+    case "harmonicMinor251": {
+      // One harmonic-minor collection over the whole minor ii-V-i, not a
+      // fresh recommended scale per bar: ctxEntry.resolvesToMinorTonic (set
+      // by harmony.js's analyzeProgressionContext for every bar inside a
+      // detected iiø7-V7alt-i) names the "i" bar's root — the tonic that
+      // single scale is built from — from any of the three bars. Outside a
+      // detected cadence (no ctxEntry, or this bar isn't part of one), fall
+      // back to reading `root` as if it were that tonic, so the filter still
+      // does something sensible on an isolated minor ii, V, or i chord.
+      //
+      // Rather than showing all seven scale notes (that's plain Scale view),
+      // this shows only the ones that are also chord tones of THIS bar's own
+      // chord — the same seven-note collection lights up a different subset
+      // as the chord underneath it changes, which is the actual point: one
+      // scale, three different-looking chords. Voice Leading's ghost/route
+      // overlay (guideMode) is untouched by this — see the module doc above
+      // applyScaleFilter — so it still works on top when selected.
+      const tonic = ctxEntry?.resolvesToMinorTonic || root
+      const hmNotes = scaleNotes("harmonic minor", tonic)
+      const chordChromas = new Set(
+        chordNotes(buildChordSymbol(root, quality)).map((n) => Note.chroma(n)).filter((c) => c != null)
+      )
+      const kept = hmNotes.filter((n) => chordChromas.has(Note.chroma(n)))
+      return kept.length ? kept : hmNotes
     }
 
     case "barry":

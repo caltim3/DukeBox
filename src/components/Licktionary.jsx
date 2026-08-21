@@ -164,7 +164,9 @@ function BeforeBeatOne({ steps = [] }) {
 
 export default function Licktionary({ licks, selectedLickId, onOpenLick, selectStyle }) {
   const [targetKey, setTargetKey] = useState("C")
-  const [neckPosition, setNeckPosition] = useState(null)
+  // "Middle of the barrel" — frets 3-7 — by default, same as Line Lab's own
+  // neck-position default; "Original (Ways In)" is one click away.
+  const [neckPosition, setNeckPosition] = useState(3)
   const [tempo, setTempo] = useState(160)
   const [query, setQuery] = useState("")
   const builtIns = useMemo(() => licks.filter((lick) => lick.builtIn), [licks])
@@ -243,7 +245,7 @@ export default function Licktionary({ licks, selectedLickId, onOpenLick, selectS
               </div>
             )}
             <BeforeBeatOne steps={group.guide?.steps} />
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(350px, 1fr))", gap: "10px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(420px, 1fr))", gap: "10px" }}>
               <LickPanel lick={group.major} targetKey={targetKey} neckPosition={neckPosition} tempo={tempo} onOpen={onOpenLick} />
               <LickPanel lick={group.minor} targetKey={targetKey} neckPosition={neckPosition} tempo={tempo} onOpen={onOpenLick} />
             </div>

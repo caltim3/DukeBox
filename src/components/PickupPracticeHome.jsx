@@ -16,6 +16,7 @@ const WORKSPACE_LABELS = {
   practice: "Practice",
   gig: "Gig",
   create: "Create",
+  beatforge: "BeatForge",
   reference: "Reference",
   tonal: "Tonal",
 }
@@ -66,7 +67,7 @@ const PLAN_ROWS = [
         subtitle: "Time workout and bebop rhythm generator",
         image: "/cards/beatforge2.jpg",
         shortcut: "B",
-        action: { type: "practice-panel", value: "beatforge-metronome" },
+        action: { type: "beatforge-panel", value: "beatforge-metronome" },
       },
       {
         id: "linelab",
@@ -74,7 +75,7 @@ const PLAN_ROWS = [
         title: "LineLab",
         subtitle: "Develop single-note lines over the changes",
         image: "/cards/linelab2.jpg",
-        action: { type: "create-section", value: "create-line-lab" },
+        action: { type: "beatforge-section", value: "beatforge-line-lab" },
       },
       {
         id: "songcrafter",
@@ -193,7 +194,7 @@ function recentIconName(entry) {
   const { type, value } = entry.action || {}
   if (type === "workspace") return value || "practice"
   if (type === "songbook" || type === "starter") return "songbook"
-  if (type === "create-section" && value === "create-line-lab") return "lick"
+  if (type === "beatforge-section" && value === "beatforge-line-lab") return "lick"
   if (type === "reference") return "reference"
   return "practice"
 }
@@ -281,6 +282,8 @@ function Icon({ name }) {
     gig: <><path d="M9 18V5l10-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="16" cy="16" r="3"/></>,
     reference: <><circle cx="12" cy="12" r="9"/><path d="m15 9-2 4-4 2 2-4 4-2Z"/></>,
     tonal: <><path d="M4 20V4h16v16H4Z"/><path d="M8 4v10M12 4v10M16 4v10"/><path d="M6 14h3M10 14h3M14 14h3"/></>,
+    beatforge: <><path d="M6 5h12l3 15H3L6 5Z"/><path d="M8 5V3h8v2"/><path d="M9 11h6"/></>,
+    linelab: <><path d="M3 16c3-1 3-10 6-10s3 9 6 9 3-6 6-6"/><circle cx="3" cy="16" r="1.3" fill="currentColor" stroke="none"/><circle cx="21" cy="9" r="1.3" fill="currentColor" stroke="none"/></>,
     search: <><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></>,
     help: <><circle cx="12" cy="12" r="9"/><path d="M9.6 9a2.7 2.7 0 1 1 4.4 2.1c-1 .8-2 1.3-2 2.9"/><path d="M12 18h.01"/></>,
     bell: <><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 8h18c0-1-3-1-3-8"/><path d="M10 20h4"/></>,
@@ -516,6 +519,29 @@ export default function PickupPracticeHome() {
       }, 180)
       return
     }
+    // A collapsible power panel in the BeatForge tab, addressed by the
+    // data-db-shortcut hook on its header.
+    if (action.type === "beatforge-panel") {
+      openWorkspace("beatforge")
+      window.setTimeout(() => {
+        const header = document.querySelector(`[data-db-shortcut="${action.value}"]`)
+        if (!header) return
+        if (header.getAttribute("aria-expanded") === "false") header.click()
+        header.scrollIntoView({ behavior: "smooth", block: "start" })
+      }, 200)
+      return
+    }
+    // A collapsible section in the BeatForge tab, addressed by its element id.
+    if (action.type === "beatforge-section") {
+      openWorkspace("beatforge")
+      window.setTimeout(() => {
+        const section = document.getElementById(action.value)
+        if (!section) return
+        section.open = true
+        section.scrollIntoView({ behavior: "smooth", block: "start" })
+      }, 180)
+      return
+    }
     // Starters used to be triggered by finding their button in the Practice
     // tab and clicking it; the strip lives here now, so ask the page for the
     // chart directly. Accepts an id or the display label, since saved
@@ -540,15 +566,15 @@ export default function PickupPracticeHome() {
   // "Practice this lick" — not just a jump to Line Lab (that's what the
   // empty-state's "Open Line Lab" button still does via runAction), but a
   // request to actually reload this exact line there. Line Lab only exists
-  // in the DOM while Create is the active workspace (page.js unmounts it
+  // in the DOM while BeatForge is the active workspace (page.js unmounts it
   // otherwise), so the resume event is dispatched after the same navigate
   // delay every other cross-tree "go there and act" call in this file uses
   // — by then it's mounted and its own listener (lastLine.js /
   // RESUME_LAST_LINE_EVENT) is registered.
   function resumeLastLine() {
-    openWorkspace("create")
+    openWorkspace("beatforge")
     window.setTimeout(() => {
-      const section = document.getElementById("create-line-lab")
+      const section = document.getElementById("beatforge-line-lab")
       if (section) {
         section.open = true
         section.scrollIntoView({ behavior: "smooth", block: "start" })
@@ -1320,6 +1346,9 @@ export default function PickupPracticeHome() {
           <button type="button" className="db-pickup-nav-button" onClick={() => openWorkspace("create")}>
             <Icon name="create" /><span>Create</span>
           </button>
+          <button type="button" className="db-pickup-nav-button" onClick={() => openWorkspace("beatforge")}>
+            <Icon name="beatforge" /><span>BeatForge</span>
+          </button>
           <button type="button" className="db-pickup-nav-button" onClick={() => openWorkspace("gig")}>
             <Icon name="gig" /><span>Gig</span>
           </button>
@@ -1372,10 +1401,13 @@ export default function PickupPracticeHome() {
           )}
 
           <nav className="db-pickup-rail-more" aria-label="More">
+            <button type="button" className="db-pickup-rail-more-link" onClick={() => runAction({ type: "beatforge-section", value: "beatforge-line-lab" })}>
+              <Icon name="lick" /><span>Line Lab</span>
+            </button>
             <button type="button" className="db-pickup-rail-more-link" onClick={() => openPracticeCenter("MELODY PATHS")}>
               <Icon name="practice" /><span>Melody paths</span>
             </button>
-            <button type="button" className="db-pickup-rail-more-link" onClick={() => openPracticeCenter("LICKTIONARY")}>
+            <button type="button" className="db-pickup-rail-more-link" onClick={() => runAction({ type: "beatforge-section", value: "beatforge-licktionary" })}>
               <Icon name="songbook" /><span>Licktionary</span>
             </button>
             <button type="button" className="db-pickup-rail-more-link" onClick={() => openWorkspace("reference")}>
@@ -1469,7 +1501,7 @@ export default function PickupPracticeHome() {
               <div>
                 <div className="db-pickup-eyebrow">Start practicing</div>
                 <h2>Starter charts</h2>
-                <p>Load a starter chart and begin at slow tempo — ideal for building muscle memory.</p>
+                <p>A fully loaded scenario — chart, scale/system, and slow tempo — straight into Focus after a 4-beat count-in.</p>
               </div>
             </div>
 
@@ -1611,7 +1643,7 @@ export default function PickupPracticeHome() {
             ) : (
               <div className="db-pickup-lick-empty">
                 <span>Nothing here yet — build a line in Line Lab and it&apos;ll show up here.</span>
-                <button type="button" className="db-pickup-ghost-btn" onClick={() => runAction({ type: "create-section", value: "create-line-lab" })}>
+                <button type="button" className="db-pickup-ghost-btn" onClick={() => runAction({ type: "beatforge-section", value: "beatforge-line-lab" })}>
                   Open Line Lab
                 </button>
               </div>

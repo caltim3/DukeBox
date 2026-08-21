@@ -141,9 +141,19 @@ export async function startMetronome({
   tr.swing = 0
   tr.loop = false
 
+  // A non-looping rhythm (a count-in, or a one-shot phrase) schedules its own
+  // stop at beatTime(leadBeats + totalBeats) below — the same transport
+  // position this repeat's (totalBeats+1)th tick lands on. Tone.js doesn't
+  // guarantee the stop runs before that tick fires, so without this guard a
+  // "4-beat" count-in could still sound a 5th (or, worse, catch a partially-
+  // cancelled repeat and sound a stray extra) click before the transport
+  // actually halts. Capped here instead of trusting the race.
+  const stopAtCell = rhythm && !rhythm.loop ? Math.max(0, Number(rhythm.totalBeats) || 0) : Infinity
+
   _repeatId = tr.scheduleRepeat((time) => {
     const list = _cfg.cells
     if (!list?.length) return
+    if (_cellIndex >= stopAtCell) return
     const i = _cellIndex % list.length
     const state = list[i]
     if (state) playCell(state, time)
@@ -196,4 +206,26 @@ export function stopMetronome() {
   tr.loop = false
   _running = false
   _cellIndex = 0
+}
+
+/**
+ * A plain count-in: `beats` quarter-note woodblock clicks — accented on
+ * beat 1 of every 4-beat measure — then stops itself and resolves. Reuses
+ * startMetronome's own `rhythm` config (an empty phrase, just its "click for
+ * totalBeats, then auto-stop" scaffolding) rather than adding new scheduling
+ * logic. The transport is shared with chart playback, so callers own
+ * sequencing it before their own startPlayback — this doesn't do that itself.
+ *
+ * Resolves once the count-in has actually finished sounding. Cancel a
+ * count-in already in flight with stopMetronome() — the promise never
+ * resolves in that case, so callers race it against whatever cancels theirs.
+ */
+export function playCountIn(beats, tempo) {
+  const cells = Array.from({ length: Math.max(1, beats) }, (_, i) => (i % 4 === 0 ? 2 : 1))
+  return new Promise((resolve, reject) => {
+    startMetronome({
+      tempo, cells, subdivision: "4n", sound: "woodblock",
+      rhythm: { events: [], totalBeats: cells.length, loop: false, onDone: resolve },
+    }).catch(reject)
+  })
 }

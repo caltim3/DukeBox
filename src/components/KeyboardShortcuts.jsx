@@ -30,12 +30,13 @@ const GROUPS = [
   {
     title: "Get around",
     items: [
-      ["0", "Home"],
-      ["1", "Practice — Focus, while playing"],
-      ["2", "Gig — live chart, while playing"],
-      ["3", "Create"],
-      ["4", "Reference"],
-      ["5", "Tonal"],
+      ["0", "Home — 3:2 System's Chord scales, once you're in Focus"],
+      ["1", "Practice — Focus, while playing; 3:2's Blues scale, in Focus"],
+      ["2", "Gig — live chart, while playing; 3:2's Minor, in Focus"],
+      ["3", "Create — 3:2's Major, in Focus"],
+      ["4 / B", "BeatForge — 3:2's Altered, in Focus"],
+      ["5", "Reference"],
+      ["6", "Tonal"],
       ["/", "Song library, from anywhere"],
       ["?", "Show or hide this sheet"],
     ],
@@ -44,8 +45,8 @@ const GROUPS = [
     title: "Open a tool",
     items: [
       ["G", "Song library in Gig"],
-      ["F", "Fretboard"],
-      ["L", "Licktionary"],
+      ["F", "Fretboard — Freeze, once you're in Practice"],
+      ["L", "Line Lab"],
       ["B", "BeatForge Library"],
       ["Y", "5 minute practice timer"],
     ],
@@ -64,6 +65,9 @@ const GROUPS = [
       ["P", "Tempo slower by 10"],
       ["\\", "Tempo faster by 10"],
       ["=", "Tempo back to where you were"],
+      ["F", "Freeze on / off"],
+      ["I", "3:2 System on / off"],
+      ["V", "Voice Leading on / off"],
     ],
   },
   {
@@ -188,8 +192,16 @@ export default function KeyboardShortcuts() {
 
       if (open || isTyping() || event.metaKey || event.ctrlKey || event.altKey) return
 
-      const workspaces = { "1": "Practice", "2": "Gig", "3": "Create", "4": "Reference", "5": "Tonal" }
+      // In Focus, "0"-"4" pick the 3:2 System's level instead — see page.js's
+      // own keydown handler, where that state lives. Don't preventDefault/
+      // stopPropagation here; let the keydown fall through to page.js's
+      // bubble-phase listener untouched. "5" (Reference) and "6" (Tonal) are
+      // untouched either way — the 3:2 System only has levels 0-4.
+      const inFocusStage = () => document.body.classList.contains("db-focus-mode")
+
+      const workspaces = { "1": "Practice", "2": "Gig", "3": "Create", "4": "BeatForge", "5": "Reference", "6": "Tonal" }
       if (workspaces[event.key]) {
+        if (event.key !== "5" && event.key !== "6" && inFocusStage()) return
         event.preventDefault()
         event.stopPropagation()
         // While a song is playing, "1" means "back to Focus" specifically —
@@ -208,6 +220,7 @@ export default function KeyboardShortcuts() {
       }
 
       if (event.key === "0") {
+        if (inFocusStage()) return
         event.preventDefault()
         event.stopPropagation()
         goHome()
@@ -238,7 +251,12 @@ export default function KeyboardShortcuts() {
         return
       }
 
+      // In Practice, "F" is Freeze instead — see page.js's own keydown
+      // handler, where that state lives. Don't preventDefault/stopPropagation
+      // here; let the keydown fall through to page.js's bubble-phase listener
+      // untouched. Everywhere else, "F" still jumps to the fretboard.
       if (key === "f") {
+        if (document.body.dataset.dbMode === "practice") return
         event.preventDefault()
         event.stopPropagation()
         goWorkspace("Practice")
@@ -249,9 +267,9 @@ export default function KeyboardShortcuts() {
       if (key === "l") {
         event.preventDefault()
         event.stopPropagation()
-        goWorkspace("Create")
+        goWorkspace("BeatForge")
         waitFor(
-          () => document.getElementById("db-licktionary"),
+          () => document.getElementById("beatforge-line-lab"),
           (section) => { section.open = true; reveal(section) },
         )
         return
@@ -260,7 +278,7 @@ export default function KeyboardShortcuts() {
       if (key === "b") {
         event.preventDefault()
         event.stopPropagation()
-        goWorkspace("Practice")
+        goWorkspace("BeatForge")
         waitFor(() => hook("beatforge-library"), (header) => { openPanel(header); reveal(header) })
         return
       }
