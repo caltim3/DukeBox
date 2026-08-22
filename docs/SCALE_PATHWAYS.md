@@ -52,11 +52,18 @@ Per-bar precedence: `override > written symbol > blues blanket (rung 1) > the ru
   labels motion +1 "backdoor"; the true backdoor (♭VII7 → I) is motion +2,
   which is what `dominantContext()` tests.
 
-## What consumes it (next step, not yet wired)
+## What consumes it
 
-The play-time rung selector (radio chips 1–5 in the Focus HUD), the freeze +
-per-chord alternative picker writing `userScale` overrides, and "save
-treatment" as a library save-as carrying `pathwayDefault` + overrides.
+- **Rung selector** (wired): the Pathways lens in the Palette row plus the
+  Focus HUD's Pathway card — five rung chips, the engine's why-line for the
+  current bar, and keys 1–5 in Focus (KeyboardShortcuts yields its global
+  "5 → Reference" jump while Pathways is on, via `body.dataset.dbPathways`).
+- **Freeze-and-pick** (wired): frozen on a chord with Pathways up, the
+  Pathway card grows a "❄ This bar" picker — `rankScalesForChord`'s best
+  fits first, curated calls starred — whose choice writes the bar's
+  `userScale` override; "Pathway pick" clears it back to the ladder.
+- **Save treatment** (next): a library save-as carrying `pathwayDefault` +
+  the per-bar overrides.
 
 ---
 

@@ -611,6 +611,20 @@ export default function Home() {
   const pathwayChoice = pathwayPlan?.choices?.[fretboardBarIndex] ?? null
   const pathwaysActiveOnBoard = !!(pathwaysMode && !threeTwoActiveOnBoard && pathwayChoice?.usable)
 
+  // Freeze-and-pick: while frozen on a chord with Pathways up, the HUD
+  // offers that chord's ranked scale alternatives (best chord-tone fit
+  // first, the curated picks starred — rankScalesForChord's order).
+  // Choosing one writes the bar's own userScale override, the same field
+  // the engine and the rest of the app already honor on every rung;
+  // "Pathway pick" clears it back to the ladder's choice.
+  const frozenScaleRanks = useMemo(() => {
+    if (!pathwaysMode || !freezeMode || fretboardBar.quality === "NC") return []
+    return rankScalesForChord(
+      fretboardBar.symbol, fretboardBar.quality,
+      fretboardBar.userTonic ?? fretboardBar.root
+    ).slice(0, 16)
+  }, [pathwaysMode, freezeMode, fretboardBar])
+
   // When Martino mode is active, compute the remapped display root/quality for the fretboard.
   // Everything else (audio, guide tones, notation) continues to use the original fretboardBar data.
   const martinoMap = useMemo(() => {
@@ -3710,6 +3724,36 @@ export default function Home() {
                       fontStyle: "italic", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
                     }}>
                       {pathwayChoice.why}
+                    </div>
+                  )}
+                  {/* Freeze-and-pick: frozen on a chord, override just this
+                      bar's scale. Writes bar.userScale (the field the engine
+                      honors ahead of every rung — see resolvePathwayPlan),
+                      so the pick survives rung changes and rides along when
+                      the song is saved. The first option clears it. */}
+                  {freezeMode && frozenScaleRanks.length > 0 && (
+                    <div style={{ display: "flex", gap: "6px", alignItems: "center", minWidth: 0 }}>
+                      <span style={{ font: "700 9px 'IBM Plex Mono', monospace", letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--info)", flexShrink: 0 }}>
+                        ❄ This bar
+                      </span>
+                      <select
+                        value={fretboardBar.userScale ?? ""}
+                        onChange={(e) => updateBar(fretboardBarIndex, { userScale: e.target.value || null })}
+                        aria-label={`Scale override for ${fretboardBar.symbol}`}
+                        title={`Pin a scale to ${fretboardBar.symbol} — best fits first, ★ = the classic call for this chord quality`}
+                        style={{
+                          font: "600 10.5px 'Instrument Sans', sans-serif", color: "var(--text)",
+                          background: "var(--surface2)", border: `1px solid ${fretboardBar.userScale ? "var(--n-target)" : "var(--line)"}`,
+                          borderRadius: "6px", padding: "3px 6px", minWidth: 0, maxWidth: "170px",
+                        }}
+                      >
+                        <option value="">Pathway pick</option>
+                        {frozenScaleRanks.map((r) => (
+                          <option key={r.name} value={r.name}>
+                            {r.recommended ? "★ " : ""}{fretboardBar.userTonic ?? fretboardBar.root} {r.name}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                   )}
                 </div>
