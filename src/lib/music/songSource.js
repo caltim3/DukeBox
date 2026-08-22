@@ -131,7 +131,12 @@ export function catalogEntryToPlayable(entry) {
   const parsed = parseGigKey(entry.key)
   const keyRoot = entry._form?.keyRoot || entry._user?.keyRoot || parsed.keyRoot
   const keyMode = entry._form?.keyMode || entry._user?.keyMode || parsed.keyMode
-  return { bars, keyRoot, keyMode, tempo: gigTempoNumber(entry.tempo) }
+  // A saved "treatment" (docs/SCALE_PATHWAYS.md): which Scale Pathways rung
+  // this tune was saved at. Only My Library entries can carry one — the
+  // built-in catalogs are shared data, not per-user rows — and the per-bar
+  // scale picks that go with it ride along inside the bars themselves
+  // (bar.userScale/userTonic), so they need nothing here.
+  return { bars, keyRoot, keyMode, tempo: gigTempoNumber(entry.tempo), pathway: entry._user?.pathway ?? null }
 }
 
 // A SongSheet-shaped draft (title/bars/keyRoot/keyMode/tempo) seeded from any
@@ -163,6 +168,11 @@ export function upsertLibrarySong(setLibrary, draft) {
     tempo: draft.tempo,
     updatedAt: Date.now(),
   }
+  // Saving a "treatment" (docs/SCALE_PATHWAYS.md) stamps the Pathways rung
+  // the tune was practised at; the per-bar overrides that complete it are
+  // already inside draft.bars. Omitted entirely for an ordinary save, so
+  // untouched entries keep their existing shape.
+  if (draft.pathway) entry.pathway = { ...draft.pathway }
   setLibrary((lib) => ({ ...lib, songs: [...(lib.songs || []).filter((s) => s.name !== entry.name), entry] }))
   return entry
 }

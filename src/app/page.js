@@ -1223,6 +1223,13 @@ export default function Home() {
       const t = userEntry.tempo || 110
       setTempo(t)
       setOriginalTempo(t)
+      // Same treatment restore as loadSong's — loadForm is the other way
+      // into a My Library entry (the Songbook name picker).
+      if (userEntry.pathway) {
+        setPathwaysMode(!!userEntry.pathway.on)
+        if (userEntry.pathway.rung) setPathwayRung(userEntry.pathway.rung)
+        if (userEntry.pathway.on) { setScaleFilter(null); setThreeTwoMode(false); setFretboardView("scale") }
+      }
       return
     }
     // Neither a known Songbook form nor a saved song (e.g. "Custom") —
@@ -1257,10 +1264,10 @@ export default function Home() {
   // (My Library / Gig Book / Tavern Set / Songbook, whichever it came from)
   // instead of a Songbook-form name + Gig Book row pair.
   function loadCatalogEntry(entry, opts) {
-    const { bars, keyRoot, keyMode, tempo } = catalogEntryToPlayable(entry)
+    const { bars, keyRoot, keyMode, tempo, pathway } = catalogEntryToPlayable(entry)
     if (!bars.length) { showToast(`No changes stored for "${entry.title}"`); return }
     logActivity({ label: entry.title, subtitle: entry.source, art: "changes", action: { type: "songbook" } })
-    loadSong({ bars, keyRoot, keyMode, tempo, title: entry.title, subtitle: entry.source, songId: entry.id, ...opts })
+    loadSong({ bars, keyRoot, keyMode, tempo, pathway, title: entry.title, subtitle: entry.source, songId: entry.id, ...opts })
   }
 
   function handleTransposeChart() {
@@ -1403,6 +1410,42 @@ export default function Home() {
     })
   }
 
+  // ── Save treatment (docs/SCALE_PATHWAYS.md) ─────────────────────────────
+  // A treatment is "this tune, practised this way": the current Pathways
+  // rung plus whatever per-bar scales you pinned while frozen. Both already
+  // live in state — the rung here, the picks on the bars themselves — so
+  // this is an ordinary My Library save-as with the rung stamped on, and it
+  // rides the same cloud sync every other saved song does.
+  //
+  // Save-as rather than save-in-place: a treatment is a way of playing the
+  // tune, not a correction to it, and you'll want more than one (the same
+  // blues at Key Center and at Color). The suggested name says which.
+  const pathwayOverrideCount = useMemo(
+    () => bars.filter((b) => b?.userScale).length,
+    [bars]
+  )
+
+  function saveTreatment() {
+    const base = activeSongTitle || (selectedForm && selectedForm !== "Custom" ? selectedForm : "Untitled Song")
+    const rung = PATHWAY_RUNGS.find((r) => r.id === pathwayRung)
+    const suggested = `${base} · Pathway ${pathwayRung} ${rung?.name ?? ""}`.trim()
+      + (pathwayOverrideCount ? ` +${pathwayOverrideCount}` : "")
+    const name = prompt("Save this treatment as:", suggested)
+    if (!name?.trim()) return
+    const entry = upsertLibrarySong(setLibrary, {
+      title: name,
+      bars,
+      keyRoot,
+      keyMode,
+      tempo: originalTempo,
+      pathway: { on: pathwaysMode, rung: pathwayRung },
+    })
+    if (!entry) { showToast("Nothing to save — this chart has no bars"); return }
+    setSelectedForm(entry.name)
+    setActiveSongTitle(entry.name)
+    showToast(`Saved ${entry.name}${pathwayOverrideCount ? ` · ${pathwayOverrideCount} pinned ${pathwayOverrideCount === 1 ? "bar" : "bars"}` : ""}`)
+  }
+
   function saveSongSheetToLibrary(draft) {
     const entry = upsertLibrarySong(setLibrary, draft)
     if (!entry) return
@@ -1443,7 +1486,7 @@ export default function Home() {
   // practiceView flipped to "focus" while mode is still stuck elsewhere.
   // Space/the sticky transport resuming whatever's already loaded don't go
   // through here, so they don't fight it.
-  function loadSong({ bars, keyRoot, keyMode, tempo, autoplay, songId, title, subtitle, toMode, toFocus }) {
+  function loadSong({ bars, keyRoot, keyMode, tempo, autoplay, songId, title, subtitle, toMode, toFocus, pathway }) {
     if (toFocus) { chooseMode("practice"); enterFocusMode() }
     else if (toMode) chooseMode(toMode)
     if (playingRef.current) stopPlayback()
@@ -1457,6 +1500,15 @@ export default function Home() {
     setTempo(t); setOriginalTempo(t)
     setActiveGigSongId(songId ?? null)
     setActiveSongTitle(title ?? null)
+    // A saved treatment (docs/SCALE_PATHWAYS.md) restores the rung it was
+    // practised at; the per-bar picks that complete it are already in the
+    // bars above. A tune saved without one leaves Pathways exactly as you
+    // had it — loading a plain chart shouldn't silently change the board.
+    if (pathway) {
+      setPathwaysMode(!!pathway.on)
+      if (pathway.rung) setPathwayRung(pathway.rung)
+      if (pathway.on) { setScaleFilter(null); setThreeTwoMode(false); setFretboardView("scale") }
+    }
     if (autoplay) {
       pendingStartRef.current = true
       // Gig songbook's "Latest 10 Played" playlist — only real catalog tunes
@@ -3353,6 +3405,16 @@ export default function Home() {
                           {pathwayChoice.why}
                         </span>
                       )}
+                      <button onClick={saveTreatment}
+                        title="Save this tune the way you're practising it — the current rung plus every scale you've pinned to a bar"
+                        style={{
+                          font: "700 10px 'IBM Plex Mono', monospace", letterSpacing: "0.08em",
+                          textTransform: "uppercase", padding: "4px 9px", borderRadius: "6px",
+                          border: "1px solid var(--n-target)", background: "var(--surface)",
+                          color: "var(--n-target)", cursor: "pointer",
+                        }}>
+                        ⤓ Save treatment{pathwayOverrideCount ? ` · ${pathwayOverrideCount} pinned` : ""}
+                      </button>
                       <span style={{ ...noteStyle, flexBasis: "100%" }}>
                         ❄ freeze any bar to pin its own scale — picks outrank every rung · keys 1–5 climb the ladder in Focus
                       </span>
@@ -3703,6 +3765,22 @@ export default function Home() {
                       {pathwayChoice.why}
                     </div>
                   )}
+                  {/* Save treatment — the rung plus the bars you pinned,
+                      kept as a My Library save-as (see saveTreatment). Sits
+                      under the ladder because that's what it captures. */}
+                  <button
+                    onClick={saveTreatment}
+                    title="Save this tune the way you're practising it — the current rung plus every scale you've pinned to a bar"
+                    style={{
+                      alignSelf: "flex-start",
+                      font: "700 10px 'IBM Plex Mono', monospace", letterSpacing: "0.08em",
+                      textTransform: "uppercase", padding: "4px 9px", borderRadius: "6px",
+                      border: "1px solid var(--n-target)", background: "var(--surface)",
+                      color: "var(--n-target)", cursor: "pointer",
+                    }}
+                  >
+                    ⤓ Save treatment{pathwayOverrideCount ? ` · ${pathwayOverrideCount} pinned` : ""}
+                  </button>
                   {/* Freeze-and-pick: frozen on a chord, override just this
                       bar's scale. Writes bar.userScale (the field the engine
                       honors ahead of every rung — see resolvePathwayPlan),
