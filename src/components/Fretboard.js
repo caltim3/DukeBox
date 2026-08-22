@@ -64,9 +64,9 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
   const threeTwoActive = !!threeTwo?.on && Array.isArray(threeTwo?.cells) && threeTwo.cells.length > 0
 
   // The bar has a shape. Beats 1-2 the chord stands alone; beat 3 the ghosts
-  // fade up and the routes start drawing; beat 4 the routes are at full and
-  // everything that isn't a guide tone dims, so you are pulled into the change
-  // instead of being surprised by it.
+  // and targets fade up; beat 4 the route arrows draw themselves toward the
+  // targets and everything that isn't a guide tone dims, so you are pulled
+  // into the change instead of being surprised by it.
   //
   // Driven by CSS keyframes scaled to the bar's duration and remounted on
   // phaseKey — the same approach Runway uses for its fill bar. No animation
@@ -186,9 +186,8 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
       // A target belongs to the NEXT chord, so its interval reads against
       // that chord's root (ghostRootNote), never this one's — the same rule
       // the ghosts follow. Degrees mode puts it on the dot itself; names
-      // mode keeps the note name on the dot and floats the interval above
-      // it, so both modes say which note of the coming chord you're aiming
-      // at (its 3rd, its b3, its root…).
+      // mode keeps it to the tooltip — the little interval badge that used
+      // to float above the dot never read at tempo, so it's gone.
       const targetInterval = isTarget && ghostRootNote
         ? degreeOf(noteName, norm(ghostRootNote))
         : null
@@ -230,14 +229,17 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
       // a deliberately bent note against a chord that doesn't actually have
       // a minor 3rd — overrides the usual root/chord/tension tier color the
       // same way the penta board's isBlueNote does below.
+      // Root and chord tones keep the reference page's signature 3:2
+      // red/blue; the tension "extras" follow the app's own note-role
+      // scheme (--n-scale) instead of the reference's washed-out white
+      // outline — they are ordinary scale tones, so they read like the
+      // ordinary board's scale tones.
       const color = c.isTweakThird ? "var(--n-32-green)"
-        : c.tier === "root" ? "var(--n-32-red)" : c.tier === "chord" ? "var(--n-32-blue)" : "var(--n-32-tension)"
+        : c.tier === "root" ? "var(--n-32-red)" : c.tier === "chord" ? "var(--n-32-blue)" : "var(--n-scale)"
       return {
         key: `32s${c.si}-${c.f}`,
-        cx: dotX(c.f), cy: strY(c.si), r: c.tier === "tension" && !c.isTweakThird ? 8 : 10.5,
+        cx: dotX(c.f), cy: strY(c.si), r: c.tier === "tension" && !c.isTweakThird ? 8.5 : 10.5,
         color,
-        thirtyTwoStroke: c.tier === "tension" && !c.isTweakThird ? "var(--n-32-tension-stroke)" : null,
-        textColor: c.tier === "tension" && !c.isTweakThird ? "var(--n-32-tension-text)" : "#fff",
         label: c.noteName, text: c.text,
         si: c.si, f: c.f, held: false,
         isRoot: false, isTarget: false, isPassing: false, isGuide: false, isEnclosure: false,
@@ -371,6 +373,10 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
         key: `r${d.key}`, fromKey: d.key,
         startFret: d.f, endFret: best.f,
         d: `M${d.cx},${d.cy} Q${mx},${my} ${best.cx},${best.cy}`,
+        // Where the arrowhead lands and which way it points there — the
+        // curve's tangent at its end runs from the control point to the end.
+        endX: best.cx, endY: best.cy,
+        angle: Math.atan2(best.cy - my, best.cx - mx) * 180 / Math.PI,
         from: d.label, to: destNorm, semis,
       })
     }
@@ -403,28 +409,32 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
     }
   }
 
-  // ── 3:2 System's own route: the single shortest playable hop from the
-  // current shape to the ghosted 3rd, rather than one arrow per lit note —
-  // the pentatonic shape doesn't have discrete guide-tone roles to route
-  // from, so this picks whichever one of its notes is actually closest.
+  // ── 3:2 System's own routes: one per reachable ghosted 3rd, from whichever
+  // shape note sits closest to that ghost — the pentatonic shape doesn't
+  // have discrete guide-tone roles to route from, so each ghost just gets
+  // its nearest playable neighbour. More than one resolution on screen is
+  // fine (often several are a half step away); an unreachable ghost simply
+  // draws no route.
   if (threeTwoActive && ghosts.length && threeTwo.voiceLeadTarget) {
-    let best = null, bestCost = Infinity
-    for (const d of dots) {
-      for (const g of ghosts) {
+    for (const g of ghosts) {
+      let best = null, bestCost = Infinity
+      for (const d of dots) {
         const df = Math.abs(g.f - d.f), ds = Math.abs(g.si - d.si)
+        if (df === 0 && ds === 0) continue          // already sitting on it — nothing to draw
         if (df > MAX_ROUTE_FRETS || ds > MAX_ROUTE_STRINGS) continue
         const cost = df + ds * 2.2
-        if (cost < bestCost) { bestCost = cost; best = { d, g } }
+        if (cost < bestCost) { bestCost = cost; best = d }
       }
-    }
-    if (best) {
-      const { d, g } = best
+      if (!best) continue
+      const d = best
       const mx = (d.cx + g.cx) / 2
       const my = (d.cy + g.cy) / 2 - (d.si === g.si ? 15 : 10)
       routes.push({
-        key: `r32-${d.key}`, fromKey: d.key,
+        key: `r32-${g.key}`, fromKey: d.key,
         startFret: d.f, endFret: g.f,
         d: `M${d.cx},${d.cy} Q${mx},${my} ${g.cx},${g.cy}`,
+        endX: g.cx, endY: g.cy,
+        angle: Math.atan2(g.cy - my, g.cx - mx) * 180 / Math.PI,
         from: d.label, to: g.label, semis: null,
       })
     }
@@ -476,7 +486,7 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
 
       {phaseOn && (
         <style>{`
-          .dbfb-ghost, .dbfb-route, .dbfb-dim, .dbfb-target, .dbfb-bridge {
+          .dbfb-ghost, .dbfb-route, .dbfb-dim, .dbfb-target, .dbfb-bridge, .dbfb-arrow {
             animation-timing-function: linear;
             animation-fill-mode: both;
           }
@@ -485,6 +495,7 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
           .dbfb-dim    { animation-name: dbfbDim }
           .dbfb-target { animation-name: dbfbTargetIn }
           .dbfb-bridge { animation-name: dbfbBridgeIn }
+          .dbfb-arrow  { animation-name: dbfbArrowIn }
 
           /* Beats 1-2 nothing; the change arrives over beat 3. */
           @keyframes dbfbGhostIn {
@@ -503,11 +514,18 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
             72%        { opacity: 0.7 }
             100%       { opacity: 1 }
           }
-          /* The route draws itself along the neck across beats 3 and 4. */
+          /* The routes wait for beat 4, then draw themselves toward the
+             target across it — the arrow arrives as the bar does. */
           @keyframes dbfbRouteIn {
-            0%, 55%    { stroke-dashoffset: 1; opacity: 0 }
-            58%        { opacity: 0.95 }
-            92%, 100%  { stroke-dashoffset: 0; opacity: 0.95 }
+            0%, 75%    { stroke-dashoffset: 1; opacity: 0 }
+            78%        { opacity: 0.95 }
+            100%       { stroke-dashoffset: 0; opacity: 0.95 }
+          }
+          /* Arrowheads (and the resolution glyphs above the dots) share the
+             routes' beat-4 entrance. */
+          @keyframes dbfbArrowIn {
+            0%, 75%    { opacity: 0 }
+            82%, 100%  { opacity: 1 }
           }
           /* Beat 4: everything that isn't a guide tone gets out of the way. */
           @keyframes dbfbDim {
@@ -515,8 +533,27 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
             100%       { opacity: 0.4 }
           }
 
+          /* The arrowhead rides its route toward the target across beat 4,
+             leading the line as it draws. Motion-path only where the browser
+             actually has it — anywhere else the head stays hidden while
+             playing rather than piling up at the SVG origin, and the drawing
+             line still carries the "toward the target" read on its own. */
+          .dbfb-arrowhead { opacity: 0 }
+          @supports (offset-path: path("M0 0 L1 1")) {
+            .dbfb-arrowhead {
+              animation-name: dbfbHeadRide;
+              animation-timing-function: linear;
+              animation-fill-mode: both;
+            }
+            @keyframes dbfbHeadRide {
+              0%, 75%    { offset-distance: 0%; opacity: 0 }
+              79%        { opacity: 1 }
+              100%       { offset-distance: 100%; opacity: 1 }
+            }
+          }
+
           @media (prefers-reduced-motion: reduce) {
-            .dbfb-ghost, .dbfb-route, .dbfb-dim { animation: none !important }
+            .dbfb-ghost, .dbfb-route, .dbfb-dim, .dbfb-arrow { animation: none !important }
           }
         `}</style>
       )}
@@ -591,17 +628,29 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
       {/* Routes into the next chord — under the dots so they never hide a note */}
       <g key={`routes-${phaseKey}`}>
         {routes.map(r => (
-          <path key={r.key} d={r.d} fill="none" stroke="var(--n-next)" strokeWidth={2.4} strokeLinecap="round"
-            opacity={(inFocus(r.startFret) || inFocus(r.endFret)) ? 0.95 : 0}
-            pathLength={1} strokeDasharray="1 1" strokeDashoffset={0}
-            className={phaseOn ? "dbfb-route" : undefined} style={phaseOn ? phaseDur : undefined}>
-            {/* The 3:2 System's route (semis: null — see above) isn't a
-                semitone/whole-tone resolution the way the ordinary board's
-                guide-tone routes are, so its tooltip just names the hop. */}
-            <title>{r.semis == null
-              ? `${r.from} → ${r.to} · shortest way to the next chord's 3rd`
-              : `${r.from} → ${r.to} · ${Math.abs(r.semis) === 1 ? "a semitone" : "a whole tone"} ${r.semis > 0 ? "up" : "down"}`}</title>
-          </path>
+          <g key={r.key} opacity={(inFocus(r.startFret) || inFocus(r.endFret)) ? 1 : 0}>
+            <path d={r.d} fill="none" stroke="var(--n-next)" strokeWidth={2.4} strokeLinecap="round"
+              opacity={0.95}
+              pathLength={1} strokeDasharray="1 1" strokeDashoffset={0}
+              className={phaseOn ? "dbfb-route" : undefined} style={phaseOn ? phaseDur : undefined}>
+              {/* The 3:2 System's routes (semis: null — see above) aren't a
+                  semitone/whole-tone resolution the way the ordinary board's
+                  guide-tone routes are, so their tooltip just names the hop. */}
+              <title>{r.semis == null
+                ? `${r.from} → ${r.to} · shortest way to the next chord's 3rd`
+                : `${r.from} → ${r.to} · ${Math.abs(r.semis) === 1 ? "a semitone" : "a whole tone"} ${r.semis > 0 ? "up" : "down"}`}</title>
+            </path>
+            {/* The arrowhead: while playing it rides the curve toward the
+                target across beat 4 (offset-path, .dbfb-arrowhead above);
+                paused, it just sits at the target end pointing the way. */}
+            <polygon points="-8,-4.5 1,0 -8,4.5" fill="var(--n-next)"
+              className={phaseOn ? "dbfb-arrowhead" : undefined}
+              transform={phaseOn ? undefined : `translate(${r.endX},${r.endY}) rotate(${r.angle})`}
+              style={phaseOn
+                ? { offsetPath: `path("${r.d}")`, offsetRotate: "auto", ...phaseDur }
+                : undefined}
+            />
+          </g>
         ))}
       </g>
 
@@ -628,15 +677,6 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
               textAnchor="middle" fill="var(--n-next)"
               fontSize={g.text.length > 2 ? 7 : 8} fontWeight="bold" fontFamily="Arial, sans-serif"
             >{g.text}</text>
-            {/* Names mode: which interval of the COMING chord this ghost is
-                (degrees mode already labels the dot itself that way). */}
-            {labelMode === "names" && ghostRootNote && (
-              <text x={g.cx} y={g.cy - 12}
-                textAnchor="middle" fontSize={8.5} fontWeight="bold"
-                fontFamily="Arial, sans-serif"
-                fill="var(--n-next)" stroke="var(--fb-wood-1)" strokeWidth="0.9" paintOrder="stroke"
-              >{degreeOf(g.label, norm(ghostRootNote))}</text>
-            )}
             <title>{`${g.label} — ${ghostRootNote ? `the ${degreeOf(g.label, norm(ghostRootNote))} of` : "guide tone of"} ${g.own ? "this chord" : "the next chord"}`}</title>
           </g>
         ))}
@@ -738,17 +778,9 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
                 textAnchor="middle" fontSize={12.5} fontWeight="bold"
                 fontFamily="Arial, sans-serif" letterSpacing="-1.5"
                 fill="var(--n-target)" stroke="var(--fb-wood-1)" strokeWidth="0.9" paintOrder="stroke"
+                className={phaseOn && inFocus(d.f) ? "dbfb-arrow" : undefined}
+                style={phaseOn && inFocus(d.f) ? phaseDur : undefined}
               >{glyph}</text>
-            )}
-            {/* Names mode: the target's interval in the COMING chord, floated
-                above the dot (degrees mode already puts it on the dot). Sits
-                out when an arrow glyph owns the same spot. */}
-            {!glyph && d.targetInterval && labelMode === "names" && (
-              <text x={d.cx} y={d.cy - d.r - 2.5}
-                textAnchor="middle" fontSize={9.5} fontWeight="bold"
-                fontFamily="Arial, sans-serif"
-                fill="var(--n-target)" stroke="var(--fb-wood-1)" strokeWidth="0.9" paintOrder="stroke"
-              >{d.targetInterval}</text>
             )}
           </g>
         )

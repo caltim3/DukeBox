@@ -39,6 +39,7 @@ import { computeVoiceLeadPath, TARGET_ROLE_LABELS } from "@/lib/music/voiceLeadP
 import { STARTER_PRESETS, STARTER_STRIP, SCENARIO_CONFIG, LOAD_STARTER_EVENT } from "@/lib/music/starters"
 import Fretboard, { fretPositions, FRETBOARD_FRETS } from "@/components/Fretboard"
 import { classifySongForm, getLevelDefs, resolvePentaChoice, buildPentaBoard, buildScaleBoard, buildScaleBoardFromNotes, PENTA_LEGEND, chordThird } from "@/lib/music/threeTwoSystem"
+import { PATHWAY_RUNGS, DEFAULT_PATHWAY_RUNG, resolvePathwayPlan } from "@/lib/music/pathways"
 import PracticeTimer from "@/components/PracticeTimer"
 import GigBarStrip from "@/components/GigBarStrip"
 import { lineToTransportEvents } from "@/lib/music/lines"
@@ -276,6 +277,16 @@ export default function Home() {
   // itself (see the PALETTE panel below), so it can't also mean something
   // while 3:2 is on. Levels 0-1 ignore this entirely.
   const [threeTwoDensity, setThreeTwoDensity] = useState("mode")  // "mode" | "pentatonic" | "hexatonic"
+  // Scale Pathways (src/lib/music/pathways.js, spec docs/SCALE_PATHWAYS.md) —
+  // the ranked-ladder chord-scale engine: ONE GLOBAL RUNG (1 Key Center …
+  // 5 Color) resolved across the whole chart, climbed from the Focus HUD's
+  // rung chips (or keys 1-5 in Focus) while the band plays. A tenth
+  // mutually-exclusive PALETTE choice alongside Chord/Scale/filters/3:2 —
+  // it replaces which notes the board draws, so only one of them can be
+  // telling the truth at a time. Per-bar userScale/userTonic overrides beat
+  // the rung inside the engine itself.
+  const [pathwaysMode, setPathwaysMode] = useState(false)
+  const [pathwayRung, setPathwayRung] = useState(DEFAULT_PATHWAY_RUNG)
   const [scaleFilter, setScaleFilter] = useState(null)  // null | "pentatonic" | "hexatonic" | "martino" | "hexchord" | "barry" | "harmonicMinor251"
   // "Altered" — independent of the nine-way PALETTE set above (like
   // +Bebop Chromatic, a modifier that sits alongside whichever PALETTE
@@ -357,6 +368,14 @@ export default function Home() {
   useEffect(() => {
     document.body.dataset.dbMode = mode
   }, [mode])
+
+  // And once more for Pathways: while it's on, Focus's "5" belongs to the
+  // rung ladder (5 · Color, this file's keydown handler) rather than
+  // KeyboardShortcuts.jsx's global "5 → Reference" jump — that file reads
+  // this flag to stand down, the same way it already yields 0-4 in Focus.
+  useEffect(() => {
+    document.body.dataset.dbPathways = pathwaysMode ? "true" : "false"
+  }, [pathwaysMode])
 
   const exitFocusMode = useCallback(() => {
     choosePracticeView("cockpit")
@@ -582,6 +601,30 @@ export default function Home() {
   }, [threeTwoMode, threeTwoLevel, fretboardBar, threeTwoChoice, fretboardTuning, labelMode])
   const threeTwoActiveOnBoard = threeTwoMode && fretboardTuning === "Standard" && threeTwoBoard.cells.length > 0
 
+  // Scale Pathways — the whole chart resolved at the one global rung. The
+  // engine reads per-bar userScale/userTonic overrides itself, so this only
+  // recomputes when the chart or the rung changes, not per chord change.
+  const pathwayPlan = useMemo(
+    () => (pathwaysMode ? resolvePathwayPlan(bars, pathwayRung) : null),
+    [pathwaysMode, bars, pathwayRung]
+  )
+  const pathwayChoice = pathwayPlan?.choices?.[fretboardBarIndex] ?? null
+  const pathwaysActiveOnBoard = !!(pathwaysMode && !threeTwoActiveOnBoard && pathwayChoice?.usable)
+
+  // Freeze-and-pick: while frozen on a chord with Pathways up, the HUD
+  // offers that chord's ranked scale alternatives (best chord-tone fit
+  // first, the curated picks starred — rankScalesForChord's order).
+  // Choosing one writes the bar's own userScale override, the same field
+  // the engine and the rest of the app already honor on every rung;
+  // "Pathway pick" clears it back to the ladder's choice.
+  const frozenScaleRanks = useMemo(() => {
+    if (!pathwaysMode || !freezeMode || fretboardBar.quality === "NC") return []
+    return rankScalesForChord(
+      fretboardBar.symbol, fretboardBar.quality,
+      fretboardBar.userTonic ?? fretboardBar.root
+    ).slice(0, 16)
+  }, [pathwaysMode, freezeMode, fretboardBar])
+
   // When Martino mode is active, compute the remapped display root/quality for the fretboard.
   // Everything else (audio, guide tones, notation) continues to use the original fretboardBar data.
   const martinoMap = useMemo(() => {
@@ -625,6 +668,14 @@ export default function Home() {
   }, [fretboardBar])
 
   const displayedScaleNotes = useMemo(() => {
+    // Pathways drives the board ahead of every filter — the engine has
+    // already applied the bar's own override, the written-symbol rule and
+    // the rung, and its notes are the whole story. (Rung 2 draws chord
+    // tones instead — the view prop below flips to "chord" and this list
+    // goes unused.)
+    if (pathwaysActiveOnBoard && pathwayChoice.view === "scale") {
+      return pathwayChoice.notes
+    }
     // Martino mode: remap to display root/quality and apply hexatonic formula from that root.
     // The `applyScaleFilter("martino")` path also works, but using the mapper explicitly keeps
     // the fretboard rootNote and label in sync with the same computed values.
@@ -649,7 +700,7 @@ export default function Home() {
     // the "hexatonic" filter's minor-chord case — see applyScaleFilter's doc
     // comment — so it's harmless to always pass it through here.
     return applyScaleFilter(raw, tonic, fretboardBar.quality, scaleFilter, harmonicContext[fretboardBarIndex])
-  }, [fretboardScaleData, fretboardBar, fretboardBarIndex, harmonicContext, scaleFilter, martinoMap, alteredMap])
+  }, [fretboardScaleData, fretboardBar, fretboardBarIndex, harmonicContext, scaleFilter, martinoMap, alteredMap, pathwaysActiveOnBoard, pathwayChoice])
 
   // "Altered"'s Chord-view row: the tritone substitute's own chord tones
   // (root+6, same quality) rather than the melodic-minor color the Scale/
@@ -748,10 +799,26 @@ export default function Home() {
     if (fretboardTuning !== "Standard") return
     setThreeTwoMode(v => {
       const next = !v
-      if (next) setScaleFilter(null)
+      if (next) { setScaleFilter(null); setPathwaysMode(false) }
       return next
     })
   }, [fretboardTuning])
+
+  // Pathways' own on/off, sharing the palette's mutual-exclusion step: on
+  // clears the filter row and 3:2 (only one system draws the board), and
+  // lands in Scale view since a rung is a scale story (rung 2 flips the
+  // board to chord view per bar on its own, without touching this state).
+  const togglePathwaysMode = useCallback(() => {
+    setPathwaysMode(v => {
+      const next = !v
+      if (next) {
+        setScaleFilter(null)
+        setThreeTwoMode(false)
+        setFretboardView("scale")
+      }
+      return next
+    })
+  }, [])
 
 
   // The fretboard consumes Melody Paths' selected line directly. This keeps
@@ -822,7 +889,12 @@ export default function Home() {
   // recommended scale the whole time 3:2 was on, the one place in the app
   // that still lied about what was on the neck (see
   // docs/FRETBOARD_CHORD_SCALE_CONTROLS.md, "one live sentence" item).
-  const scaleLabel = threeTwoActiveOnBoard
+  const scaleLabel = pathwaysActiveOnBoard
+    ? `Pathways · ${pathwayPlan.rung.id} ${pathwayPlan.rung.name} · ${
+        pathwayChoice.view === "chord" ? "chord tones — aim for the 3rd and 7th"
+        : `${pathwayChoice.tonic} ${pathwayChoice.label}`}${
+        pathwayChoice.source === "override" ? " · your pick" : ""}`
+    : threeTwoActiveOnBoard
     ? (threeTwoLevel === 0
         ? `3:2 System · Chord scales · ${threeTwoBoard.scaleName ?? ""}`
         : `3:2 System · ${threeTwoLevelDefs.find((lv) => lv.id === threeTwoLevel)?.name ?? `Level ${threeTwoLevel}`}${threeTwoChoice.why ? ` · ${threeTwoChoice.why}` : ""}`)
@@ -846,7 +918,7 @@ export default function Home() {
     : (scaleFilter ?? fretboardScaleData[0]?.name ?? "")
   const scaleTonic = fretboardBar.userTonic ?? fretboardBar.root
   const scaleLabelFull = scaleLabel
-    ? (threeTwoActiveOnBoard || martinoMap || (alteredMap && (scaleFilter == null || scaleFilter === "pentatonic")) || scaleFilter === "hexchord" || scaleFilter === "barry" || scaleFilter === "harmonicMinor251" ? scaleLabel : `${scaleTonic} ${scaleLabel}`)
+    ? (pathwaysActiveOnBoard || threeTwoActiveOnBoard || martinoMap || (alteredMap && (scaleFilter == null || scaleFilter === "pentatonic")) || scaleFilter === "hexchord" || scaleFilter === "barry" || scaleFilter === "harmonicMinor251" ? scaleLabel : `${scaleTonic} ${scaleLabel}`)
     : "—"
 
   // Anticipate — the next sounding bar, wrapping inside the loop range when
@@ -1604,6 +1676,7 @@ export default function Home() {
       setFretboardView(scenario.scaleFilter || scenario.threeTwo ? "scale" : "chord")
       setAlteredOverlay(!!scenario.altered)
       setThreeTwoMode(!!scenario.threeTwo)
+      setPathwaysMode(false)   // scenarios predate Pathways; a stale rung would fight their setup
       if (scenario.threeTwo) {
         setThreeTwoLevel(scenario.threeTwo.level)
         if (scenario.threeTwo.density) setThreeTwoDensity(scenario.threeTwo.density)
@@ -2057,11 +2130,20 @@ export default function Home() {
       // document.body has the db-focus-mode class, letting the keydown fall
       // through to here. Outside Focus, 0-4 go back to being Home/Practice/
       // Gig/Create/Reference exactly as KeyboardShortcuts.jsx lists them.
-      if (!meta && !e.altKey && focusStage && /^[0-4]$/.test(e.key)) {
+      // While Pathways is on, the digits climb ITS ladder instead — 1-5 pick
+      // the rung directly. 3:2's 0-4 behavior below is untouched whenever
+      // Pathways is off.
+      if (!meta && !e.altKey && focusStage && pathwaysMode && /^[1-5]$/.test(e.key)) {
+        e.preventDefault()
+        setPathwayRung(Number(e.key))
+        return
+      }
+      if (!meta && !e.altKey && focusStage && !pathwaysMode && /^[0-4]$/.test(e.key)) {
         e.preventDefault()
         if (fretboardTuning === "Standard") {
           setThreeTwoMode(true)
           setThreeTwoLevel(Number(e.key))
+          setPathwaysMode(false)
         }
         return
       }
@@ -2120,7 +2202,7 @@ export default function Home() {
     // themselves don't need to be. toggleThreeTwoMode/toggleVoiceLeadingMode
     // ARE listed directly — both are real useCallbacks, so this only
     // re-subscribes when what they depend on actually changes.
-  }, [bars, selectedIndex, clipboardBar, updateBar, cyclePalette, toggleColorMode, mode, practiceView, choosePracticeView, nudgeTempo, restoreTempo, freezeMode, focusStage, freezeChordIndices, freezeLoopOn, isPlaying, fretboardBarIndex, upcomingBarIndices, toggleThreeTwoMode, toggleVoiceLeadingMode, exitFocusMode, fretboardTuning]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [bars, selectedIndex, clipboardBar, updateBar, cyclePalette, toggleColorMode, mode, practiceView, choosePracticeView, nudgeTempo, restoreTempo, freezeMode, focusStage, freezeChordIndices, freezeLoopOn, isPlaying, fretboardBarIndex, upcomingBarIndices, toggleThreeTwoMode, toggleVoiceLeadingMode, exitFocusMode, fretboardTuning, pathwaysMode]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Library hydration + cloud sync is handled by useCloudLibrary; here we only
   // ensure audio stops if the component unmounts mid-playback.
@@ -3098,14 +3180,15 @@ export default function Home() {
                       <button key={v} onClick={() => {
                         setFretboardView(v)
                         setThreeTwoMode(false)
+                        setPathwaysMode(false)
                         if (v === "chord") setScaleFilter(null)   // was left lit with no effect — see doc
                       }} style={{
                         padding: "4px 10px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-sm)", cursor: "pointer",
-                        background: fretboardView === v && !threeTwoMode ? "color-mix(in srgb, var(--db-c-amber) 20%, var(--db-bg))" : "var(--db-panel-bg)",
-                        border:     fretboardView === v && !threeTwoMode ? "1px solid var(--db-c-amber)" : "1px solid var(--db-panel-border)",
-                        color:      fretboardView === v && !threeTwoMode ? "var(--db-c-amber)" : "var(--db-text)",
-                        fontWeight: fretboardView === v && !threeTwoMode ? 700 : 400,
-                        opacity:    fretboardView === v && !threeTwoMode ? 1 : 0.7,
+                        background: fretboardView === v && !threeTwoMode && !pathwaysMode ? "color-mix(in srgb, var(--db-c-amber) 20%, var(--db-bg))" : "var(--db-panel-bg)",
+                        border:     fretboardView === v && !threeTwoMode && !pathwaysMode ? "1px solid var(--db-c-amber)" : "1px solid var(--db-panel-border)",
+                        color:      fretboardView === v && !threeTwoMode && !pathwaysMode ? "var(--db-c-amber)" : "var(--db-text)",
+                        fontWeight: fretboardView === v && !threeTwoMode && !pathwaysMode ? 700 : 400,
+                        opacity:    fretboardView === v && !threeTwoMode && !pathwaysMode ? 1 : 0.7,
                       }}>
                         {v === "chord" ? "Chord" : "Scale"}
                       </button>
@@ -3121,6 +3204,7 @@ export default function Home() {
                       <button key={f} onClick={() => {
                         // Turning a filter on implies you want to see the scale, not the chord
                         setThreeTwoMode(false)
+                        setPathwaysMode(false)
                         setScaleFilter(prev => {
                           const next = prev === f ? null : f
                           if (next) setFretboardView("scale")
@@ -3130,11 +3214,11 @@ export default function Home() {
                         ? "One harmonic minor over the whole iiø7-V7alt-i — only this chord's own tones from that scale light up. Select a bar inside a minor ii-V-i for the shared tonic; elsewhere, this chord's own root stands in for it."
                         : undefined} style={{
                         padding: "4px 10px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-sm)", cursor: "pointer",
-                        background: scaleFilter === f && !threeTwoMode ? "color-mix(in srgb, var(--db-c-blue) 20%, var(--db-bg))" : "var(--db-panel-bg)",
-                        border:     scaleFilter === f && !threeTwoMode ? "1px solid var(--db-c-blue)" : "1px solid var(--db-panel-border)",
-                        color:      scaleFilter === f && !threeTwoMode ? "var(--db-c-blue)" : "var(--db-text)",
-                        fontWeight: scaleFilter === f && !threeTwoMode ? 700 : 400,
-                        opacity:    scaleFilter === f && !threeTwoMode ? 1 : 0.7,
+                        background: scaleFilter === f && !threeTwoMode && !pathwaysMode ? "color-mix(in srgb, var(--db-c-blue) 20%, var(--db-bg))" : "var(--db-panel-bg)",
+                        border:     scaleFilter === f && !threeTwoMode && !pathwaysMode ? "1px solid var(--db-c-blue)" : "1px solid var(--db-panel-border)",
+                        color:      scaleFilter === f && !threeTwoMode && !pathwaysMode ? "var(--db-c-blue)" : "var(--db-text)",
+                        fontWeight: scaleFilter === f && !threeTwoMode && !pathwaysMode ? 700 : 400,
+                        opacity:    scaleFilter === f && !threeTwoMode && !pathwaysMode ? 1 : 0.7,
                       }}>
                         {label}
                       </button>
@@ -3196,6 +3280,28 @@ export default function Home() {
                       }}
                     >
                       3:2 System
+                    </button>
+                    {/* Scale Pathways — the 10th mutually-exclusive PALETTE
+                        choice (src/lib/music/pathways.js, spec
+                        docs/SCALE_PATHWAYS.md): the whole chart resolved at
+                        one global rung of the foundational→colorful ladder.
+                        The rung itself is picked from the Focus HUD's chips
+                        (or keys 1-5 in Focus) — this button only turns the
+                        system on and off. */}
+                    <button
+                      onClick={togglePathwaysMode}
+                      aria-pressed={pathwaysMode}
+                      title="Scale Pathways — one ranked way through the whole chart (Key Center → Guide Tones → Pentatonic → Bebop → Color); climb the ladder from the rung chips by the Now readout"
+                      style={{
+                        padding: "4px 10px", borderRadius: "var(--db-r-sm)", fontSize: "var(--db-fs-sm)", cursor: "pointer",
+                        background: pathwaysMode ? "color-mix(in srgb, var(--n-target) 22%, var(--db-bg))" : "var(--db-panel-bg)",
+                        border:     pathwaysMode ? "1px solid var(--n-target)" : "1px solid var(--db-panel-border)",
+                        color:      pathwaysMode ? "var(--n-target)" : "var(--db-text)",
+                        fontWeight: pathwaysMode ? 700 : 400,
+                        opacity:    pathwaysMode ? 1 : 0.7,
+                      }}
+                    >
+                      Pathways
                     </button>
                   </div>
 
@@ -3581,6 +3687,78 @@ export default function Home() {
                 )
               })()}
 
+              {/* Pathways rung selector — the ladder lives here in the HUD,
+                  beside the chord you're on, because climbing it mid-chorus
+                  is the point (spec docs/SCALE_PATHWAYS.md §19: one rung per
+                  chorus). Chips are the radio set; the line under them is
+                  the engine's own reason for THIS bar's scale, so the HUD
+                  reads back what the board is doing in words. Keys 1-5 do
+                  the same in Focus. */}
+              {pathwaysMode && (
+                <div style={{
+                  background: "var(--surface)", border: "1px solid var(--n-target)",
+                  borderRadius: "var(--db-r-md)", padding: "8px 12px",
+                  display: "flex", flexDirection: "column", justifyContent: "center",
+                  gap: "6px", minWidth: 0, flexShrink: 0, maxWidth: "300px",
+                }}>
+                  <div style={{ font: "800 9.5px 'Archivo', sans-serif", letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--n-target)" }}>
+                    Pathway
+                  </div>
+                  <div style={{ display: "inline-flex", border: "1px solid var(--line)", borderRadius: "7px", overflow: "hidden", alignSelf: "flex-start" }}>
+                    {PATHWAY_RUNGS.map((r) => (
+                      <button key={r.id} onClick={() => setPathwayRung(r.id)} aria-pressed={pathwayRung === r.id}
+                        title={`${r.id} · ${r.name} — ${r.note}`}
+                        style={{
+                          font: "700 10.5px 'Instrument Sans', sans-serif", padding: "4px 8px",
+                          border: "none", cursor: "pointer", whiteSpace: "nowrap",
+                          background: pathwayRung === r.id ? "var(--n-target)" : "var(--surface)",
+                          color: pathwayRung === r.id ? "#FFF" : "var(--muted)",
+                        }}>
+                        {r.id}·{{ 1: "Key", 2: "Guide", 3: "Penta", 4: "Bebop", 5: "Color" }[r.id] ?? r.name}
+                      </button>
+                    ))}
+                  </div>
+                  {pathwayChoice?.why && (
+                    <div title={pathwayChoice.why} style={{
+                      font: "600 10px 'Instrument Sans', sans-serif", color: "var(--muted)",
+                      fontStyle: "italic", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                    }}>
+                      {pathwayChoice.why}
+                    </div>
+                  )}
+                  {/* Freeze-and-pick: frozen on a chord, override just this
+                      bar's scale. Writes bar.userScale (the field the engine
+                      honors ahead of every rung — see resolvePathwayPlan),
+                      so the pick survives rung changes and rides along when
+                      the song is saved. The first option clears it. */}
+                  {freezeMode && frozenScaleRanks.length > 0 && (
+                    <div style={{ display: "flex", gap: "6px", alignItems: "center", minWidth: 0 }}>
+                      <span style={{ font: "700 9px 'IBM Plex Mono', monospace", letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--info)", flexShrink: 0 }}>
+                        ❄ This bar
+                      </span>
+                      <select
+                        value={fretboardBar.userScale ?? ""}
+                        onChange={(e) => updateBar(fretboardBarIndex, { userScale: e.target.value || null })}
+                        aria-label={`Scale override for ${fretboardBar.symbol}`}
+                        title={`Pin a scale to ${fretboardBar.symbol} — best fits first, ★ = the classic call for this chord quality`}
+                        style={{
+                          font: "600 10.5px 'Instrument Sans', sans-serif", color: "var(--text)",
+                          background: "var(--surface2)", border: `1px solid ${fretboardBar.userScale ? "var(--n-target)" : "var(--line)"}`,
+                          borderRadius: "6px", padding: "3px 6px", minWidth: 0, maxWidth: "170px",
+                        }}
+                      >
+                        <option value="">Pathway pick</option>
+                        {frozenScaleRanks.map((r) => (
+                          <option key={r.name} value={r.name}>
+                            {r.recommended ? "★ " : ""}{fretboardBar.userTonic ?? fretboardBar.root} {r.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Freeze — Focus has no chart ribbon to freeze from (that's a
                   Cockpit-only control), so it gets its own trigger here: a
                   small square right of Coming Up. Stops the band and turns
@@ -3638,9 +3816,15 @@ export default function Home() {
                       <span><kbd style={kbdStyle}>I</kbd>3:2</span>
                       <span><kbd style={kbdStyle}>V</kbd>voice</span>
                     </div>
-                    <div style={rowStyle} title="0 Chord scales · 1 Blues scale · 2 Minor · 3 Major · 4 Altered">
-                      <span><kbd style={kbdStyle}>0-4</kbd>3:2 level</span>
-                    </div>
+                    {pathwaysMode ? (
+                      <div style={rowStyle} title="1 Key Center · 2 Guide Tones · 3 Pentatonic · 4 Bebop · 5 Color">
+                        <span><kbd style={kbdStyle}>1-5</kbd>pathway rung</span>
+                      </div>
+                    ) : (
+                      <div style={rowStyle} title="0 Chord scales · 1 Blues scale · 2 Minor · 3 Major · 4 Altered">
+                        <span><kbd style={kbdStyle}>0-4</kbd>3:2 level</span>
+                      </div>
+                    )}
                     {freezeMode && (
                       <div style={rowStyle}>
                         <span><kbd style={kbdStyle}>← →</kbd>measure</span>
@@ -3745,7 +3929,12 @@ export default function Home() {
               <Fretboard
                 chordNotes={effectiveChordNotes}
                 rootNote={
-                  martinoMap ? martinoMap.displayRoot
+                  // Pathways: the rung's own tonic — often the bar's root,
+                  // but not always (a sus chord's pentatonic sits on its 5th,
+                  // a iiø's on the cadence target), and degrees should read
+                  // from the collection actually drawn.
+                  pathwaysActiveOnBoard ? (pathwayChoice.tonic ?? (fretboardBar.userTonic ?? fretboardBar.root))
+                  : martinoMap ? martinoMap.displayRoot
                   : !alteredMap ? (fretboardBar.userTonic ?? fretboardBar.root)
                   : (!scaleFilter && fretboardView === "chord") ? alteredMap.tritoneRoot
                   : (!scaleFilter || scaleFilter === "pentatonic") ? alteredMap.displayRoot
@@ -3776,7 +3965,7 @@ export default function Home() {
                 animate={isPlaying && playheadIndex !== null}
                 barSeconds={fretboardBarSeconds}
                 phaseKey={playheadIndex}
-                view={fretboardView}
+                view={pathwaysActiveOnBoard ? (pathwayChoice.view === "chord" ? "chord" : "scale") : fretboardView}
                 tuningName={fretboardTuning}
                 threeTwo={{
                   on: threeTwoActiveOnBoard,

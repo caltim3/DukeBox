@@ -195,13 +195,16 @@ export default function KeyboardShortcuts() {
       // In Focus, "0"-"4" pick the 3:2 System's level instead — see page.js's
       // own keydown handler, where that state lives. Don't preventDefault/
       // stopPropagation here; let the keydown fall through to page.js's
-      // bubble-phase listener untouched. "5" (Reference) and "6" (Tonal) are
-      // untouched either way — the 3:2 System only has levels 0-4.
+      // bubble-phase listener untouched. "6" (Tonal) is untouched either way,
+      // and "5" (Reference) yields only while Scale Pathways is on
+      // (body.dataset.dbPathways, stamped by page.js) — its rung ladder runs
+      // 1-5, one past the 3:2 System's 0-4.
       const inFocusStage = () => document.body.classList.contains("db-focus-mode")
+      const pathwaysOn = () => document.body.dataset.dbPathways === "true"
 
       const workspaces = { "1": "Practice", "2": "Gig", "3": "Create", "4": "BeatForge", "5": "Reference", "6": "Tonal" }
       if (workspaces[event.key]) {
-        if (event.key !== "5" && event.key !== "6" && inFocusStage()) return
+        if (event.key !== "6" && inFocusStage() && (event.key !== "5" || pathwaysOn())) return
         event.preventDefault()
         event.stopPropagation()
         // While a song is playing, "1" means "back to Focus" specifically —
