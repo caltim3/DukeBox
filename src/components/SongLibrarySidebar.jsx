@@ -9,7 +9,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import { buildCatalog } from "@/lib/music/songSource"
-import { BUILTIN_PLAYLISTS, resolveActiveList } from "@/lib/music/playlists"
+import { BUILTIN_PLAYLISTS, resolveActiveList, playlistHue, playlistTagFor } from "@/lib/music/playlists"
 
 const THEME = {
   panel: "var(--surface)", ink: "var(--text)", muted: "var(--muted)",
@@ -31,12 +31,14 @@ export default function SongLibrarySidebar({
   // the card body triggers it and `onSelect` still fires first, so whatever
   // tracks "which tune is open" stays in step.
   onActivate = null,
-  // Grid only: a second, quieter action per card (Gig loads without playing).
+  // Grid only: a second, quieter action per card (Gig's other destination).
   secondaryAction = null,
+  // Grid only: how the card's own tooltip describes the primary action.
+  activateLabel: activateLabelProp = null,
 }) {
   const theme = THEME
   const isGrid = layout === "grid"
-  const activateLabel = secondaryAction ? "click to play" : "click to open"
+  const activateLabel = activateLabelProp ?? (secondaryAction ? "click to play" : "click to open")
   // Memoized (rather than `library?.setlists ?? []` inline) so a missing
   // `setlists` array doesn't hand the resolved-list useMemo below a fresh
   // empty array reference every render.
@@ -167,7 +169,8 @@ export default function SongLibrarySidebar({
         <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", marginBottom: "8px" }}>
           <PlaylistPill active={activeList === ""} onClick={() => setActiveList("")} theme={theme}>All</PlaylistPill>
           {BUILTIN_PLAYLISTS.map(p => (
-            <PlaylistPill key={p.id} active={activeList === `playlist:${p.id}`} onClick={() => setActiveList(`playlist:${p.id}`)} theme={theme}>
+            <PlaylistPill key={p.id} active={activeList === `playlist:${p.id}`} onClick={() => setActiveList(`playlist:${p.id}`)} theme={theme}
+              dot={isGrid ? playlistHue(p.id) : null}>
               {p.label}
             </PlaylistPill>
           ))}
@@ -208,6 +211,8 @@ export default function SongLibrarySidebar({
         : { maxHeight: "520px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "4px" }}>
         {listForPool.map((song, i) => {
           const isOpen = song.id === selectedId
+          const tag = isGrid ? playlistTagFor(song) : null
+          const hue = tag?.hue ?? null
           return (
             <div
               key={song.id + i}
@@ -216,12 +221,18 @@ export default function SongLibrarySidebar({
               onDragOver={e => e.preventDefault()}
               onDrop={() => { if (currentSetlist && dragIdx.current != null) reorderSetlist(dragIdx.current, i); dragIdx.current = null }}
               onClick={() => { onSelect?.(song); onActivate?.(song) }}
-              title={onActivate ? `${song.title} — ${activateLabel}` : undefined}
+              title={onActivate ? `${song.title} — ${activateLabel}${tag ? ` · ${tag.label}` : ""}` : undefined}
               style={{
                 display: "flex", alignItems: "center", gap: "8px", padding: isGrid ? "10px 11px" : "7px 9px",
                 borderRadius: isGrid ? "10px" : "8px", cursor: "pointer",
-                background: isOpen ? `color-mix(in srgb, ${theme.accent} 18%, ${theme.panel})` : theme.panel,
-                border: `1px solid ${isOpen ? theme.accent : theme.line}`,
+                // The playlist tint: a wash, not a block. Mixed against the
+                // panel so it lands the same way in light and dark, and left
+                // off entirely for the selected card, which owns the accent.
+                background: isOpen
+                  ? `color-mix(in srgb, ${theme.accent} 18%, ${theme.panel})`
+                  : (isGrid && hue ? `color-mix(in srgb, ${hue} 7%, ${theme.panel})` : theme.panel),
+                border: `1px solid ${isOpen ? theme.accent : (isGrid && hue ? `color-mix(in srgb, ${hue} 28%, ${theme.line})` : theme.line)}`,
+                borderLeft: isGrid && hue && !isOpen ? `3px solid color-mix(in srgb, ${hue} 62%, ${theme.panel})` : undefined,
               }}
             >
               {currentSetlist && <span style={{ color: theme.muted, cursor: "grab" }}>☰</span>}
@@ -287,13 +298,14 @@ function ghostBtn(theme) {
   }
 }
 
-function PlaylistPill({ active, onClick, theme, title, children }) {
+function PlaylistPill({ active, onClick, theme, title, children, dot = null }) {
   return (
     <button
       onClick={onClick}
       title={title}
       aria-pressed={active}
       style={{
+        display: "inline-flex", alignItems: "center", gap: "6px",
         font: "600 10.5px 'Instrument Sans', sans-serif", whiteSpace: "nowrap",
         padding: "4px 9px", borderRadius: "999px", cursor: "pointer",
         background: active ? theme.accent : "transparent",
@@ -301,6 +313,14 @@ function PlaylistPill({ active, onClick, theme, title, children }) {
         border: `1px solid ${active ? theme.accent : theme.line}`,
       }}
     >
+      {/* The same hue the cards carry — the pill row doubles as the legend,
+          so nothing has to explain what the colors mean. */}
+      {dot && (
+        <span aria-hidden="true" style={{
+          width: "7px", height: "7px", borderRadius: "50%", flexShrink: 0,
+          background: dot, opacity: active ? 0.9 : 1,
+        }} />
+      )}
       {children}
     </button>
   )
