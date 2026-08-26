@@ -4811,7 +4811,7 @@ export default function Home() {
           </PowerPanel>
         )}
 
-        {inMode("reference") && <ReferenceGuides panelStyle={panelStyle} />}
+        {inMode("reference") && <ReferenceGuides />}
 
         {/* ── FRET FLOW ─────────────────────────────────────────────── */}
         {inMode("reference") && (() => {
