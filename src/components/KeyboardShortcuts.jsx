@@ -30,12 +30,12 @@ const GROUPS = [
   {
     title: "Get around",
     items: [
-      ["0", "Home — 3:2 System's Chord scales, once you're in Focus"],
+      ["0", "Home, from anywhere"],
       ["1", "Practice — Focus, while playing; 3:2's Blues scale, in Focus"],
-      ["2", "Gig — live chart, while playing; 3:2's Minor, in Focus"],
-      ["3", "Create — 3:2's Major, in Focus"],
-      ["4 / B", "BeatForge — 3:2's Altered, in Focus"],
-      ["5", "Reference"],
+      ["2", "Create — 3:2's Minor, in Focus"],
+      ["3", "BeatForge — 3:2's Major, in Focus"],
+      ["4", "Gig — live chart, while playing; 3:2's Altered, in Focus"],
+      ["5", "Reference — Pathways' Color rung, in Focus"],
       ["6", "Tonal"],
       ["/", "Song library, from anywhere"],
       ["?", "Show or hide this sheet"],
@@ -110,22 +110,17 @@ function clickWorkspace(label) {
 
 // The Practice home shell is a fixed overlay above everything, so clicking a
 // workspace tab underneath it changes the tab without revealing it. From home
-// we go through home's own sidebar nav instead, which dismisses the shell.
-const HOME_NAV = {
-  Practice: "Practice center",
-  Gig: "Gig mode",
-  Create: "Create",
-  Reference: "Reference",
-  Tonal: "Tonal",
-}
-
+// we go through home's own nav pills instead, which dismiss the shell. Those
+// pills are labelled with the plain workspace names, so the lookup is by
+// label directly — an older map here still spelled two of them "Practice
+// center" and "Gig mode", which matched nothing and quietly fell back.
 function homeIsOpen() {
   return document.body.classList.contains("db-pickup-home-open")
 }
 
 function goWorkspace(label) {
   if (homeIsOpen()) {
-    const wanted = (HOME_NAV[label] || label).toLowerCase()
+    const wanted = label.toLowerCase()
     const navButton = Array.from(document.querySelectorAll(".db-pickup-nav-button"))
       .find((el) => (el.textContent || "").trim().toLowerCase() === wanted)
     if (navButton) { navButton.click(); return true }
@@ -192,41 +187,47 @@ export default function KeyboardShortcuts() {
 
       if (open || isTyping() || event.metaKey || event.ctrlKey || event.altKey) return
 
-      // In Focus, "0"-"4" pick the 3:2 System's level instead — see page.js's
+      // In Focus, "1"-"4" pick the 3:2 System's level instead — see page.js's
       // own keydown handler, where that state lives. Don't preventDefault/
       // stopPropagation here; let the keydown fall through to page.js's
       // bubble-phase listener untouched. "6" (Tonal) is untouched either way,
       // and "5" (Reference) yields only while Scale Pathways is on
       // (body.dataset.dbPathways, stamped by page.js) — its rung ladder runs
-      // 1-5, one past the 3:2 System's 0-4.
+      // 1-5, one past the 3:2 System's levels.
       const inFocusStage = () => document.body.classList.contains("db-focus-mode")
       const pathwaysOn = () => document.body.dataset.dbPathways === "true"
 
-      const workspaces = { "1": "Practice", "2": "Gig", "3": "Create", "4": "BeatForge", "5": "Reference", "6": "Tonal" }
+      // "0" is the one digit that means the same thing everywhere, Focus
+      // included: go Home. It used to stand down inside Focus so the 3:2
+      // System could have a level 0, which made the way out of Focus depend
+      // on which system happened to be up.
+      if (event.key === "0") {
+        event.preventDefault()
+        event.stopPropagation()
+        goHome()
+        return
+      }
+
+      // The numbering is the one people actually asked for, which is not the
+      // order the tabs sit in: Practice, Create, BeatForge, Gig, Reference,
+      // Tonal.
+      const workspaces = { "1": "Practice", "2": "Create", "3": "BeatForge", "4": "Gig", "5": "Reference", "6": "Tonal" }
       if (workspaces[event.key]) {
         if (event.key !== "6" && inFocusStage() && (event.key !== "5" || pathwaysOn())) return
         event.preventDefault()
         event.stopPropagation()
         // While a song is playing, "1" means "back to Focus" specifically —
         // not just Practice, wherever practiceView last happened to be.
-        // "2" always goes by event, not goWorkspace()'s DOM-click — Focus's
+        // Gig always goes by event, not goWorkspace()'s DOM-click — Focus's
         // phone-first stage renders no [role="tab"] chrome to click, so
-        // pressing "2" to leave Focus for Gig would silently no-op otherwise.
+        // pressing it to leave Focus for Gig would silently no-op otherwise.
         if (event.key === "1" && document.body.dataset.dbPlaying === "true") {
           window.dispatchEvent(new CustomEvent(ENTER_FOCUS_EVENT))
-        } else if (event.key === "2") {
+        } else if (event.key === "4") {
           window.dispatchEvent(new CustomEvent(GO_GIG_EVENT))
         } else {
           goWorkspace(workspaces[event.key])
         }
-        return
-      }
-
-      if (event.key === "0") {
-        if (inFocusStage()) return
-        event.preventDefault()
-        event.stopPropagation()
-        goHome()
         return
       }
 
