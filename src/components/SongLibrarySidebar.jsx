@@ -23,8 +23,20 @@ export default function SongLibrarySidebar({
   // or setlist — off by default so the global "/" drawer keeps its narrower,
   // dropdown-only picker; the Gig tab turns it on.
   showPills = false,
+  // "list" is the narrow column both homes started with. "grid" spreads the
+  // same tunes across the full width as name cards — what the Gig tab is
+  // now, where the library IS the page rather than a rail beside an editor.
+  layout = "list",
+  // Grid only: the card's primary action (Gig plays the tune). Given one,
+  // the card body triggers it and `onSelect` still fires first, so whatever
+  // tracks "which tune is open" stays in step.
+  onActivate = null,
+  // Grid only: a second, quieter action per card (Gig loads without playing).
+  secondaryAction = null,
 }) {
   const theme = THEME
+  const isGrid = layout === "grid"
+  const activateLabel = secondaryAction ? "click to play" : "click to open"
   // Memoized (rather than `library?.setlists ?? []` inline) so a missing
   // `setlists` array doesn't hand the resolved-list useMemo below a fresh
   // empty array reference every render.
@@ -48,8 +60,9 @@ export default function SongLibrarySidebar({
   const currentPlaylist = resolved && !resolved.editable ? resolved.playlist : null
 
   // Opens onto whatever's already loaded in the engine (`preferId`, e.g.
-  // Gig Mode's activeSongId) when nothing is selected yet, falling back to
-  // the first tune in the pool — so arriving at the Gig tab after loading a
+  // Gig Mode's activeSongId) when nothing is selected yet — which is also
+  // how coming back to Gig mid-song lands on the bandstand rather than the
+  // wall of cards — falling back to the first tune in the pool — so arriving at the Gig tab after loading a
   // song from the "/" drawer elsewhere shows *that* song, not always the
   // top of the list. The "/" drawer itself passes neither: opening the
   // picker shouldn't silently load a song into the engine. Fires once: after
@@ -190,7 +203,9 @@ export default function SongLibrarySidebar({
         </div>
       )}
 
-      <div style={{ maxHeight: "520px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "4px" }}>
+      <div className={isGrid ? "db-song-grid" : undefined} style={isGrid
+        ? { display: "grid", gap: "8px" }
+        : { maxHeight: "520px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "4px" }}>
         {listForPool.map((song, i) => {
           const isOpen = song.id === selectedId
           return (
@@ -200,18 +215,31 @@ export default function SongLibrarySidebar({
               onDragStart={() => { dragIdx.current = i }}
               onDragOver={e => e.preventDefault()}
               onDrop={() => { if (currentSetlist && dragIdx.current != null) reorderSetlist(dragIdx.current, i); dragIdx.current = null }}
-              onClick={() => onSelect?.(song)}
+              onClick={() => { onSelect?.(song); onActivate?.(song) }}
+              title={onActivate ? `${song.title} — ${activateLabel}` : undefined}
               style={{
-                display: "flex", alignItems: "center", gap: "8px", padding: "7px 9px", borderRadius: "8px", cursor: "pointer",
+                display: "flex", alignItems: "center", gap: "8px", padding: isGrid ? "10px 11px" : "7px 9px",
+                borderRadius: isGrid ? "10px" : "8px", cursor: "pointer",
                 background: isOpen ? `color-mix(in srgb, ${theme.accent} 18%, ${theme.panel})` : theme.panel,
                 border: `1px solid ${isOpen ? theme.accent : theme.line}`,
               }}
             >
               {currentSetlist && <span style={{ color: theme.muted, cursor: "grab" }}>☰</span>}
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 600, fontSize: "0.9rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{song.title}</div>
-                <div style={{ fontSize: "0.7rem", color: theme.muted }}>{song.source} · {song.key}</div>
+                <div style={{ fontWeight: 600, fontSize: isGrid ? "0.95rem" : "0.9rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{song.title}</div>
+                <div style={{ fontSize: "0.7rem", color: theme.muted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {song.source} · {song.key}{song.refArtist ? ` · ${song.refArtist}` : ""}
+                </div>
               </div>
+              {isGrid && secondaryAction && (
+                <button
+                  onClick={e => { e.stopPropagation(); onSelect?.(song); secondaryAction.onClick(song) }}
+                  style={{ ...ghostBtn(theme), padding: "3px 8px", fontSize: "0.7rem" }}
+                  title={secondaryAction.title}
+                >
+                  {secondaryAction.label}
+                </button>
+              )}
               {currentSetlist ? (
                 <button onClick={e => { e.stopPropagation(); toggleInSetlist(song.id) }} style={ghostBtn(theme)} aria-label={`Remove ${song.title} from setlist`} title="Remove from setlist">−</button>
               ) : song.source === "My Library" && (
@@ -221,6 +249,12 @@ export default function SongLibrarySidebar({
           )
         })}
       </div>
+      {isGrid && (
+        <style>{`
+          .db-song-grid { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+          @media (max-width: 520px) { .db-song-grid { grid-template-columns: 1fr; } }
+        `}</style>
+      )}
 
       {/* Add-to-setlist picker (when a setlist is active) */}
       {currentSetlist && (

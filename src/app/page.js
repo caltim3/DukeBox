@@ -48,6 +48,8 @@ import MelodyPaths from "@/components/MelodyPaths"
 import CreateWorkspace from "@/components/CreateWorkspace"
 import BeatForgeWorkspace from "@/components/BeatForgeWorkspace"
 import ReferenceGuides from "@/components/ReferenceGuides"
+import SongSearch from "@/components/SongSearch"
+import { GO_HOME_EVENT } from "@/lib/homeNav"
 import { useAuth, useCloudLibrary } from "@/lib/cloud"
 import { logActivity } from "@/lib/recentActivity"
 import SessionStrip from "@/components/practice/SessionStrip"
@@ -2068,6 +2070,17 @@ export default function Home() {
     return () => window.removeEventListener(ENTER_FOCUS_EVENT, onEnterFocus)
   }, [enterFocusMode]) // eslint-disable-line react-hooks/exhaustive-deps -- chooseMode closes over only stable setters
 
+  // Going Home leaves Focus behind. Home is a fixed overlay, so without this
+  // the Focus stage stays mounted (and body.db-focus-mode stays set, which
+  // keeps the floating transport hidden) underneath a screen that looks like
+  // you left. "0" is Home from anywhere now, Focus included, so this is the
+  // path out.
+  useEffect(() => {
+    function onGoHome() { if (focusStage) exitFocusMode() }
+    window.addEventListener(GO_HOME_EVENT, onGoHome)
+    return () => window.removeEventListener(GO_HOME_EVENT, onGoHome)
+  }, [focusStage, exitFocusMode])
+
   // "2" asks for Gig the same way, always (not just while playing) — see
   // GO_GIG_EVENT's doc comment for why goWorkspace()'s DOM-click can't be
   // trusted to work here.
@@ -2190,7 +2203,7 @@ export default function Home() {
         setPathwayRung(Number(e.key))
         return
       }
-      if (!meta && !e.altKey && focusStage && !pathwaysMode && /^[0-4]$/.test(e.key)) {
+      if (!meta && !e.altKey && focusStage && !pathwaysMode && /^[1-4]$/.test(e.key)) {
         e.preventDefault()
         if (fretboardTuning === "Standard") {
           setThreeTwoMode(true)
@@ -2889,6 +2902,37 @@ export default function Home() {
                   ▶ {preset.label}
                 </button>
               ))}
+            </div>
+
+            {/* Any other tune, right here. The starters above are a shortlist;
+                this searches everything — the Songbook forms, the Gig Book
+                (by title or the artist you remember it by) and My Library —
+                and loads the pick straight onto the chart, the same handler
+                the "/" drawer uses. Sits under the starters rather than
+                replacing them: one row is "just start", the other is "I know
+                what I want to play". */}
+            <div style={{ marginTop: "10px", paddingTop: "10px", borderTop: "1px dashed var(--line)" }}>
+              <span style={{
+                font: "700 11px 'IBM Plex Mono', monospace", letterSpacing: "0.14em",
+                textTransform: "uppercase", color: "var(--muted)",
+                display: "block", marginBottom: "6px",
+              }}>
+                Or play any song
+                <span style={{ fontSize: "var(--db-fs-xs)", letterSpacing: 0, textTransform: "none", fontWeight: 400, marginLeft: "8px" }}>
+                  Songbook, Gig Book and My Library — or press <kbd style={{
+                    font: "700 10px 'IBM Plex Mono', monospace", border: "1px solid var(--line)",
+                    borderRadius: "4px", padding: "1px 4px", background: "var(--surface2)",
+                  }}>/</kbd> anywhere
+                </span>
+              </span>
+              <SongSearch
+                formCategories={FORM_CATEGORIES}
+                userLibrary={userLibrary}
+                gigSongs={GIGBOOK_SONGS}
+                selectedForm={activeSongTitle || selectedForm}
+                onPick={loadSearchPick}
+                placeholder="Search songs…"
+              />
             </div>
           </div>
         )}
@@ -3922,8 +3966,8 @@ export default function Home() {
                         <span><kbd style={kbdStyle}>1-5</kbd>pathway rung</span>
                       </div>
                     ) : (
-                      <div style={rowStyle} title="0 Chord scales · 1 Blues scale · 2 Minor · 3 Major · 4 Altered">
-                        <span><kbd style={kbdStyle}>0-4</kbd>3:2 level</span>
+                      <div style={rowStyle} title="1 Blues scale · 2 Minor · 3 Major · 4 Altered — level 0 (Chord scales) is a click away in the settings band, since 0 goes Home from anywhere">
+                        <span><kbd style={kbdStyle}>1-4</kbd>3:2 level</span>
                       </div>
                     )}
                     {freezeMode && (
