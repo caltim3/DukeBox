@@ -62,8 +62,16 @@ Per-bar precedence: `override > written symbol > blues blanket (rung 1) > the ru
   Pathway card grows a "❄ This bar" picker — `rankScalesForChord`'s best
   fits first, curated calls starred — whose choice writes the bar's
   `userScale` override; "Pathway pick" clears it back to the ladder.
-- **Save treatment** (next): a library save-as carrying `pathwayDefault` +
-  the per-bar overrides.
+- **Save treatment** (wired): "⤓ Save treatment" on the rung rail (and in
+  the HUD card) saves the tune the way you are practising it — an ordinary My
+  Library save-as via `upsertLibrarySong`, stamped with `pathway: {on, rung}`.
+  The per-bar picks need no storage of their own: they live on the bars, which
+  the save already copies. Loading such an entry (`loadCatalogEntry` or
+  `loadForm`'s My Library branch) restores the rung and turns Pathways back
+  on; a tune saved without a treatment leaves the board exactly as you had it.
+  Save-as rather than save-in-place, because a treatment is a way of playing
+  the tune and you will want more than one — the suggested name says which
+  ("Jazz Blues in Bb · Pathway 3 Pentatonic +1").
 
 ---
 

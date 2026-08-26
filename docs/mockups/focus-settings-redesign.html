@@ -115,6 +115,8 @@
     font-weight:700;
   }
   .chip.tt[aria-checked="true"]{ background:var(--tt-blue); border-color:var(--tt-blue); }
+  .chip.pw[aria-checked="true"]{ background:var(--target); border-color:var(--target); }
+  .seg.pw button[aria-checked="true"]{ background:var(--target); color:#FFF; }
   .chip:focus-visible, .seg button:focus-visible, .switch input:focus-visible + .track{
     outline:2px solid var(--accent); outline-offset:2px;
   }
@@ -215,10 +217,11 @@
   <p class="eyebrow">DukeBox · Practice · Mockup</p>
   <h1>Focus settings, one short band</h1>
   <p class="lede">The same controls as today's <strong>Palette / Connect</strong> boxes, regrouped
-    around the three questions a player actually answers. The panel sits above an edge-to-edge
-    fretboard, so it spends width, not height: three columns in one thin band. Every control is
-    live below — click around: sub-settings fold out of the choice they belong to, and the header
-    reads the whole state back in one sentence.</p>
+    around the three questions a player actually answers — now with <strong>Scale Pathways</strong>
+    embedded as a first-class lens whose rung ladder folds out in place. The panel sits above an
+    edge-to-edge fretboard, so it spends width, not height: three columns in one thin band. Every
+    control is live below — click around: sub-settings fold out of the choice they belong to, and
+    the header reads the whole state back in one sentence.</p>
 
   <div class="panel" id="panel">
     <div class="panel-head">
@@ -240,6 +243,20 @@
             <button class="chip" data-v="barry">Barry 6th</button>
             <button class="chip" data-v="harm">Harm&nbsp;min ii-V-i</button>
             <button class="chip tt" data-v="tt">3:2 System</button>
+            <button class="chip pw" data-v="pw">Pathways</button>
+          </div>
+
+          <div class="subrow" id="pwRow" hidden>
+            <span class="k">Rung</span>
+            <div class="seg pw" id="pwRung">
+              <button data-v="1">1 · Key Center</button>
+              <button data-v="2">2 · Guide Tones</button>
+              <button data-v="3">3 · Pentatonic</button>
+              <button data-v="4">4 · Bebop</button>
+              <button data-v="5">5 · Color</button>
+            </div>
+            <span class="inline-note" id="pwWhy"></span>
+            <span class="inline-note" style="flex-basis:100%">❄ freeze any bar to pin its own scale — picks outrank every rung · keys 1–5 climb the ladder while the band plays</span>
           </div>
 
           <div class="subrow" id="ttRow" hidden>
@@ -352,9 +369,11 @@
       </div>
       <div class="note">
         <h3>Sub-settings hang off their parent</h3>
-        <p>The 3:2 level ladder, its Shape filter, and Voice Leading's Hunt row sit on an indent
-          rail directly under the choice that owns them, appearing only when that choice is live —
-          no orphaned rows, nothing lit that isn't doing anything.</p>
+        <p>The Pathways rung ladder (with the engine's one-line reason for the rung), the 3:2
+          level ladder and its Shape filter, and Voice Leading's Hunt row sit on an indent rail
+          directly under the choice that owns them, appearing only when that choice is live — no
+          orphaned rows. Controls a system makes inert (Altered under 3:2 or Pathways, Bebop under
+          Barry 6th) disable with a hint instead of silently doing nothing.</p>
       </div>
       <div class="note">
         <h3>State reads back as a sentence</h3>
@@ -369,15 +388,23 @@
 <script>
 (function(){
   const S = {
-    lens:"tt", ttLevel:2, ttShape:"mode", altered:false, bebop:false,
+    lens:"pw", pwRung:1, ttLevel:2, ttShape:"mode", altered:false, bebop:false,
     connect:"voice", hunt:"nearest", labels:"names",
     ffocus:"off", ffStart:5, ffSpan:4, tuning:"Standard",
   };
   const $ = (id)=>document.getElementById(id);
   const LENS_NAMES = { chord:"Chord tones", scale:"Scale", pentatonic:"Pentatonic",
     hexatonic:"Hexatonic", martino:"Martino", hexchord:"Hex·Chord", barry:"Barry 6th",
-    harm:"Harmonic-minor ii-V-i", tt:"3:2 System" };
+    harm:"Harmonic-minor ii-V-i", tt:"3:2 System", pw:"Pathways" };
   const TT_LEVELS = ["Chord scales","Blues scale","Minor","Major","Altered"];
+  const RUNG_NAMES = { 1:"Key Center", 2:"Guide Tones", 3:"Pentatonic", 4:"Bebop", 5:"Color" };
+  const RUNG_WHY = {
+    1:"one parent collection per cadence window — blues charts blanket the tonic blues scale",
+    2:"arpeggios and 3rd/7th voice leading — the board flips to chord tones, pairs with Voice Leading",
+    3:"the pentatonic route — dominants get 1 2 3 5 b7, never the major pentatonic that omits the b7",
+    4:"bebop scales and chromatic approaches, per chord quality",
+    5:"symbol-specific color — altered, Phrygian dominant, Lydian dominant, chosen by the resolution",
+  };
   const HUNTS = { nearest:"the nearest landing note", third:"3rds", root:"roots",
     seventh:"7ths", random:"a surprise role" };
 
@@ -391,6 +418,7 @@
   function render(){
     radio($("lens"), S.lens);
     const tt = S.lens === "tt";
+    const pw = S.lens === "pw";
     $("ttRow").hidden = !tt;
     radio($("ttLevel"), S.ttLevel);
     const shapeOn = tt && S.ttLevel >= 2;
@@ -398,12 +426,27 @@
     $("ttModeBtn").textContent = S.ttLevel === 2 ? "Dorian" : "Mixolydian";
     radio($("ttShape"), S.ttShape);
 
+    // Pathways: the rung ladder folds out of the lens, and the engine's
+    // one-line reason for the rung sits right beside it.
+    $("pwRow").hidden = !pw;
+    radio($("pwRung"), S.pwRung);
+    $("pwWhy").textContent = RUNG_WHY[S.pwRung];
+
     // Barry 6th already carries its own passing tone — the switch says so.
     const barry = S.lens === "barry";
     $("bebopSwitch").classList.toggle("disabled", barry);
     $("bebop").disabled = barry;
     $("bebopSwitch").title = barry ? "Barry 6th already carries its own passing tone" : "Adds the bebop passing tone";
-    $("altered").checked = S.altered;
+    // Altered is inert under the two systems that pick their own dominant
+    // colors — 3:2 keeps its own rules, Pathways handles alteration on the
+    // Color rung — so the switch disables instead of silently doing nothing.
+    const altOff = tt || pw;
+    $("altSwitch").classList.toggle("disabled", altOff);
+    $("altered").disabled = altOff;
+    $("altSwitch").title = altOff
+      ? (tt ? "3:2 keeps its own rules — Altered doesn't apply" : "Pathways handles alteration on the Color rung — Altered doesn't apply")
+      : "A functioning dominant reharmonizes — tritone sub / altered scale";
+    $("altered").checked = S.altered && !altOff;
     $("bebop").checked = S.bebop && !barry;
 
     radio($("connect"), S.connect);
@@ -428,10 +471,12 @@
     // The sentence.
     let lens = tt
       ? `<b>3:2 · ${TT_LEVELS[S.ttLevel]}</b>`
+      : pw
+      ? `<b>Pathways · ${S.pwRung} ${RUNG_NAMES[S.pwRung]}</b>`
       : `<b>${LENS_NAMES[S.lens]}</b>`;
     let conn = S.connect === "voice" ? ` · leading into ${HUNTS[S.hunt]}`
       : S.connect === "melody" ? " · lighting the melody path" : "";
-    let extras = [S.altered ? "altered dominants" : null, (S.bebop && !barry) ? "bebop passing tone" : null]
+    let extras = [(S.altered && !altOff) ? "altered dominants" : null, (S.bebop && !barry) ? "bebop passing tone" : null]
       .filter(Boolean).join(" + ");
     let ff = (!tt && S.ffocus !== "off") ? ` · frets ${S.ffStart}–${S.ffStart + S.ffSpan}` : "";
     $("summary").innerHTML = lens + (extras ? ` <span style="color:var(--muted)">+ ${extras}</span>` : "") + conn + ff;
@@ -444,6 +489,7 @@
     });
   }
   wireRadio("lens","lens");
+  wireRadio("pwRung","pwRung", v=>+v);
   wireRadio("ttLevel","ttLevel", v=>+v);
   wireRadio("ttShape","ttShape");
   wireRadio("connect","connect");
