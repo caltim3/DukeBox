@@ -17,7 +17,7 @@
 // the one actually sounding, the page becomes the bandstand — a locked
 // stage chart with the measure you're on lit, nothing editable near it.
 
-import { useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { catalogEntryToDraft } from "@/lib/music/songSource"
 import SongLibrarySidebar from "@/components/SongLibrarySidebar"
 
@@ -45,14 +45,43 @@ export default function GigMode({
   // this page edits it any more, so there is no draft to keep in step.
   const draft = useMemo(() => (openSong ? catalogEntryToDraft(openSong) : null), [openSong])
 
+  // Where a card takes you. The two are genuinely different jobs, so this is
+  // a choice rather than a default with a workaround:
+  //   stage    — stay here and play. The page becomes the lead sheet with
+  //              the measure you're on lit: all you need on a gig is to know
+  //              where you are.
+  //   practice — hand off to Practice's Focus stage, where the fretboard,
+  //              the scale and the voice leading are.
+  // Sticky, because which one you want is a mode you're in for a whole
+  // session — a set, or an evening of woodshedding — not a per-song call.
+  const [openIn, setOpenIn] = useState("stage")
+  // Restored on mount rather than in a lazy initializer: this page is
+  // prerendered, so reading localStorage during the first render would make
+  // the server's markup and the client's disagree. One read, once.
+  useEffect(() => {
+    const saved = window.localStorage.getItem("dukebox.gigOpenIn")
+    if (saved === "stage" || saved === "practice") setOpenIn(saved) // eslint-disable-line react-hooks/set-state-in-effect -- one-shot restore of persisted UI state, not a render cascade
+  }, [])
+  const chooseOpenIn = useCallback((value) => {
+    setOpenIn(value)
+    window.localStorage.setItem("dukebox.gigOpenIn", value)
+  }, [])
+
   // Straight from the card's own entry rather than from `draft` — a click
   // sets `openSong` and plays in the same tick, and the derived draft above
-  // would still be the previous tune's at that point. "Play" also asks for
-  // Focus: hit play in Gig and the stage takes over.
-  function playEntry(entry, autoplay = true) {
+  // would still be the previous tune's at that point.
+  function playEntry(entry, where = openIn) {
     const d = catalogEntryToDraft(entry)
     if (!d?.bars?.length) return
-    onLoadSong?.({ ...d, autoplay, toFocus: autoplay, songId: entry?.id ?? null })
+    setOpenSong(entry)
+    onLoadSong?.({
+      ...d,
+      autoplay: true,
+      // Only "practice" leaves the tab; "stage" plays right here, which is
+      // what turns this page into the bandstand below.
+      toFocus: where === "practice",
+      songId: entry?.id ?? null,
+    })
   }
 
   // Only light the chart that's actually loaded into the engine
@@ -72,6 +101,28 @@ export default function GigMode({
         <div style={{ fontSize: "0.78rem", color: theme.muted }}>
           Stage-ready charts · setlists · any chart plays with the full band
         </div>
+        {!stageMode && (
+          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "8px" }}>
+            <span style={{ font: "700 10px 'IBM Plex Mono', monospace", letterSpacing: "0.12em", textTransform: "uppercase", color: theme.muted }}>
+              A card opens in
+            </span>
+            <div style={{ display: "inline-flex", border: `1px solid ${theme.line}`, borderRadius: "8px", overflow: "hidden" }}>
+              {[
+                ["stage", "Stage", "Play it here — the lead sheet, with the measure you're on lit"],
+                ["practice", "Practice", "Play it in Focus — fretboard, scale and voice leading"],
+              ].map(([id, label, hint]) => (
+                <button key={id} onClick={() => chooseOpenIn(id)} aria-pressed={openIn === id} title={hint}
+                  style={{
+                    font: "700 11px 'Instrument Sans', sans-serif", padding: "5px 11px", border: "none", cursor: "pointer",
+                    background: openIn === id ? theme.accent : theme.panel,
+                    color: openIn === id ? theme.accentInk : theme.muted,
+                  }}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {stageMode ? (
@@ -108,11 +159,16 @@ export default function GigMode({
           setLibrary={setLibrary}
           selectedId={openSong?.id ?? null}
           onSelect={setOpenSong}
-          onActivate={(song) => playEntry(song, true)}
+          onActivate={(song) => playEntry(song)}
+          activateLabel={openIn === "stage" ? "click to play on the stage" : "click to play in Practice"}
           secondaryAction={{
-            label: "Load",
-            title: "Put this chart in the engine without starting the band",
-            onClick: (song) => playEntry(song, false),
+            // Always the destination you didn't pick, so the exception is
+            // one click too — no going back to the toggle for one tune.
+            label: openIn === "stage" ? "Practice" : "Stage",
+            title: openIn === "stage"
+              ? "Play this one in Practice's Focus stage instead"
+              : "Play this one here on the stage instead",
+            onClick: (song) => playEntry(song, openIn === "stage" ? "practice" : "stage"),
           }}
           autoSelectFirst
           preferId={activeSongId}
