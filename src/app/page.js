@@ -2552,6 +2552,50 @@ export default function Home() {
         width: 100% !important; height: auto !important; max-height: 100%;
       }
 
+      /* ── Landscape phone: the neck gets the screen ──────────────────
+         The board is aspect-locked (a ~4.25:1 SVG at width:100%), so it can
+         only be as wide as the leftover height lets it be tall. Turn a phone
+         sideways and that leftover collapses to a sliver, which shrank the
+         whole neck to a postage stamp in the middle of a very wide screen —
+         the exact opposite of what turning the phone was for.
+         So in short landscape the chrome gets out of the way: the readouts
+         that are duplicated elsewhere disappear (the timer tile — the
+         transport shows the same clock; the keyboard legend — there's no
+         keyboard on a phone; the song line — the title bar above says it),
+         everything else shrinks, and the board is given a floor of exactly
+         the height its full width needs. */
+      @media (orientation: landscape) and (max-height: 620px) {
+        .db-focus-stage .db-focus-timer,
+        .db-focus-stage .db-focus-keys,
+        .db-focus-stage .db-focus-songline { display: none !important; }
+
+        .db-focus-stage .db-focus-topbar {
+          padding-top: 4px !important; padding-bottom: 4px !important;
+          gap: 6px !important; flex-wrap: nowrap !important; align-items: center;
+        }
+        .db-focus-stage .db-focus-chord { font-size: clamp(22px, 8vh, 30px) !important; }
+        .db-focus-stage .db-focus-topbar > div { padding: 4px 10px !important; }
+        .db-focus-stage .db-focus-comingup,
+        .db-focus-stage .db-focus-pathway { padding: 4px 8px !important; min-width: 0; }
+        /* Past the second lookahead tile there isn't room to read them
+           anyway — the two that matter stay. */
+        .db-focus-stage .db-focus-comingup > div:last-child > div:nth-child(n+3) { display: none !important; }
+
+        /* The floor: full-width neck, whatever that costs in height. The
+           stage already scrolls, so on a very short screen you can still
+           reach the whole thing instead of squinting at a shrunken one. */
+        .db-focus-stage .db-focus-board {
+          min-height: calc((100vw - 8px) / 4.25);
+          overflow: visible !important;
+        }
+        .db-focus-stage .db-focus-board svg { max-height: none !important; }
+
+        .db-focus-stage .db-transport-embedded {
+          padding-top: 3px !important;
+          padding-bottom: max(3px, env(safe-area-inset-bottom)) !important;
+        }
+      }
+
       /* The legend, the swipe hint and the settings summary are reference,
          not instrument — Focus never has the height to spare for them. */
       .db-focus-stage .db-fret-legend,
@@ -3571,6 +3615,7 @@ export default function Home() {
                 const tColor = urgent ? "var(--db-c-salmon)" : running ? "var(--db-c-green)" : "var(--db-muted)"
                 return (
                   <div
+                    className="db-focus-timer"
                     title="Practice timer — set it in the Timer drawer"
                     style={{
                       display: "flex", flexDirection: "column", justifyContent: "center",
@@ -3671,7 +3716,7 @@ export default function Home() {
                   : upcomingBarIndices
                 if (comingUpList.length === 0) return null
                 return (
-                <div style={{
+                <div className="db-focus-comingup" style={{
                   background: "var(--surface)", border: "1px solid var(--line)",
                   borderRadius: "var(--db-r-md)", padding: "8px 12px",
                   display: "flex", flexDirection: "column", justifyContent: "center",
@@ -3734,7 +3779,7 @@ export default function Home() {
                   reads back what the board is doing in words. Keys 1-5 do
                   the same in Focus. */}
               {pathwaysMode && (
-                <div style={{
+                <div className="db-focus-pathway" style={{
                   background: "var(--surface)", border: "1px solid var(--n-target)",
                   borderRadius: "var(--db-r-md)", padding: "8px 12px",
                   display: "flex", flexDirection: "column", justifyContent: "center",
@@ -3858,6 +3903,7 @@ export default function Home() {
                 const rowStyle = { display: "flex", gap: "9px", font: "600 9.5px 'Instrument Sans', sans-serif" }
                 return (
                   <div
+                    className="db-focus-keys"
                     title="Keyboard shortcuts — playback"
                     style={{
                       display: "flex", flexDirection: "column", justifyContent: "center", gap: "4px",
@@ -3901,7 +3947,7 @@ export default function Home() {
                 chord. Focus only: Core still has the chart and the song strip
                 on screen to tell you the same thing. */}
             {focusStage && (
-              <div style={{
+              <div className="db-focus-songline" style={{
                 font: "800 13px 'Instrument Sans', sans-serif", color: "var(--text)",
                 letterSpacing: "0.01em", marginBottom: "6px", minWidth: 0,
                 overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
