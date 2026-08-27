@@ -3,8 +3,8 @@
 // files to load as modules (the repo has no "type": "module", so node would
 // otherwise read them as CJS and choke on `import`).
 //
-// Used by scripts/check-pathways.mjs via module.register(); not part of the
-// app build.
+// Used by scripts/check-pathways.mjs and scripts/export-chord-progressions.mjs
+// via module.register(); not part of the app build.
 
 import { readFile } from "node:fs/promises"
 import { fileURLToPath, pathToFileURL } from "node:url"
@@ -15,6 +15,14 @@ const SRC = pathToFileURL(path.resolve(path.dirname(fileURLToPath(import.meta.ur
 export function resolve(specifier, context, next) {
   if (specifier.startsWith("@/")) {
     return next(SRC + specifier.slice(2) + ".js", context)
+  }
+  // src's own files import each other by relative path with no extension
+  // (Next's bundler resolves that; plain node's ESM resolver doesn't) — but
+  // only within src, so a bare package specifier like "@tonaljs/tonal" still
+  // falls through to node_modules resolution untouched.
+  if ((specifier.startsWith("./") || specifier.startsWith("../"))
+    && !path.extname(specifier) && context.parentURL?.startsWith(SRC)) {
+    return next(specifier + ".js", context)
   }
   return next(specifier, context)
 }
