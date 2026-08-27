@@ -25,10 +25,11 @@ export const OPEN_LIBRARY_EVENT = "dukebox:open-library"
 // and consumed by the same two places as OPEN_LIBRARY_EVENT.
 export const ENTER_FOCUS_EVENT = "dukebox:enter-focus"
 
-// Fired by the "2" shortcut to jump to Gig. goWorkspace()'s usual DOM-click
-// (find the [role="tab"] button, click it) can't reach it from Focus:
-// Focus's phone-first stage renders none of the normal workspace chrome, so
-// there's no tab button in the DOM to find. This bypasses that entirely.
+// Fired by the "2" shortcut to jump to Songbook (the Gig workspace).
+// goWorkspace()'s usual DOM-click (find the [role="tab"] button, click it)
+// can't reach it from Focus: Focus's phone-first stage renders none of the
+// normal workspace chrome, so there's no tab button in the DOM to find.
+// This bypasses that entirely.
 export const GO_GIG_EVENT = "dukebox:go-gig"
 
 // Home's "Most Popular" rail loads one specific catalog song by id — same

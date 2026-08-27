@@ -110,7 +110,7 @@ const INITIAL_BARS = [
 // at a time; nothing was removed, it's just no longer all at once.
 const MODES = [
   { id: "practice",  label: "Practice",  icon: "🎧", blurb: "Play along, loop a section, drill it slow" },
-  { id: "gig",       label: "Gig",       icon: "🎤", blurb: "Stage charts and setlists" },
+  { id: "gig",       label: "Songbook", icon: "🎤", blurb: "Stage charts and setlists" },
   { id: "create",    label: "Create",    icon: "✍️", blurb: "Build charts, compose songs, and develop melodic lines" },
   { id: "beatforge", label: "BeatForge", icon: "🥁", blurb: "Program rhythm, build phrases, grow your lick book" },
   { id: "reference", label: "Reference", icon: "📖", blurb: "Circle of fifths, key chart, progressions" },
@@ -2081,9 +2081,9 @@ export default function Home() {
     return () => window.removeEventListener(GO_HOME_EVENT, onGoHome)
   }, [focusStage, exitFocusMode])
 
-  // "2" asks for Gig the same way, always (not just while playing) — see
-  // GO_GIG_EVENT's doc comment for why goWorkspace()'s DOM-click can't be
-  // trusted to work here.
+  // "2" asks for Songbook the same way, always (not just while playing) —
+  // see GO_GIG_EVENT's doc comment for why goWorkspace()'s DOM-click can't
+  // be trusted to work here.
   useEffect(() => {
     function onGoGig() { chooseMode("gig") }
     window.addEventListener(GO_GIG_EVENT, onGoGig)
@@ -2194,7 +2194,7 @@ export default function Home() {
       // workspace jumps — that file's own digit branch stands down while
       // document.body has the db-focus-mode class, letting the keydown fall
       // through to here. Outside Focus, 0-4 go back to being Home/Practice/
-      // Gig/Create/Reference exactly as KeyboardShortcuts.jsx lists them.
+      // Songbook/Create/BeatForge exactly as KeyboardShortcuts.jsx lists them.
       // While Pathways is on, the digits climb ITS ladder instead — 1-5 pick
       // the rung directly. 3:2's 0-4 behavior below is untouched whenever
       // Pathways is off.
