@@ -14,42 +14,12 @@ const BRAND_ICON = "/dukebox-jazzmaster.png"
 
 const WORKSPACE_LABELS = {
   practice: "Practice",
-  gig: "Gig",
+  gig: "Songbook",
   create: "Create",
   beatforge: "BeatForge",
   reference: "Reference",
   tonal: "Tonal",
 }
-
-// Three ways to start a session from scratch — shown below the adaptive
-// hero, not instead of it. Each backed by the app's actual practice/create/
-// gig entry points; `shortcut` is display-only, for the corner stamp.
-const GET_STARTED = [
-  {
-    eyebrow: "Practice",
-    title: "Practice a Song",
-    subtitle: "Open the songbook and start playing",
-    image: "/practice.png",
-    shortcut: "/",
-    action: { type: "songbook" },
-  },
-  {
-    eyebrow: "Compose",
-    title: "Write a Song",
-    subtitle: "Build a chart, generate changes, or start from scratch",
-    image: "/compose.png",
-    shortcut: "3",
-    action: { type: "workspace", value: "create" },
-  },
-  {
-    eyebrow: "Perform",
-    title: "Play a Gig",
-    subtitle: "Stage charts and setlists",
-    image: "/gig.png",
-    shortcut: "2",
-    action: { type: "workspace", value: "gig" },
-  },
-]
 
 // The learning plan is two rows: the systems you practise WITH on top, the
 // tunes you practise ON underneath. Cards are drag-reorderable within their
@@ -91,8 +61,8 @@ const PLAN_ROWS = [
         title: "Song Library",
         subtitle: "Every chart in the songbook",
         image: "/cards/song-library2.jpg",
-        shortcut: "/",
-        action: { type: "songbook", value: "Jazz Standards" },
+        shortcut: "2",
+        action: { type: "workspace", value: "gig" },
       },
     ],
   },
@@ -974,70 +944,6 @@ export default function PickupPracticeHome() {
           font-weight: 750;
         }
 
-        .db-pickup-progress-grid {
-          display: grid;
-          grid-template-columns: repeat(3, minmax(260px, 1fr));
-          gap: 16px;
-        }
-
-        .db-pickup-progress-card {
-          min-width: 0;
-          height: 148px;
-          padding: 8px;
-          border: 1px solid var(--pickup-line);
-          background: var(--pickup-raised);
-          display: grid;
-          grid-template-columns: 132px minmax(0, 1fr);
-          gap: 15px;
-          color: inherit;
-          text-align: left;
-          cursor: pointer;
-          overflow: hidden;
-          transition: transform 160ms ease, border-color 160ms ease;
-        }
-
-        .db-pickup-progress-card:hover {
-          transform: translateY(-2px);
-          border-color: var(--pickup-accent);
-        }
-
-        .db-pickup-progress-art { border-radius: 4px; background: var(--pickup-ink); }
-
-        .db-pickup-progress-art img {
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-          display: block;
-        }
-
-        .db-pickup-progress-copy {
-          min-width: 0;
-          display: flex;
-          flex-direction: column;
-          justify-content: center;
-          padding: 6px 8px 6px 0;
-        }
-
-        .db-pickup-progress-copy small {
-          font-family: 'IBM Plex Mono', ui-monospace, monospace;
-          color: var(--pickup-accent);
-          font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
-        }
-
-        .db-pickup-progress-copy strong {
-          margin-top: 8px;
-          color: var(--pickup-text);
-          font-size: clamp(16px, 1.15vw, 20px);
-          line-height: 1.2;
-          letter-spacing: -0.01em;
-        }
-
-        .db-pickup-progress-copy span {
-          margin-top: 14px;
-          color: var(--pickup-muted);
-          font-size: 13px;
-        }
-
         .db-pickup-plan-grid {
           display: grid;
           /* auto-fit rather than a fixed 4, so the row reflows as cards are
@@ -1173,8 +1079,6 @@ export default function PickupPracticeHome() {
         }
 
         @media (max-width: 1180px) {
-          .db-pickup-progress-grid { grid-template-columns: 1fr; }
-          .db-pickup-progress-card { height: 132px; grid-template-columns: 116px minmax(0, 1fr); }
           .db-pickup-plan-grid { grid-template-columns: repeat(2, minmax(220px, 1fr)); }
         }
 
@@ -1256,9 +1160,6 @@ export default function PickupPracticeHome() {
 
         @media (max-width: 540px) {
           .db-pickup-section-heading { align-items: end; }
-          .db-pickup-progress-card { height: 122px; grid-template-columns: 102px minmax(0, 1fr); gap: 12px; }
-          .db-pickup-progress-copy strong { margin-top: 5px; font-size: 16px; }
-          .db-pickup-progress-copy span { margin-top: 9px; }
           .db-pickup-plan-grid { grid-template-columns: 1fr; }
         }
       `}</style>
@@ -1284,14 +1185,14 @@ export default function PickupPracticeHome() {
           <button type="button" className="db-pickup-nav-button" onClick={() => openPracticeCenter()}>
             <Icon name="practice" /><span>Practice</span>
           </button>
+          <button type="button" className="db-pickup-nav-button" onClick={() => openWorkspace("gig")}>
+            <Icon name="gig" /><span>Songbook</span>
+          </button>
           <button type="button" className="db-pickup-nav-button" onClick={() => openWorkspace("create")}>
             <Icon name="create" /><span>Create</span>
           </button>
           <button type="button" className="db-pickup-nav-button" onClick={() => openWorkspace("beatforge")}>
             <Icon name="beatforge" /><span>BeatForge</span>
-          </button>
-          <button type="button" className="db-pickup-nav-button" onClick={() => openWorkspace("gig")}>
-            <Icon name="gig" /><span>Gig</span>
           </button>
           <button type="button" className="db-pickup-nav-button" onClick={() => openWorkspace("reference")}>
             <Icon name="reference" /><span>Reference</span>
@@ -1421,30 +1322,6 @@ export default function PickupPracticeHome() {
                 ))}
               </div>
             ))}
-          </section>
-
-          <section className="db-pickup-section">
-            <div className="db-pickup-section-heading">
-              <div>
-                <div className="db-pickup-eyebrow">Get started</div>
-              </div>
-              <button type="button" className="db-pickup-text-button" onClick={() => openPracticeCenter()}>Open practice center</button>
-            </div>
-
-            <div className="db-pickup-progress-grid">
-              {GET_STARTED.map((item) => (
-                <button type="button" key={item.title} className="db-pickup-progress-card" onClick={() => runAction(item.action)}>
-                  <div className="db-pickup-progress-art">
-                    <img src={item.image} alt="" />
-                  </div>
-                  <div className="db-pickup-progress-copy">
-                    <small>{item.eyebrow}</small>
-                    <strong>{item.title}</strong>
-                    <span>{item.subtitle}</span>
-                  </div>
-                </button>
-              ))}
-            </div>
           </section>
 
           <section className="db-pickup-section">

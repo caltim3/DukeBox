@@ -32,9 +32,9 @@ const GROUPS = [
     items: [
       ["0", "Home, from anywhere"],
       ["1", "Practice — Focus, while playing; 3:2's Blues scale, in Focus"],
-      ["2", "Create — 3:2's Minor, in Focus"],
-      ["3", "BeatForge — 3:2's Major, in Focus"],
-      ["4", "Gig — live chart, while playing; 3:2's Altered, in Focus"],
+      ["2", "Songbook — live chart, while playing; 3:2's Minor, in Focus"],
+      ["3", "Create — 3:2's Major, in Focus"],
+      ["4", "BeatForge — 3:2's Altered, in Focus"],
       ["5", "Reference — Pathways' Color rung, in Focus"],
       ["6", "Tonal"],
       ["/", "Song library, from anywhere"],
@@ -44,7 +44,7 @@ const GROUPS = [
   {
     title: "Open a tool",
     items: [
-      ["G", "Song library in Gig"],
+      ["G", "Song library in Songbook"],
       ["F", "Fretboard — Freeze, once you're in Practice"],
       ["L", "Line Lab"],
       ["B", "BeatForge Library"],
@@ -208,22 +208,22 @@ export default function KeyboardShortcuts() {
         return
       }
 
-      // The numbering is the one people actually asked for, which is not the
-      // order the tabs sit in: Practice, Create, BeatForge, Gig, Reference,
-      // Tonal.
-      const workspaces = { "1": "Practice", "2": "Create", "3": "BeatForge", "4": "Gig", "5": "Reference", "6": "Tonal" }
+      // The numbering matches the order the tabs sit in: Practice, Songbook,
+      // Create, BeatForge, Reference, Tonal.
+      const workspaces = { "1": "Practice", "2": "Songbook", "3": "Create", "4": "BeatForge", "5": "Reference", "6": "Tonal" }
       if (workspaces[event.key]) {
         if (event.key !== "6" && inFocusStage() && (event.key !== "5" || pathwaysOn())) return
         event.preventDefault()
         event.stopPropagation()
         // While a song is playing, "1" means "back to Focus" specifically —
         // not just Practice, wherever practiceView last happened to be.
-        // Gig always goes by event, not goWorkspace()'s DOM-click — Focus's
-        // phone-first stage renders no [role="tab"] chrome to click, so
-        // pressing it to leave Focus for Gig would silently no-op otherwise.
+        // Songbook always goes by event, not goWorkspace()'s DOM-click —
+        // Focus's phone-first stage renders no [role="tab"] chrome to click,
+        // so pressing it to leave Focus for Songbook would silently no-op
+        // otherwise.
         if (event.key === "1" && document.body.dataset.dbPlaying === "true") {
           window.dispatchEvent(new CustomEvent(ENTER_FOCUS_EVENT))
-        } else if (event.key === "4") {
+        } else if (event.key === "2") {
           window.dispatchEvent(new CustomEvent(GO_GIG_EVENT))
         } else {
           goWorkspace(workspaces[event.key])
@@ -244,13 +244,13 @@ export default function KeyboardShortcuts() {
         return
       }
 
-      // Gig's library moved off `\`, which now nudges the tempo up 10 (handled
-      // in page.js, where the transport state lives).
+      // Songbook's library moved off `\`, which now nudges the tempo up 10
+      // (handled in page.js, where the transport state lives).
       if (key === "g") {
         event.preventDefault()
         event.stopPropagation()
-        goWorkspace("Gig")
-        // Gig renders its library search only when no setlist is open.
+        goWorkspace("Songbook")
+        // Songbook renders its library search only when no setlist is open.
         waitFor(() => hook("gig-search"), (el) => reveal(el, { focus: true }))
         return
       }
