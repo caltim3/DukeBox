@@ -1,0 +1,1699 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>B♭ Jazz Blues — Fretboard Scale Explorer</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://api.fontshare.com/v2/css?f[]=zodiak@400,500,700&f[]=general-sans@400,500,600,700&display=swap" rel="stylesheet" />
+
+<style>
+/* ============ TOKENS ============ */
+:root, [data-theme='light']{
+  --color-bg:#f7f1e4; --color-surface:#fffcf4; --color-surface-2:#fbf5e8;
+  --color-surface-offset:#efe2c3; --color-divider:#e6d9b3; --color-border:#ddc99a;
+  --color-text:#2b2013; --color-text-muted:#6f5f42; --color-text-faint:#b7a67e;
+  --color-text-inverse:#fdf8ec;
+  --gold:#b8873a; --gold-hover:#8f6725; --gold-highlight:#f0e1bb;
+  --maroon:#9c2f4e; --maroon-highlight:#efd6dd;
+  --teal-dark:#0e5c5c; --teal-light:#2f9a94; --teal-highlight:#d4ece8;
+  --purple:#6b3fa0; --purple-highlight:#e4dbef;
+  --blue:#1f6f95; --blue-highlight:#d7e6ee;
+  --vl-green:#4b8b3b; --vl-yellow:#c9a227; --vl-red:#c0392b; --vl-blue:#1f6f95;
+  --vl-purple:#6b3fa0; --vl-orange:#c46a1e; --vl-teal:#0e5c5c; --vl-gray:#8c7a5c;
+  --radius-sm:.375rem; --radius-md:.5rem; --radius-lg:.75rem; --radius-xl:1rem;
+  --shadow-sm:0 1px 2px rgba(40,30,10,.08); --shadow-md:0 4px 14px rgba(40,30,10,.10); --shadow-lg:0 14px 34px rgba(40,30,10,.16);
+  --font-display:'Zodiak','Georgia',serif; --font-body:'General Sans','Helvetica Neue',sans-serif;
+}
+[data-theme='dark']{
+  --color-bg:#181310; --color-surface:#201a15; --color-surface-2:#251e18;
+  --color-surface-offset:#2c2319; --color-divider:#372c1f; --color-border:#463823;
+  --color-text:#ecdfc3; --color-text-muted:#b3a181; --color-text-faint:#7a6c50;
+  --color-text-inverse:#241c12;
+  --gold:#dba84c; --gold-hover:#e9c06d; --gold-highlight:#4a3a1f;
+  --maroon:#d9748f; --maroon-highlight:#4a2c34;
+  --teal-dark:#3fb3ab; --teal-light:#63c9c1; --teal-highlight:#1f3a37;
+  --purple:#b092e0; --purple-highlight:#382b4a;
+  --blue:#67adcf; --blue-highlight:#233846;
+  --vl-green:#6fbf73; --vl-yellow:#e0c34f; --vl-red:#e2685f; --vl-blue:#67adcf;
+  --vl-purple:#b092e0; --vl-orange:#e08a4a; --vl-teal:#3fb3ab; --vl-gray:#9c8f72;
+  --shadow-sm:0 1px 2px rgba(0,0,0,.3); --shadow-md:0 4px 14px rgba(0,0,0,.4); --shadow-lg:0 14px 34px rgba(0,0,0,.5);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html{-webkit-text-size-adjust:none;text-size-adjust:none;scroll-behavior:smooth;}
+body{min-height:100dvh;font-family:var(--font-body);color:var(--color-text);background:var(--color-bg);line-height:1.55;transition:background .2s,color .2s;}
+img,svg{display:block;max-width:100%;}
+button{font:inherit;color:inherit;cursor:pointer;background:none;border:none;}
+:focus-visible{outline:2px solid var(--gold);outline-offset:2px;border-radius:var(--radius-sm);}
+
+.wrap{max-width:1180px;margin:0 auto;padding:clamp(1.25rem,4vw,2.5rem) clamp(1rem,4vw,2rem) 5rem;}
+
+/* header */
+header.top{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;margin-bottom:1.75rem;flex-wrap:wrap;}
+.title-block h1{font-family:var(--font-display);font-weight:500;font-size:clamp(1.75rem,1.2rem + 2.2vw,2.75rem);letter-spacing:.2px;}
+.title-block p{color:var(--color-text-muted);font-size:.95rem;margin-top:.35rem;max-width:52ch;}
+.theme-toggle{width:38px;height:38px;border-radius:999px;background:var(--color-surface-offset);border:1px solid var(--color-border);display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .18s,border-color .18s;}
+.theme-toggle:hover{background:var(--color-divider);}
+.theme-toggle svg{width:18px;height:18px;color:var(--color-text);}
+
+/* tab bar */
+.tabbar{display:flex;gap:.5rem;margin-bottom:1.25rem;flex-wrap:wrap;}
+.tab-btn{border:1.5px solid var(--color-border);background:var(--color-surface);border-radius:999px;padding:.5rem 1.1rem;font-size:.85rem;font-weight:500;color:var(--color-text-muted);transition:border-color .18s,background .18s,color .18s;}
+.tab-btn:hover{border-color:var(--gold);color:var(--color-text);}
+.tab-btn.active{border-color:var(--gold);background:var(--gold-highlight);color:var(--color-text);}
+
+/* lead sheet */
+.leadsheet{background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-xl);padding:clamp(.9rem,3vw,1.5rem);box-shadow:var(--shadow-sm);}
+.leadsheet h2{font-family:var(--font-display);font-weight:500;font-size:1.15rem;margin-bottom:.9rem;color:var(--color-text);}
+.bars{display:grid;grid-template-columns:repeat(4,1fr);gap:.6rem;}
+@media (max-width:640px){.bars{grid-template-columns:repeat(2,1fr);}}
+.bars--3col{grid-template-columns:repeat(3,1fr);}
+.bar-btn{position:relative;border:1.5px solid var(--color-border);background:var(--color-surface-2);border-radius:var(--radius-md);padding:.7rem .5rem .55rem;text-align:center;transition:border-color .18s,background .18s,transform .12s;}
+.bar-btn:hover{border-color:var(--gold);}
+.bar-btn .barno{position:absolute;top:.35rem;left:.5rem;font-size:.65rem;color:var(--color-text-faint);font-weight:600;letter-spacing:.02em;}
+.bar-btn .chordname{font-family:var(--font-display);font-size:clamp(1.05rem,.9rem + .8vw,1.4rem);font-weight:500;margin-top:.55rem;}
+.bar-btn .roman{display:block;font-size:.7rem;color:var(--color-text-muted);margin-top:.15rem;letter-spacing:.03em;}
+.bar-btn .alt-dot{color:var(--gold);font-weight:700;}
+.bar-btn.active{border-color:var(--gold);background:var(--gold-highlight);transform:translateY(-1px);box-shadow:var(--shadow-sm);}
+.bar-btn.active .chordname{color:var(--gold-hover);}
+[data-theme='dark'] .bar-btn.active .chordname{color:var(--gold);}
+
+/* active chord banner */
+.active-chord{display:flex;align-items:baseline;gap:.75rem;flex-wrap:wrap;margin:1.75rem 0 1.1rem;padding-bottom:.6rem;border-bottom:1px solid var(--color-divider);}
+.active-chord .big{font-family:var(--font-display);font-size:clamp(1.6rem,1.2rem + 1.6vw,2.4rem);font-weight:500;color:var(--gold-hover);}
+[data-theme='dark'] .active-chord .big{color:var(--gold);}
+.active-chord .meta{font-size:.85rem;color:var(--color-text-muted);}
+.active-chord .meta b{color:var(--color-text);font-weight:600;}
+
+/* fretboard grid */
+.fb-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:1rem;}
+@media (max-width:820px){.fb-grid{grid-template-columns:1fr;}}
+.fb-card--wide{grid-column:1 / -1;border-color:var(--gold);min-width:0;}
+.fb-card--wide h3{color:var(--gold);}
+.fb-card--altered{border-color:var(--gold);}
+.fb-card--altered h3{color:var(--gold);}
+.diatonic-chords{margin-top:.75rem;padding-top:.7rem;border-top:1px solid var(--color-divider);}
+.diatonic-title{font-size:.76rem;color:var(--color-text-muted);margin-bottom:.55rem;line-height:1.35;}
+.diatonic-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(86px,1fr));gap:.4rem;}
+.diatonic-chip{display:flex;flex-direction:column;align-items:center;gap:.15rem;padding:.45rem .3rem;border:1px solid var(--color-border);border-radius:var(--radius-md);background:var(--color-surface-2);text-align:center;}
+.diatonic-chip .roman{font-size:.7rem;color:var(--color-text-faint);font-weight:700;letter-spacing:.02em;font-family:var(--font-display);}
+.diatonic-chip .name{font-size:.82rem;color:var(--color-text);font-weight:600;}
+.diatonic-chip.is-current{border-color:var(--gold);background:var(--gold-highlight);}
+.diatonic-chip.is-current .roman,.diatonic-chip.is-current .name{color:var(--gold-hover);}
+.fb-card{background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-xl);padding:clamp(.9rem,2.5vw,1.25rem);box-shadow:var(--shadow-sm);}
+.fb-card h3{font-family:var(--font-display);font-weight:500;font-size:1.05rem;margin-bottom:.15rem;}
+.fb-card .sub{font-size:.78rem;color:var(--color-text-muted);margin-bottom:.55rem;}
+.fb-card .notelist{font-size:.85rem;color:var(--color-text);margin-bottom:.6rem;font-weight:500;letter-spacing:.02em;}
+.fb-card .notelist .deg{color:var(--color-text-faint);font-weight:400;margin-left:.35rem;font-size:.78rem;}
+.fb-svg-wrap{background:var(--color-surface-2);border:1px solid var(--color-divider);border-radius:var(--radius-md);padding:.4rem .2rem;overflow-x:auto;}
+.fb-svg-wrap svg{width:100%;min-width:560px;height:auto;display:block;}
+
+.hex-toggle{display:flex;align-items:center;gap:.5rem;margin-top:.65rem;font-size:.78rem;color:var(--color-text-muted);}
+.switch{position:relative;width:38px;height:22px;border-radius:999px;background:var(--color-surface-offset);border:1px solid var(--color-border);flex-shrink:0;transition:background .18s;}
+.switch::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:999px;background:var(--color-text-faint);transition:transform .18s,background .18s;}
+.switch.on{background:var(--blue-highlight);border-color:var(--blue);}
+.switch.on::after{transform:translateX(16px);background:var(--blue);}
+.hex-toggle button{display:flex;align-items:center;gap:.5rem;}
+.hex-toggle .label{color:var(--color-text);font-weight:500;}
+
+/* legend */
+.legend{margin-top:2.25rem;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-xl);padding:clamp(1rem,3vw,1.5rem);}
+.legend h3{font-family:var(--font-display);font-weight:500;font-size:1.05rem;margin-bottom:.85rem;}
+.legend-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:.75rem 1.25rem;margin-bottom:1.1rem;}
+.legend-item{display:flex;align-items:center;gap:.55rem;font-size:.82rem;}
+.swatch{width:15px;height:15px;border-radius:999px;flex-shrink:0;}
+.legend-notes{font-size:.82rem;color:var(--color-text-muted);border-top:1px solid var(--color-divider);padding-top:.9rem;}
+.legend-notes p{margin-bottom:.5rem;}
+.legend-notes b{color:var(--color-text);}
+
+/* voice-leading map */
+.vl-string-row{display:flex;align-items:center;gap:.4rem;margin-bottom:.7rem;flex-wrap:wrap;}
+.vl-string-row .vl-string-label{font-size:.78rem;color:var(--color-text-muted);font-weight:600;margin-right:.2rem;}
+.vl-str-btn{border:1.5px solid var(--color-border);background:var(--color-surface);border-radius:999px;padding:.35rem .8rem;font-size:.78rem;font-weight:600;color:var(--color-text-muted);transition:border-color .18s,background .18s,color .18s;}
+.vl-str-btn:hover{border-color:var(--gold);color:var(--color-text);}
+.vl-str-btn.active{border-color:var(--gold);background:var(--gold-highlight);color:var(--color-text);}
+.vl-str-btn:disabled{opacity:.4;cursor:not-allowed;}
+.vl-str-btn:disabled:hover{border-color:var(--color-border);color:var(--color-text-muted);}
+.vl-view-row{display:flex;align-items:center;gap:.4rem;margin-bottom:.7rem;flex-wrap:wrap;}
+.vl-view-row .vl-string-label{font-size:.78rem;color:var(--color-text-muted);font-weight:600;margin-right:.2rem;}
+.vl-view-btn{border:1.5px solid var(--color-border);background:var(--color-surface);border-radius:999px;padding:.35rem .8rem;font-size:.78rem;font-weight:600;color:var(--color-text-muted);transition:border-color .18s,background .18s,color .18s;}
+.vl-view-btn:hover{border-color:var(--maroon);color:var(--color-text);}
+.vl-view-btn.active{border-color:var(--maroon);background:var(--maroon-highlight);color:var(--color-text);}
+.vl-controls{display:flex;align-items:center;gap:.6rem;margin-bottom:.85rem;flex-wrap:wrap;}
+.vl-btn{border:1.5px solid var(--color-border);background:var(--color-surface-2);border-radius:var(--radius-md);padding:.45rem .85rem;font-size:.82rem;font-weight:600;color:var(--color-text);display:flex;align-items:center;gap:.4rem;transition:border-color .18s,background .18s;}
+.vl-btn:hover{border-color:var(--gold);}
+.vl-btn svg{width:14px;height:14px;flex-shrink:0;}
+.vl-caption{margin-top:.9rem;padding:.75rem .9rem;background:var(--color-surface-2);border:1px solid var(--color-divider);border-radius:var(--radius-md);font-size:.85rem;color:var(--color-text);}
+.vl-caption b{color:var(--gold-hover);}
+[data-theme='dark'] .vl-caption b{color:var(--gold);}
+.vl-caption .vl-line{margin-top:.3rem;color:var(--color-text-muted);}
+.vl-translist{margin-top:1rem;display:flex;flex-direction:column;gap:.35rem;}
+.vl-trow{display:flex;align-items:center;gap:.6rem;border:1px solid var(--color-border);background:var(--color-surface-2);border-radius:var(--radius-md);padding:.5rem .7rem;text-align:left;font-size:.8rem;color:var(--color-text-muted);width:100%;min-width:0;transition:border-color .18s,background .18s;}
+.vl-trow:hover{border-color:var(--gold);}
+.vl-trow.is-active{border-color:var(--gold);background:var(--gold-highlight);color:var(--color-text);}
+.vl-trow .vl-dot{width:11px;height:11px;border-radius:999px;flex-shrink:0;}
+.vl-trow .vl-cat{font-weight:600;color:var(--color-text);min-width:150px;flex-shrink:0;}
+.vl-trow .vl-desc{min-width:0;flex:1 1 auto;}
+@media (max-width:520px){.vl-trow{flex-wrap:wrap;}.vl-trow .vl-cat{min-width:0;}}
+.vl-legend-inline{margin-top:1.1rem;padding-top:.9rem;border-top:1px solid var(--color-divider);display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:.5rem .9rem;}
+
+footer.credit{margin-top:2rem;text-align:center;font-size:.75rem;color:var(--color-text-faint);}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div class="title-block">
+      <h1>B♭ Jazz Blues — Fretboard Scale Explorer</h1>
+      <p>Click a chord in the lead sheet. Four fretboards update to show the scale material for that chord: the B♭ minor pentatonic with chord tones overlaid, a chord-root pentatonic (major for dominant/diminished chords, minor for Cm7), a bebop scale (Mixolydian + major&nbsp;7, or a borrowed related-V7 bebop for Cm7), and either Pat Martino's minor-conversion shape a fifth above the root or, for the minor Cm7, its own Dorian scale. Bars 4, 8, 10 &amp; 12 (marked <b style="color:var(--gold)">alt</b>) add a fifth fretboard with the altered/super-Locrian scale.</p>
+    </div>
+    <button class="theme-toggle" data-theme-toggle aria-label="Switch to dark mode">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+    </button>
+  </header>
+
+  <nav class="tabbar" id="tabbar">
+    <button class="tab-btn active" data-tab="blues">12-Bar Blues in B♭</button>
+    <button class="tab-btn" data-tab="major251">ii–V–I in C (major)</button>
+    <button class="tab-btn" data-tab="minor251">ii–V–i in A minor</button>
+    <button class="tab-btn" data-tab="voiceleading">Voice-Leading Map</button>
+  </nav>
+
+  <section class="leadsheet">
+    <h2>12-Bar Jazz Blues in B♭</h2>
+    <div class="bars" id="bars"></div>
+  </section>
+
+  <div class="active-chord" id="activeChordBanner"></div>
+
+  <section class="fb-grid" id="fbGrid"></section>
+
+  <section class="legend">
+    <h3>How to read the fretboards</h3>
+    <div class="legend-grid">
+      <div class="legend-item"><span class="swatch" style="background:var(--gold)"></span> Root of the scale currently shown</div>
+      <div class="legend-item"><span class="swatch" style="background:var(--teal-dark)"></span> Root of the fixed anchor scale (constant across the progression)</div>
+      <div class="legend-item"><span class="swatch" style="background:var(--teal-light)"></span> Other scale / pentatonic tones</div>
+      <div class="legend-item"><span class="swatch" style="background:var(--maroon)"></span> Chord tone of the current chord (overlay)</div>
+      <div class="legend-item"><span class="swatch" style="background:var(--purple)"></span> Bebop / chromatic passing tone</div>
+      <div class="legend-item"><span class="swatch" style="background:var(--blue)"></span> Hexatonic added tone (toggle on)</div>
+    </div>
+    <div class="legend-notes">
+      <p><b>1 — B♭ minor pentatonic + chord tones.</b> The B♭ minor pentatonic (B♭ D♭ E♭ F A♭) stays fixed for the whole tune as your "home" shape — it's the blues sound that works over every chord. The current chord's own tones are overlaid in maroon so you can see where the harmony lands inside that one fixed shape.</p>
+      <p><b>2 — Pentatonic of the current chord.</b> Built on the literal root of whichever chord is active. Dominant and diminished chords get the bright major pentatonic (e.g. B♭ major pentatonic over B♭7); minor 7 chords (Cm7) get their own minor pentatonic instead (C minor pentatonic), since a major pentatonic doesn't fit a minor chord.</p>
+      <p><b>3 — Bebop scale (Mixolydian + major 7).</b> Barry Harris's core device: an 8-note scale — Mixolydian with a chromatic major-7th passing tone inserted between the ♭7 and the root — so chord tones land on strong beats when you run the scale in straight 8ths. Over Cm7 (a ii-7 heading to F7), this card borrows F mixolydian bebop — the related V7's scale — with Cm7's own chord tones (maroon) overlaid on top.</p>
+      <p><b>4 — Pat Martino's minor conversion (or Dorian).</b> Dominant and diminished chords are reduced to a minor pentatonic (optionally hexatonic) built a perfect 5th above the root — e.g. F minor pentatonic over B♭7. A chord that's already minor (Cm7) has no conversion to make, so this card just shows that chord's own Dorian scale instead.</p>
+      <p><b>5 — Altered scale (bars 4, 8, 10 &amp; 12 only).</b> These bars function as strong dominants resolving down a fifth. The altered/super-Locrian scale — equivalent to the melodic minor a half-step above the root, reordered to start on the root — is shown with that same dominant's plain chord tones (1 3 5 ♭7) overlaid in maroon so you can see how the altered tensions sit around the underlying chord.</p>
+    </div>
+  </section>
+
+  <footer class="credit">Built for practicing chord-scale relationships across jazz progressions. Concepts: Barry Harris (bebop scales &amp; altered dominant), Pat Martino (minor conversion) &amp; Randy Vincent (melodic cells &amp; hexatonics).</footer>
+</div>
+
+<script>
+/* ============================================================
+   MUSIC DATA
+   ============================================================ */
+const FLATS  = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
+const SHARPS = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const SHARP_PREFERRED = new Set([4,11]); // E, B spell cleaner with sharps
+
+function spell(idx, preferSharp){
+  idx = ((idx % 12) + 12) % 12;
+  return (preferSharp ? SHARPS : FLATS)[idx];
+}
+function prettyName(n){ return n.replace('b','♭').replace('#','♯'); }
+
+// 12-bar jazz blues in Bb (Levine-style standard changes)
+const CHORDS = {
+  Bb7:    { display:'B♭7',   root:10, quality:'dom' },
+  Eb7:    { display:'E♭7',   root:3,  quality:'dom' },
+  Edim7:  { display:'E°7',   root:4,  quality:'dim' },
+  G7:     { display:'G7',    root:7,  quality:'dom' },
+  Cm7:    { display:'Cm7',   root:0,  quality:'min' },
+  F7:     { display:'F7',    root:5,  quality:'dom' },
+  G7alt:  { display:'G7alt', root:7,  quality:'dom' },
+};
+
+// altered = true marks bars where this dominant is treated as a strong
+// secondary/functional V7 and gets a 5th "altered scale" fretboard.
+const PROGRESSION = [
+  { bar:1,  chord:'Bb7',   roman:'I7'     },
+  { bar:2,  chord:'Eb7',   roman:'IV7'    },
+  { bar:3,  chord:'Bb7',   roman:'I7'     },
+  { bar:4,  chord:'Bb7',   roman:'I7',     altered:true },
+  { bar:5,  chord:'Eb7',   roman:'IV7'    },
+  { bar:6,  chord:'Edim7', roman:'#IV°7'  },
+  { bar:7,  chord:'Bb7',   roman:'I7'     },
+  { bar:8,  chord:'G7',    roman:'VI7',    altered:true },
+  { bar:9,  chord:'Cm7',   roman:'II-7'   },
+  { bar:10, chord:'F7',    roman:'V7',     altered:true },
+  { bar:11, chord:'Bb7',   roman:'I7'     },
+  { bar:12, chord:'G7alt', roman:'VI7alt', altered:true },
+];
+
+// Fixed reference scale: Bb minor pentatonic
+const BB_PENT_ROOT = 10;
+const BB_PENT_INTERVALS = [0,3,5,7,10];
+const BB_PENT_LABELS    = ['1','b3','4','5','b7'];
+
+const CHORD_TONE_SETS = {
+  dom: { intervals:[0,4,7,10], labels:['1','3','5','b7'] },
+  min: { intervals:[0,3,7,10], labels:['1','b3','5','b7'] },
+  dim: { intervals:[0,3,6,9],  labels:['1','b3','b5','6(bb7)'] },
+  maj7: { intervals:[0,4,7,11], labels:['1','3','5','7'] },
+  m7b5: { intervals:[0,3,6,10], labels:['1','b3','b5','b7'] },
+  minTonic: { intervals:[0,3,7,9,11], labels:['1','b3','5','6','7'] },
+};
+
+const MAJOR_PENT_INTERVALS = [0,2,4,7,9];
+const MAJOR_PENT_LABELS    = ['1','2','3','5','6'];
+
+const BEBOP_INTERVALS = [0,2,4,5,7,9,10,11];
+const BEBOP_LABELS    = ['1','2','3','4','5','6','b7','7'];
+
+const MINOR_PENT_INTERVALS = [0,3,5,7,10];
+const MINOR_PENT_LABELS    = ['1','b3','4','5','b7'];
+const HEX_ADD_INTERVAL = 9;
+const HEX_ADD_LABEL = '6';
+
+const DORIAN_INTERVALS = [0,2,3,5,7,9,10];
+const DORIAN_LABELS    = ['1','2','b3','4','5','6','b7'];
+
+// Altered / super-Locrian scale, spelled from the dominant root itself
+// (equivalent to melodic minor a half-step above the root, reordered).
+const ALTERED_INTERVALS = [0,1,3,4,6,8,10];
+const ALTERED_LABELS    = ['1','b9','#9','3','b5','b13','b7'];
+
+// Chords whose bebop-scale card borrows the related V7 a 4th above
+// (the ii-7 in a ii-V borrowing the V7's bebop dominant scale).
+const BEBOP_BORROW_UP_FOURTH = new Set(['Cm7']);
+
+/* ============================================================
+   ii-V-I / ii-V-i SPEC PROGRESSIONS
+   Each chord carries its own card2/card3/card4 scale spec —
+   these choices are chord-specific rather than quality-generic,
+   so they're declared directly instead of dispatched by quality.
+   ============================================================ */
+const MAJOR_251 = {
+  key:'major251', heading:'ii\u2013V\u2013I in C Major', barsCols:3,
+  anchorRoot:0, anchorIntervals:MAJOR_PENT_INTERVALS, anchorLabels:MAJOR_PENT_LABELS, anchorName:'C major pentatonic',
+  chords: [
+    {
+      key:'Dm7', display:'Dm7', roman:'ii7', root:2, quality:'min',
+      card2: { title:'2 \u00b7 Minor Pentatonic', sub:'D minor pentatonic \u2014 built on the root of Dm7',
+        intervals:MINOR_PENT_INTERVALS, labels:MINOR_PENT_LABELS, root:2, preferSharp:false },
+      card3: { title:'3 \u00b7 Dorian Bebop Scale', sub:'Dorian + major-3rd passing tone (Barry Harris device) on Dm7',
+        intervals:[0,2,3,4,5,7,9,10], labels:['1','2','b3','3','4','5','6','b7'], root:2, preferSharp:true, passingLabel:'3' },
+      card4: { type:'hex', title:'4 \u00b7 Randy Vincent Hexatonic \u2014 Dorian', subBase:'D minor',
+        baseIntervals:MINOR_PENT_INTERVALS, baseLabels:MINOR_PENT_LABELS, baseRoot:2, hexAddInterval:9, hexAddLabel:'6', preferSharp:false },
+    },
+    {
+      key:'G7', display:'G7', roman:'V7', root:7, quality:'dom', altered:true,
+      card2: { title:'2 \u00b7 Major Pentatonic', sub:'G major pentatonic \u2014 built on the root of G7',
+        intervals:MAJOR_PENT_INTERVALS, labels:MAJOR_PENT_LABELS, root:7, preferSharp:false },
+      card3: { title:'3 \u00b7 Mixolydian Bebop Scale', sub:'Mixolydian + major-7 passing tone on G7',
+        intervals:BEBOP_INTERVALS, labels:BEBOP_LABELS, root:7, preferSharp:true, passingLabel:'7' },
+      card4: { type:'altered', title:'4 \u00b7 Altered Scale', sub:'Melodic minor a half-step above the root (super-Locrian), with G7 chord tones overlaid', preferSharp:false,
+        diatonicScaleName:'A\u266d melodic minor', diatonic:[
+          { roman:'I',   name:'A\u266dm(maj7)' },
+          { roman:'ii',  name:'B\u266dm7' },
+          { roman:'iii', name:'C\u266d\u0394(#5)' },
+          { roman:'IV',  name:'D\u266d7(#11)' },
+          { roman:'V',   name:'E\u266d7(\u266d13)' },
+          { roman:'vi',  name:'Fm7(\u266d5)' },
+          { roman:'vii', name:'G7alt', isCurrent:true },
+        ] },
+    },
+    {
+      key:'Cmaj7', display:'Cmaj7', roman:'Imaj7', root:0, quality:'maj7',
+      card2: { title:'2 \u00b7 Major Pentatonic', sub:'C major pentatonic \u2014 built on the root of Cmaj7',
+        intervals:MAJOR_PENT_INTERVALS, labels:MAJOR_PENT_LABELS, root:0, preferSharp:false },
+      card3: { title:'3 \u00b7 Major Bebop Scale', sub:'Ionian + #5 passing tone (Barry Harris 6th-diminished device) on Cmaj7',
+        intervals:[0,2,4,5,7,8,9,11], labels:['1','2','3','4','5','#5','6','7'], root:0, preferSharp:true, passingLabel:'#5' },
+      card4: { type:'hex', title:'4 \u00b7 Randy Vincent Hexatonic \u2014 Lydian', subBase:'C major',
+        baseIntervals:MAJOR_PENT_INTERVALS, baseLabels:MAJOR_PENT_LABELS, baseRoot:0, hexAddInterval:6, hexAddLabel:'#4', preferSharp:true },
+    },
+  ],
+};
+
+const MINOR_251 = {
+  key:'minor251', heading:'ii\u2013V\u2013i in A Minor', barsCols:3,
+  anchorRoot:9, anchorIntervals:MINOR_PENT_INTERVALS, anchorLabels:MINOR_PENT_LABELS, anchorName:'A minor pentatonic',
+  chords: [
+    {
+      key:'Bm7b5', display:'Bm7\u266d5', roman:'ii\u00f87', root:11, quality:'m7b5',
+      card2: { title:'2 \u00b7 Minor Pentatonic (Dm6 shape)', sub:'D minor pentatonic \u2014 Bm7\u266d5 shares its four tones with Dm6, a minor 3rd above the root',
+        intervals:MINOR_PENT_INTERVALS, labels:MINOR_PENT_LABELS, root:2, preferSharp:false },
+      card3: { title:'3 \u00b7 Locrian \u266e2', sub:'Half-diminished scale on Bm7\u266d5',
+        intervals:[0,2,3,5,6,8,10], labels:['1','2','b3','4','b5','b6','b7'], root:11, preferSharp:true },
+      card4: { type:'hex', title:'4 \u00b7 Randy Vincent Hexatonic \u2014 Dm6', subBase:'D minor',
+        baseIntervals:MINOR_PENT_INTERVALS, baseLabels:MINOR_PENT_LABELS, baseRoot:2, hexAddInterval:9, hexAddLabel:'6', preferSharp:false },
+    },
+    {
+      key:'E7alt', display:'E7alt', roman:'V7alt', root:4, quality:'dom', altered:true,
+      card2: { title:'2 \u00b7 Minor Pentatonic (altered-dominant sub)', sub:'F minor pentatonic \u2014 a half-step above the root, a classic altered-dominant pentatonic substitution',
+        intervals:MINOR_PENT_INTERVALS, labels:MINOR_PENT_LABELS, root:5, preferSharp:false },
+      card3: { title:'3 \u00b7 Phrygian Dominant', sub:'5th mode of A harmonic minor, on E7alt',
+        intervals:[0,1,4,5,7,8,10], labels:['1','b9','3','4','5','b13','b7'], root:4, preferSharp:true },
+      card4: { type:'altered', title:'4 \u00b7 Altered Scale', sub:'Melodic minor a half-step above the root (super-Locrian), with E7alt chord tones overlaid', preferSharp:false,
+        diatonicScaleName:'F melodic minor', diatonic:[
+          { roman:'I',   name:'Fm(maj7)' },
+          { roman:'ii',  name:'Gm7' },
+          { roman:'iii', name:'A\u266d\u0394(#5)' },
+          { roman:'IV',  name:'B\u266d7(#11)' },
+          { roman:'V',   name:'C7(\u266d13)' },
+          { roman:'vi',  name:'Dm7(\u266d5)' },
+          { roman:'vii', name:'E7alt', isCurrent:true },
+        ] },
+    },
+    {
+      key:'Am', display:'Am', roman:'i(6/\u0394)', root:9, quality:'minTonic', preferSharpOverlay:true,
+      card2: { title:'2 \u00b7 Minor Pentatonic', sub:'A minor pentatonic \u2014 built on the root of Am',
+        intervals:MINOR_PENT_INTERVALS, labels:MINOR_PENT_LABELS, root:9, preferSharp:false },
+      card3: { title:'3 \u00b7 Melodic Minor', sub:'A melodic minor (ascending) on Am',
+        intervals:[0,2,3,5,7,9,11], labels:['1','2','b3','4','5','6','7'], root:9, preferSharp:true },
+      card4: { type:'hex', title:'4 \u00b7 Randy Vincent Hexatonic \u2014 +Leading Tone', subBase:'A minor',
+        baseIntervals:MINOR_PENT_INTERVALS, baseLabels:MINOR_PENT_LABELS, baseRoot:9, hexAddInterval:11, hexAddLabel:'7', preferSharp:true },
+    },
+  ],
+};
+
+const PROGRAMS = { major251: MAJOR_251, minor251: MINOR_251 };
+
+/* ============================================================
+   STATE
+   ============================================================ */
+let activeBarIndex = 0;
+let hexatonicOn = false;
+let currentProg = 'blues'; // 'blues' | 'major251' | 'minor251' | 'voiceleading'
+let vlPlayTimer = null;
+
+/* ============================================================
+   FRETBOARD GEOMETRY + RENDER
+   ============================================================ */
+const STRING_OPEN = [4, 11, 7, 2, 9, 4];          // hi E, B, G, D, A, lo E
+const STRING_LABEL = ['E', 'B', 'G', 'D', 'A', 'E'];
+const NUM_FRETS = 12;
+const NUT_X = 46, OPEN_X = 20, FIELD_W = 660, TOP_Y = 18, ROW_H = 24;
+const SVG_W = 720, SVG_H = TOP_Y*2 + ROW_H*5 + 22;
+
+function fretRatio(n){ return 1 - 1/Math.pow(2, n/12); }
+const RATIO_12 = fretRatio(12);
+function fretLineX(n){
+  if(n===0) return NUT_X;
+  return NUT_X + FIELD_W * (fretRatio(n)/RATIO_12);
+}
+function dotX(n){
+  if(n===0) return OPEN_X;
+  return (fretLineX(n-1) + fretLineX(n)) / 2;
+}
+
+function svgEl(tag, attrs){
+  const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  for(const k in attrs) el.setAttribute(k, attrs[k]);
+  return el;
+}
+
+// markers: { [pitchClass]: { label, cls } }, cls in m-root|m-scaleroot|m-scale|m-chord|m-chordroot|m-passing|m-hex
+const CLASS_COLOR_VAR = {
+  'm-root':      '--gold',
+  'm-chordroot': '--gold',
+  'm-scaleroot': '--teal-dark',
+  'm-scale':     '--teal-light',
+  'm-chord':     '--maroon',
+  'm-passing':   '--purple',
+  'm-hex':       '--blue',
+};
+
+function renderFretboard(container, markers, preferSharp){
+  container.innerHTML = '';
+  const svg = svgEl('svg', { viewBox:`0 0 ${SVG_W} ${SVG_H}`, xmlns:'http://www.w3.org/2000/svg' });
+
+  const rootVar = getComputedStyle(document.documentElement);
+  const divider = rootVar.getPropertyValue('--color-divider').trim();
+  const border  = rootVar.getPropertyValue('--color-border').trim();
+  const textMuted = rootVar.getPropertyValue('--color-text-muted').trim();
+  const textFaint = rootVar.getPropertyValue('--color-text-faint').trim();
+  const surface2 = rootVar.getPropertyValue('--color-surface-2').trim();
+
+  // fret markers (dots) at 3,5,7,9,12
+  const singleDots = [3,5,7,9];
+  singleDots.forEach(f=>{
+    const cx = dotX(f);
+    const cy = TOP_Y + ROW_H*2.5;
+    svg.appendChild(svgEl('circle', { cx, cy, r:5, fill:textFaint, opacity:'0.35' }));
+  });
+  const cx12 = dotX(12);
+  [1.5,3.5].forEach(mult=>{
+    svg.appendChild(svgEl('circle', { cx:cx12, cy:TOP_Y+ROW_H*mult, r:5, fill:textFaint, opacity:'0.35' }));
+  });
+
+  // fret number labels
+  [3,5,7,9,12].forEach(f=>{
+    const cx = dotX(f);
+    svg.appendChild(svgEl('text', {
+      x:cx, y: SVG_H - 6, 'text-anchor':'middle', 'font-size':'11',
+      fill:textMuted, 'font-family':'var(--font-body)'
+    })).textContent = f;
+  });
+
+  // string lines
+  for(let i=0;i<6;i++){
+    const y = TOP_Y + i*ROW_H;
+    svg.appendChild(svgEl('line', { x1:OPEN_X-4, y1:y, x2:fretLineX(NUM_FRETS), y2:y, stroke:border, 'stroke-width': i===0||i===5 ? 1.6 : 1.1 }));
+    svg.appendChild(svgEl('text', {
+      x: OPEN_X-14, y: y+4, 'text-anchor':'end', 'font-size':'11', 'font-weight':'600',
+      fill:textMuted, 'font-family':'var(--font-body)'
+    })).textContent = STRING_LABEL[i];
+  }
+
+  // fret lines (nut thicker)
+  for(let f=0; f<=NUM_FRETS; f++){
+    const x = fretLineX(f);
+    svg.appendChild(svgEl('line', {
+      x1:x, y1:TOP_Y-6, x2:x, y2:TOP_Y + ROW_H*5 + 6,
+      stroke: f===0 ? textMuted : divider, 'stroke-width': f===0 ? 3.5 : 1.2
+    }));
+  }
+  // open-string divider
+  svg.appendChild(svgEl('line', { x1:OPEN_X+9, y1:TOP_Y-10, x2:OPEN_X+9, y2:TOP_Y+ROW_H*5+10, stroke:divider, 'stroke-width':1, 'stroke-dasharray':'2,3' }));
+
+  // note dots
+  for(let s=0; s<6; s++){
+    const open = STRING_OPEN[s];
+    const y = TOP_Y + s*ROW_H;
+    for(let f=0; f<=NUM_FRETS; f++){
+      const pc = (open + f) % 12;
+      const m = markers[pc];
+      if(!m) continue;
+      const x = dotX(f);
+      const colorVar = CLASS_COLOR_VAR[m.cls] || '--teal-light';
+      const color = rootVar.getPropertyValue(colorVar).trim();
+      const isRoot = m.cls === 'm-root' || m.cls === 'm-scaleroot' || m.cls === 'm-chordroot';
+      const r = isRoot ? 11.5 : 10;
+      const g = svgEl('g', {});
+      g.appendChild(svgEl('circle', { cx:x, cy:y, r, fill:color, stroke:surface2, 'stroke-width':1.5 }));
+      const nameTxt = svgEl('text', {
+        x, y:y+3.4, 'text-anchor':'middle', 'font-size':'9.5', 'font-weight':'700',
+        fill:'#fff', 'font-family':'var(--font-body)'
+      });
+      nameTxt.textContent = spell(pc, preferSharp);
+      g.appendChild(nameTxt);
+      svg.appendChild(g);
+    }
+  }
+
+  container.appendChild(svg);
+}
+
+/* ============================================================
+   BUILD MARKER SETS PER CARD
+   ============================================================ */
+function buildCard1Markers(chord){
+  const markers = {};
+  BB_PENT_INTERVALS.forEach((iv,i)=>{
+    const pc = (BB_PENT_ROOT+iv)%12;
+    markers[pc] = { label: BB_PENT_LABELS[i], cls: i===0 ? 'm-scaleroot' : 'm-scale' };
+  });
+  const set = CHORD_TONE_SETS[chord.quality];
+  set.intervals.forEach((iv,i)=>{
+    const pc = (chord.root+iv)%12;
+    markers[pc] = { label: set.labels[i], cls: i===0 ? 'm-chordroot' : 'm-chord' };
+  });
+  return markers;
+}
+function buildCard2Markers(chord){
+  const markers = {};
+  if(chord.quality === 'min'){
+    MINOR_PENT_INTERVALS.forEach((iv,i)=>{
+      const pc = (chord.root+iv)%12;
+      markers[pc] = { label: MINOR_PENT_LABELS[i], cls: i===0 ? 'm-root' : 'm-scale' };
+    });
+  } else {
+    MAJOR_PENT_INTERVALS.forEach((iv,i)=>{
+      const pc = (chord.root+iv)%12;
+      markers[pc] = { label: MAJOR_PENT_LABELS[i], cls: i===0 ? 'm-root' : 'm-scale' };
+    });
+  }
+  return markers;
+}
+function buildCard3Markers(chord, chordKey){
+  const markers = {};
+  const borrow = BEBOP_BORROW_UP_FOURTH.has(chordKey);
+  const bebopRoot = borrow ? (chord.root+5)%12 : chord.root;
+  BEBOP_INTERVALS.forEach((iv,i)=>{
+    const pc = (bebopRoot+iv)%12;
+    const label = BEBOP_LABELS[i];
+    let cls = 'm-scale';
+    if(i===0) cls = 'm-root';
+    else if(label==='7') cls = 'm-passing';
+    markers[pc] = { label, cls };
+  });
+  if(borrow){
+    // overlay the minor 7 chord's own tones on top of the borrowed bebop scale
+    const set = CHORD_TONE_SETS[chord.quality];
+    set.intervals.forEach((iv,i)=>{
+      const pc = (chord.root+iv)%12;
+      markers[pc] = { label: set.labels[i], cls: i===0 ? 'm-chordroot' : 'm-chord' };
+    });
+  }
+  return { markers, bebopRoot, borrow };
+}
+function buildCard4Markers(chord){
+  const markers = {};
+  if(chord.quality === 'min'){
+    DORIAN_INTERVALS.forEach((iv,i)=>{
+      const pc = (chord.root+iv)%12;
+      markers[pc] = { label: DORIAN_LABELS[i], cls: i===0 ? 'm-root' : 'm-scale' };
+    });
+    return { markers, martinoRoot: chord.root, isDorian: true };
+  }
+  const martinoRoot = (chord.root+7)%12;
+  MINOR_PENT_INTERVALS.forEach((iv,i)=>{
+    const pc = (martinoRoot+iv)%12;
+    markers[pc] = { label: MINOR_PENT_LABELS[i], cls: i===0 ? 'm-root' : 'm-scale' };
+  });
+  if(hexatonicOn){
+    const pc = (martinoRoot+HEX_ADD_INTERVAL)%12;
+    markers[pc] = { label: HEX_ADD_LABEL, cls: 'm-hex' };
+  }
+  return { markers, martinoRoot, isDorian: false };
+}
+function buildAlteredMarkers(chord){
+  const markers = {};
+  ALTERED_INTERVALS.forEach((iv,i)=>{
+    const pc = (chord.root+iv)%12;
+    markers[pc] = { label: ALTERED_LABELS[i], cls: i===0 ? 'm-root' : 'm-scale' };
+  });
+  const dom = CHORD_TONE_SETS.dom;
+  dom.intervals.forEach((iv,i)=>{
+    const pc = (chord.root+iv)%12;
+    markers[pc] = { label: dom.labels[i], cls: i===0 ? 'm-root' : 'm-chord' };
+  });
+  return markers;
+}
+
+function notesListFromMarkers(markers, order, preferSharp){
+  // order = array of pitch classes in intended display order
+  return order.map(pc=>{
+    const m = markers[pc];
+    return { name: prettyName(spell(pc, preferSharp)), label: m.label };
+  });
+}
+
+/* ============================================================
+   RENDER PAGE
+   ============================================================ */
+function getActiveProgData(){
+  if(currentProg === 'blues'){
+    return { type:'quality', bars:PROGRESSION, chordsMap:CHORDS, barsCols:4, heading:'12-Bar Jazz Blues in B♭' };
+  }
+  if(currentProg === 'voiceleading'){
+    return { type:'quality', bars:PROGRESSION, chordsMap:CHORDS, barsCols:4, heading:'12-Bar Jazz Blues in B♭ — Voice-Leading Map' };
+  }
+  const p = PROGRAMS[currentProg];
+  const bars = p.chords.map((c,i)=>({ bar:i+1, chord:c.key, roman:c.roman, altered: c.card4.type==='altered' }));
+  const chordsMap = {};
+  p.chords.forEach(c=>{ chordsMap[c.key] = c; });
+  return { type:'spec', bars, chordsMap, barsCols:p.barsCols, heading:p.heading, spec:p };
+}
+
+function renderBars(){
+  const data = getActiveProgData();
+  const el = document.getElementById('bars');
+  el.innerHTML = '';
+  el.classList.toggle('bars--3col', data.barsCols === 3);
+  data.bars.forEach((bar, i)=>{
+    const chord = data.chordsMap[bar.chord];
+    const btn = document.createElement('button');
+    btn.className = 'bar-btn' + (i===activeBarIndex ? ' active' : '') + (bar.altered ? ' has-alt' : '');
+    btn.innerHTML = `<span class="barno">${bar.bar}</span><span class="chordname">${chord.display}</span><span class="roman">${bar.roman}${bar.altered ? ' <span class=\"alt-dot\" title=\"Has altered-scale fretboard\">\u2022alt</span>' : ''}</span>`;
+    btn.addEventListener('click', ()=>{ vlStopPlayback(); activeBarIndex = i; renderAll(); });
+    el.appendChild(btn);
+  });
+  const h2 = document.querySelector('.leadsheet h2');
+  if(h2) h2.textContent = data.heading;
+}
+
+function renderActiveBanner(){
+  const data = getActiveProgData();
+  const bar = data.bars[activeBarIndex];
+  const chord = data.chordsMap[bar.chord];
+  const el = document.getElementById('activeChordBanner');
+  el.innerHTML = `<span class="big">${chord.display}</span><span class="meta">Bar <b>${bar.bar}</b> of ${data.bars.length} &nbsp;·&nbsp; Function <b>${bar.roman}</b>${bar.altered ? ' &nbsp;·&nbsp; <b style="color:var(--gold)">+ altered scale</b>' : ''}</span>`;
+}
+
+function cardTemplate(id, title, sub){
+  const div = document.createElement('div');
+  div.className = 'fb-card';
+  div.innerHTML = `
+    <h3>${title}</h3>
+    <div class="sub">${sub}</div>
+    <div class="notelist" id="${id}-notes"></div>
+    <div class="fb-svg-wrap"><div id="${id}-svg"></div></div>
+  `;
+  return div;
+}
+
+function renderNoteList(elId, entries){
+  const el = document.getElementById(elId);
+  el.innerHTML = entries.map(e=>`${e.name}<span class="deg">${e.label}</span>`).join('&nbsp;&nbsp;');
+}
+
+function renderAll(){
+  renderBars();
+  renderActiveBanner();
+
+  const data = getActiveProgData();
+  const bar = data.bars[activeBarIndex];
+  const chord = data.chordsMap[bar.chord];
+
+  const grid = document.getElementById('fbGrid');
+  grid.innerHTML = '';
+
+  if(currentProg === 'voiceleading'){
+    renderVoiceLeadingCard(bar, chord, grid);
+    return;
+  }
+
+  if(data.type !== 'quality'){
+    renderSpecCards(data.spec, chord, bar, grid);
+    return;
+  }
+
+  const preferSharpChordRoot = SHARP_PREFERRED.has(chord.root);
+
+  // Card 1
+  const c1 = cardTemplate('c1', '1 · B♭ Minor Pentatonic + Chord Tones', `Fixed reference shape, with ${chord.display} chord tones overlaid`);
+  grid.appendChild(c1);
+  const m1 = buildCard1Markers(chord);
+  const order1 = [...new Set([BB_PENT_ROOT, ...BB_PENT_INTERVALS.map(iv=>(BB_PENT_ROOT+iv)%12), ...CHORD_TONE_SETS[chord.quality].intervals.map(iv=>(chord.root+iv)%12)])];
+  renderNoteList('c1-notes', notesListFromMarkers(m1, order1, false));
+  renderFretboard(document.getElementById('c1-svg'), m1, false);
+
+  // Card 2
+  const isMinor = chord.quality === 'min';
+  const c2Title = isMinor ? '2 · Minor Pentatonic' : '2 · Major Pentatonic';
+  const c2Sub = isMinor ? `Built on the root of ${chord.display} (minor chord, not major pentatonic)` : `Built on the root of ${chord.display}`;
+  const c2 = cardTemplate('c2', c2Title, c2Sub);
+  grid.appendChild(c2);
+  const m2 = buildCard2Markers(chord);
+  const order2Ivs = isMinor ? MINOR_PENT_INTERVALS : MAJOR_PENT_INTERVALS;
+  const order2 = order2Ivs.map(iv=>(chord.root+iv)%12);
+  renderNoteList('c2-notes', notesListFromMarkers(m2, order2, preferSharpChordRoot));
+  renderFretboard(document.getElementById('c2-svg'), m2, preferSharpChordRoot);
+
+  // Card 3
+  const { markers: m3, bebopRoot, borrow } = buildCard3Markers(chord, bar.chord);
+  const preferSharpBebop = SHARP_PREFERRED.has(bebopRoot);
+  const c3Title = '3 · Bebop Scale';
+  const c3Sub = borrow
+    ? `${prettyName(spell(bebopRoot, preferSharpBebop))} mixolydian bebop (related V7), with ${chord.display} chord tones overlaid`
+    : `Mixolydian + major 7 passing tone, on ${chord.display}`;
+  const c3 = cardTemplate('c3', c3Title, c3Sub);
+  grid.appendChild(c3);
+  let order3 = BEBOP_INTERVALS.map(iv=>(bebopRoot+iv)%12);
+  if(borrow){
+    order3 = [...new Set([...order3, ...CHORD_TONE_SETS[chord.quality].intervals.map(iv=>(chord.root+iv)%12)])];
+  }
+  renderNoteList('c3-notes', notesListFromMarkers(m3, order3, preferSharpBebop));
+  renderFretboard(document.getElementById('c3-svg'), m3, preferSharpBebop);
+
+  // Card 4
+  const { markers: m4, martinoRoot, isDorian } = buildCard4Markers(chord);
+  const preferSharpMartino = SHARP_PREFERRED.has(martinoRoot);
+  const c4Title = isDorian ? '4 · Dorian' : '4 · Pat Martino Minor Conversion';
+  const c4Sub = isDorian
+    ? `${chord.display} is already minor — no Martino conversion, just its own Dorian scale`
+    : `${prettyName(spell(martinoRoot, preferSharpMartino))} minor ${hexatonicOn ? 'hexatonic' : 'pentatonic'} — a 5th above ${chord.display.replace(/(7|alt| .*)/,'').replace('°','')}`;
+  const c4 = cardTemplate('c4', c4Title, c4Sub);
+  grid.appendChild(c4);
+  let order4 = isDorian
+    ? DORIAN_INTERVALS.map(iv=>(martinoRoot+iv)%12)
+    : MINOR_PENT_INTERVALS.map(iv=>(martinoRoot+iv)%12);
+  if(!isDorian && hexatonicOn) order4 = [...order4, (martinoRoot+HEX_ADD_INTERVAL)%12];
+  renderNoteList('c4-notes', notesListFromMarkers(m4, order4, preferSharpMartino));
+  renderFretboard(document.getElementById('c4-svg'), m4, preferSharpMartino);
+
+  // hex toggle row (append after card4 content) — only meaningful for the Martino conversion
+  if(!isDorian){
+    const hexRow = document.createElement('div');
+    hexRow.className = 'hex-toggle';
+    hexRow.innerHTML = `<button type="button" aria-pressed="${hexatonicOn}"><span class="switch ${hexatonicOn?'on':''}"></span><span class="label">${hexatonicOn ? 'Hexatonic (pentatonic + 6th)' : 'Pentatonic'}</span></button>`;
+    hexRow.querySelector('button').addEventListener('click', ()=>{ hexatonicOn = !hexatonicOn; renderAll(); });
+    c4.appendChild(hexRow);
+  }
+
+  // Card 5 — altered scale, only for bars flagged as strong functional dominants
+  if(bar.altered){
+    const c5 = cardTemplate('c5', '5 · Altered Scale', `Melodic minor a half-step above the root (super-Locrian), with ${chord.display} chord tones overlaid`);
+    c5.classList.add('fb-card--wide');
+    grid.appendChild(c5);
+    const m5 = buildAlteredMarkers(chord);
+    const order5 = [...new Set([...ALTERED_INTERVALS.map(iv=>(chord.root+iv)%12), ...CHORD_TONE_SETS.dom.intervals.map(iv=>(chord.root+iv)%12)])];
+    renderNoteList('c5-notes', notesListFromMarkers(m5, order5, preferSharpChordRoot));
+    renderFretboard(document.getElementById('c5-svg'), m5, preferSharpChordRoot);
+  }
+}
+
+/* ============================================================
+   SPEC-BASED RENDER PATH (ii-V-I / ii-V-i tabs)
+   Card choices are chord-specific here, so each chord's own
+   card2/card3/card4 spec drives a generic renderer instead of
+   the quality dispatch used for the blues.
+   ============================================================ */
+function buildAnchorMarkers(progSpec, chord, preferSharpOverlay){
+  const markers = {};
+  progSpec.anchorIntervals.forEach((iv,i)=>{
+    const pc = (progSpec.anchorRoot+iv)%12;
+    markers[pc] = { label: progSpec.anchorLabels[i], cls: i===0 ? 'm-scaleroot' : 'm-scale' };
+  });
+  const set = CHORD_TONE_SETS[chord.quality];
+  set.intervals.forEach((iv,i)=>{
+    const pc = (chord.root+iv)%12;
+    markers[pc] = { label: set.labels[i], cls: i===0 ? 'm-chordroot' : 'm-chord' };
+  });
+  return markers;
+}
+
+function renderGenericCard(id, spec, grid){
+  const c = cardTemplate(id, spec.title, spec.sub);
+  grid.appendChild(c);
+  const markers = {};
+  spec.intervals.forEach((iv,i)=>{
+    const pc = (spec.root+iv)%12;
+    let cls = i===0 ? 'm-root' : 'm-scale';
+    if(spec.passingLabel && i!==0 && spec.labels[i]===spec.passingLabel) cls = 'm-passing';
+    markers[pc] = { label: spec.labels[i], cls };
+  });
+  const order = spec.intervals.map(iv=>(spec.root+iv)%12);
+  renderNoteList(`${id}-notes`, notesListFromMarkers(markers, order, spec.preferSharp));
+  renderFretboard(document.getElementById(`${id}-svg`), markers, spec.preferSharp);
+  return c;
+}
+
+function renderSpecCards(progSpec, chord, bar, grid){
+  const preferSharpOverlay = chord.preferSharpOverlay ?? SHARP_PREFERRED.has(chord.root);
+
+  // Card 1 — anchor pentatonic (fixed across the progression) + chord tones
+  const c1 = cardTemplate('c1', `1 · ${progSpec.anchorName} + Chord Tones`, `Fixed reference shape, with ${chord.display} chord tones overlaid`);
+  grid.appendChild(c1);
+  const m1 = buildAnchorMarkers(progSpec, chord, preferSharpOverlay);
+  const order1 = [...new Set([
+    progSpec.anchorRoot,
+    ...progSpec.anchorIntervals.map(iv=>(progSpec.anchorRoot+iv)%12),
+    ...CHORD_TONE_SETS[chord.quality].intervals.map(iv=>(chord.root+iv)%12)
+  ])];
+  renderNoteList('c1-notes', notesListFromMarkers(m1, order1, preferSharpOverlay));
+  renderFretboard(document.getElementById('c1-svg'), m1, preferSharpOverlay);
+
+  // Card 2 & 3 — generic, chord-specific specs
+  renderGenericCard('c2', chord.card2, grid);
+  renderGenericCard('c3', chord.card3, grid);
+
+  // Card 4 — altered scale on the V chord, Randy Vincent hexatonic elsewhere
+  const c4Spec = chord.card4;
+  if(c4Spec.type === 'altered'){
+    const c4 = cardTemplate('c4', c4Spec.title, c4Spec.sub);
+    c4.classList.add('fb-card--altered');
+    grid.appendChild(c4);
+    const m4 = buildAlteredMarkers(chord);
+    const order4 = [...new Set([...ALTERED_INTERVALS.map(iv=>(chord.root+iv)%12), ...CHORD_TONE_SETS.dom.intervals.map(iv=>(chord.root+iv)%12)])];
+    renderNoteList('c4-notes', notesListFromMarkers(m4, order4, c4Spec.preferSharp));
+    renderFretboard(document.getElementById('c4-svg'), m4, c4Spec.preferSharp);
+    if(c4Spec.diatonic){
+      const diaWrap = document.createElement('div');
+      diaWrap.className = 'diatonic-chords';
+      diaWrap.innerHTML = `
+        <div class="diatonic-title">Diatonic 7th chords of <b>${c4Spec.diatonicScaleName}</b> \u2014 arpeggiate any of these over this scale</div>
+        <div class="diatonic-grid">
+          ${c4Spec.diatonic.map(d=>`<div class="diatonic-chip${d.isCurrent ? ' is-current' : ''}"><span class="roman">${d.roman}</span><span class="name">${d.name}</span></div>`).join('')}
+        </div>`;
+      c4.appendChild(diaWrap);
+    }
+  } else if(c4Spec.type === 'hex'){
+    const c4Sub = `${c4Spec.subBase} ${hexatonicOn ? 'hexatonic' : 'pentatonic'} \u2014 hexatonic base for ${chord.display}`;
+    const c4 = cardTemplate('c4', c4Spec.title, c4Sub);
+    grid.appendChild(c4);
+    const markers = {};
+    c4Spec.baseIntervals.forEach((iv,i)=>{
+      const pc = (c4Spec.baseRoot+iv)%12;
+      markers[pc] = { label: c4Spec.baseLabels[i], cls: i===0 ? 'm-root' : 'm-scale' };
+    });
+    let order4 = c4Spec.baseIntervals.map(iv=>(c4Spec.baseRoot+iv)%12);
+    if(hexatonicOn){
+      const hexPc = (c4Spec.baseRoot + c4Spec.hexAddInterval) % 12;
+      markers[hexPc] = { label: c4Spec.hexAddLabel, cls: 'm-hex' };
+      order4 = [...order4, hexPc];
+    }
+    renderNoteList('c4-notes', notesListFromMarkers(markers, order4, c4Spec.preferSharp));
+    renderFretboard(document.getElementById('c4-svg'), markers, c4Spec.preferSharp);
+
+    const hexRow = document.createElement('div');
+    hexRow.className = 'hex-toggle';
+    hexRow.innerHTML = `<button type="button" aria-pressed="${hexatonicOn}"><span class="switch ${hexatonicOn?'on':''}"></span><span class="label">${hexatonicOn ? `Hexatonic (pentatonic + ${c4Spec.hexAddLabel})` : 'Pentatonic'}</span></button>`;
+    hexRow.querySelector('button').addEventListener('click', ()=>{ hexatonicOn = !hexatonicOn; renderAll(); });
+    c4.appendChild(hexRow);
+  }
+}
+
+/* ============================================================
+   VOICE-LEADING MAP (single guide-tone line across all 12 bars)
+   All notes are derived from chord-tone arithmetic (3rd / \u266d7
+   guide tones), placed entirely on the high-E string.
+   ============================================================ */
+const VL_ROLES = [
+  '3rd of B\u266d7', '\u266d7 of E\u266d7', '3rd of B\u266d7', '3rd of B\u266d7 (held)',
+  '\u266d7 of E\u266d7', 'common tone into E\u00b07', '3rd of B\u266d7', '3rd of G7',
+  '\u266d7 of Cm7', '3rd of F7', '\u266d7 of B\u266d7', '\u266d7 of G7alt',
+];
+
+// Same guide-tone line (3rds/\u266d7ths, bars 1-12), fretted on each of the six strings.
+// Bars 1-7 always cluster to a 2-fret span. Bars 8-12 (the ii-V-I turnaround run) are
+// re-fretted per string to cluster as tightly as that string's open tuning allows \u2014
+// the bar7\u21928 jump is treated as a free position shift into the new cluster.
+const STRING_KEY_LABEL = { E4:'High E', B3:'B', G3:'G', D3:'D', A2:'A', E2:'Low E' };
+const STRING_CAPTION_LABEL = { E4:'high E', B3:'B', G3:'G', D3:'D', A2:'A', E2:'low E' };
+const VL_STRING_IDX    = { E4:0, B3:1, G3:2, D3:3, A2:4, E2:5 }; // row index into STRING_OPEN/STRING_LABEL
+const VL_STRING_ORDER  = ['E4','B3','G3','D3','A2','E2'];
+const VL_STRING_FRETS = {
+  E4: [10,9,10,10,9,9,10, 7, 6, 5, 4, 1],
+  B3: [ 3,2, 3, 3,2,2, 3,12,11,10, 9, 6],
+  G3: [ 7,6, 7, 7,6,6, 7, 4, 3, 2, 1,10],
+  D3: [12,11,12,12,11,11,12, 9, 8, 7, 6, 3],
+  A2: [ 5,4, 5, 5,4,4, 5, 2, 1, 0,11, 8],
+  E2: [10,9,10,10,9,9,10, 7, 6, 5, 4, 1],
+};
+let vlStringKey = 'E4';
+let vlViewMode = 'single'; // 'single' | 'cluster2' | 'cluster3'
+const VL_CLUSTER_SIZE = { single:0, cluster2:1, cluster3:2 }; // # of strings below the starting string
+
+// Cluster modes pair the selected string with the 1 or 2 strings directly below it
+// (next lower-pitched strings in the natural top-to-bottom order). A starting string
+// needs that many strings below it on the neck \u2014 Low E has none, so it can't start
+// a 2- or 3-string cluster; A has only one, so it can't start a 3-string cluster.
+function vlClusterKeysFor(key, mode){
+  const size = VL_CLUSTER_SIZE[mode] || 0;
+  const idx = VL_STRING_IDX[key];
+  const keys = [];
+  for(let d=1; d<=size; d++){
+    if(idx+d > 5) break;
+    keys.push(VL_STRING_ORDER[idx+d]);
+  }
+  return keys; // ordered nearest-first (directly below, then two below, ...)
+}
+
+// Highest string index that can legally start the given cluster mode (needs `size`
+// strings below it within the 6-string neck).
+function vlMaxStartIdxFor(mode){
+  const size = VL_CLUSTER_SIZE[mode] || 0;
+  return 5 - size;
+}
+
+function vlFretsFor(key){
+  const frets = VL_STRING_FRETS[key];
+  return VL_ROLES.map((role,i)=>({ bar:i+1, fret:frets[i], role }));
+}
+
+// Base transition template \u2014 note names/roles are identical on every string; only the
+// actual fret numbers (and, for 3 turnaround links forced into a big jump by that
+// string's tuning, the wording) change per string.
+const VL_TRANS_BASE = [
+  { from:1,  to:2,  cat:'I \u2192 IV',              colorVar:'--vl-green',  lift:16, desc:'3rd of B\u266d7 (D) resolves down a half step to the \u266d7 of E\u266d7 (D\u266d).' },
+  { from:2,  to:3,  cat:'IV \u2192 I',              colorVar:'--vl-yellow', lift:34, desc:'\u266d7 of E\u266d7 (D\u266d) resolves up a half step back to the 3rd of B\u266d7 (D).' },
+  { from:3,  to:4,  cat:'Static / sustain',       colorVar:'--vl-gray',   lift:16, hold:true, desc:'The line holds on D, the 3rd of B\u266d7, through the turnback bar.' },
+  { from:4,  to:5,  cat:'I \u2192 IV',              colorVar:'--vl-green',  lift:16, desc:'Same move as bar 1\u21922: D (3rd of B\u266d7) down a half step to D\u266d (\u266d7 of E\u266d7).' },
+  { from:5,  to:6,  cat:'Chromatic passing (common tone)', colorVar:'--vl-teal', lift:16, hold:true, desc:'D\u266d carries straight into E\u00b07 \u2014 shared between E\u266d7\u2019s \u266d7 and the diminished chord\u2019s symmetric tone set.' },
+  { from:6,  to:7,  cat:'\u00b07 resolution',      colorVar:'--vl-teal',   lift:52, desc:'The passing diminished chord resolves up a half step, D\u266d\u2192D, into the 3rd of B\u266d7 \u2014 a classic passing-diminished resolution.' },
+  { from:7,  to:8,  cat:'I \u2192 VI7 (turnaround)', colorVar:'--vl-orange', lift:70, desc:'D, the 3rd of B\u266d7, drops a minor 3rd to B, the 3rd of G7 \u2014 the free position shift into the clustered turnaround run below.' },
+  { from:8,  to:9,  cat:'V7/ii \u2192 ii',          colorVar:'--vl-purple', lift:18, desc:'3rd of G7 (B) resolves down a half step to the \u266d7 of Cm7 (B\u266d).' },
+  { from:9,  to:10, cat:'ii \u2192 V',              colorVar:'--vl-blue',   lift:18, desc:'\u266d7 of Cm7 (B\u266d) resolves down a half step to the 3rd of F7 (A) \u2014 the classic ii\u2013V guide-tone move.' },
+  { from:10, to:11, cat:'V \u2192 I',               colorVar:'--vl-red',    lift:18, desc:'3rd of F7 (A) resolves down a half step to the \u266d7 of B\u266d7 (A\u266d) \u2014 the cadential resolution.' },
+  { from:11, to:12, cat:'I \u2192 VI7alt (turnaround)', colorVar:'--vl-orange', lift:40, desc:'\u266d7 of B\u266d7 (A\u266d) drops a minor 3rd to F, the \u266d7 of G7alt \u2014 launching back into the top of the next chorus.' },
+];
+
+// Per-string overrides: on B, G and A, one link in the bars 8-12 cluster can only be
+// reached by a big jump instead of the usual half-step/minor-3rd move \u2014 that string's
+// open tuning simply doesn't offer a closer fret for that note within the 12-fret window.
+const VL_TRANS_OVERRIDE = {
+  B3: { 6:  { lift:88, desc:'D, the 3rd of B\u266d7, jumps up to B, the 3rd of G7, on the B string \u2014 same minor-3rd relationship, voiced an octave higher so the bars 8\u201312 run can stay clustered in one tight position.' } },
+  G3: { 10: { lift:85, desc:'\u266d7 of B\u266d7 (A\u266d) leaps up to F, the \u266d7 of G7alt, instead of the usual drop \u2014 the higher octave keeps bars 8\u201311 clustered in frets 1\u20134 before launching into the top of the next chorus.' } },
+  A2: { 9:  { lift:90, desc:'3rd of F7 (A) jumps up to the \u266d7 of B\u266d7 (A\u266d) instead of the usual half-step drop \u2014 the open-A-string position pushes this link up the neck, then the run leaps back down to F to start the next chorus.' } },
+};
+
+function vlTransitionsFor(key){
+  const frets = VL_STRING_FRETS[key];
+  const overrides = VL_TRANS_OVERRIDE[key] || {};
+  return VL_TRANS_BASE.map((t,i)=>{
+    const ov = overrides[i] || {};
+    return Object.assign({}, t, {
+      fromFret: frets[t.from-1],
+      toFret: frets[t.to-1],
+      desc: ov.desc || t.desc,
+      lift: ov.lift !== undefined ? ov.lift : t.lift,
+    });
+  });
+}
+
+const VL_TOP_Y = 115;
+const VL_SVG_H = VL_TOP_Y + ROW_H*5 + 22;
+const VL_LABEL_Y = 16;
+
+function vlStopPlayback(){
+  if(vlPlayTimer){ clearInterval(vlPlayTimer); vlPlayTimer = null; }
+}
+
+function vlBarsAtFret(fret){
+  return vlFretsFor(vlStringKey).filter(v=>v.fret===fret).map(v=>v.bar);
+}
+
+function vlTransitionsForBar(barNum){
+  const trans = vlTransitionsFor(vlStringKey);
+  return {
+    incoming: trans.find(t=>t.to===barNum),
+    outgoing: trans.find(t=>t.from===barNum),
+  };
+}
+
+function renderVoiceLeadingFretboard(container, activeBarNum){
+  container.innerHTML = '';
+  const svg = svgEl('svg', { viewBox:`0 0 ${SVG_W} ${VL_SVG_H}`, xmlns:'http://www.w3.org/2000/svg' });
+
+  const rootVar = getComputedStyle(document.documentElement);
+  const divider = rootVar.getPropertyValue('--color-divider').trim();
+  const border  = rootVar.getPropertyValue('--color-border').trim();
+  const textMuted = rootVar.getPropertyValue('--color-text-muted').trim();
+  const textFaint = rootVar.getPropertyValue('--color-text-faint').trim();
+  const surface2 = rootVar.getPropertyValue('--color-surface-2').trim();
+
+  const rowY = VL_TOP_Y;
+  // strings stay in natural top-to-bottom order (High E...Low E); only the
+  // highlighted row(s) (guide-tone dots/arcs) move to whichever string is selected.
+  // In Cluster mode, the string directly below the selected one is highlighted too,
+  // showing the same guide-tone line re-fretted on both strings at once.
+  const selIdx = VL_STRING_IDX[vlStringKey];
+  const clusterKeys = vlClusterKeysFor(vlStringKey, vlViewMode); // nearest-first: [directly-below, two-below, ...]
+  const clusterDist = new Map(clusterKeys.map((k,i)=>[k, i+1])); // key -> distance from primary (1 = directly below)
+  // draw farthest secondary first, nearest secondary next, primary last (on top)
+  const renderKeys = [...clusterKeys].reverse().concat([vlStringKey]);
+
+  // fret marker dots (inlay reference) at 3,5,7,9 + double at 12
+  [3,5,7,9].forEach(f=>{
+    svg.appendChild(svgEl('circle', { cx:dotX(f), cy:rowY + ROW_H*2.5, r:5, fill:textFaint, opacity:'0.3' }));
+  });
+  const cx12 = dotX(12);
+  [1.5,3.5].forEach(mult=>{
+    svg.appendChild(svgEl('circle', { cx:cx12, cy:rowY+ROW_H*mult, r:5, fill:textFaint, opacity:'0.3' }));
+  });
+
+  // fret number labels along the bottom
+  [3,5,7,9,12].forEach(f=>{
+    svg.appendChild(svgEl('text', {
+      x:dotX(f), y: VL_SVG_H - 6, 'text-anchor':'middle', 'font-size':'11',
+      fill:textMuted, 'font-family':'var(--font-body)'
+    })).textContent = f;
+  });
+
+  // string lines + labels, always in natural top-to-bottom order; the selected string is highlighted in place
+  const goldHover = rootVar.getPropertyValue('--gold-hover').trim();
+  const maroon = rootVar.getPropertyValue('--maroon').trim();
+  for(let i=0;i<6;i++){
+    const y = rowY + i*ROW_H;
+    const isSel = i===selIdx;
+    const rowKey = VL_STRING_ORDER[i];
+    const dist = clusterDist.get(rowKey) || 0; // 0 = not in cluster, 1 = directly below, 2 = two below
+    const isCluster = dist > 0;
+    const rowColor = isSel ? goldHover : (isCluster ? maroon : null);
+    const rowOpacity = isSel ? 1 : (isCluster ? (dist===1 ? 0.85 : 0.6) : 1);
+    svg.appendChild(svgEl('line', { x1:OPEN_X-4, y1:y, x2:fretLineX(NUM_FRETS), y2:y, stroke: rowColor || border, 'stroke-width': isSel ? 2 : (isCluster ? 1.8 : (i===0||i===5 ? 1.6 : 1.1)), opacity: String(rowOpacity) }));
+    svg.appendChild(svgEl('text', {
+      x: OPEN_X-14, y: y+4, 'text-anchor':'end', 'font-size':'11', 'font-weight': isSel ? '800' : (isCluster ? '700' : '600'),
+      fill: rowColor || textMuted, 'font-family':'var(--font-body)', opacity: String(rowOpacity)
+    })).textContent = STRING_LABEL[i];
+  }
+
+  // fret lines (nut thicker)
+  for(let f=0; f<=NUM_FRETS; f++){
+    const x = fretLineX(f);
+    svg.appendChild(svgEl('line', {
+      x1:x, y1:rowY-6, x2:x, y2:rowY + ROW_H*5 + 6,
+      stroke: f===0 ? textMuted : divider, 'stroke-width': f===0 ? 3.5 : 1.2
+    }));
+  }
+  svg.appendChild(svgEl('line', { x1:OPEN_X+9, y1:rowY-10, x2:OPEN_X+9, y2:rowY+ROW_H*5+10, stroke:divider, 'stroke-width':1, 'stroke-dasharray':'2,3' }));
+
+  // faint B\u266d minor pentatonic backdrop across all 6 strings
+  for(let s=0;s<6;s++){
+    const open = STRING_OPEN[s];
+    const y = rowY + s*ROW_H;
+    for(let f=0; f<=NUM_FRETS; f++){
+      const pc = (open+f)%12;
+      const idx = BB_PENT_INTERVALS.findIndex(iv=>(BB_PENT_ROOT+iv)%12===pc);
+      if(idx===-1) continue;
+      const isRoot = idx===0;
+      svg.appendChild(svgEl('circle', { cx:dotX(f), cy:y, r: isRoot?7:6, fill:'none', stroke: isRoot?textMuted:textFaint, 'stroke-width':1.2, opacity: isRoot?0.55:0.32 }));
+    }
+  }
+
+  // arrowhead marker defs, one per color used across all rendered strings
+  const vlTransitions = vlTransitionsFor(vlStringKey);
+  const vlFrets = vlFretsFor(vlStringKey);
+  const defs = svgEl('defs', {});
+  const usedColors = new Set(renderKeys.flatMap(k=>vlTransitionsFor(k).map(t=>t.colorVar)));
+  usedColors.forEach(cv=>{
+    const color = rootVar.getPropertyValue(cv).trim();
+    const marker = svgEl('marker', { id:'vlarrow-'+cv.replace('--',''), viewBox:'0 0 10 10', refX:'7', refY:'5', markerWidth:'6.5', markerHeight:'6.5', orient:'auto-start-reverse' });
+    marker.appendChild(svgEl('path', { d:'M0,0 L10,5 L0,10 z', fill:color }));
+    defs.appendChild(marker);
+  });
+  svg.appendChild(defs);
+
+  // arcs / hold-loops + bar-numbered dots, drawn per rendered string above its own row.
+  // In Cluster mode the secondary (below) string is drawn first, then the primary
+  // string on top, so the selected string's line always reads clearly in front.
+  renderKeys.forEach(key=>{
+    const isPrimary = key === vlStringKey;
+    const dist = isPrimary ? 0 : clusterDist.get(key);
+    const kRowY = rowY + VL_STRING_IDX[key]*ROW_H;
+    const kTrans = vlTransitionsFor(key);
+    const kFrets = vlFretsFor(key);
+    const dimSecondary = isPrimary ? 1 : (dist===1 ? 0.75 : 0.5);
+
+    kTrans.forEach(t=>{
+      const isActive = (t.from === activeBarNum || t.to === activeBarNum);
+      const color = rootVar.getPropertyValue(t.colorVar).trim();
+      const x1 = dotX(t.fromFret), x2 = dotX(t.toFret);
+      const g = svgEl('g', { opacity: String((isActive ? 1 : 0.32) * dimSecondary) });
+      if(t.hold){
+        const cx = x1, topY = kRowY - t.lift;
+        g.appendChild(svgEl('path', {
+          d:`M ${cx-9},${kRowY-7} C ${cx-9},${topY} ${cx+9},${topY} ${cx+9},${kRowY-7}`,
+          fill:'none', stroke:color, 'stroke-width': isActive?2.6:1.8, 'stroke-dasharray':'3,3', 'stroke-linecap':'round'
+        }));
+      } else {
+        const midX = (x1+x2)/2;
+        const topY = kRowY - t.lift;
+        g.appendChild(svgEl('path', {
+          d:`M ${x1},${kRowY-7} Q ${midX},${topY} ${x2},${kRowY-7}`,
+          fill:'none', stroke:color, 'stroke-width': isActive?2.8:1.8, 'marker-end':`url(#vlarrow-${t.colorVar.replace('--','')})`
+        }));
+      }
+      svg.appendChild(g);
+    });
+
+    // bar-numbered dots on this string's row (deduped by fret)
+    const seenFrets = new Set();
+    kFrets.forEach(v=>{
+      if(seenFrets.has(v.fret)) return;
+      seenFrets.add(v.fret);
+      const bars = kFrets.filter(f=>f.fret===v.fret).map(f=>f.bar);
+      const isActive = bars.includes(activeBarNum);
+      const x = dotX(v.fret);
+      const multi = bars.length > 1;
+      const r = isActive ? (multi?15:13) : (multi?14:11.5);
+      const color = rootVar.getPropertyValue(isActive ? '--gold' : '--maroon').trim();
+      const g = svgEl('g', { opacity: String(dimSecondary) });
+      g.appendChild(svgEl('circle', { cx:x, cy:kRowY, r, fill:color, stroke:surface2, 'stroke-width':1.5 }));
+      const barTxt = svgEl('text', { x, y:kRowY+3.4, 'text-anchor':'middle', 'font-size': multi ? '7.6' : '10', 'font-weight':'700', fill:'#fff', 'font-family':'var(--font-body)' });
+      barTxt.textContent = bars.join(',');
+      g.appendChild(barTxt);
+      svg.appendChild(g);
+    });
+  });
+
+  // note-name labels (fixed row near the top, clear of the arcs) \u2014 same pitches
+  // regardless of string, so the primary string's fret table is the reference.
+  const seenFrets = new Set();
+  vlFrets.forEach(v=>{
+    if(seenFrets.has(v.fret)) return;
+    seenFrets.add(v.fret);
+    const pc = (STRING_OPEN[selIdx]+v.fret)%12;
+    svg.appendChild(svgEl('text', {
+      x:dotX(v.fret), y:VL_LABEL_Y, 'text-anchor':'middle', 'font-size':'11', 'font-weight':'700',
+      fill:textMuted, 'font-family':'var(--font-body)'
+    })).textContent = prettyName(spell(pc, false));
+  });
+
+  container.appendChild(svg);
+}
+
+function renderVoiceLeadingCard(bar, chord, grid){
+  const barNum = bar.bar;
+  const fretInfo = vlFretsFor(vlStringKey).find(v=>v.bar===barNum);
+  const stringLabelLower = STRING_CAPTION_LABEL[vlStringKey];
+  const clusterKeys = vlClusterKeysFor(vlStringKey, vlViewMode);
+
+  const card = document.createElement('div');
+  card.className = 'fb-card fb-card--wide';
+  card.innerHTML = `
+    <h3>Voice-Leading Map \u2014 One Guide-Tone Line Through 12 Bars</h3>
+    <div class="sub">The same guide-tone line \u2014 3rd/\u266d7 tones bar by bar \u2014 mapped onto whichever string you pick below, shown over the fixed B\u266d minor pentatonic backdrop. Bars 8\u201312 (the turnaround run) are re-fingered per string to stay clustered in one hand position. <b>Single String</b> shows the line on one string only; <b>2-String Cluster</b> adds the string directly below it, and <b>3-String Cluster</b> adds the two strings below it, so you can compare fingering options for every target note. Click a bar above, an arrow below, or use the transport to hear it move.</div>
+    <div class="vl-view-row">
+      <span class="vl-string-label">View:</span>
+      <button type="button" class="vl-view-btn${vlViewMode==='single'?' active':''}" data-vl-view="single">Single String</button>
+      <button type="button" class="vl-view-btn${vlViewMode==='cluster2'?' active':''}" data-vl-view="cluster2">2-String Cluster</button>
+      <button type="button" class="vl-view-btn${vlViewMode==='cluster3'?' active':''}" data-vl-view="cluster3">3-String Cluster</button>
+    </div>
+    <div class="vl-string-row">
+      <span class="vl-string-label">String:</span>
+      ${VL_STRING_ORDER.map((key,idx)=>{
+        const isDisabled = idx > vlMaxStartIdxFor(vlViewMode);
+        const need = VL_CLUSTER_SIZE[vlViewMode];
+        const title = isDisabled ? `title="Needs ${need} string${need>1?'s':''} below it to cluster with \u2014 not enough room on the neck from here"` : '';
+        return `<button type="button" class="vl-str-btn${key===vlStringKey?' active':''}" data-vl-string="${key}"${isDisabled?` disabled ${title}`:''}>${STRING_KEY_LABEL[key]}</button>`;
+      }).join('')}
+    </div>
+    <div class="vl-controls">
+      <button type="button" class="vl-btn" data-vl="prev" aria-label="Previous bar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M15 18l-6-6 6-6"/></svg> Prev</button>
+      <button type="button" class="vl-btn" data-vl="play" aria-label="Play through the line"><svg viewBox="0 0 24 24" fill="currentColor" stroke="none" id="vlPlayIcon"><path d="M8 5v14l11-7z"/></svg> <span id="vlPlayLabel">Play</span></button>
+      <button type="button" class="vl-btn" data-vl="next" aria-label="Next bar">Next <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 6l6 6-6 6"/></svg></button>
+    </div>
+    <div class="fb-svg-wrap"><div id="vl-svg"></div></div>
+    <div class="vl-caption" id="vl-caption"></div>
+    <div class="vl-translist" id="vl-translist"></div>
+    <div class="vl-legend-inline" id="vl-legend-inline"></div>
+  `;
+  grid.appendChild(card);
+
+  renderVoiceLeadingFretboard(document.getElementById('vl-svg'), barNum);
+
+  const { incoming, outgoing } = vlTransitionsForBar(barNum);
+  let capHtml = `<div><b>Bar ${barNum} \u2014 ${chord.display}:</b> ${fretInfo.role}, fret ${fretInfo.fret} on the ${stringLabelLower} string`;
+  clusterKeys.forEach(ck=>{
+    const clusterFretInfo = vlFretsFor(ck).find(v=>v.bar===barNum);
+    capHtml += ` (or fret ${clusterFretInfo.fret} on the ${STRING_CAPTION_LABEL[ck]} string)`;
+  });
+  capHtml += `.</div>`;
+  if(incoming) capHtml += `<div class="vl-line">\u2190 from bar ${incoming.from} (${incoming.cat}): ${incoming.desc}</div>`;
+  if(outgoing) capHtml += `<div class="vl-line">\u2192 to bar ${outgoing.to} (${outgoing.cat}): ${outgoing.desc}</div>`;
+  document.getElementById('vl-caption').innerHTML = capHtml;
+
+  const rootVar = getComputedStyle(document.documentElement);
+  const listEl = document.getElementById('vl-translist');
+  listEl.innerHTML = '';
+  vlTransitionsFor(vlStringKey).forEach(t=>{
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'vl-trow' + ((t.from===barNum||t.to===barNum) ? ' is-active' : '');
+    const color = rootVar.getPropertyValue(t.colorVar).trim();
+    row.innerHTML = `<span class="vl-dot" style="background:${color}"></span><span class="vl-cat">${t.cat}</span><span class="vl-desc">Bar ${t.from} \u2192 ${t.to}: ${t.desc}</span>`;
+    row.addEventListener('click', ()=>{ vlStopPlayback(); activeBarIndex = t.to - 1; renderAll(); });
+    listEl.appendChild(row);
+  });
+
+  card.querySelectorAll('[data-vl-string]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      if(btn.disabled) return;
+      const key = btn.dataset.vlString;
+      if(key === vlStringKey) return;
+      vlStopPlayback();
+      vlStringKey = key;
+      renderAll();
+    });
+  });
+
+  card.querySelectorAll('[data-vl-view]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const mode = btn.dataset.vlView;
+      if(mode === vlViewMode) return;
+      vlStopPlayback();
+      vlViewMode = mode;
+      // If the current string doesn't have enough strings below it for this cluster
+      // size, fall back to the lowest-pitched string that still qualifies.
+      const maxIdx = vlMaxStartIdxFor(mode);
+      if(VL_STRING_IDX[vlStringKey] > maxIdx){ vlStringKey = VL_STRING_ORDER[maxIdx]; }
+      renderAll();
+    });
+  });
+
+  const legendEntries = [
+    ['--vl-green','I \u2192 IV'], ['--vl-yellow','IV \u2192 I'], ['--vl-red','V \u2192 I'],
+    ['--vl-blue','ii \u2192 V'], ['--vl-purple','V7/ii \u2192 ii'], ['--vl-orange','Turnaround (minor 3rd)'],
+    ['--vl-teal','Diminished passing'], ['--vl-gray','Static / sustain'],
+  ];
+  document.getElementById('vl-legend-inline').innerHTML = legendEntries.map(([cv,label])=>`<div class="legend-item"><span class="swatch" style="background:var(${cv})"></span> ${label}</div>`).join('');
+
+  card.querySelector('[data-vl="prev"]').addEventListener('click', ()=>{
+    vlStopPlayback();
+    activeBarIndex = (activeBarIndex - 1 + 12) % 12;
+    renderAll();
+  });
+  card.querySelector('[data-vl="next"]').addEventListener('click', ()=>{
+    vlStopPlayback();
+    activeBarIndex = (activeBarIndex + 1) % 12;
+    renderAll();
+  });
+  card.querySelector('[data-vl="play"]').addEventListener('click', ()=>{
+    if(vlPlayTimer){
+      vlStopPlayback();
+      renderAll();
+      return;
+    }
+    vlPlayTimer = setInterval(()=>{
+      activeBarIndex = (activeBarIndex + 1) % 12;
+      renderAll();
+    }, 1100);
+    renderAll();
+  });
+  if(vlPlayTimer){
+    const icon = document.getElementById('vlPlayIcon');
+    const label = document.getElementById('vlPlayLabel');
+    if(icon) icon.innerHTML = '<path d="M7 5h4v14H7zM13 5h4v14h-4z"/>';
+    if(label) label.textContent = 'Pause';
+  }
+}
+
+/* ============================================================
+   THEME TOGGLE
+   ============================================================ */
+(function(){
+  const t = document.querySelector('[data-theme-toggle]'), r = document.documentElement;
+  let d = matchMedia('(prefers-color-scheme:dark)').matches ? 'dark' : 'light';
+  r.setAttribute('data-theme', d);
+  t.addEventListener('click', ()=>{
+    d = d === 'dark' ? 'light' : 'dark';
+    r.setAttribute('data-theme', d);
+    t.setAttribute('aria-label', 'Switch to ' + (d === 'dark' ? 'light' : 'dark') + ' mode');
+    t.innerHTML = d === 'dark'
+      ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>'
+      : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
+    // re-render so SVG picks up new CSS var colors
+    renderAll();
+  });
+})();
+
+/* ============================================================
+   TAB SWITCHING (blues / major ii-V-I / minor ii-V-i)
+   ============================================================ */
+const HEADER_TEXT = {
+  blues: {
+    h1: 'B♭ Jazz Blues — Fretboard Scale Explorer',
+    p: 'Click a chord in the lead sheet. Four fretboards update to show the scale material for that chord: the B♭ minor pentatonic with chord tones overlaid, a chord-root pentatonic (major for dominant/diminished chords, minor for Cm7), a bebop scale (Mixolydian + major&nbsp;7, or a borrowed related-V7 bebop for Cm7), and either Pat Martino\'s minor-conversion shape a fifth above the root or, for the minor Cm7, its own Dorian scale. Bars 4, 8, 10 &amp; 12 (marked <b style="color:var(--gold)">alt</b>) add a fifth fretboard with the altered/super-Locrian scale.'
+  },
+  major251: {
+    h1: 'ii–V–I in C — Fretboard Scale Explorer',
+    p: 'Click a chord to see four fretboards: the C major pentatonic anchor with chord tones overlaid, the chord\'s own pentatonic, a bebop or modal scale, and a Randy Vincent hexatonic — except on G7, the V7, which always gets the altered/super-Locrian scale as its fourth fretboard instead.'
+  },
+  minor251: {
+    h1: 'ii–V–i in A Minor — Fretboard Scale Explorer',
+    p: 'Click a chord to see four fretboards: the A minor pentatonic anchor with chord tones overlaid, the chord\'s own pentatonic (or a related substitution), a mode/altered-dominant scale, and a Randy Vincent hexatonic — except on E7alt, the V7alt, which always gets the altered/super-Locrian scale as its fourth fretboard instead.'
+  },
+  voiceleading: {
+    h1: 'B♭ Jazz Blues — Voice-Leading Map',
+    p: 'One continuous guide-tone line — alternating 3rds and ♭7ths — threads through all 12 bars. Toggle between all six strings to see it re-fingered on each one; bars 8–12, the turnaround run, are clustered into one tight hand position per string. Color-coded arrows show the harmonic function of each move. Click a bar, an arrow in the breakdown list, or use the transport below the fretboard to walk through it.'
+  }
+};
+
+const LEGEND_NOTES = {
+  blues: `
+    <p><b>1 — B♭ minor pentatonic + chord tones.</b> The B♭ minor pentatonic (B♭ D♭ E♭ F A♭) stays fixed for the whole tune as your "home" shape — it's the blues sound that works over every chord. The current chord's own tones are overlaid in maroon so you can see where the harmony lands inside that one fixed shape.</p>
+    <p><b>2 — Pentatonic of the current chord.</b> Built on the literal root of whichever chord is active. Dominant and diminished chords get the bright major pentatonic (e.g. B♭ major pentatonic over B♭7); minor 7 chords (Cm7) get their own minor pentatonic instead (C minor pentatonic), since a major pentatonic doesn't fit a minor chord.</p>
+    <p><b>3 — Bebop scale (Mixolydian + major 7).</b> Barry Harris's core device: an 8-note scale — Mixolydian with a chromatic major-7th passing tone inserted between the ♭7 and the root — so chord tones land on strong beats when you run the scale in straight 8ths. Over Cm7 (a ii-7 heading to F7), this card borrows F mixolydian bebop — the related V7's scale — with Cm7's own chord tones (maroon) overlaid on top.</p>
+    <p><b>4 — Pat Martino's minor conversion (or Dorian).</b> Dominant and diminished chords are reduced to a minor pentatonic (optionally hexatonic) built a perfect 5th above the root — e.g. F minor pentatonic over B♭7. A chord that's already minor (Cm7) has no conversion to make, so this card just shows that chord's own Dorian scale instead.</p>
+    <p><b>5 — Altered scale (bars 4, 8, 10 &amp; 12 only).</b> These bars function as strong dominants resolving down a fifth. The altered/super-Locrian scale — equivalent to the melodic minor a half-step above the root, reordered to start on the root — is shown with that same dominant's plain chord tones (1 3 5 ♭7) overlaid in maroon so you can see how the altered tensions sit around the underlying chord.</p>
+  `,
+  major251: `
+    <p><b>1 — C major pentatonic + chord tones.</b> The C major pentatonic (C D E G A) stays fixed for the whole ii–V–I as your anchor shape. The current chord's own tones are overlaid in maroon so you can see where the harmony lands inside that fixed shape.</p>
+    <p><b>2 — Pentatonic of the current chord.</b> Built on the literal root of whichever chord is active — minor pentatonic for Dm7, major pentatonic for G7 and Cmaj7.</p>
+    <p><b>3 — Bebop / modal scale.</b> Dm7 gets a Dorian bebop scale (Dorian + major-3rd passing tone); G7 gets the classic Mixolydian bebop scale (+ major 7 passing tone); Cmaj7 gets a major bebop scale (Ionian + #5 passing tone, Barry Harris's 6th-diminished device).</p>
+    <p><b>4 — Randy Vincent hexatonic (altered on the V).</b> Dm7 and Cmaj7 each get a Randy Vincent-style hexatonic — their own pentatonic plus one extra color tone (6th for Dm7, #4/Lydian for Cmaj7), toggleable on/off. G7, the functional V7, always gets the altered/super-Locrian scale here instead, with its plain chord tones overlaid.</p>
+  `,
+  minor251: `
+    <p><b>1 — A minor pentatonic + chord tones.</b> The A minor pentatonic (A C D E G) stays fixed for the whole ii–V–i as your anchor shape. The current chord's own tones are overlaid in maroon so you can see where the harmony lands inside that fixed shape.</p>
+    <p><b>2 — Pentatonic of the current chord (or a related substitution).</b> Bm7♭5 borrows D minor pentatonic — it shares Bm7♭5's four tones with Dm6, a minor 3rd above the root; E7alt borrows F minor pentatonic, a half-step above the root, a classic altered-dominant pentatonic substitution; Am uses its own A minor pentatonic.</p>
+    <p><b>3 — Mode / altered-dominant scale.</b> Bm7♭5 gets Locrian ♮2 (the half-diminished scale); E7alt gets Phrygian dominant (5th mode of A harmonic minor); Am gets A melodic minor ascending, for the classic minor-tonic 6/maj7 color.</p>
+    <p><b>4 — Randy Vincent hexatonic (altered on the V).</b> Bm7♭5 and Am each get a hexatonic built from their related minor pentatonic plus one extra tone, toggleable on/off. E7alt, the V7alt, always gets the altered/super-Locrian scale here instead.</p>
+  `,
+  voiceleading: `
+    <p><b>The line.</b> One guide-tone melody — always either the 3rd or the ♭7 of the chord in play — moves across all 12 bars, mostly descending by half step with two structural turnarounds. Use the string buttons above the fretboard to move the same line onto any of the six strings.</p>
+    <p><b>Green — I→IV.</b> The 3rd of B♭7 falls a half step into the ♭7 of E♭7 (bars 1→2 and 4→5).</p>
+    <p><b>Yellow — IV→I.</b> The ♭7 of E♭7 rises a half step back into the 3rd of B♭7 (bar 2→3).</p>
+    <p><b>Gray — static/sustain.</b> The line holds its note while the harmony repeats (bar 3→4).</p>
+    <p><b>Teal — diminished passing.</b> A common tone carries into E°7, then resolves up a half step into B♭7 (bars 5→6→7) — the classic passing-diminished move.</p>
+    <p><b>Orange — turnaround.</b> Bar 7→8 shifts position into the clustered bars 8–12 run below; bar 11→12 launches back into the top of the next chorus. On the high E, low E, D and A strings this is a minor-3rd drop each time; on the B and G strings, one of these two links has to leap up an octave instead — the string's tuning just doesn't offer a closer fret for that note — so the rest of the run can stay clustered in one hand position.</p>
+    <p><b>Purple — V7/ii→ii, Blue — ii→V, Red — V→I.</b> Bars 8–12 walk the textbook ii–V–I guide-tone chain, re-fretted per string to sit in as tight a cluster as that string's tuning allows: G7→Cm7 (purple), Cm7→F7 (blue), F7→B♭7 (red — on the A string this link leaps up an octave instead of stepping down, for the same reason).</p>
+  `
+};
+
+function updateHeaderText(){
+  const t = HEADER_TEXT[currentProg];
+  const h1 = document.querySelector('.title-block h1');
+  const p = document.querySelector('.title-block p');
+  if(h1) h1.textContent = t.h1;
+  if(p) p.innerHTML = t.p;
+  const notesEl = document.querySelector('.legend-notes');
+  if(notesEl) notesEl.innerHTML = LEGEND_NOTES[currentProg];
+}
+
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    const tab = btn.dataset.tab;
+    vlStopPlayback();
+    if(tab === currentProg) return;
+    currentProg = tab;
+    activeBarIndex = 0;
+    hexatonicOn = false;
+    vlStringKey = 'E4';
+    vlViewMode = 'single';
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
+    updateHeaderText();
+    renderAll();
+  });
+});
+
+renderAll();
+</script>
+<script data-pplx-inline-edit>
+(function () {
+  if (window === window.top) return;
+
+  const allowedParentOrigins = ["https://www.perplexity.ai","https://perplexity.ai","https://testing.perplexity.ai","https://staging.perplexity.ai","https://*.preview.i.perplexity.ai","http://perplexity.localhost","http://localhost:1420","http://127.0.0.1:1420","http://localhost:3000","http://127.0.0.1:3000","http://localhost:5173","http://127.0.0.1:5173"];
+  const MAX_FONT_BYTES = 500 * 1024;
+  const MAX_TOTAL_FONT_BYTES = 2 * 1024 * 1024;
+  let scrollForwarding = false;
+  let scrollRaf = 0;
+  let trustedTopOrigin = null;
+
+  // Allow entries like "https://*.preview.i.perplexity.ai" — the wildcard
+  // matches a single DNS label (no dots), so "https://*.foo" cannot stretch
+  // across multiple labels.
+  function matchesAllowedOrigin(origin) {
+    if (!origin) return false;
+    for (const entry of allowedParentOrigins) {
+      if (!entry.includes("*")) {
+        if (entry === origin) return true;
+        continue;
+      }
+      const pattern = new RegExp(
+        "^" +
+          entry.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, "[^.]+") +
+          "$",
+      );
+      if (pattern.test(origin)) return true;
+    }
+    return false;
+  }
+
+  // Trust decision: when the sender is same-origin-visible (event.origin is a
+  // real origin like https://www.perplexity.ai) we trust event.origin directly.
+  // When event.origin is "null" (opaque broker srcdoc), we fall back to the
+  // broker's stamped `parentOrigin` to identify the top window. The fallback
+  // is claim-only — we rely on the browser's native `targetOrigin` enforcement
+  // on the response path (see postToTrustedTop) to ensure replies can't be
+  // delivered to anyone but the actual top window of that claimed origin.
+  function getTrustedParentOrigin(event) {
+    const forwardedParentOrigin =
+      typeof event.data.parentOrigin === "string" ? event.data.parentOrigin : null;
+    const parentOrigin = event.origin === "null" ? forwardedParentOrigin : event.origin;
+    return matchesAllowedOrigin(parentOrigin) ? parentOrigin : null;
+  }
+
+  // All responses go to window.top with targetOrigin = the allowlisted origin.
+  // An attacker that iframes us inside their own null-origin broker can claim
+  // any parentOrigin they like, but the browser will drop the reply whenever
+  // the real top's origin doesn't match — so the screenshot never leaves.
+  function postToTrustedTop(message) {
+    if (!trustedTopOrigin) return;
+    try {
+      window.top.postMessage(message, trustedTopOrigin);
+    } catch (_error) {}
+  }
+
+  function inlineAll(original, clone) {
+    if (original.nodeType !== 1 || clone.nodeType !== 1) return;
+
+    try {
+      const computedStyle = getComputedStyle(original);
+      // cssText on a computed style is the serialized declaration in modern
+      // Chromium/Safari — a single read beats enumerating ~400 longhand
+      // properties. Firefox returns "" here, so we fall back on empty.
+      const serialized = computedStyle.cssText;
+      if (serialized) {
+        clone.style.cssText = serialized;
+      } else {
+        const parts = new Array(computedStyle.length);
+        for (let index = 0; index < computedStyle.length; index += 1) {
+          const property = computedStyle[index];
+          parts[index] = `${property}:${computedStyle.getPropertyValue(property)};`;
+        }
+        clone.style.cssText = parts.join("");
+      }
+    } catch (_error) {}
+
+    const originalChildren = original.children;
+    const clonedChildren = clone.children;
+    for (
+      let index = 0;
+      index < originalChildren.length && index < clonedChildren.length;
+      index += 1
+    ) {
+      inlineAll(originalChildren[index], clonedChildren[index]);
+    }
+  }
+
+  function extractFontUrl(srcValue) {
+    const matches = [
+      ...srcValue.matchAll(
+        /url\(["']?([^"')]+)["']?\)(?:\s*format\(["']?([^"')]+)["']?\))?/gi,
+      ),
+    ];
+    if (matches.length === 0) return null;
+    const woff2 = matches.find((m) => m[2] && m[2].toLowerCase().includes("woff2"));
+    if (woff2) return woff2[1];
+    const woff = matches.find((m) => m[2] && m[2].toLowerCase().includes("woff"));
+    if (woff) return woff[1];
+    return matches[0][1];
+  }
+
+  // Cache resolved font URL -> data URI across captures. Fonts on a page
+  // essentially never change, and a batch run emits multiple captures back to
+  // back — without this we'd refetch + re-base64 every time.
+  const fontDataUriCache = new Map();
+  const SRC_DECLARATION_RE = /src\s*:\s*[^;}]+/i;
+
+  async function fetchAsDataUri(url) {
+    if (fontDataUriCache.has(url)) return fontDataUriCache.get(url);
+    let dataUri = null;
+    try {
+      const response = await fetch(url, { mode: "cors", credentials: "omit" });
+      if (response.ok) {
+        const blob = await response.blob();
+        if (blob.size <= MAX_FONT_BYTES) {
+          dataUri = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () =>
+              resolve(typeof reader.result === "string" ? reader.result : null);
+            reader.onerror = () => resolve(null);
+            reader.readAsDataURL(blob);
+          });
+        }
+      }
+    } catch (_error) {
+      dataUri = null;
+    }
+    fontDataUriCache.set(url, dataUri);
+    return dataUri;
+  }
+
+  function collectFontFaceRuleTexts() {
+    const rules = [];
+    for (const sheet of document.styleSheets) {
+      let cssRules;
+      try {
+        cssRules = sheet.cssRules;
+      } catch (_error) {
+        continue;
+      }
+      if (!cssRules) continue;
+      for (const rule of cssRules) {
+        const cssText = rule.cssText || "";
+        if (cssText.startsWith("@font-face")) rules.push(cssText);
+      }
+    }
+    return rules;
+  }
+
+  async function buildInlinedFontCss() {
+    const ruleTexts = collectFontFaceRuleTexts();
+    if (ruleTexts.length === 0) return null;
+
+    const resolved = ruleTexts.map((cssText) => {
+      if (!SRC_DECLARATION_RE.test(cssText)) return null;
+      const srcMatch = cssText.match(/src\s*:\s*([^;}]+)[;}]/i);
+      if (!srcMatch) return null;
+      const url = extractFontUrl(srcMatch[1]);
+      if (!url) return null;
+      try {
+        return { cssText, url: new URL(url, document.baseURI).href };
+      } catch (_error) {
+        return null;
+      }
+    });
+
+    const dataUris = await Promise.all(
+      resolved.map((entry) => (entry ? fetchAsDataUri(entry.url) : Promise.resolve(null))),
+    );
+
+    const inlined = [];
+    let totalBytes = 0;
+    for (let index = 0; index < resolved.length; index += 1) {
+      const entry = resolved[index];
+      const dataUri = dataUris[index];
+      if (!entry || !dataUri) continue;
+      const approxBytes = dataUri.length * 0.75;
+      if (totalBytes + approxBytes > MAX_TOTAL_FONT_BYTES) break;
+      totalBytes += approxBytes;
+      inlined.push(entry.cssText.replace(SRC_DECLARATION_RE, `src: url("${dataUri}")`));
+    }
+    return inlined.length > 0 ? inlined.join("\n") : null;
+  }
+
+  function stripExternal(clone) {
+    const images = clone.querySelectorAll("img");
+    for (let index = 0; index < images.length; index += 1) {
+      const src = images[index].getAttribute("src");
+      if (src && !src.startsWith("data:")) images[index].removeAttribute("src");
+    }
+
+    const elements = clone.querySelectorAll("*");
+    for (let index = 0; index < elements.length; index += 1) {
+      const style = elements[index].style.cssText;
+      if (style && style.includes("url(")) {
+        elements[index].style.cssText = style.replace(
+          /url\(["']?(?!data:)[^)"']*["']?\)/gi,
+          "none",
+        );
+      }
+    }
+  }
+
+  function emitScroll() {
+    scrollRaf = 0;
+    if (!scrollForwarding) return;
+    postToTrustedTop({
+      type: "INLINE_EDIT_SCROLL",
+      scrollX: window.scrollX,
+      scrollY: window.scrollY,
+    });
+  }
+
+  window.addEventListener(
+    "scroll",
+    function () {
+      if (!scrollForwarding || scrollRaf) return;
+      scrollRaf = requestAnimationFrame(emitScroll);
+    },
+    { passive: true, capture: true },
+  );
+
+  async function handleCaptureRequest(event) {
+    const requestId = event.data.requestId;
+    const scrollX = window.scrollX;
+    const scrollY = window.scrollY;
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+
+    function postResult(dataUrl) {
+      postToTrustedTop({
+        type: "INLINE_EDIT_SCREENSHOT_RESULT",
+        requestId,
+        dataUrl,
+        scrollX,
+        scrollY,
+      });
+    }
+
+    try {
+      // Wait for any pending web fonts to resolve so both inline metrics and
+      // the @font-face inlining below see the same loaded faces.
+      if (document.fonts && document.fonts.ready) {
+        try {
+          await document.fonts.ready;
+        } catch (_error) {}
+      }
+
+      const clone = document.documentElement.cloneNode(true);
+      inlineAll(document.documentElement, clone);
+
+      const removedNodes = clone.querySelectorAll("script,link[rel=\"stylesheet\"],style");
+      for (let index = 0; index < removedNodes.length; index += 1) {
+        removedNodes[index].remove();
+      }
+
+      stripExternal(clone);
+
+      // Re-embed web fonts as data-URI @font-face rules so the SVG rasterizer
+      // can resolve them — external font URLs aren't fetched during
+      // foreignObject rendering, which would otherwise force a fallback face
+      // and change text metrics.
+      const inlinedFontCss = await buildInlinedFontCss();
+      if (inlinedFontCss) {
+        const styleEl = document.createElement("style");
+        styleEl.textContent = inlinedFontCss;
+        const head = clone.querySelector("head");
+        if (head) head.appendChild(styleEl);
+        else clone.insertBefore(styleEl, clone.firstChild);
+      }
+
+      const html = new XMLSerializer().serializeToString(clone);
+      const svg =
+        `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">` +
+        '<foreignObject width="100%" height="100%">' +
+        `<div xmlns="http://www.w3.org/1999/xhtml" style="width:${width}px;height:${height}px;overflow:hidden">` +
+        `<div style="position:relative;left:-${scrollX}px;top:-${scrollY}px">` +
+        html +
+        "</div></div></foreignObject></svg>";
+      const svgUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+      const image = new Image();
+      image.onload = function () {
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext("2d").drawImage(image, 0, 0);
+        postResult(canvas.toDataURL("image/png"));
+      };
+      image.onerror = function () {
+        postResult(null);
+      };
+      image.src = svgUrl;
+    } catch (_error) {
+      postResult(null);
+    }
+  }
+
+  window.addEventListener("message", function (event) {
+    if (!event.data) return;
+    // Only accept messages from the direct parent frame. Blocks sibling /
+    // unrelated-window postMessage senders that could otherwise reach us.
+    if (event.source !== window.parent) return;
+
+    const trustedParentOrigin = getTrustedParentOrigin(event);
+    if (!trustedParentOrigin) return;
+    trustedTopOrigin = trustedParentOrigin;
+
+    if (event.data.type === "INLINE_EDIT_SCROLL_START") {
+      scrollForwarding = true;
+      emitScroll();
+      return;
+    }
+
+    if (event.data.type === "INLINE_EDIT_SCROLL_STOP") {
+      scrollForwarding = false;
+      if (scrollRaf) cancelAnimationFrame(scrollRaf);
+      scrollRaf = 0;
+      return;
+    }
+
+    if (event.data.type !== "INLINE_EDIT_CAPTURE_REQUEST") return;
+
+    handleCaptureRequest(event);
+  });
+})();
+
+
+</script></body>
+</html>

@@ -39,6 +39,7 @@ const GUIDES = [
   "pentatonic-32-navigator.html",
   "likas-page-2-guitar.html",
   "triad-network.html",
+  "blues-pathways.html",
   "open-tunings-1.html",
   "open-tunings-2.html",
   "tavern-set.html",

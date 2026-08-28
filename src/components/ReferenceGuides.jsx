@@ -41,6 +41,14 @@ export const GUIDES = [
     color: "var(--db-c-purple)",
   },
   {
+    title: "Blues Pathways",
+    subtitle: "B♭ jazz blues fretboard scale explorer — pentatonic, bebop, Martino conversion and altered scales per chord",
+    src: "/reference/blues-pathways.html",
+    thumb: "/reference/thumbs/blues-pathways.jpg",
+    category: "improv",
+    color: "var(--db-c-amber)",
+  },
+  {
     title: "Open Tunings 1",
     subtitle: "Seven open tunings — chord charts, capo hacks, and songs",
     src: "/reference/open-tunings-1.html",
