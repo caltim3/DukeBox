@@ -131,15 +131,16 @@ export function catalogEntryToPlayable(entry) {
   const parsed = parseGigKey(entry.key)
   const keyRoot = entry._form?.keyRoot || entry._user?.keyRoot || parsed.keyRoot
   const keyMode = entry._form?.keyMode || entry._user?.keyMode || parsed.keyMode
-  return { bars, keyRoot, keyMode, tempo: gigTempoNumber(entry.tempo) }
+  const meter   = entry._form?.meter || entry._user?.meter || "4/4"
+  return { bars, keyRoot, keyMode, tempo: gigTempoNumber(entry.tempo), meter }
 }
 
 // A SongSheet-shaped draft (title/bars/keyRoot/keyMode/tempo) seeded from any
 // catalog entry — the starting point for editing a tune, whichever source it
 // came from.
 export function catalogEntryToDraft(entry) {
-  const { bars, keyRoot, keyMode, tempo } = catalogEntryToPlayable(entry)
-  return { title: entry.title, bars, keyRoot, keyMode, tempo, updatedAt: Date.now() }
+  const { bars, keyRoot, keyMode, tempo, meter } = catalogEntryToPlayable(entry)
+  return { title: entry.title, bars, keyRoot, keyMode, tempo, meter, updatedAt: Date.now() }
 }
 
 /**
@@ -161,6 +162,7 @@ export function upsertLibrarySong(setLibrary, draft) {
     keyRoot: draft.keyRoot,
     keyMode: draft.keyMode,
     tempo: draft.tempo,
+    meter: draft.meter || "4/4",
     updatedAt: Date.now(),
   }
   setLibrary((lib) => ({ ...lib, songs: [...(lib.songs || []).filter((s) => s.name !== entry.name), entry] }))

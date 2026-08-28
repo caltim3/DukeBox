@@ -24,6 +24,7 @@ import {
 } from "@/lib/music/tonal"
 import { analyzeProgressionContext } from "@/lib/music/harmony"
 import { FORMS, FORM_CATEGORIES, DESERT_NOIR_META } from "@/lib/music/forms"
+import { meterBeatsPerBar } from "@/lib/music/meters"
 import { chordToRoman } from "@/lib/music/roman"
 import { DRUM_STYLES } from "@/lib/music/audioConstants"
 import { exportLeadSheet, exportMusicXML } from "@/lib/music/leadsheet"
@@ -186,6 +187,11 @@ export default function Home() {
 
   const [keyRoot, setKeyRoot] = useState("Bb")
   const [keyMode, setKeyMode] = useState("major")
+  // Time signature the playback mechanism swings to (JAZZ_METERS in
+  // audio.js) — set from whichever song is loaded (Songbook forms may carry
+  // their own `meter`; everything else defaults to 4/4) and overridable live
+  // from the chart ribbon's Meter picker.
+  const [meter, setMeter] = useState("4/4")
   // The toggle for this lived in the Fretboard settings drawer; removed to
   // narrow that panel (more fretboard, less chrome, in Focus especially).
   // The Lead Sheet Grid's own roman-numeral row (below) is left in place,
@@ -433,6 +439,7 @@ export default function Home() {
   const practiceModeRef   = useRef(false)  // mirrors practiceMode for immediate reads
   const startPlaybackRef  = useRef(null)   // always points to latest startPlayback
   const loopSigRef        = useRef(null)   // last loop range the transport was started with
+  const meterSigRef       = useRef(null)   // last time signature the transport was started with
   const stopPlaybackRef   = useRef(null)   // always points to latest stopPlayback
   const pendingStartRef   = useRef(false)  // set by loadStarter → fires after bars state commits
   const pendingCountInRef = useRef(undefined)  // scenario starters force a 4-beat count-in for that one auto-play; undefined = use the transport's own countInBeats
@@ -993,8 +1000,8 @@ export default function Home() {
   // handling, including the practice-mode override.
   const fretboardBarSeconds = useMemo(() => {
     const bpm = (practiceMode ? 50 : tempo) || 120
-    return ((fretboardBar.beats ?? 4) * 60) / bpm
-  }, [fretboardBar, practiceMode, tempo])
+    return ((fretboardBar.beats ?? meterBeatsPerBar(meter)) * 60) / bpm
+  }, [fretboardBar, practiceMode, tempo, meter])
 
   const romanNumerals = useMemo(() => {
     return bars.map((bar) => chordToRoman(bar.root, bar.quality, keyRoot, keyMode))
@@ -1128,6 +1135,7 @@ export default function Home() {
       setKeyRoot(form.keyRoot)
       setChartKey(form.keyRoot)
       setKeyMode(form.keyMode)
+      setMeter(form.meter || "4/4")
       setSelectedIndex(0)
       setLoopStart(0)
       setLoopEnd(form.bars.length - 1)
@@ -1144,6 +1152,7 @@ export default function Home() {
       setKeyRoot(userEntry.keyRoot || "C")
       setChartKey(userEntry.keyRoot || "C")
       setKeyMode(userEntry.keyMode || "major")
+      setMeter(userEntry.meter || "4/4")
       setSelectedIndex(0)
       setLoopStart(0)
       setLoopEnd(userEntry.bars.length - 1)
@@ -1184,10 +1193,10 @@ export default function Home() {
   // (My Library / Gig Book / Tavern Set / Songbook, whichever it came from)
   // instead of a Songbook-form name + Gig Book row pair.
   function loadCatalogEntry(entry, opts) {
-    const { bars, keyRoot, keyMode, tempo } = catalogEntryToPlayable(entry)
+    const { bars, keyRoot, keyMode, tempo, meter } = catalogEntryToPlayable(entry)
     if (!bars.length) { showToast(`No changes stored for "${entry.title}"`); return }
     logActivity({ label: entry.title, subtitle: entry.source, art: "changes", action: { type: "songbook" } })
-    loadSong({ bars, keyRoot, keyMode, tempo, title: entry.title, subtitle: entry.source, songId: entry.id, ...opts })
+    loadSong({ bars, keyRoot, keyMode, tempo, meter, title: entry.title, subtitle: entry.source, songId: entry.id, ...opts })
   }
 
   function handleTransposeChart() {
@@ -1212,6 +1221,7 @@ export default function Home() {
       setKeyRoot(chart.keyRoot || "C")
       setChartKey(chart.keyRoot || "C")
       setKeyMode(chart.keyMode || "major")
+      setMeter("4/4")   // the chart generator doesn't emit a meter yet — always 4/4
       setSelectedForm("Custom")
       setSelectedIndex(0)
       setLoopStart(0)
@@ -1222,6 +1232,7 @@ export default function Home() {
         keyRoot: chart.keyRoot || "C",
         keyMode: chart.keyMode || "major",
         tempo: chart.tempo || tempo,
+        meter: "4/4",   // matches the generator's own always-4/4 output above
       })
       setSongSheetDraft({
         title: chart.title || "AI Chart",
@@ -1229,6 +1240,7 @@ export default function Home() {
         keyRoot: chart.keyRoot || "C",
         keyMode: chart.keyMode || "major",
         tempo: chart.tempo || tempo,
+        meter: "4/4",
         updatedAt: Date.now(),
       })
       // Remember the prompt (most recent first, de-duped, capped) — rides along
@@ -1309,13 +1321,14 @@ export default function Home() {
     showToast(`Saved ${entry.name} to My Library`)
   }
 
-  function createSongSheetDraft({ title, bars: draftBars, keyRoot: draftRoot, keyMode: draftMode, tempo: draftTempo }) {
+  function createSongSheetDraft({ title, bars: draftBars, keyRoot: draftRoot, keyMode: draftMode, tempo: draftTempo, meter: draftMeter }) {
     setSongSheetDraft({
       title: title?.trim() || "Untitled Song",
       bars: (draftBars || []).map((bar) => ({ ...bar })),
       keyRoot: draftRoot || "C",
       keyMode: draftMode || "major",
       tempo: draftTempo || originalTempo || 110,
+      meter: draftMeter || "4/4",
       updatedAt: Date.now(),
     })
   }
@@ -1327,6 +1340,7 @@ export default function Home() {
       keyRoot,
       keyMode,
       tempo: originalTempo,
+      meter,
     })
   }
 
@@ -1344,6 +1358,7 @@ export default function Home() {
       keyRoot: draft.keyRoot,
       keyMode: draft.keyMode,
       tempo: draft.tempo,
+      meter: draft.meter,
       autoplay: false,
       songId: null,
       title: draft.title,
@@ -1370,7 +1385,15 @@ export default function Home() {
   // practiceView flipped to "focus" while mode is still stuck elsewhere.
   // Space/the sticky transport resuming whatever's already loaded don't go
   // through here, so they don't fight it.
-  function loadSong({ bars, keyRoot, keyMode, tempo, autoplay, songId, title, subtitle, toMode, toFocus }) {
+  function loadSong({ bars, keyRoot, keyMode, tempo, meter, autoplay, songId, title, subtitle, toMode, toFocus }) {
+    // autoplay's actual startPlayback() call happens a tick later, once the
+    // bars state set below has committed (the pendingStartRef effect further
+    // down) — a real gap from this click on iOS Safari, which only resumes
+    // an AudioContext from code it can still trace back to a user gesture.
+    // Kicking the resume off here, first, keeps it inside that gesture; by
+    // the time startPlayback awaits loadAudio()'s own unlock, it's often
+    // already resumed and just resolves immediately.
+    if (autoplay) loadAudio().then((m) => m.unlockAudio()).catch(() => {})
     if (toFocus) { chooseMode("practice"); enterFocusMode() }
     else if (toMode) chooseMode(toMode)
     if (playingRef.current) stopPlayback()
@@ -1378,6 +1401,7 @@ export default function Home() {
     setPracticeMode(false)
     setBars(bars)
     setKeyRoot(keyRoot); setChartKey(keyRoot); setKeyMode(keyMode)
+    setMeter(meter || "4/4")
     setSelectedForm("Custom"); setSelectedIndex(0)
     setLoopStart(0); setLoopEnd(bars.length - 1)
     const t = tempo || 110
@@ -1479,6 +1503,12 @@ export default function Home() {
   }, [originalTempo])
 
   function loadStarter(starterId) {
+    // Same reasoning as loadSong's autoplay branch: every starter here drops
+    // into Focus and auto-plays a tick after this click, once the bars state
+    // set below commits — kick the AudioContext resume off now, still inside
+    // the tap, so iOS Safari doesn't see it as unrelated to any gesture.
+    loadAudio().then((m) => m.unlockAudio()).catch(() => {})
+
     // Stop any current playback before loading
     if (playingRef.current) stopPlayback()
 
@@ -1529,6 +1559,7 @@ export default function Home() {
         ]
         setBars(attya)
         setKeyRoot("Ab"); setChartKey("Ab"); setKeyMode("major")
+        setMeter("4/4")
         setSelectedForm("Custom"); setSelectedIndex(0)
         setLoopStart(0); setLoopEnd(attya.length - 1)
         setOriginalTempo(120)
@@ -1553,6 +1584,7 @@ export default function Home() {
         ]
         setBars(cycle)
         setKeyRoot("C"); setChartKey("C"); setKeyMode("major")
+        setMeter("4/4")
         setSelectedForm("Custom"); setSelectedIndex(0)
         setLoopStart(0); setLoopEnd(cycle.length - 1)
         setOriginalTempo(120)
@@ -1577,6 +1609,7 @@ export default function Home() {
         ]
         setBars(cycle)
         setKeyRoot("A"); setChartKey("A"); setKeyMode("minor")
+        setMeter("4/4")
         setSelectedForm("Custom"); setSelectedIndex(0)
         setLoopStart(0); setLoopEnd(cycle.length - 1)
         setOriginalTempo(120)
@@ -1676,7 +1709,7 @@ export default function Home() {
     const bar = bars[index]
     if (!bar || bar.quality === "NC") return
     const { playChordStab } = await loadAudio()
-    const beats = bar.beats ?? 4
+    const beats = bar.beats ?? meterBeatsPerBar(meter)
     playChordStab(bar.symbol, Math.max(0.4, beats * (60 / tempo))).catch(() => {})
   }
 
@@ -1818,6 +1851,16 @@ export default function Home() {
     // (the playingRef check right after the count-in catches that).
     setIsPlaying(true)
 
+    // Load Tone.js lazily — AudioContext is only created here, after user gesture.
+    // Resolved (and the context resumed) before the count-in below: metronome.js
+    // schedules the count-in on Tone's shared Transport without ever starting the
+    // context itself, and the Transport's clock doesn't advance while it's
+    // suspended — so on a session's first Play, unlocking after the count-in
+    // instead of before it left the count-in scheduled against a clock stuck at
+    // zero, silent and never resolving.
+    const { startPlayback: audioStart, unlockAudio } = await loadAudio()
+    await unlockAudio()
+
     const countIn = countInOverride !== undefined ? countInOverride : countInBeats
     if (countIn > 0) {
       try {
@@ -1829,9 +1872,6 @@ export default function Home() {
       if (!playingRef.current) return   // Stop was pressed during the count-in
     }
 
-    // Load Tone.js lazily — AudioContext is only created here, after user gesture
-    const { startPlayback: audioStart } = await loadAudio()
-
     if (useLoop) {
       // Infinite seamless loop
       try {
@@ -1839,6 +1879,7 @@ export default function Home() {
           bars:          slicedBars,
           approachLines: slicedLines,
           tempo:         effectiveTempo,
+          meter,
           loop:          true,
           swing:         swingAmount,
           playChords, playBass, playDrums, playMelody, compingStyle,
@@ -1861,6 +1902,7 @@ export default function Home() {
         bars:          slicedBars,
         approachLines: slicedLines,
         tempo:         effectiveTempo,
+        meter,
         loop:          false,
         repeats:       5,
         swing:         swingAmount,
@@ -2213,6 +2255,18 @@ export default function Home() {
     startPlaybackRef.current?.().catch(console.error)
   }, [loopEnabled, loopStart, loopEnd])
 
+  // Changing the time signature is structural (bar timing, the comping/bass/
+  // drum grids, and Tone's own Transport.timeSignature all key off it), so
+  // there's no live in-place patch the way tempo has — same
+  // stop-and-re-call-startPlayback restart as the loop-range effect above.
+  useEffect(() => {
+    const previous = meterSigRef.current
+    meterSigRef.current = meter
+    if (previous === null || previous === meter) return  // first commit, or no real change
+    if (!playingRef.current) return
+    startPlaybackRef.current?.().catch(console.error)
+  }, [meter])
+
   // Count real loops: the playhead wrapping backwards means a pass finished.
   // Counts both loop-range wraps and full-form wraps; resets with the chart.
   useEffect(() => {
@@ -2404,17 +2458,20 @@ export default function Home() {
       .db-focus-stage .db-anticipate-readout { display: none !important; }
 
       /* The neck: everything the topbar and transport don't need, edge to
-         edge — no zoom trick, no fixed aspect box, just full width and
-         whatever height that leaves. */
+         edge in both directions — Fretboard's own stretch prop drops
+         preserveAspectRatio to "none" so the 12-fret drawing fills this box
+         exactly instead of shrinking to whichever dimension runs out first
+         (which on a portrait phone was always width, leaving most of the
+         box's height as dead space around a thin strip of a neck). */
       .db-focus-board { zoom: 1; }
       .db-focus-stage .db-focus-board {
         flex: 1 1 auto; min-height: 0;
-        display: flex; align-items: center; justify-content: center;
+        display: flex; align-items: stretch; justify-content: center;
         overflow: hidden !important;
         margin: 0 !important; padding: 0 4px !important;
       }
       .db-focus-stage .db-focus-board svg {
-        width: 100% !important; height: auto !important; max-height: 100%;
+        width: 100% !important; height: 100% !important;
       }
 
       /* The legend, the swipe hint and the settings summary are reference,
@@ -2970,6 +3027,8 @@ export default function Home() {
               onKeyRootChange={setKeyRoot}
               onKeyModeChange={setKeyMode}
               onTranspose={handleTransposeChart}
+              meter={meter}
+              onMeterChange={setMeter}
             />
 
           </>
@@ -3487,9 +3546,9 @@ export default function Home() {
                 <div
                   style={{ display: "flex", gap: "4px", marginTop: "9px", alignItems: "flex-end", height: "11px" }}
                   role="img"
-                  aria-label={(isPlaying && beatInBar != null) ? `Beat ${beatInBar + 1} of ${fretboardBar.beats ?? 4}` : `${fretboardBar.beats ?? 4} beats per bar`}
+                  aria-label={(isPlaying && beatInBar != null) ? `Beat ${beatInBar + 1} of ${fretboardBar.beats ?? meterBeatsPerBar(meter)}` : `${fretboardBar.beats ?? meterBeatsPerBar(meter)} beats per bar`}
                 >
-                  {Array.from({ length: Math.max(1, Math.round(fretboardBar.beats ?? 4) || 4) }, (_, i) => {
+                  {Array.from({ length: Math.max(1, Math.round(fretboardBar.beats ?? meterBeatsPerBar(meter)) || meterBeatsPerBar(meter)) }, (_, i) => {
                     const live = isPlaying && beatInBar != null
                     const isCurrent = live && i === beatInBar
                     const isPast = live && i < beatInBar
@@ -3613,7 +3672,12 @@ export default function Home() {
                   behind "?" — the three Systems toggles always apply, the
                   frozen-nav row only once Freeze is actually on (those keys
                   do nothing otherwise, so showing them before then would be
-                  a promise the board can't keep yet). */}
+                  a promise the board can't keep yet).
+                  Keyboard shortcuts are meaningless on a touch device — on a
+                  phone this whole panel used to wrap onto its own row in the
+                  topbar, which is exactly the height Focus is supposed to be
+                  handing to the neck (see .db-focus-board below), so it's
+                  hidden there the same way KeyboardShortcuts' own button is. */}
               {focusStage && (() => {
                 const kbdStyle = {
                   display: "inline-block", padding: "1px 5px", marginRight: "3px",
@@ -3624,6 +3688,7 @@ export default function Home() {
                 const rowStyle = { display: "flex", gap: "9px", font: "600 9.5px 'Instrument Sans', sans-serif" }
                 return (
                   <div
+                    className="db-pointer-fine-only"
                     title="Keyboard shortcuts — playback"
                     style={{
                       display: "flex", flexDirection: "column", justifyContent: "center", gap: "4px",
@@ -3776,6 +3841,13 @@ export default function Home() {
                 }
                 focusStart={activeFocusStart}
                 focusSpan={focusSpan}
+                // Stretch the neck to fill .db-focus-board in both dimensions —
+                // on a portrait phone (the common case, since iOS won't honor
+                // the landscape lock enterFocusMode asks for) that's most of
+                // the screen's height, not just its width, which is what
+                // actually makes the board read as the star of Focus instead
+                // of a thin strip floating in empty space.
+                stretch={focusStage}
                 animate={isPlaying && playheadIndex !== null}
                 barSeconds={fretboardBarSeconds}
                 phaseKey={playheadIndex}

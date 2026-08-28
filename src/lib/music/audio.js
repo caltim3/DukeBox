@@ -5,7 +5,8 @@ import { initSamplers, getSamplers, isDrumSampleReady, DEFAULT_DRUM_KIT } from "
 import { COMPING_STYLES, DEFAULT_COMPING_STYLE, getVoiceLedVoicing } from "./comping"
 import { DRUM_STYLES } from "./audioConstants"
 import { styledWalkingBass, DEFAULT_BASS_STYLE } from "./bassStyles"
-export { DRUM_STYLES }
+import { JAZZ_METERS, DEFAULT_METER, meterBeatsPerBar } from "./meters"
+export { DRUM_STYLES, JAZZ_METERS }
 
 const JAZZ_SPELLING = {
   0: "C", 1: "Db", 2: "D", 3: "Eb", 4: "E",
@@ -189,23 +190,48 @@ function chordVoicing(symbol, rootless = false) {
 }
 
 // ─── Bar timing helpers (supports 2-beat "split" bars) ───────────────────────
-function computeBarTiming(bars) {
+function computeBarTiming(bars, beatsPerBar = 4) {
   let totalBeats = 0
   return bars.map(bar => {
-    const beats   = bar.beats ?? 4
-    const measure = Math.floor(totalBeats / 4)
-    const beat    = totalBeats % 4
+    const beats   = bar.beats ?? beatsPerBar
+    const measure = Math.floor(totalBeats / beatsPerBar)
+    const beat    = totalBeats % beatsPerBar
     totalBeats   += beats
     return { measure, beat, beats, time: `${measure}:${beat}:0` }
   })
 }
 
-function totalBarBeats(bars) {
-  return bars.reduce((sum, bar) => sum + (bar.beats ?? 4), 0)
+function totalBarBeats(bars, beatsPerBar = 4) {
+  return bars.reduce((sum, bar) => sum + (bar.beats ?? beatsPerBar), 0)
+}
+
+// A full-length bar's walking-bass note sequence, generalized from the
+// original fixed 4-beat root–5th–3rd–approach line to any bar length: always
+// starts on the root and ends on the chromatic approach tone into the next
+// chord, filling whatever's between with alternating 5th/3rd chord tones.
+// beats===4 reproduces the original [root, fifth, third, approach] exactly.
+const WALK_FILLERS = ["fifth", "third"]
+function walkNoteSeq(root, fifth, third, approach, beats) {
+  if (beats <= 1) return [root]
+  if (beats === 2) return [root, approach]
+  const tones = { root, fifth, third }
+  const seq = [root]
+  for (let i = 1; i < beats - 1; i++) seq.push(tones[WALK_FILLERS[(i - 1) % WALK_FILLERS.length]])
+  seq.push(approach)
+  return seq
+}
+const WALK_VEL_MID = [0.65, 0.70]
+function walkVelSeq(beats) {
+  if (beats <= 1) return [0.80]
+  if (beats === 2) return [0.80, 0.75]
+  const seq = [0.80]
+  for (let i = 1; i < beats - 1; i++) seq.push(WALK_VEL_MID[(i - 1) % WALK_VEL_MID.length])
+  seq.push(0.75)
+  return seq
 }
 
 // ─── Walking bass ─────────────────────────────────────────────────────────────
-function walkingBass(bars, timing) {
+function walkingBass(bars, timing, beatsPerBar = 4) {
   const events = []
   bars.forEach((bar, b) => {
     const { measure, beat: startBeat, beats } = timing[b]
@@ -223,17 +249,13 @@ function walkingBass(bars, timing) {
     const nc = Note.chroma(nextRoot)
     const approach = nc != null ? JAZZ_SPELLING[((nc - 1) + 12) % 12] : root
 
-    const noteSeq = beats === 2
-      ? [`${root}2`, `${approach}2`]
-      : [`${root}2`, `${fifth}2`, `${third}2`, `${approach}2`]
-    const velSeq  = beats === 2
-      ? [0.80, 0.75]
-      : [0.80, 0.65, 0.70, 0.75]
+    const noteSeq = walkNoteSeq(`${root}2`, `${fifth}2`, `${third}2`, `${approach}2`, beats)
+    const velSeq  = walkVelSeq(beats)
 
     noteSeq.forEach((note, idx) => {
       const absbeat = startBeat + idx
-      const m  = measure + Math.floor(absbeat / 4)
-      const bt = absbeat % 4
+      const m  = measure + Math.floor(absbeat / beatsPerBar)
+      const bt = absbeat % beatsPerBar
       events.push({ time: `${m}:${bt}:0`, note, dur: "4n", vel: velSeq[idx] })
     })
   })
@@ -241,22 +263,23 @@ function walkingBass(bars, timing) {
 }
 
 // ─── Melody (approach lines) ──────────────────────────────────────────────────
-function melodyEvents(approachLines, timing) {
+function melodyEvents(approachLines, timing, beatsPerBar = 4) {
   const events = []
   approachLines.forEach((line, b) => {
     const phrase = line?.phrase || []
     if (!phrase.length) return
     const { measure, beat: startBeat, beats } = timing[b]
     // 2-beat bar: 1 note→beat0, 2 notes→beats 0&1
-    // 4-beat bar: 1 note→beat0, 2 notes→beats 0&2, 3 notes→beats 0,1,2
+    // Full bar: 1 note→beat0, 2 notes→beats 0&2, 3 notes→beats 0,1,2
+    // (max position used is 2, which fits every supported meter's full bar)
     const positions = beats === 2
       ? phrase.length === 1 ? [0] : [0, 1]
       : phrase.length === 1 ? [0] : phrase.length === 2 ? [0, 2] : [0, 1, 2]
     phrase.forEach((noteName, idx) => {
       if (Note.chroma(noteName) == null) return
       const absbeat = startBeat + (positions[idx] ?? 0)
-      const m  = measure + Math.floor(absbeat / 4)
-      const bt = absbeat % 4
+      const m  = measure + Math.floor(absbeat / beatsPerBar)
+      const bt = absbeat % beatsPerBar
       // Place melody in right-hand register, minimum E5 (midi 76), so it sits above chord voicings
       const midi5 = Note.midi(`${noteName}5`) ?? 0
       const octave = midi5 >= 76 ? 5 : 6
@@ -272,11 +295,12 @@ function melodyEvents(approachLines, timing) {
 // sound is decided at trigger time from the live drum style. Scheduling the
 // grid rather than the hits is what lets the style change mid-chorus without
 // rebuilding the transport.
-function drumSlotEvents(totalBeats) {
+function drumSlotEvents(totalBeats, beatsPerBar = 4) {
   const events = []
-  const numMeasures = Math.ceil(totalBeats / 4)
+  const slotsPerBar = beatsPerBar * 2   // eighth-note grid
+  const numMeasures = Math.ceil(totalBeats / beatsPerBar)
   for (let m = 0; m < numMeasures; m++) {
-    for (let s = 0; s < 8; s++) {
+    for (let s = 0; s < slotsPerBar; s++) {
       const beat = Math.floor(s / 2)
       const sub  = (s % 2) * 2   // sixteenth position: 0 or 2
       events.push({ time: `${m}:${beat}:${sub}`, m, slot: s })
@@ -285,14 +309,23 @@ function drumSlotEvents(totalBeats) {
   return events
 }
 
-// Velocity for one voice at one slot, under a given pattern. Patterns may span
-// multiple measures (e.g. Son Clave 3:2 = 16 slots / 2 bars); they cycle as the
-// chart advances.
-function drumVelocity(pattern, inst, measure, slot) {
+// Every DRUM_STYLES lane is authored as an 8-slot (eighth-note) 4/4 bar (or a
+// multiple of 8 for a pattern that spans several bars, e.g. Son Clave 3:2 =
+// 16 slots / 2 bars); they cycle as the chart advances. At any other meter
+// the bar has a different number of eighth-note slots (beatsPerBar*2), so
+// each slot maps proportionally onto the pattern's own 8-slot bar instead of
+// indexing past the end of it — the groove keeps its shape (kick on 1, ride
+// swing, …) shrunk or stretched to fit, rather than running off the pattern.
+const PATTERN_SLOTS_PER_BAR = 8
+function drumVelocity(pattern, inst, measure, slot, beatsPerBar = 4) {
   const lane = pattern?.[inst]
   if (!lane?.length) return 0
-  const patternMeasures = Math.max(1, Math.floor(lane.length / 8))
-  return lane[(measure % patternMeasures) * 8 + slot] || 0
+  const slotsPerBar = beatsPerBar * 2
+  const patternMeasures = Math.max(1, Math.floor(lane.length / PATTERN_SLOTS_PER_BAR))
+  const mappedSlot = slotsPerBar === PATTERN_SLOTS_PER_BAR
+    ? slot
+    : Math.round((slot / slotsPerBar) * PATTERN_SLOTS_PER_BAR) % PATTERN_SLOTS_PER_BAR
+  return lane[(measure % patternMeasures) * PATTERN_SLOTS_PER_BAR + mappedSlot] || 0
 }
 
 // ─── Reverb send (ported from Bebop Blueprint's reverb dial) ─────────────────
@@ -329,6 +362,20 @@ let scheduledIds  = []
 // bass lines) re-scheduled through `rebuilders`.
 let live = null
 let rebuilders = {}
+
+/**
+ * Resumes/creates the shared AudioContext, standalone from starting any
+ * sound. Exists so callers that schedule audio elsewhere first — page.js's
+ * startPlayback runs a count-in on Tone's own Transport before it ever calls
+ * startPlayback() below — can guarantee the context is actually running
+ * before that happens. Tone's Transport clock doesn't advance while the
+ * context is suspended, so scheduling anything on it beforehand (a count-in,
+ * say) would otherwise schedule against a clock that's stuck at zero: not
+ * just silent, but a promise (playCountIn's) that never resolves either.
+ */
+export async function unlockAudio() {
+  await Tone.start()
+}
 
 /**
  * Fire a single note through the shared piano sampler.
@@ -478,6 +525,7 @@ export async function startPlayback({
   bars,
   approachLines = null,
   tempo         = 120,
+  meter         = DEFAULT_METER,   // one of JAZZ_METERS — "4/4", "3/4", "5/4", "6/8"
   loop          = false,
   swing         = 0.5,
   playChords    = true,
@@ -516,10 +564,11 @@ export async function startPlayback({
     ? Array.from({ length: passes }, () => approachLines).flat()
     : approachLines
 
-  const timing   = computeBarTiming(playBars)
-  const totalBts = totalBarBeats(playBars)
-  const endM     = Math.floor(totalBts / 4)
-  const endB     = totalBts % 4
+  const beatsPerBar = meterBeatsPerBar(meter)
+  const timing   = computeBarTiming(playBars, beatsPerBar)
+  const totalBts = totalBarBeats(playBars, beatsPerBar)
+  const endM     = Math.floor(totalBts / beatsPerBar)
+  const endB     = totalBts % beatsPerBar
   const end      = endB === 0 ? `${endM}:0:0` : `${endM}:${endB}:0`
   const tr       = Tone.getTransport()
   const draw = Tone.getDraw()
@@ -532,6 +581,7 @@ export async function startPlayback({
   rebuilders = {}
 
   tr.bpm.value        = tempo
+  tr.timeSignature    = beatsPerBar   // makes "measure:beat:sixteenth" below convert to real time correctly at this meter
   tr.swing            = swing
   tr.swingSubdivision = "8n"
   tr.position         = 0
@@ -549,10 +599,10 @@ export async function startPlayback({
   // Half-bars (beats: 2) fire twice, which is what their meter is.
   if (onBeat) {
     timing.forEach((t, i) => {
-      const barStart = t.measure * 4 + t.beat
+      const barStart = t.measure * beatsPerBar + t.beat
       for (let b = 0; b < t.beats; b++) {
         const abs = barStart + b
-        const at = `${Math.floor(abs / 4)}:${abs % 4}:0`
+        const at = `${Math.floor(abs / beatsPerBar)}:${abs % beatsPerBar}:0`
         const id = tr.schedule(time => draw.schedule(() => onBeat(i % srcLen, b), time), at)
         scheduledIds.push(id)
       }
@@ -591,12 +641,15 @@ export async function startPlayback({
           events.push({ time: `${measure}:${barBeat}:0`, notes: voicing, vel: 0.65, dur: "2n" })
         } else {
           hitPlan.forEach(hit => {
-            const beatFrac = hit.t * 4
+            // hit.t is a fraction of the whole bar (0..1), so scaling by
+            // beatsPerBar rather than a fixed 4 keeps the hit plan's shape
+            // (e.g. "on 1 and the & of 2") at any meter.
+            const beatFrac = hit.t * beatsPerBar
             const beat = Math.floor(beatFrac)
             const sub  = Math.round((beatFrac - beat) * 4)
             const absbeat = barBeat + beat
-            const m  = measure + Math.floor(absbeat / 4)
-            const bt = absbeat % 4
+            const m  = measure + Math.floor(absbeat / beatsPerBar)
+            const bt = absbeat % beatsPerBar
             events.push({ time: `${m}:${bt}:${sub}`, notes: voicing, vel: hit.vel, dur: `${hit.len}m` })
           })
         }
@@ -627,9 +680,14 @@ export async function startPlayback({
   // Bebop Blueprint line generator with the complexity dial.
   {
     const { bass: bassPlayers } = getSamplers()
+    // The bassist-personality generator (Chambers, Brown, Carter, Mingus,
+    // Pettiford) builds each line as 4 fixed beat-slots — it only makes
+    // sense at 4/4. Any other meter falls back to the plain generalized
+    // walker below, which adapts its note count to the bar's own length.
     const buildBassEvents = (styleName, complexity) => {
+      if (beatsPerBar !== 4) return walkingBass(playBars, timing, beatsPerBar)
       const styled = styledWalkingBass(playBars, timing, styleName, complexity)
-      return styled.length ? styled : walkingBass(playBars, timing)
+      return styled.length ? styled : walkingBass(playBars, timing, beatsPerBar)
     }
     const playBassNote = (time, ev) => {
       if (!live?.playBass) return
@@ -651,7 +709,7 @@ export async function startPlayback({
   // Melody lead — use piano sampler when available so timbre matches the chords
   if (playLines?.length) {
     const { piano: pianoSampler } = getSamplers() ?? {}
-    makePart(melodyEvents(playLines, timing), (time, ev) => {
+    makePart(melodyEvents(playLines, timing, beatsPerBar), (time, ev) => {
       if (!live?.playMelody) return
       if (pianoSampler) {
         pianoSampler.triggerAttackRelease(ev.note, ev.dur, time, ev.vel)
@@ -699,11 +757,11 @@ export async function startPlayback({
       return key
     }
 
-    makePart(drumSlotEvents(totalBts), (time, ev) => {
+    makePart(drumSlotEvents(totalBts, beatsPerBar), (time, ev) => {
       if (!live?.playDrums) return
       const pattern = DRUM_STYLES[live.drumStyle] ?? DRUM_STYLES[0]
       for (const inst of ["ride", "kick", "hihat"]) {
-        const vel = drumVelocity(pattern, inst, ev.m, ev.slot)
+        const vel = drumVelocity(pattern, inst, ev.m, ev.slot, beatsPerBar)
         if (!vel) continue
         const key = resolveVoice(live.drumKit, inst)
         if (key) {

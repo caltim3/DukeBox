@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { ROOTS } from "@/lib/music/tonal"
+import { JAZZ_METERS } from "@/lib/music/meters"
 
 // Chart ribbon — in-flow, always-visible bar strip for the Cockpit/Focus
 // canvas (spec §5.5). Distinct from <GigBarStrip>, which is a fixed overlay
@@ -34,6 +35,8 @@ export default function ChartRibbon({
   onKeyRootChange,
   onKeyModeChange,
   onTranspose,
+  meter,
+  onMeterChange,
 }) {
   const lo = Math.min(loopStart, loopEnd)
   const hi = Math.max(loopStart, loopEnd)
@@ -246,6 +249,40 @@ export default function ChartRibbon({
               >
                 Transpose
               </button>
+            </div>
+          )}
+
+          {/* Meter — the time signature the playback mechanism (chords, bass,
+              drums) swings to. Structural, not a live-patchable dial like
+              tempo: picking a new one restarts the band from the top the
+              same way changing the loop range does (see page.js's meter
+              effect), so there's no separate "apply" step here. */}
+          {meter && (
+            <div style={{
+              display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap",
+              padding: "6px 10px", borderRadius: "10px",
+              border: "1px solid var(--line)", background: "var(--surface2)",
+              opacity: freezeMode ? 0.5 : 1,
+            }}>
+              <span style={{
+                font: "800 10px 'IBM Plex Mono', monospace", letterSpacing: "0.04em",
+                color: "var(--muted)", whiteSpace: "nowrap",
+              }}>
+                METER
+              </span>
+              <select
+                value={meter}
+                disabled={freezeMode}
+                onChange={(e) => onMeterChange?.(e.target.value)}
+                title="Time signature — changes the pulse the band comps, walks, and grooves to"
+                style={{
+                  font: "700 11px 'Instrument Sans', sans-serif", padding: "5px 6px", borderRadius: "6px",
+                  border: "1px solid var(--line)", background: "var(--surface)", color: "var(--text)",
+                  cursor: freezeMode ? "not-allowed" : "pointer",
+                }}
+              >
+                {JAZZ_METERS.map((m) => <option key={m} value={m}>{m}</option>)}
+              </select>
             </div>
           )}
         </div>

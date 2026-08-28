@@ -22,6 +22,7 @@ export const BUILTIN_PLAYLISTS = [
   { id: "gypsy",    label: "Gypsy Jazz",   ids: () => idsFromCategories("Gypsy Jazz") },
   { id: "complex",  label: "Complex Jazz", ids: () => idsFromCategories("Jazz Standards", "Bebop") },
   { id: "rock",     label: "Rock",         ids: () => idsFromCategories("Rock & Pop") },
+  { id: "sonoranoir", label: "Sonora Noir", ids: () => idsFromCategories("Sonora Noir") },
   { id: "mine",     label: "My Songs",     match: (s) => s.source === "My Library" },
 ]
 
