@@ -2703,6 +2703,23 @@ export default function Home() {
         .db-modebar [role="tab"] { flex: 1 1 calc(50% - 6px); min-width: 0; }
       }
 
+      /* Focus on a phone: same tiles above and the same transport below,
+         just trimmed down. .db-focus-board's svg fills whatever width the
+         topbar and transport leave it without exceeding whatever height
+         they leave it (preserving its own aspect ratio) — so a tall topbar
+         doesn't just crowd the board vertically, it also narrows it,
+         leaving the side margins this was written to fix. Shrinking the
+         chrome above and below is what lets the board actually reach the
+         screen edges. */
+      @media (max-width: 560px) {
+        .db-focus-stage .db-focus-topbar { gap: 6px !important; margin-bottom: 6px !important; }
+        .db-focus-stage .db-focus-topbar > div { padding: 5px 8px !important; min-width: 0 !important; }
+        .db-focus-stage .db-focus-chord { font-size: clamp(22px, 9vw, 36px) !important; margin: 2px 0 !important; }
+        .db-focus-stage .db-focus-topbar [role="img"] { margin-top: 5px !important; height: 8px !important; }
+        .db-focus-stage .db-transport-embedded { gap: 6px !important; padding-top: 5px !important; padding-bottom: max(5px, env(safe-area-inset-bottom)) !important; }
+        .db-focus-stage .db-transport-embedded { zoom: 0.82; }
+      }
+
       /* "Print chart" prints the all-keys reference on its own, as a clean
          sheet — everything else is hidden for that one print job. */
       @media print {
