@@ -4,6 +4,7 @@ import { useMemo, useState } from "react"
 import { ROOTS, QUALITIES, buildChordSymbol } from "@/lib/music/tonal"
 import { parseGigChord } from "@/lib/music/gigbook"
 import { exportLeadSheet, exportMusicXML } from "@/lib/music/leadsheet"
+import { JAZZ_METERS } from "@/lib/music/meters"
 
 const fieldStyle = {
   width: "100%",
@@ -221,7 +222,7 @@ export default function SongSheet({ draft, onChange, onSave, onOpenPractice, onS
 
   return (
     <div style={{ display: "grid", gap: "16px" }}>
-      <div className="songsheet-meta-grid" style={{ display: "grid", gridTemplateColumns: "minmax(220px, 2fr) minmax(90px, 0.7fr) minmax(110px, 0.8fr) minmax(90px, 0.6fr)", gap: "10px" }}>
+      <div className="songsheet-meta-grid" style={{ display: "grid", gridTemplateColumns: "minmax(220px, 2fr) minmax(90px, 0.7fr) minmax(110px, 0.8fr) minmax(90px, 0.6fr) minmax(90px, 0.6fr)", gap: "10px" }}>
         <label style={{ fontSize: "var(--db-fs-sm)", fontWeight: 700 }}>Title
           <input value={draft.title} onChange={(event) => update({ title: event.target.value })} style={{ ...fieldStyle, marginTop: "5px" }} />
         </label>
@@ -237,6 +238,11 @@ export default function SongSheet({ draft, onChange, onSave, onOpenPractice, onS
         </label>
         <label style={{ fontSize: "var(--db-fs-sm)", fontWeight: 700 }}>Tempo
           <input type="number" min="30" max="360" value={draft.tempo} onChange={(event) => update({ tempo: Math.max(30, Math.min(360, Number(event.target.value) || 30)) })} style={{ ...fieldStyle, marginTop: "5px" }} />
+        </label>
+        <label style={{ fontSize: "var(--db-fs-sm)", fontWeight: 700 }}>Meter
+          <select value={draft.meter || "4/4"} onChange={(event) => update({ meter: event.target.value })} style={{ ...fieldStyle, marginTop: "5px" }}>
+            {JAZZ_METERS.map((m) => <option key={m} value={m}>{m}</option>)}
+          </select>
         </label>
       </div>
 

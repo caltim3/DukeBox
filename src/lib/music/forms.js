@@ -2,6 +2,7 @@
 // Original 6 forms + ~65 songs organized by category
 
 import { DESERT_NOIR_FORMS, DESERT_NOIR_META } from "./desertNoir"
+import { SONORA_NOIR_FORMS } from "./sonoraNoir"
 
 // ─── bar helpers ──────────────────────────────────────────────────────────────
 function b(root, quality, section = "A") {
@@ -1078,6 +1079,7 @@ export const FORM_CATEGORIES = {
     "Same Old Blues – Freddie King (D)",
   ],
   "Desert Noir": Object.keys(DESERT_NOIR_FORMS),
+  "Sonora Noir": Object.keys(SONORA_NOIR_FORMS),
 }
 
 export const FORMS = {
@@ -1172,6 +1174,8 @@ export const FORMS = {
   "Same Old Blues – Freddie King (D)": BB_SAME_OLD_BLUES,
   // ── Desert Noir (composer originals) ──────────────────────
   ...DESERT_NOIR_FORMS,
+  // ── Sonora Noir ────────────────────────────────────────────
+  ...SONORA_NOIR_FORMS,
 }
 
 export const FORM_NAMES = Object.keys(FORMS)

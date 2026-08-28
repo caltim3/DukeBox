@@ -54,7 +54,7 @@ export const FRETBOARD_FRETS = FRET_COUNT
 const MAX_ROUTE_FRETS   = 3
 const MAX_ROUTE_STRINGS = 1
 
-export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes = null, view = "chord", tuningName = "Standard", targetNotes = [], passingNotes = [], guideToneNotes = [], guideToneDirections = null, enclosureNotes = [], ghostNotes = [], seventhNotes = [], bridgeNotes = [], labelMode = "names", ghostRootNote = null, focusStart = null, focusSpan = 4, animate = false, barSeconds = 0, phaseKey = null, threeTwo = null }) {
+export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes = null, view = "chord", tuningName = "Standard", targetNotes = [], passingNotes = [], guideToneNotes = [], guideToneDirections = null, enclosureNotes = [], ghostNotes = [], seventhNotes = [], bridgeNotes = [], labelMode = "names", ghostRootNote = null, focusStart = null, focusSpan = 4, animate = false, barSeconds = 0, phaseKey = null, threeTwo = null, stretch = false }) {
   // The "3:2 System" (src/lib/music/threeTwoSystem.js) takes the board over
   // completely when it's on and has something to show — it draws its own
   // dots instead of the usual chord/scale ones, so every other overlay
@@ -470,7 +470,18 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
   const midY = Y_TOP + (STR_SPAN / 2)
 
   return (
-    <svg viewBox={`0 0 ${W} ${H + 24}`} style={{ width: "100%", display: "block" }}>
+    <svg
+      viewBox={`0 0 ${W} ${H + 24}`}
+      // Cockpit keeps the neck's real proportions (preserveAspectRatio's
+      // default "meet" — fit inside the box, no distortion). Focus asks to
+      // fill both dimensions of whatever room .db-focus-board gives it —
+      // narrow-and-tall on a portrait phone, wide-and-short on a landscape
+      // one — since a fixed 12-fret shape can't be "edge to edge" both ways
+      // at once without stretching. "none" hands that stretch to the CSS
+      // box (width/height below) instead of letterboxing it.
+      preserveAspectRatio={stretch ? "none" : "xMidYMid meet"}
+      style={{ width: "100%", height: stretch ? "100%" : undefined, display: "block" }}
+    >
       {/* Maple wood + note-role colors below all read from the constant --fb- and --n-
           tokens (globals.css :root), never from the active palette — the board looks
           identical no matter which of the three schemes is selected (spec §4.7). */}

@@ -137,15 +137,16 @@ export function catalogEntryToPlayable(entry) {
   // built-in catalogs are shared data, not per-user rows — and the per-bar
   // scale picks that go with it ride along inside the bars themselves
   // (bar.userScale/userTonic), so they need nothing here.
-  return { bars, keyRoot, keyMode, tempo: gigTempoNumber(entry.tempo), pathway: entry._user?.pathway ?? null }
+  const meter = entry._form?.meter || entry._user?.meter || "4/4"
+  return { bars, keyRoot, keyMode, tempo: gigTempoNumber(entry.tempo), meter, pathway: entry._user?.pathway ?? null }
 }
 
 // A SongSheet-shaped draft (title/bars/keyRoot/keyMode/tempo) seeded from any
 // catalog entry — the starting point for editing a tune, whichever source it
 // came from.
 export function catalogEntryToDraft(entry) {
-  const { bars, keyRoot, keyMode, tempo } = catalogEntryToPlayable(entry)
-  return { title: entry.title, bars, keyRoot, keyMode, tempo, updatedAt: Date.now() }
+  const { bars, keyRoot, keyMode, tempo, meter } = catalogEntryToPlayable(entry)
+  return { title: entry.title, bars, keyRoot, keyMode, tempo, meter, updatedAt: Date.now() }
 }
 
 /**
@@ -167,6 +168,7 @@ export function upsertLibrarySong(setLibrary, draft) {
     keyRoot: draft.keyRoot,
     keyMode: draft.keyMode,
     tempo: draft.tempo,
+    meter: draft.meter || "4/4",
     updatedAt: Date.now(),
   }
   // Saving a "treatment" (docs/SCALE_PATHWAYS.md) stamps the Pathways rung
