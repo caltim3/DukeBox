@@ -2658,12 +2658,53 @@ export default function Home() {
           min-height: calc((100vw - 8px) / 4.25);
           overflow: visible !important;
         }
+        /* svg sizing here stays "clear the height cap" rather than the old
+           "width first, height: auto" — .db-focus-stage .db-focus-board svg
+           already stretches to fill its box in both dimensions (see the
+           stretch prop note above); this just makes sure nothing in this
+           media query claws that back down to a letterboxed height. */
         .db-focus-stage .db-focus-board svg { max-height: none !important; }
 
+        /* The readouts above the neck and the transport below it are glanced
+           at, not read. Both fold to a single line of their own height so the
+           frets get the difference: chord row roughly 60% shorter, transport
+           roughly 40%. */
+        .db-focus-stage .db-focus-now { margin-bottom: 4px !important; align-items: center; }
+        .db-focus-stage .db-focus-timer,
+        .db-focus-stage .db-focus-chordcard {
+          display: flex !important; flex-direction: row !important;
+          align-items: center; gap: 7px;
+          padding: 2px 8px !important;
+        }
+        .db-focus-stage .db-focus-timer > div,
+        .db-focus-stage .db-focus-chordcard > div { margin: 0 !important; }
+        /* Chord and clock shrink off the screen's height, not its width —
+           width is the one thing a landscape phone has. */
+        .db-focus-stage .db-focus-chord { font-size: clamp(22px, 7vh, 40px) !important; }
+        .db-focus-stage .db-focus-clock { font-size: clamp(0.9rem, 5vh, 1.5rem) !important; }
+        .db-focus-stage .db-focus-beats { width: 40px; flex: 0 0 40px; height: 8px; }
+
         .db-focus-stage .db-transport-embedded {
-          padding-top: 3px !important;
+          padding: 3px 8px !important; margin-top: 4px !important; gap: 7px !important;
           padding-bottom: max(3px, env(safe-area-inset-bottom)) !important;
         }
+        .db-focus-stage .db-transport-embedded button { min-height: 0 !important; }
+        .db-focus-stage .db-transport-embedded .db-tp-play {
+          width: 40px !important; height: 32px !important; font-size: 15px !important;
+        }
+        .db-focus-stage .db-transport-embedded .db-tp-btn {
+          width: auto !important; height: 32px !important; padding: 0 9px !important;
+        }
+        .db-focus-stage .db-transport-embedded .db-tp-mode { flex-direction: row !important; gap: 5px !important; }
+        .db-focus-stage .db-transport-embedded .db-tp-stats { gap: 7px; }
+        /* Opening the fret settings inside a one-screen column would push the
+           neck out of it — the drawer scrolls instead. */
+        .db-focus-stage .db-fret-settings { max-height: 45dvh; overflow-y: auto; }
+        /* The scale spelled out in letters, and the next chord's guide tones
+           written under the board, are both things the board is already
+           showing. Here they cost frets. */
+        .db-focus-stage .db-focus-spelling,
+        .db-focus-stage .db-anticipate-readout { display: none !important; }
       }
 
       /* The legend, the swipe hint and the settings summary are reference,
@@ -3723,8 +3764,10 @@ export default function Home() {
                 and tile layout — only Focus pins it (.db-focus-topbar, sticky
                 to the top of the scrolling stage) and scales it down, since
                 there it's permanent chrome competing with the neck for height
-                rather than one row in an already-tall page. */}
-            <div ref={focusStage ? focusTopbarRef : null} className={focusStage ? "db-focus-topbar" : undefined} style={{
+                rather than one row in an already-tall page. .db-focus-now is
+                the landscape-phone hook: clock, chord, what's next fold onto
+                one line there, the way you'd want it held sideways. */}
+            <div ref={focusStage ? focusTopbarRef : null} className={focusStage ? "db-focus-topbar db-focus-now" : undefined} style={{
               display: "flex", alignItems: "stretch", justifyContent: "center",
               gap: "10px", flexWrap: "wrap", marginBottom: "10px",
             }}>
@@ -3755,6 +3798,7 @@ export default function Home() {
               })()}
               <div
                 aria-live="polite"
+                className="db-focus-chordcard"
                 // Freeze's Now tile is chord #1 of the 5 shown — clicking it
                 // while frozen goes back to the chord that was sounding when
                 // you hit the snowflake; clicking it when it's already the
@@ -3786,7 +3830,7 @@ export default function Home() {
                 }}>
                   {fretboardBar.symbol}
                 </div>
-                <div style={{ fontSize: "var(--db-fs-sm)", fontWeight: 700, color: "var(--db-c-blue)" }}>{scaleLabelFull}</div>
+                <div className="db-focus-scale" style={{ fontSize: "var(--db-fs-sm)", fontWeight: 700, color: "var(--db-c-blue)" }}>{scaleLabelFull}</div>
                 {displayedScaleNotes.length > 0 && (
                   <div className="db-focus-spelling" style={{ fontSize: "var(--db-fs-xs)", opacity: 0.75, marginTop: "2px", letterSpacing: "0.04em" }}>
                     {displayedScaleNotes.join(" · ")}
@@ -3796,6 +3840,7 @@ export default function Home() {
                     Current beat solid and taller, beats gone dimmer but filled,
                     beats to come hollow — it marches rather than blinking. */}
                 <div
+                  className="db-focus-beats"
                   style={{ display: "flex", gap: "4px", marginTop: "9px", alignItems: "flex-end", height: "11px" }}
                   role="img"
                   aria-label={(isPlaying && beatInBar != null) ? `Beat ${beatInBar + 1} of ${fretboardBar.beats ?? meterBeatsPerBar(meter)}` : `${fretboardBar.beats ?? meterBeatsPerBar(meter)} beats per bar`}

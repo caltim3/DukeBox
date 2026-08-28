@@ -89,6 +89,7 @@ export default function StickyTransport({
       )}
       <button
         onClick={onTogglePlay}
+        className="db-tp-play"
         aria-label={isPlaying ? "Stop playback" : "Start playback"}
         style={{ width: "48px", height: "48px", borderRadius: "11px", border: "none", background: "var(--accent)", color: "var(--accent-ink)", font: "700 20px 'Instrument Sans', sans-serif", cursor: "pointer", flexShrink: 0 }}
       >
@@ -122,6 +123,7 @@ export default function StickyTransport({
       )}
       <button
         onClick={onToggleLoop}
+        className="db-tp-btn"
         aria-pressed={loopEnabled}
         title="Toggle loop"
         style={{
@@ -140,6 +142,7 @@ export default function StickyTransport({
       {onTogglePracticeMode && (
         <button
           onClick={() => onTogglePracticeMode(!practiceMode)}
+          className="db-tp-btn db-tp-mode"
           aria-pressed={practiceMode}
           title={practiceMode
             ? `Practice — 50 BPM. Tap for song tempo${originalTempo ? ` (${originalTempo} BPM)` : ""}`
@@ -162,7 +165,7 @@ export default function StickyTransport({
         </button>
       )}
 
-      <div style={{ display: "flex", gap: "8px", alignItems: "center", padding: "0 4px", borderLeft: "1px solid var(--line)" }}>
+      <div className="db-tp-stats" style={{ display: "flex", gap: "8px", alignItems: "center", padding: "0 4px", borderLeft: "1px solid var(--line)" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: "1px", minWidth: "52px" }}>
           <span style={{ font: "600 8.5px 'IBM Plex Mono', monospace", color: "var(--muted)", letterSpacing: "0.14em", textTransform: "uppercase" }}>Tempo</span>
           <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
@@ -189,6 +192,7 @@ export default function StickyTransport({
 
       <button
         onClick={onOpenSettings}
+        className="db-tp-btn"
         title="Open Band & Mix — tempo, swing, comping, bass, drums"
         aria-label="Open Band and Mix settings"
         style={{ width: "42px", height: "42px", borderRadius: "10px", border: "1px solid var(--line)", background: "var(--surface2)", color: "var(--muted)", font: "600 15px 'Instrument Sans', sans-serif", cursor: "pointer", flexShrink: 0 }}
