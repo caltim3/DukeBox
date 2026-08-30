@@ -8,7 +8,7 @@
 import { register } from "node:module"
 register("./pathways-alias-loader.mjs", import.meta.url)
 
-const { resolveTriadSystem, triadQualityFamily } =
+const { resolveTriadSystem, triadQualityFamily, buildTriadSounds } =
   await import("../src/lib/music/triadSystem.js")
 const { resolveTriadRoute } = await import("../src/lib/music/triadRoutes.js")
 const { analyzeProgressionContext } = await import("../src/lib/music/harmony.js")
@@ -136,5 +136,35 @@ ok(sys.landingNote === "Db", `ribot bar10 stops on Db, a half step shy of D, got
 rb = routeAt("ribot", 8)
 ok(rb.landingPolicy === "land", `ribot Cm7 played straight — the inside bar is the surprise`)
 
-console.log(fails === 0 ? "ALL CHECKS PASSED (12 roots × dominant/minor/major/halfDim + Wes/Ribot over the Bb blues)" : `${fails} FAILURES`)
+// ── The sound palette (buildTriadSounds) ────────────────────────────────────
+// The canonical example: over G7 resolving to Cmaj7, the Inside line must
+// prescribe the D minor arp inverted to deliver E, the 3rd of the next chord
+// (via F, a half step above).
+const nextC = { root: "C", quality: "maj7", symbol: "Cmaj7" }
+sys = resolveTriadSystem({ root: "G", quality: "7", pairChoice: "inside", contextSlot: 0, nextBar: nextC })
+let sounds = buildTriadSounds({ root: "G", quality: "7", sys, nextBar: nextC })
+const byId = (id) => sounds.find((s) => s.id === id)
+ok(byId("inside")?.text.startsWith("Dm arp (5·b7·9)"), `G7 inside sound is the Dm arp, got: ${byId("inside")?.text}`)
+ok(byId("inside")?.text.includes("end on F") && byId("inside")?.text.includes("onto E"), `G7 inside inverts to F → E, got: ${byId("inside")?.text}`)
+ok(byId("color")?.text.includes("holds E"), `G7 color (Em) already holds the landing, got: ${byId("color")?.text}`)
+ok(byId("outside")?.text.includes("Bbm") && byId("outside")?.text.includes("Abm") && byId("outside")?.text.includes("aim E"), `G7 outside names the altered pair and the aim, got: ${byId("outside")?.text}`)
+ok(byId("target")?.text.includes("E") && byId("target")?.text.includes("Cmaj7"), `G7 target names E into Cmaj7, got: ${byId("target")?.text}`)
+
+// Every supported family yields a palette; a route's rub policy rewrites the Rub line.
+for (const q of ["min7", "maj7", "min7b5"]) {
+  const s2 = resolveTriadSystem({ root: "C", quality: q })
+  ok(buildTriadSounds({ root: "C", quality: q, sys: s2 }).length >= 2, `${q} palette non-empty`)
+}
+// A minor chord's own triad spells b3, not the altered pool's #9 (and the
+// half-dim's b5, not #11).
+sys = resolveTriadSystem({ root: "C", quality: "min7" })
+ok(buildTriadSounds({ root: "C", quality: "min7", sys }).find((s) => s.id === "inside")?.text.includes("(1·b3·5)"), "m7 inside spells 1·b3·5")
+sys = resolveTriadSystem({ root: "C", quality: "min7b5" })
+ok(buildTriadSounds({ root: "C", quality: "min7b5", sys }).find((s) => s.id === "inside")?.text.includes("(b3·b5·b7)"), "m7b5 inside spells b3·b5·b7")
+const rbRoute = routeAt("ribot", 0)
+sys = resolveTriadSystem({ root: "Bb", quality: "7", pairChoice: rbRoute.pairChoice, contextSlot: rbRoute.contextSlot, landingPolicy: rbRoute.landingPolicy, nextBar: BLUES[1] })
+sounds = buildTriadSounds({ root: "Bb", quality: "7", sys: { ...sys, route: rbRoute }, nextBar: BLUES[1] })
+ok(sounds.find((s) => s.id === "rub")?.text.includes("sit on Db"), `ribot rub line says sit on Db, got: ${sounds.find((s) => s.id === "rub")?.text}`)
+
+console.log(fails === 0 ? "ALL CHECKS PASSED (12 roots × families + Wes/Ribot routes + sound palette)" : `${fails} FAILURES`)
 process.exit(fails === 0 ? 0 : 1)

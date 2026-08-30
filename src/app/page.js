@@ -41,7 +41,7 @@ import { STARTER_PRESETS, STARTER_STRIP, SCENARIO_CONFIG, LOAD_STARTER_EVENT } f
 import Fretboard, { fretPositions, FRETBOARD_FRETS } from "@/components/Fretboard"
 import { classifySongForm, getLevelDefs, resolvePentaChoice, buildPentaBoard, buildScaleBoard, buildScaleBoardFromNotes, PENTA_LEGEND, chordThird } from "@/lib/music/threeTwoSystem"
 import { PATHWAY_RUNGS, DEFAULT_PATHWAY_RUNG, resolvePathwayPlan } from "@/lib/music/pathways"
-import { resolveTriadSystem } from "@/lib/music/triadSystem"
+import { resolveTriadSystem, buildTriadSounds } from "@/lib/music/triadSystem"
 import { TRIAD_ROUTES, resolveTriadRoute } from "@/lib/music/triadRoutes"
 import PracticeTimer from "@/components/PracticeTimer"
 import GigBarStrip from "@/components/GigBarStrip"
@@ -312,6 +312,10 @@ export default function Home() {
   // functional skeleton. Route beats the manual pair/slot while set; the
   // manual controls show its per-bar choices and disable.
   const [triadRoute, setTriadRoute] = useState(null)
+  // The Sounds panel over the board (buildTriadSounds' per-bar palette) —
+  // open by default; collapsible because it's four lines of prose above
+  // the neck and Focus mode wants the vertical space back.
+  const [triadSoundsOpen, setTriadSoundsOpen] = useState(true)
   const [scaleFilter, setScaleFilter] = useState(null)  // null | "pentatonic" | "hexatonic" | "martino" | "hexchord" | "barry" | "harmonicMinor251"
   // "Altered" — independent of the nine-way PALETTE set above (like
   // +Bebop Chromatic, a modifier that sits alongside whichever PALETTE
@@ -723,7 +727,18 @@ export default function Home() {
       landingPolicy: route?.landingPolicy ?? "land",
       soloTriad: route?.soloTriad ?? null,
     })
-    return sys ? { ...sys, route } : null
+    if (!sys) return null
+    const merged = { ...sys, route }
+    // The sound palette — per-bar prescriptions (inside/color/outside/
+    // target/rub) drawn over the board. Built off the route-merged object
+    // so its Target/Rub lines honor refuse/rub landing policies.
+    merged.sounds = buildTriadSounds({
+      root: fretboardBar.userTonic ?? fretboardBar.root,
+      quality: fretboardBar.quality,
+      sys: merged,
+      nextBar,
+    })
+    return merged
   }, [triadSysMode, bars, fretboardBar, fretboardBarIndex, harmonicContext, triadPairChoice, triadContextSlot, triadRoute, chartKey])
   const triadSysActiveOnBoard = !!triadSys
 
@@ -4387,6 +4402,45 @@ export default function Home() {
                 )}
                 {targetsOverlay && melodyPathMode === "hunter3" && (
                   <span style={{ color: "var(--n-target)" }}>→ up a semitone · →→ up a whole tone · ← ←← down · = stays</span>
+                )}
+              </div>
+            )}
+
+            {/* SOUNDS — the Triads lens's per-bar palette: which arpeggio for
+                the inside sound, which for color, the outside move and where
+                it must land, the target into the next chord, how to treat the
+                rubs. Prose from buildTriadSounds, dot colors matching the
+                board's own. Sits between legend and neck so the advice is in
+                view while the hands are on the shapes it names. */}
+            {triadSysActiveOnBoard && triadSys.sounds?.length > 0 && (
+              <div style={{
+                background: "var(--surface2)", border: "1px solid var(--line)", borderRadius: "10px",
+                padding: "8px 12px", marginBottom: "10px",
+              }}>
+                <button onClick={() => setTriadSoundsOpen((v) => !v)}
+                  aria-expanded={triadSoundsOpen}
+                  style={{
+                    display: "flex", alignItems: "center", gap: "6px", width: "100%",
+                    background: "none", border: "none", padding: 0, cursor: "pointer",
+                    font: "800 10px 'IBM Plex Mono', monospace", color: "var(--muted)",
+                    letterSpacing: "0.14em", textTransform: "uppercase", textAlign: "left",
+                  }}>
+                  Sounds
+                  <span style={{ font: "500 10.5px 'Instrument Sans', sans-serif", letterSpacing: 0, textTransform: "none" }}>
+                    · what to reach for over {fretboardBar.symbol}
+                  </span>
+                  <span aria-hidden="true" style={{ marginLeft: "auto", fontSize: "9px", transition: "transform .2s", transform: triadSoundsOpen ? "rotate(180deg)" : "none" }}>▼</span>
+                </button>
+                {triadSoundsOpen && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px", marginTop: "7px", fontSize: "12px", color: "var(--muted)", lineHeight: 1.45 }}>
+                    {triadSys.sounds.map((s) => (
+                      <div key={s.id}>
+                        <span style={{ color: `var(${s.colorVar})` }}>●</span>{" "}
+                        <span style={{ fontWeight: 700, color: "var(--text)" }}>{s.label}</span>
+                        {" — "}{s.text}
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
             )}

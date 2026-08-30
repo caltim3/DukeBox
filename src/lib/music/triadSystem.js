@@ -35,6 +35,11 @@ const MINOR_TRIAD = [0, 3, 7]
 // describes tensions against a chord root, never a minor chord's own 3rd).
 const DEG = ["1", "b9", "9", "#9", "3", "11", "#11", "5", "b13", "13", "b7", "7"]
 
+// One canonical chromatic spelling per pitch class, for gap math between
+// arbitrary spellings (buildTriadSounds' approach-note logic).
+const CHROMA12 = Array.from({ length: 12 }, (_, i) => noteAtSemitones("C", i))
+const chromaIdx = (n) => CHROMA12.indexOf(noteAtSemitones(n, 0))
+
 // Quality buckets — the same groupings harmony.js's is*Quality helpers use
 // (kept local: harmony.js doesn't export them, and this module stays pure).
 const DOMINANT_QUALITIES = new Set(["7", "9", "7b9", "7alt", "7sus4", "sus4"])
@@ -242,4 +247,101 @@ export function resolveTriadSystem({ root, quality, ctxEntry = null, nextBar = n
     soloTriad: soloTriad === 1 || soloTriad === 2 ? soloTriad : null,
     why,
   }
+}
+
+// How a triad's arpeggio can be inverted to deliver a target note: does it
+// hold the target itself, or a note a half/whole step either side? Preference
+// order is delivery strength — on it, half step above (falls in), half step
+// below (pushes up), then the whole steps.
+function approachInto(triadNotes, target) {
+  if (!target) return null
+  const found = {}
+  triadNotes.forEach((n) => {
+    const g = ((chromaIdx(n) - chromaIdx(target)) + 12) % 12
+    if (found[g] == null) found[g] = n
+  })
+  if (found[0] != null) return ` — it holds ${target}: invert to end right on it`
+  if (found[1] != null) return ` — invert to end on ${found[1]}; it falls a half step onto ${target}`
+  if (found[11] != null) return ` — invert to end on ${found[11]}, a half step under ${target}, and push up into it`
+  if (found[2] != null) return ` — end on ${found[2]} and step down a whole tone onto ${target}`
+  if (found[10] != null) return ` — end on ${found[10]} and step up a whole tone onto ${target}`
+  return ""
+}
+
+/**
+ * The sound palette for one resolved bar: short, concrete prescriptions —
+ * which arpeggio for the inside sound, which for color, what the outside
+ * move is and where it must land, the target into the next chord, and how
+ * to treat the rubs. Pure prose-building over the same offsets; `sys` is
+ * resolveTriadSystem's return (route-merged or not — landingLabel and
+ * landingPolicy are honored when present). Each entry:
+ *   { id, label, colorVar, text } — colorVar matches the board's dot colors.
+ */
+export function buildTriadSounds({ root, quality, sys, nextBar = null }) {
+  const family = triadQualityFamily(quality)
+  if (!sys || !family || !root) return []
+  const landing = thirdOf(nextBar)
+  const nextName = nextBar ? (nextBar.symbol ?? `${nextBar.userTonic ?? nextBar.root}${nextBar.quality ?? ""}`) : null
+  const spellAt = (o) => noteAtSemitones(root, o)
+  const triadAt = (o) => MINOR_TRIAD.map((s) => noteAtSemitones(root, (o + s) % 12))
+  // DEG spells 3 semitones as #9 and 6 as #11 — right for the altered pool
+  // over a dominant, wrong for a minor chord's own b3 or a half-dim's b5.
+  const degTable = (family === "minor" || family === "halfDim")
+    ? DEG.map((d, i) => (i === 3 ? "b3" : i === 6 ? "b5" : d))
+    : DEG
+  const degs = (notes) => notes.map((n) => degTable[((chromaIdx(n) - chromaIdx(root)) + 12) % 12]).join("·")
+  const appr = (notes) => approachInto(notes, landing) ?? ""
+  const sounds = []
+
+  if (family === "dominant") {
+    const inT1 = triadAt(7), inT2 = triadAt(9)
+    sounds.push({ id: "inside", label: "Inside", colorVar: "--n-triad1",
+      text: `${spellAt(7)}m arp (${degs(inT1)}) — the working half of the 13th sound${appr(inT1)}` })
+    sounds.push({ id: "color", label: "Color", colorVar: "--n-triad2",
+      text: `${spellAt(9)}m arp (${degs(inT2)}) — the sweet half${appr(inT2)}` })
+    sounds.push({ id: "outside", label: "Outside", colorVar: "--n-triad1",
+      text: `the Altered pair — ${spellAt(3)}m (${degs(triadAt(3))}) against ${spellAt(1)}m (${degs(triadAt(1))}); it must travel${landing ? `: aim ${landing}` : ""}` })
+  } else if (family === "minor") {
+    const t1 = triadAt(0), t2 = triadAt(2)
+    sounds.push({ id: "inside", label: "Inside", colorVar: "--n-triad1",
+      text: `${spellAt(0)}m arp (${degs(t1)}) — home base${appr(t1)}` })
+    sounds.push({ id: "color", label: "Color", colorVar: "--n-triad2",
+      text: `${spellAt(2)}m arp (${degs(t2)}) — the pretty notes: pure color, nothing to avoid${appr(t2)}` })
+    sounds.push({ id: "outside", label: "Outside", colorVar: "--n-triad1",
+      text: `side-step — the same two shapes a half step up (${spellAt(1)}m + ${spellAt(3)}m) for a beat, then slide home` })
+  } else if (family === "major") {
+    const chordal = triadAt(4), upper = triadAt(2)
+    sounds.push({ id: "inside", label: "Inside", colorVar: "--n-triad1",
+      text: `${spellAt(4)}m arp (${degs(chordal)}) — the chord from its 3rd, maximal consonance${appr(chordal)}` })
+    sounds.push({ id: "color", label: "Color", colorVar: "--n-triad2",
+      text: `${spellAt(2)}m arp (${degs(upper)}) — the upper structure; let the 11 keep moving` })
+    sounds.push({ id: "bright", label: "Bright", colorVar: "--n-triad2",
+      text: `Lydian — ${spellAt(4)}m + ${spellAt(11)}m stack ${degs(chordal)}·9·#11 into the maj13#11 sound` })
+  } else if (family === "halfDim") {
+    const t1 = triadAt(3), t2 = triadAt(5)
+    sounds.push({ id: "inside", label: "Inside", colorVar: "--n-triad1",
+      text: `${spellAt(3)}m arp (${degs(t1)}) — the chord's own upper voices; think ${spellAt(3)}m7 and play its Dorian pair (Martino's conversion)${appr(t1)}` })
+    sounds.push({ id: "color", label: "Color", colorVar: "--n-triad2",
+      text: `${spellAt(5)}m arp (${degs(t2)}) — the 11/b13 shading around the root${appr(t2)}` })
+  }
+
+  // The landing — route policies (refuse / rub) already carry their own
+  // wording in landingLabel; otherwise Galper's plain instruction.
+  if (sys.landingLabel) {
+    sounds.push({ id: "target", label: "Target", colorVar: "--n-target",
+      text: `${sys.landingLabel}${nextName ? ` — into ${nextName}` : ""}` })
+  } else if (landing && nextName) {
+    sounds.push({ id: "target", label: "Target", colorVar: "--n-target",
+      text: `land on ${landing} — the 3rd of ${nextName} — on beat 1, and rest-stroke it` })
+  }
+
+  if (sys.rubs?.length) {
+    const list = [...new Set(sys.rubs.map(([a, b]) => `${a}–${b}`))].join(", ")
+    sounds.push({ id: "rub", label: "Rub", colorVar: "--n-passing",
+      text: sys.route?.landingPolicy === "rub"
+        ? `${list} — the destination, not the detour: sit on ${sys.landingNote} and mean it`
+        : `${list} — passing color; touch it, don't sit on it` })
+  }
+
+  return sounds
 }
