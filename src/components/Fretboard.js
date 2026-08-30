@@ -54,7 +54,7 @@ export const FRETBOARD_FRETS = FRET_COUNT
 const MAX_ROUTE_FRETS   = 3
 const MAX_ROUTE_STRINGS = 1
 
-export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes = null, view = "chord", tuningName = "Standard", targetNotes = [], passingNotes = [], guideToneNotes = [], guideToneDirections = null, enclosureNotes = [], ghostNotes = [], seventhNotes = [], bridgeNotes = [], labelMode = "names", ghostRootNote = null, focusStart = null, focusSpan = 4, animate = false, barSeconds = 0, phaseKey = null, threeTwo = null, stretch = false }) {
+export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes = null, view = "chord", tuningName = "Standard", targetNotes = [], passingNotes = [], guideToneNotes = [], guideToneDirections = null, enclosureNotes = [], ghostNotes = [], seventhNotes = [], bridgeNotes = [], labelMode = "names", ghostRootNote = null, focusStart = null, focusSpan = 4, animate = false, barSeconds = 0, phaseKey = null, threeTwo = null, triadOverlay = null, stretch = false }) {
   // The "3:2 System" (src/lib/music/threeTwoSystem.js) takes the board over
   // completely when it's on and has something to show — it draws its own
   // dots instead of the usual chord/scale ones, so every other overlay
@@ -85,6 +85,15 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
   // is "chord tones to bounce around, scale tones to pass through", which
   // needs the two to read as two colors even in scale view.
   const chordSet   = new Set((chordNotes ?? []).map(n => norm(n)))
+  // The Triad System lens (src/lib/music/triadSystem.js): the two minor
+  // triads of the active pair, recolored inside the normal dot pipeline —
+  // NOT a board takeover like threeTwo. Which pitch classes get dots is
+  // still entirely scaleNotes' call (page.js passes the pool); these sets
+  // only recolor and resize the pair's tones, so every other overlay
+  // (targets, ghosts, routes, the focus window) keeps working on top.
+  // Null — the everyday case — changes nothing anywhere below.
+  const triadT1Set = new Set((triadOverlay?.t1Notes ?? []).map(n => norm(n)))
+  const triadT2Set = new Set((triadOverlay?.t2Notes ?? []).map(n => norm(n)))
   const root       = norm(rootNote)
 
   const strings     = TUNINGS[tuningName] || TUNINGS.Standard
@@ -163,6 +172,12 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
       // chord's own 3rd/7th. The lit guide-tone pair — 3rd and 7th alike —
       // is orange (--n-guide); size and the note label tell the two apart.
       const isSeventh = (isGuide || isTarget) && seventhSet.has(noteName)
+      // Triad-pair tones slot in just above the plain scale/chord fallback:
+      // the root stays red (the board's identity on every lens) and every
+      // connection overlay still outranks them — a landing target painted
+      // over an altered-pair tone is exactly the Galper rule made visible.
+      const isTriad1 = !isTarget && !isGuide && !isBridge && !isPassing && !isEnclosure && !isRoot && triadT1Set.has(noteName)
+      const isTriad2 = !isTriad1 && !isTarget && !isGuide && !isBridge && !isPassing && !isEnclosure && !isRoot && triadT2Set.has(noteName)
       const color = isTarget  ? "var(--n-target)"
                   : isSeventh ? "var(--n-seventh)"
                   : isGuide   ? "var(--n-guide)"
@@ -170,6 +185,8 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
                   : isPassing ? "var(--n-passing)"
                   : isEnclosure ? "var(--n-enclosure)"
                   : isRoot    ? "var(--n-root)"
+                  : isTriad1  ? "var(--n-triad1)"
+                  : isTriad2  ? "var(--n-triad2)"
                   : view === "scale" && !chordSet.has(noteName) ? "var(--n-scale)"
                   : chordToneColor(noteName)
       // Size carries the same ranking as colour, so the hierarchy survives in
@@ -178,7 +195,10 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
       // ranking stays as a second channel.) The bridge is deliberately the
       // smallest marked note on the board — a stepping stone, not a
       // destination.
-      const r = isGuide ? 11 : isTarget ? 10 : isBridge ? 7 : isEnclosure ? 8 : 8.5
+      // Triad tones sit a step above the backdrop's dots — same second
+      // channel the guide/target ranking uses, so the pair reads as the
+      // foreground even for someone who can't split the hues.
+      const r = isGuide ? 11 : isTarget ? 10 : isBridge ? 7 : isEnclosure ? 8 : (isTriad1 || isTriad2) ? 10 : 8.5
       // A guide tone the next chord also contains: nothing to move, so it gets
       // a ring rather than a route. "Stay put" is information worth drawing.
       const held = isGuide && ghostSet.has(noteName)

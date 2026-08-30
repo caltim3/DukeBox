@@ -41,6 +41,8 @@ import { STARTER_PRESETS, STARTER_STRIP, SCENARIO_CONFIG, LOAD_STARTER_EVENT } f
 import Fretboard, { fretPositions, FRETBOARD_FRETS } from "@/components/Fretboard"
 import { classifySongForm, getLevelDefs, resolvePentaChoice, buildPentaBoard, buildScaleBoard, buildScaleBoardFromNotes, PENTA_LEGEND, chordThird } from "@/lib/music/threeTwoSystem"
 import { PATHWAY_RUNGS, DEFAULT_PATHWAY_RUNG, resolvePathwayPlan } from "@/lib/music/pathways"
+import { resolveTriadSystem } from "@/lib/music/triadSystem"
+import { TRIAD_ROUTES, resolveTriadRoute } from "@/lib/music/triadRoutes"
 import PracticeTimer from "@/components/PracticeTimer"
 import GigBarStrip from "@/components/GigBarStrip"
 import { lineToTransportEvents } from "@/lib/music/lines"
@@ -295,6 +297,21 @@ export default function Home() {
   // the rung inside the engine itself.
   const [pathwaysMode, setPathwaysMode] = useState(false)
   const [pathwayRung, setPathwayRung] = useState(DEFAULT_PATHWAY_RUNG)
+  // The Triad System (src/lib/music/triadSystem.js) — two minor triads over
+  // a pentatonic backdrop, the pair picked per bar from the chart's own
+  // harmonic analysis. Another mutually-exclusive LENS alongside the filter
+  // row/3:2/Pathways; its pair ("auto" follows the progression — Altered on
+  // a resolving dominant, Inside on a static one) and backdrop slot (0 Home
+  // · 1 Fifth/Martino · 2 Color) are chart-global, resolved per quality.
+  const [triadSysMode, setTriadSysMode] = useState(false)
+  const [triadPairChoice, setTriadPairChoice] = useState("auto")
+  const [triadContextSlot, setTriadContextSlot] = useState(0)
+  // A curated route through the changes (src/lib/music/triadRoutes.js) —
+  // null (hand-pick via the two controls above), or a style id ("wes",
+  // "ribot") that resolves pair/backdrop/landing per bar from the chart's
+  // functional skeleton. Route beats the manual pair/slot while set; the
+  // manual controls show its per-bar choices and disable.
+  const [triadRoute, setTriadRoute] = useState(null)
   const [scaleFilter, setScaleFilter] = useState(null)  // null | "pentatonic" | "hexatonic" | "martino" | "hexchord" | "barry" | "harmonicMinor251"
   // "Altered" — independent of the nine-way PALETTE set above (like
   // +Bebop Chromatic, a modifier that sits alongside whichever PALETTE
@@ -667,6 +684,49 @@ export default function Home() {
     }
   }, [alteredOverlay, harmonicContext, fretboardBarIndex, fretboardBar])
 
+  // The Triad System lens, resolved for the bar the board is showing. The
+  // pair follows the progression via harmonicContext (the same hasCadence
+  // signal alteredMap and 3:2 Level 4 trust), so a blues stays Inside on its
+  // static I7/IV7 and turns Altered on the V that actually goes home, and a
+  // ii-V-I reads Dorian pair → Altered pair → Diatonic/Lydian pair with the
+  // backdrop slot held constant. Null when the lens is off OR the quality
+  // has no pair (dim7/NC) — the board then falls through to the normal
+  // pipeline, same graceful fallback as 3:2's "no shape for this chord".
+  const triadSys = useMemo(() => {
+    if (!triadSysMode) return null
+    // The next sounding bar, for the Galper landing hint ("land on the 3rd
+    // of what's coming"). Plain forward scan — anticipateBarIndex's
+    // loop-aware version is declared later in the file, and for a label the
+    // simple wrap is right virtually always.
+    let nextBar = null
+    for (let step = 1; step <= bars.length; step++) {
+      const b = bars[(fretboardBarIndex + step) % bars.length]
+      if (b && b.quality !== "NC") { nextBar = b; break }
+    }
+    // A route, when one is chosen, supplies the per-bar tuple the manual
+    // controls otherwise set — resolved from the bar's function against the
+    // chart's own key (chartKey is the key the bars are notated in).
+    const route = triadRoute
+      ? resolveTriadRoute({
+          bars, index: fretboardBarIndex,
+          ctxEntry: harmonicContext[fretboardBarIndex] || null,
+          tonicRoot: chartKey, routeId: triadRoute,
+        })
+      : null
+    const sys = resolveTriadSystem({
+      root: fretboardBar.userTonic ?? fretboardBar.root,
+      quality: fretboardBar.quality,
+      ctxEntry: harmonicContext[fretboardBarIndex] || null,
+      nextBar,
+      pairChoice: route ? route.pairChoice : triadPairChoice,
+      contextSlot: route ? route.contextSlot : triadContextSlot,
+      landingPolicy: route?.landingPolicy ?? "land",
+      soloTriad: route?.soloTriad ?? null,
+    })
+    return sys ? { ...sys, route } : null
+  }, [triadSysMode, bars, fretboardBar, fretboardBarIndex, harmonicContext, triadPairChoice, triadContextSlot, triadRoute, chartKey])
+  const triadSysActiveOnBoard = !!triadSys
+
   const fretboardScaleData = useMemo(() => {
     const tonic = fretboardBar.userTonic ?? fretboardBar.root
     if (fretboardBar.userScale) {
@@ -684,6 +744,14 @@ export default function Home() {
     // goes unused.)
     if (pathwaysActiveOnBoard && pathwayChoice.view === "scale") {
       return pathwayChoice.notes
+    }
+    // The Triad System: the board draws the whole pool (pair ∪ backdrop) —
+    // which of those are the pair is the triadOverlay prop's business, the
+    // color layer, not this note-selection one. Ahead of the alteredMap
+    // branches: Altered is inert under this lens (the pair already carries
+    // the altered story when the progression calls for it).
+    if (triadSysActiveOnBoard) {
+      return triadSys.poolNotes
     }
     // Martino mode: remap to display root/quality and apply hexatonic formula from that root.
     // The `applyScaleFilter("martino")` path also works, but using the mapper explicitly keeps
@@ -709,7 +777,7 @@ export default function Home() {
     // the "hexatonic" filter's minor-chord case — see applyScaleFilter's doc
     // comment — so it's harmless to always pass it through here.
     return applyScaleFilter(raw, tonic, fretboardBar.quality, scaleFilter, harmonicContext[fretboardBarIndex])
-  }, [fretboardScaleData, fretboardBar, fretboardBarIndex, harmonicContext, scaleFilter, martinoMap, alteredMap, pathwaysActiveOnBoard, pathwayChoice])
+  }, [fretboardScaleData, fretboardBar, fretboardBarIndex, harmonicContext, scaleFilter, martinoMap, alteredMap, pathwaysActiveOnBoard, pathwayChoice, triadSysActiveOnBoard, triadSys])
 
   // "Altered"'s Chord-view row: the tritone substitute's own chord tones
   // (root+6, same quality) rather than the melodic-minor color the Scale/
@@ -734,7 +802,10 @@ export default function Home() {
   // rule instead, which doesn't match a six-note scale the way it matches a
   // seven-note one — see docs/FRETBOARD_CHORD_SCALE_CONTROLS.md.)
   const bebopPassingNotes = useMemo(() => {
-    if (!bebopOverlay) return []
+    // Inert under the Triads lens (its switch is disabled there): the base
+    // it would decorate is the recommended scale, not the pair-and-backdrop
+    // pool actually on the board.
+    if (!bebopOverlay || triadSysActiveOnBoard) return []
     const effectiveRoot    = martinoMap ? martinoMap.displayRoot    : (fretboardBar.userTonic ?? fretboardBar.root)
     const effectiveQuality = martinoMap ? martinoMap.displayQuality : fretboardBar.quality
 
@@ -754,7 +825,7 @@ export default function Home() {
     const withBebop = applyScaleFilter(base, effectiveRoot, effectiveQuality, "bebop")
     const baseSet   = new Set(base)
     return withBebop.filter(n => !baseSet.has(n))
-  }, [bebopOverlay, fretboardScaleData, fretboardBar, fretboardBarIndex, harmonicContext, scaleFilter, martinoMap])
+  }, [bebopOverlay, fretboardScaleData, fretboardBar, fretboardBarIndex, harmonicContext, scaleFilter, martinoMap, triadSysActiveOnBoard])
 
   // One concept, three states. The board used to expose 7→3, Smooth, Melody,
   // 3rd Hunter, Enclosure and Anticipate as six separate switches you had to
@@ -808,7 +879,7 @@ export default function Home() {
     if (fretboardTuning !== "Standard") return
     setThreeTwoMode(v => {
       const next = !v
-      if (next) { setScaleFilter(null); setPathwaysMode(false) }
+      if (next) { setScaleFilter(null); setPathwaysMode(false); setTriadSysMode(false) }
       return next
     })
   }, [fretboardTuning])
@@ -823,6 +894,23 @@ export default function Home() {
       if (next) {
         setScaleFilter(null)
         setThreeTwoMode(false)
+        setTriadSysMode(false)
+        setFretboardView("scale")
+      }
+      return next
+    })
+  }, [])
+
+  // The Triad System's own on/off, sharing the LENS row's mutual-exclusion
+  // step (only one system draws the board) and landing in Scale view — a
+  // pair-over-backdrop story is a scale story, same reasoning as Pathways.
+  const toggleTriadSysMode = useCallback(() => {
+    setTriadSysMode(v => {
+      const next = !v
+      if (next) {
+        setScaleFilter(null)
+        setThreeTwoMode(false)
+        setPathwaysMode(false)
         setFretboardView("scale")
       }
       return next
@@ -907,6 +995,10 @@ export default function Home() {
     ? (threeTwoLevel === 0
         ? `3:2 System · Chord scales · ${threeTwoBoard.scaleName ?? ""}`
         : `3:2 System · ${threeTwoLevelDefs.find((lv) => lv.id === threeTwoLevel)?.name ?? `Level ${threeTwoLevel}`}${threeTwoChoice.why ? ` · ${threeTwoChoice.why}` : ""}`)
+    : triadSysActiveOnBoard
+    ? (triadSys.route
+        ? `Triads · ${triadSys.route.label} · ${triadSys.pair.label} — ${triadSys.pair.t1.root}m${triadSys.soloTriad === 1 ? " alone" : ` + ${triadSys.pair.t2.root}m`} over ${triadSys.context.short} · ${triadSys.route.styleNote}${triadSys.landingLabel ? ` · ${triadSys.landingLabel}` : ""}`
+        : `Triads · ${triadSys.pair.label}${triadPairChoice === "auto" ? " (auto)" : ""} — ${triadSys.pair.t1.root}m + ${triadSys.pair.t2.root}m over ${triadSys.context.short} · ${triadSys.why}`)
     : martinoMap
     ? `Martino → ${martinoMap.displayRoot}m${martinoMap.displayQuality === "min7b5" ? " (melodic)" : ""}`
     : (alteredMap && (scaleFilter == null || scaleFilter === "pentatonic"))
@@ -927,7 +1019,7 @@ export default function Home() {
     : (scaleFilter ?? fretboardScaleData[0]?.name ?? "")
   const scaleTonic = fretboardBar.userTonic ?? fretboardBar.root
   const scaleLabelFull = scaleLabel
-    ? (pathwaysActiveOnBoard || threeTwoActiveOnBoard || martinoMap || (alteredMap && (scaleFilter == null || scaleFilter === "pentatonic")) || scaleFilter === "hexchord" || scaleFilter === "barry" || scaleFilter === "harmonicMinor251" ? scaleLabel : `${scaleTonic} ${scaleLabel}`)
+    ? (pathwaysActiveOnBoard || threeTwoActiveOnBoard || triadSysActiveOnBoard || martinoMap || (alteredMap && (scaleFilter == null || scaleFilter === "pentatonic")) || scaleFilter === "hexchord" || scaleFilter === "barry" || scaleFilter === "harmonicMinor251" ? scaleLabel : `${scaleTonic} ${scaleLabel}`)
     : "—"
 
   // Anticipate — the next sounding bar, wrapping inside the loop range when
@@ -1764,6 +1856,7 @@ export default function Home() {
       setAlteredOverlay(!!scenario.altered)
       setThreeTwoMode(!!scenario.threeTwo)
       setPathwaysMode(false)   // scenarios predate Pathways; a stale rung would fight their setup
+      setTriadSysMode(false)   // same for the Triads lens — clean slate
       if (scenario.threeTwo) {
         setThreeTwoLevel(scenario.threeTwo.level)
         if (scenario.threeTwo.density) setThreeTwoDensity(scenario.threeTwo.density)
@@ -3365,7 +3458,7 @@ export default function Home() {
               </div>
               <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
                 <span className="db-fret-summary" style={{ font: "700 10.5px 'IBM Plex Mono', monospace", color: "var(--muted)", letterSpacing: "0.06em" }}>
-                  {fretboardView === "chord" ? "Chord" : "Scale"}{scaleFilter ? ` + ${scaleFilter}` : ""}
+                  {triadSysMode ? `Triads${triadRoute ? ` · ${TRIAD_ROUTES.find((r) => r.id === triadRoute)?.label ?? ""}` : ""}` : threeTwoMode ? "3:2" : pathwaysMode ? "Pathways" : fretboardView === "chord" ? "Chord" : "Scale"}{!triadSysMode && !threeTwoMode && !pathwaysMode && scaleFilter ? ` + ${scaleFilter}` : ""}
                   {bebopOverlay ? " · +Bebop" : ""}{guideMode === "voice" ? " · Voice Leading" : guideMode === "melody" ? " · Melody" : ""}
                   {" · "}{fretboardTuning}
                 </span>
@@ -3416,6 +3509,7 @@ export default function Home() {
             {openControlPanels.fretSettings && (() => {
               const tt = threeTwoMode
               const pw = pathwaysMode
+              const ts = triadSysMode
               const ttLive = threeTwoMode && fretboardTuning === "Standard"
               const colLabel = { font: "800 10px 'IBM Plex Mono', monospace", color: "var(--text)", letterSpacing: "0.14em", textTransform: "uppercase" }
               const colSub = { font: "500 10.5px 'Instrument Sans', sans-serif", color: "var(--muted)", letterSpacing: "0", textTransform: "none", marginLeft: "4px" }
@@ -3488,10 +3582,11 @@ export default function Home() {
                         setFretboardView(v)
                         setThreeTwoMode(false)
                         setPathwaysMode(false)
+                        setTriadSysMode(false)
                         setScaleFilter(null)
                       }}
-                        aria-pressed={fretboardView === v && !scaleFilter && !tt && !pw}
-                        style={chip(fretboardView === v && !scaleFilter && !tt && !pw)}>
+                        aria-pressed={fretboardView === v && !scaleFilter && !tt && !pw && !ts}
+                        style={chip(fretboardView === v && !scaleFilter && !tt && !pw && !ts)}>
                         {v === "chord" ? "Chord" : "Scale"}
                       </button>
                     ))}
@@ -3507,6 +3602,7 @@ export default function Home() {
                         // Turning a filter on implies you want to see the scale, not the chord
                         setThreeTwoMode(false)
                         setPathwaysMode(false)
+                        setTriadSysMode(false)
                         setScaleFilter(prev => {
                           const next = prev === f ? null : f
                           if (next) setFretboardView("scale")
@@ -3515,8 +3611,8 @@ export default function Home() {
                       }} title={f === "harmonicMinor251"
                         ? "One harmonic minor over the whole iiø7-V7alt-i — only this chord's own tones from that scale light up. Select a bar inside a minor ii-V-i for the shared tonic; elsewhere, this chord's own root stands in for it."
                         : undefined}
-                        aria-pressed={scaleFilter === f && !tt && !pw}
-                        style={chip(scaleFilter === f && !tt && !pw)}>
+                        aria-pressed={scaleFilter === f && !tt && !pw && !ts}
+                        style={chip(scaleFilter === f && !tt && !pw && !ts)}>
                         {label}
                       </button>
                     ))}
@@ -3544,6 +3640,15 @@ export default function Home() {
                       title="Scale Pathways — one ranked way through the whole chart, from foundational to colorful; the rung ladder appears below and by the Now readout"
                       style={chip(pw, "var(--n-target)")}>
                       Pathways
+                    </button>
+                    {/* The Triad System (src/lib/music/triadSystem.js) — its
+                        chip carries triad 1's rose, its identity on the board. */}
+                    <button
+                      onClick={toggleTriadSysMode}
+                      aria-pressed={ts}
+                      title="The Triad System — two minor triads over a pentatonic backdrop, the pair matched per bar to this song's changes (Altered on a resolving dominant, Inside on a static one); pair and backdrop controls appear below"
+                      style={chip(ts, "var(--n-triad1)")}>
+                      Triads
                     </button>
                   </div>
 
@@ -3626,16 +3731,89 @@ export default function Home() {
                     </div>
                   )}
 
+                  {/* The Triad System's own rail — Pair (Auto follows the
+                      progression; the manual chips are this bar's quality's
+                      own options, so the row relabels as the chart plays,
+                      the same way 3:2's Shape row relabels Dorian/
+                      Mixolydian) and Backdrop (three slots, resolved per
+                      quality — the choice survives quality changes). */}
+                  {ts && (
+                    triadSys ? (() => {
+                      // A route drives Pair/Backdrop per bar; the manual
+                      // segments then display its per-bar choices, disabled.
+                      const routed = !!triadSys.route
+                      const routedHint = "The route is choosing this per bar — set Route to Off to hand-pick"
+                      return (
+                      <div style={railStyle}>
+                        <span style={kStyle}>Route</span>
+                        <div style={segWrap}>
+                          <button onClick={() => setTriadRoute(null)} aria-pressed={!triadRoute}
+                            title="No route — hand-pick the pair and backdrop with the controls beside"
+                            style={segBtn(!triadRoute, "var(--n-triad1)")}>
+                            Off
+                          </button>
+                          {TRIAD_ROUTES.map((r) => (
+                            <button key={r.id} onClick={() => setTriadRoute(r.id)} aria-pressed={triadRoute === r.id}
+                              title={r.blurb}
+                              style={segBtn(triadRoute === r.id, "var(--n-triad1)")}>
+                              {r.label}
+                            </button>
+                          ))}
+                        </div>
+                        <span style={kStyle}>Pair</span>
+                        <div style={segWrap}>
+                          <button onClick={() => setTriadPairChoice("auto")} disabled={routed}
+                            aria-pressed={!routed && triadPairChoice === "auto"}
+                            title={routed ? routedHint : `Follow the progression — a resolving dominant gets the Altered pair, everything else its home pair. Here: ${triadSys.pairOptions.find((p) => p.id === triadSys.autoPair)?.label ?? triadSys.autoPair}`}
+                            style={segBtn(!routed && triadPairChoice === "auto", "var(--n-triad1)", routed)}>
+                            Auto
+                          </button>
+                          {triadSys.pairOptions.map((p) => (
+                            <button key={p.id} onClick={() => setTriadPairChoice(p.id)} disabled={routed}
+                              aria-pressed={routed ? triadSys.pair.id === p.id : triadPairChoice === p.id}
+                              title={routed ? routedHint : p.blurb}
+                              style={segBtn(routed ? triadSys.pair.id === p.id : triadPairChoice === p.id, "var(--n-triad1)", routed)}>
+                              {p.label}
+                            </button>
+                          ))}
+                        </div>
+                        <span style={kStyle}>Backdrop</span>
+                        <div style={segWrap}>
+                          {triadSys.contextOptions.map((c) => (
+                            <button key={c.slot} onClick={() => setTriadContextSlot(c.slot)} disabled={routed}
+                              aria-pressed={(routed ? triadSys.context.slot : triadContextSlot) === c.slot}
+                              title={routed ? routedHint : c.blurb}
+                              style={segBtn((routed ? triadSys.context.slot : triadContextSlot) === c.slot, "var(--n-triad2)", routed)}>
+                              {c.short}
+                            </button>
+                          ))}
+                        </div>
+                        <span style={{ ...noteStyle, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}
+                          title={routed ? `${triadSys.route.styleNote}${triadSys.landingLabel ? ` · ${triadSys.landingLabel}` : ""}` : triadSys.why}>
+                          {routed
+                            ? `${triadSys.route.styleNote}${triadSys.landingLabel ? ` · ${triadSys.landingLabel}` : ""}`
+                            : triadSys.why}
+                        </span>
+                      </div>
+                      )
+                    })() : (
+                      <span style={noteStyle}>no triad pair for this chord — symmetric or N.C.; the plain scale shows meanwhile</span>
+                    )
+                  )}
+
                   <div style={{ display: "flex", gap: "6px 18px", flexWrap: "wrap", alignItems: "center", marginTop: "2px" }}>
-                    {renderSwitch("altered", alteredOverlay, tt || pw,
+                    {renderSwitch("altered", alteredOverlay, tt || pw || ts,
                       "Altered",
                       tt ? "3:2 keeps its own rules — Altered doesn't apply"
                         : pw ? "Pathways handles alteration on the Color rung — Altered doesn't apply"
+                        : ts ? "Triads' Auto pair already goes Altered on a resolving dominant — this switch doesn't apply"
                         : "A functioning dominant reharmonizes: Chord shows its tritone sub, Scale/Pentatonic show the melodic minor a half step up. Hexatonic/Hex·Chord/Barry/Martino keep their own rules.",
                       () => setAlteredOverlay(v => !v))}
-                    {renderSwitch("bebop", bebopOverlay, scaleFilter === "barry",
+                    {renderSwitch("bebop", bebopOverlay, scaleFilter === "barry" || ts,
                       "Bebop chromatic",
-                      scaleFilter === "barry" ? "Barry 6th already carries its own passing tone" : "Adds the bebop passing tone",
+                      scaleFilter === "barry" ? "Barry 6th already carries its own passing tone"
+                        : ts ? "Triads' backdrop is the connective tissue — a bebop passing tone from the plain scale wouldn't describe this board"
+                        : "Adds the bebop passing tone",
                       () => setBebopOverlay(v => !v))}
                   </div>
                 </div>
@@ -4159,6 +4337,32 @@ export default function Home() {
                   <span style={{ color: "var(--n-next)" }}>○ {threeTwoLevel1ChordTones.join(" ")} · this chord&apos;s own notes, ghosted over the box</span>
                 )}
               </div>
+            ) : triadSysActiveOnBoard ? (
+              /* Triads lens: its own key, same pattern as 3:2's above — the
+                 usual 3rd&7th/5th/bebop entries would describe colors this
+                 board doesn't use. Root and the Voice Leading target keep
+                 their entries: both still paint (the target painting OVER a
+                 pair tone is the landing rule made visible). */
+              <div className="db-fret-legend" style={{ display: "flex", gap: "14px", flexWrap: "wrap", marginBottom: "12px", fontSize: "12px", color: "var(--muted)" }}>
+                <span><span style={{ color: "var(--n-root)" }}>●</span> Root</span>
+                {triadSys.soloTriad !== 2 && (
+                  <span><span style={{ color: "var(--n-triad1)" }}>●</span> {triadSys.pair.t1.root}m triad{triadSys.soloTriad === 1 ? " — alone, tres-style" : ""}</span>
+                )}
+                {triadSys.soloTriad !== 1 && (
+                  <span><span style={{ color: "var(--n-triad2)" }}>●</span> {triadSys.pair.t2.root}m triad{triadSys.soloTriad === 2 ? " — alone, tres-style" : ""}</span>
+                )}
+                <span><span style={{ color: "var(--n-scale)" }}>●</span> {triadSys.context.short} — connective tissue</span>
+                {triadSys.rubs.length > 0 && (
+                  <span style={{ fontStyle: "italic" }}>
+                    {triadSys.rubs.length} semitone rub{triadSys.rubs.length > 1 ? "s" : ""} ({[...new Set(triadSys.rubs.map(([a, b]) => `${a}–${b}`))].join(", ")}) — {
+                      triadSys.route?.landingPolicy === "rub" ? "the destination, not the detour" : "pass through, land on a guide tone"}
+                  </span>
+                )}
+                <span style={{ opacity: targetsOverlay ? 1 : 0.5 }}>
+                  <span style={{ color: guideMode === "melody" ? "var(--n-guide)" : "var(--n-target)" }}>●</span>{" "}
+                  {guideMode === "melody" ? "Melody note" : voicePathActive ? "Land here on beat 1" : "Upcoming target (next chord)"}
+                </span>
+              </div>
             ) : (
               <div className="db-fret-legend" style={{ display: "flex", gap: "14px", flexWrap: "wrap", marginBottom: "12px", fontSize: "12px", color: "var(--muted)" }}>
                 <span><span style={{ color: "var(--n-root)" }}>●</span> Root</span>
@@ -4205,6 +4409,11 @@ export default function Home() {
                   // a iiø's on the cadence target), and degrees should read
                   // from the collection actually drawn.
                   pathwaysActiveOnBoard ? (pathwayChoice.tonic ?? (fretboardBar.userTonic ?? fretboardBar.root))
+                  // Triads: always the chord's own root — the pool's degrees
+                  // are the guide's own reading (5·b7·9·13 / #9·#11·b7·b9…),
+                  // and they only read that way against the chord itself.
+                  // Ahead of alteredMap: that switch is inert under this lens.
+                  : triadSysActiveOnBoard ? (fretboardBar.userTonic ?? fretboardBar.root)
                   : martinoMap ? martinoMap.displayRoot
                   : !alteredMap ? (fretboardBar.userTonic ?? fretboardBar.root)
                   : (!scaleFilter && fretboardView === "chord") ? alteredMap.tritoneRoot
@@ -4253,6 +4462,14 @@ export default function Home() {
                   voiceLeadTarget: threeTwoVoiceLeadTarget,
                   voiceLeadChordTones: threeTwoLevel1ChordTones,
                 }}
+                triadOverlay={triadSysActiveOnBoard
+                  // soloTriad (a route's tres-style single-cell statement):
+                  // the muted triad's tones fall back to backdrop coloring.
+                  ? {
+                      t1Notes: triadSys.soloTriad === 2 ? [] : triadSys.pair.t1.notes,
+                      t2Notes: triadSys.soloTriad === 1 ? [] : triadSys.pair.t2.notes,
+                    }
+                  : null}
               />
             </div>
 

@@ -140,6 +140,14 @@
   --n-32-tension:#FBFAF6; --n-32-tension-stroke:#9AA0A6; --n-32-tension-text:#6B7075;
   --n-32-green:#5FE08C; /* the blue note: b3 of a minor pentatonic chased onto a dominant chord's own root */
 
+  /* The Triad System lens (src/lib/music/triadSystem.js) — the two minor
+     triads of the active pair, drawn as foreground over the backdrop
+     pentatonic's ordinary --n-scale green. Rose for triad 1, steel blue for
+     triad 2: both clear of the board's red/orange/gold chord roles and of
+     the plum "next chord" family, so the pair never masquerades as either. */
+  --n-triad1:#B03A6B;
+  --n-triad2:#3E7CB1;
+
   /* Melody Paths — always dark navy */
   --mp-bg:#0F172A; --mp-surface:#1E293B; --mp-line:#334155;
   --mp-text:#E2E8F0; --mp-muted:#94A3B8; --mp-hdr-accent:#F8FAFC;
