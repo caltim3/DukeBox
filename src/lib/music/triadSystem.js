@@ -1,7 +1,8 @@
-// The Triad System — one repeatable improvisation method for every chord
-// quality: a pair of minor triads (the harmony) played over a governing
-// pentatonic backdrop (the connective tissue), with the pair chosen per bar
-// from the chart's own harmonic analysis.
+// The Triad System — shown to the player as "Skeleton Key" (one shape that
+// opens every chord quality) — one repeatable improvisation method for
+// every chord quality: a pair of minor triads (the harmony) played over a
+// governing pentatonic backdrop (the connective tissue), with the pair
+// chosen per bar from the chart's own harmonic analysis.
 //
 // Source doctrine: the "Triad System v0.9" interactive guide (Vincent's
 // cells, Galper's landing rule, Martino's minor conversion). The guide only
@@ -25,6 +26,12 @@
 // bar/pair/slot is asked about.
 
 import { noteAtSemitones } from "@/lib/music/tonal"
+
+// The one public display name for this lens — every UI string page.js
+// builds for it reads off this constant, so the name only lives in one
+// place. Internal identifiers (triadSys, resolveTriadSystem, the module's
+// own filename) stay as they are; this is branding, not a rename.
+export const SKELETON_KEY_LABEL = "Skeleton Key"
 
 const MAJOR_PENT = [0, 2, 4, 7, 9]
 const MINOR_PENT = [0, 3, 5, 7, 10]
