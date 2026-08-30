@@ -41,7 +41,7 @@ import { STARTER_PRESETS, STARTER_STRIP, SCENARIO_CONFIG, LOAD_STARTER_EVENT } f
 import Fretboard, { fretPositions, FRETBOARD_FRETS } from "@/components/Fretboard"
 import { classifySongForm, getLevelDefs, resolvePentaChoice, buildPentaBoard, buildScaleBoard, buildScaleBoardFromNotes, PENTA_LEGEND, chordThird } from "@/lib/music/threeTwoSystem"
 import { PATHWAY_RUNGS, DEFAULT_PATHWAY_RUNG, resolvePathwayPlan } from "@/lib/music/pathways"
-import { resolveTriadSystem, buildTriadSounds } from "@/lib/music/triadSystem"
+import { resolveTriadSystem, buildTriadSounds, SKELETON_KEY_LABEL } from "@/lib/music/triadSystem"
 import { TRIAD_ROUTES, resolveTriadRoute } from "@/lib/music/triadRoutes"
 import PracticeTimer from "@/components/PracticeTimer"
 import GigBarStrip from "@/components/GigBarStrip"
@@ -297,12 +297,13 @@ export default function Home() {
   // the rung inside the engine itself.
   const [pathwaysMode, setPathwaysMode] = useState(false)
   const [pathwayRung, setPathwayRung] = useState(DEFAULT_PATHWAY_RUNG)
-  // The Triad System (src/lib/music/triadSystem.js) — two minor triads over
-  // a pentatonic backdrop, the pair picked per bar from the chart's own
-  // harmonic analysis. Another mutually-exclusive LENS alongside the filter
-  // row/3:2/Pathways; its pair ("auto" follows the progression — Altered on
-  // a resolving dominant, Inside on a static one) and backdrop slot (0 Home
-  // · 1 Fifth/Martino · 2 Color) are chart-global, resolved per quality.
+  // Skeleton Key (src/lib/music/triadSystem.js — SKELETON_KEY_LABEL) — two
+  // minor triads over a pentatonic backdrop, the pair picked per bar from
+  // the chart's own harmonic analysis. Another mutually-exclusive LENS
+  // alongside the filter row/3:2/Pathways; its pair ("auto" follows the
+  // progression — Altered on a resolving dominant, Inside on a static one)
+  // and backdrop slot (0 Home · 1 Fifth/Martino · 2 Color) are chart-global,
+  // resolved per quality.
   const [triadSysMode, setTriadSysMode] = useState(false)
   const [triadPairChoice, setTriadPairChoice] = useState("auto")
   const [triadContextSlot, setTriadContextSlot] = useState(0)
@@ -688,7 +689,7 @@ export default function Home() {
     }
   }, [alteredOverlay, harmonicContext, fretboardBarIndex, fretboardBar])
 
-  // The Triad System lens, resolved for the bar the board is showing. The
+  // The Skeleton Key lens, resolved for the bar the board is showing. The
   // pair follows the progression via harmonicContext (the same hasCadence
   // signal alteredMap and 3:2 Level 4 trust), so a blues stays Inside on its
   // static I7/IV7 and turns Altered on the V that actually goes home, and a
@@ -760,7 +761,7 @@ export default function Home() {
     if (pathwaysActiveOnBoard && pathwayChoice.view === "scale") {
       return pathwayChoice.notes
     }
-    // The Triad System: the board draws the whole pool (pair ∪ backdrop) —
+    // Skeleton Key: the board draws the whole pool (pair ∪ backdrop) —
     // which of those are the pair is the triadOverlay prop's business, the
     // color layer, not this note-selection one. Ahead of the alteredMap
     // branches: Altered is inert under this lens (the pair already carries
@@ -817,7 +818,7 @@ export default function Home() {
   // rule instead, which doesn't match a six-note scale the way it matches a
   // seven-note one — see docs/FRETBOARD_CHORD_SCALE_CONTROLS.md.)
   const bebopPassingNotes = useMemo(() => {
-    // Inert under the Triads lens (its switch is disabled there): the base
+    // Inert under the Skeleton Key lens (its switch is disabled there): the base
     // it would decorate is the recommended scale, not the pair-and-backdrop
     // pool actually on the board.
     if (!bebopOverlay || triadSysActiveOnBoard) return []
@@ -916,7 +917,7 @@ export default function Home() {
     })
   }, [])
 
-  // The Triad System's own on/off, sharing the LENS row's mutual-exclusion
+  // Skeleton Key's own on/off, sharing the LENS row's mutual-exclusion
   // step (only one system draws the board) and landing in Scale view — a
   // pair-over-backdrop story is a scale story, same reasoning as Pathways.
   const toggleTriadSysMode = useCallback(() => {
@@ -1012,8 +1013,8 @@ export default function Home() {
         : `3:2 System · ${threeTwoLevelDefs.find((lv) => lv.id === threeTwoLevel)?.name ?? `Level ${threeTwoLevel}`}${threeTwoChoice.why ? ` · ${threeTwoChoice.why}` : ""}`)
     : triadSysActiveOnBoard
     ? (triadSys.route
-        ? `Triads · ${triadSys.route.label} · ${triadSys.pair.label} — ${triadSys.pair.t1.root}m${triadSys.soloTriad === 1 ? " alone" : ` + ${triadSys.pair.t2.root}m`} over ${triadSys.context.short} · ${triadSys.route.styleNote}${triadSys.landingLabel ? ` · ${triadSys.landingLabel}` : ""}`
-        : `Triads · ${triadSys.pair.label}${triadPairChoice === "auto" ? " (auto)" : ""} — ${triadSys.pair.t1.root}m + ${triadSys.pair.t2.root}m over ${triadSys.context.short} · ${triadSys.why}`)
+        ? `${SKELETON_KEY_LABEL} · ${triadSys.route.label} · ${triadSys.pair.label} — ${triadSys.pair.t1.root}m${triadSys.soloTriad === 1 ? " alone" : ` + ${triadSys.pair.t2.root}m`} over ${triadSys.context.short} · ${triadSys.route.styleNote}${triadSys.landingLabel ? ` · ${triadSys.landingLabel}` : ""}`
+        : `${SKELETON_KEY_LABEL} · ${triadSys.pair.label}${triadPairChoice === "auto" ? " (auto)" : ""} — ${triadSys.pair.t1.root}m + ${triadSys.pair.t2.root}m over ${triadSys.context.short} · ${triadSys.why}`)
     : martinoMap
     ? `Martino → ${martinoMap.displayRoot}m${martinoMap.displayQuality === "min7b5" ? " (melodic)" : ""}`
     : (alteredMap && (scaleFilter == null || scaleFilter === "pentatonic"))
@@ -1871,7 +1872,7 @@ export default function Home() {
       setAlteredOverlay(!!scenario.altered)
       setThreeTwoMode(!!scenario.threeTwo)
       setPathwaysMode(false)   // scenarios predate Pathways; a stale rung would fight their setup
-      setTriadSysMode(false)   // same for the Triads lens — clean slate
+      setTriadSysMode(false)   // same for the Skeleton Key lens — clean slate
       if (scenario.threeTwo) {
         setThreeTwoLevel(scenario.threeTwo.level)
         if (scenario.threeTwo.density) setThreeTwoDensity(scenario.threeTwo.density)
@@ -3473,7 +3474,7 @@ export default function Home() {
               </div>
               <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
                 <span className="db-fret-summary" style={{ font: "700 10.5px 'IBM Plex Mono', monospace", color: "var(--muted)", letterSpacing: "0.06em" }}>
-                  {triadSysMode ? `Triads${triadRoute ? ` · ${TRIAD_ROUTES.find((r) => r.id === triadRoute)?.label ?? ""}` : ""}` : threeTwoMode ? "3:2" : pathwaysMode ? "Pathways" : fretboardView === "chord" ? "Chord" : "Scale"}{!triadSysMode && !threeTwoMode && !pathwaysMode && scaleFilter ? ` + ${scaleFilter}` : ""}
+                  {triadSysMode ? `${SKELETON_KEY_LABEL}${triadRoute ? ` · ${TRIAD_ROUTES.find((r) => r.id === triadRoute)?.label ?? ""}` : ""}` : threeTwoMode ? "3:2" : pathwaysMode ? "Pathways" : fretboardView === "chord" ? "Chord" : "Scale"}{!triadSysMode && !threeTwoMode && !pathwaysMode && scaleFilter ? ` + ${scaleFilter}` : ""}
                   {bebopOverlay ? " · +Bebop" : ""}{guideMode === "voice" ? " · Voice Leading" : guideMode === "melody" ? " · Melody" : ""}
                   {" · "}{fretboardTuning}
                 </span>
@@ -3656,14 +3657,15 @@ export default function Home() {
                       style={chip(pw, "var(--n-target)")}>
                       Pathways
                     </button>
-                    {/* The Triad System (src/lib/music/triadSystem.js) — its
-                        chip carries triad 1's rose, its identity on the board. */}
+                    {/* Skeleton Key (src/lib/music/triadSystem.js —
+                        SKELETON_KEY_LABEL) — its chip carries triad 1's
+                        rose, its identity on the board. */}
                     <button
                       onClick={toggleTriadSysMode}
                       aria-pressed={ts}
-                      title="The Triad System — two minor triads over a pentatonic backdrop, the pair matched per bar to this song's changes (Altered on a resolving dominant, Inside on a static one); pair and backdrop controls appear below"
+                      title={`${SKELETON_KEY_LABEL} — one shape unlocks every chord: two minor triads over a pentatonic backdrop, the pair matched per bar to this song's changes (Altered on a resolving dominant, Inside on a static one); pair and backdrop controls appear below`}
                       style={chip(ts, "var(--n-triad1)")}>
-                      Triads
+                      {SKELETON_KEY_LABEL}
                     </button>
                   </div>
 
@@ -3746,7 +3748,7 @@ export default function Home() {
                     </div>
                   )}
 
-                  {/* The Triad System's own rail — Pair (Auto follows the
+                  {/* Skeleton Key's own rail — Pair (Auto follows the
                       progression; the manual chips are this bar's quality's
                       own options, so the row relabels as the chart plays,
                       the same way 3:2's Shape row relabels Dorian/
@@ -3821,13 +3823,13 @@ export default function Home() {
                       "Altered",
                       tt ? "3:2 keeps its own rules — Altered doesn't apply"
                         : pw ? "Pathways handles alteration on the Color rung — Altered doesn't apply"
-                        : ts ? "Triads' Auto pair already goes Altered on a resolving dominant — this switch doesn't apply"
+                        : ts ? `${SKELETON_KEY_LABEL}'s Auto pair already goes Altered on a resolving dominant — this switch doesn't apply`
                         : "A functioning dominant reharmonizes: Chord shows its tritone sub, Scale/Pentatonic show the melodic minor a half step up. Hexatonic/Hex·Chord/Barry/Martino keep their own rules.",
                       () => setAlteredOverlay(v => !v))}
                     {renderSwitch("bebop", bebopOverlay, scaleFilter === "barry" || ts,
                       "Bebop chromatic",
                       scaleFilter === "barry" ? "Barry 6th already carries its own passing tone"
-                        : ts ? "Triads' backdrop is the connective tissue — a bebop passing tone from the plain scale wouldn't describe this board"
+                        : ts ? `${SKELETON_KEY_LABEL}'s backdrop is the connective tissue — a bebop passing tone from the plain scale wouldn't describe this board`
                         : "Adds the bebop passing tone",
                       () => setBebopOverlay(v => !v))}
                   </div>
@@ -4360,7 +4362,7 @@ export default function Home() {
                 )}
               </div>
             ) : triadSysActiveOnBoard ? (
-              /* Triads lens: its own key, same pattern as 3:2's above — the
+              /* Skeleton Key lens: its own key, same pattern as 3:2's above — the
                  usual 3rd&7th/5th/bebop entries would describe colors this
                  board doesn't use. Root and the Voice Leading target keep
                  their entries: both still paint (the target painting OVER a
@@ -4413,7 +4415,7 @@ export default function Home() {
               </div>
             )}
 
-            {/* SOUNDS — the Triads lens's per-bar palette: which arpeggio for
+            {/* SOUNDS — the Skeleton Key lens's per-bar palette: which arpeggio for
                 the inside sound, which for color, the outside move and where
                 it must land, the target into the next chord, how to treat the
                 rubs. Prose from buildTriadSounds, dot colors matching the
@@ -4470,7 +4472,7 @@ export default function Home() {
                   // a iiø's on the cadence target), and degrees should read
                   // from the collection actually drawn.
                   pathwaysActiveOnBoard ? (pathwayChoice.tonic ?? (fretboardBar.userTonic ?? fretboardBar.root))
-                  // Triads: always the chord's own root — the pool's degrees
+                  // Skeleton Key: always the chord's own root — the pool's degrees
                   // are the guide's own reading (5·b7·9·13 / #9·#11·b7·b9…),
                   // and they only read that way against the chord itself.
                   // Ahead of alteredMap: that switch is inert under this lens.

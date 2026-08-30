@@ -1,5 +1,5 @@
-// Triad System routes — curated, named ways through a progression for the
-// Triads lens (src/lib/music/triadSystem.js). A route is a schedule of
+// Skeleton Key routes — curated, named ways through a progression for the
+// Skeleton Key lens (src/lib/music/triadSystem.js). A route is a schedule of
 // (pair, backdrop slot, landing policy) over the chart's functional
 // skeleton: the same per-bar tuple the lens's manual controls set, resolved
 // automatically from each bar's role instead. "Wes" obeys the system's
