@@ -3579,7 +3579,7 @@ export default function Home() {
                 background: "var(--surface2)", border: "1px solid var(--line)", borderRadius: "10px", overflow: "hidden",
               }}>
                 <style>{`
-                  .db-fs-col { padding: 10px 14px 12px; display: flex; flex-direction: column; gap: 8px; min-width: 0; border-left: 1px solid var(--line); }
+                  .db-fs-col { padding: 12px 18px 14px; display: flex; flex-direction: column; gap: 9px; min-width: 0; border-left: 1px solid var(--line); }
                   .db-fs-col:first-child { border-left: none; }
                   @media (max-width: 860px) {
                     .db-fret-settings { grid-template-columns: 1fr !important; }
@@ -3962,7 +3962,7 @@ export default function Home() {
                 one line there, the way you'd want it held sideways. */}
             <div ref={focusStage ? focusTopbarRef : null} className={focusStage ? "db-focus-topbar db-focus-now" : undefined} style={{
               display: "flex", alignItems: "stretch", justifyContent: "center",
-              gap: "10px", flexWrap: "wrap", marginBottom: "10px",
+              gap: "14px", flexWrap: "wrap", marginBottom: "10px",
             }}>
               {timerState && (() => {
                 const { seconds, running, done, duration } = timerState
@@ -4139,9 +4139,9 @@ export default function Home() {
               {pathwaysMode && (
                 <div className="db-focus-pathway" style={{
                   background: "var(--surface)", border: "1px solid var(--n-target)",
-                  borderRadius: "var(--db-r-md)", padding: "8px 12px",
+                  borderRadius: "var(--db-r-md)", padding: "8px 14px",
                   display: "flex", flexDirection: "column", justifyContent: "center",
-                  gap: "6px", minWidth: 0, flexShrink: 0, maxWidth: "300px",
+                  gap: "6px", minWidth: 0, flexShrink: 0, flexGrow: 1, flexBasis: "260px", maxWidth: "440px",
                 }}>
                   <div style={{ font: "800 9.5px 'Archivo', sans-serif", letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--n-target)" }}>
                     Pathway
@@ -4161,9 +4161,16 @@ export default function Home() {
                     ))}
                   </div>
                   {pathwayChoice?.why && (
+                    // Two lines rather than one truncated one — most of the
+                    // engine's own "why" sentences (pathways.js) run 60-90
+                    // characters and were getting cut off at the old 300px/
+                    // one-line cap. The box is wide enough now that this
+                    // rarely clips; title carries the full text regardless.
                     <div title={pathwayChoice.why} style={{
                       font: "600 10px 'Instrument Sans', sans-serif", color: "var(--muted)",
-                      fontStyle: "italic", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                      fontStyle: "italic", lineHeight: 1.35,
+                      display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical",
+                      overflow: "hidden", textOverflow: "ellipsis",
                     }}>
                       {pathwayChoice.why}
                     </div>
