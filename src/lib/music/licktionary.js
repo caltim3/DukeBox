@@ -323,10 +323,12 @@ export function transposeLine(line, fromKey = "C", toKey = "C") {
     bars: (line?.bars || []).map((bar) => ({
       ...bar,
       c: String(bar.c || "").split(/\s+/).map((chord) => transposeChord(chord, semitones)).join(" "),
-      n: (bar.n || []).map(([s, f, beats, wait = 0]) => {
+      n: (bar.n || []).map(([s, f, beats, wait = 0, ...rest]) => {
         const midi = (OPEN_MIDI[s] ?? 64) + Number(f || 0) + semitones
         const [nextS, nextF] = guitarPosition(midi)
-        return [nextS, nextF, beats, wait]
+        // ...rest preserves optional trailing fields (velocity etc.) so a
+        // transposed improviser line keeps its dynamics.
+        return [nextS, nextF, beats, wait, ...rest]
       }),
     })),
   }
@@ -426,7 +428,9 @@ export function refingerLine(line, positionFret, span = 5) {
   const bars = (line?.bars || []).map((bar) => ({ ...bar, n: (bar.n || []).map((note) => [...note]) }))
   events.forEach((event, index) => {
     const old = bars[event.barIndex].n[event.noteIndex]
-    bars[event.barIndex].n[event.noteIndex] = [path[index].s, path[index].fret, old[2], old[3] || 0]
+    // Keep optional trailing fields (velocity etc.) beyond the four the
+    // refingering itself touches.
+    bars[event.barIndex].n[event.noteIndex] = [path[index].s, path[index].fret, old[2], old[3] || 0, ...old.slice(4)]
   })
 
   return {

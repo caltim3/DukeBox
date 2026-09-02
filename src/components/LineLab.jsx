@@ -38,6 +38,7 @@ import { setLastLine, getLastLine, RESUME_LAST_LINE_EVENT } from "@/lib/music/la
 import { logActivity } from "@/lib/recentActivity"
 import { PM_PROGRESSIONS, transposeProgression, runGenerator } from "@/lib/music/phraseEngine"
 import { phraseResultToLine } from "@/lib/music/phraseAdapter"
+import { improvise, IMPROV_PROFILES } from "@/lib/music/improviser"
 
 const DEVICES = [
   "Chromatics", "Bebop scale", "Enclosures", "Altered",
@@ -132,6 +133,10 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
   const isLicktionary = source === "licktionary"
   const isChart = source === "chart"
   const isPhraseMachine = source === "phrase"
+  const isImprov = source === "improviser"
+  // Improviser and Chart share the same sheet + bar-picker UI and the same
+  // band-playback slicing; this flag gates everything they have in common.
+  const usesChartSheet = isChart || isImprov
   const [lickKey, setLickKey] = useState("C")
   // Defaults into the "middle of the barrel" — frets 3-7, away from the open
   // strings and the dusty end alike — instead of whatever guitarPosition()'s
@@ -171,6 +176,16 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
   const [progression, setProgression] = useState("major_251_martino")
   const [netPosition, setNetPosition] = useState("5th position (frets 3-8)")
   const [openDoc, setOpenDoc] = useState(null)
+
+  // ── Improviser controls ── local rule-based generation over the chart
+  // selection (src/lib/music/improviser). Style + sliders are one mechanism:
+  // a profile is a point in the weight space, the sliders move it. Seed is
+  // kept so "Same seed" can prove determinism / replay a keeper.
+  const [imStyle, setImStyle] = useState("bebop")
+  const [imSpace, setImSpace] = useState(35)        // 0-100, → controls.space
+  const [imAltered, setImAltered] = useState(25)    // 0-100, → controls.altered
+  const [imIntensity, setImIntensity] = useState(60)// 0-100, → controls.intensity
+  const [imSeed, setImSeed] = useState(null)
 
   // ── Phrase Machine controls ── its own self-contained progression/key
   // preset (like Network above), plus the tree-builder's own formula and
@@ -254,10 +269,10 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
   const bars = isLicktionary ? (lickLine?.bars || []).map((bar) => bar.c) : isNetwork ? netChords : isPhraseMachine ? pmBars : chartChords
 
   useEffect(() => {
-    if (!isChart) return
+    if (!usesChartSheet) return
     setSelStart(0)
     setSelEnd(Math.min(3, Math.max(0, chartChords.length - 1)))
-  }, [sheet, chartChords.length, isChart])
+  }, [sheet, chartChords.length, usesChartSheet])
 
   // A new section — or a new source — invalidates every cached level
   useEffect(() => {
@@ -310,8 +325,10 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
       ? `${TN_CHORD_TYPES[chordType]?.label || chordType} — ${TN_PROGRESSIONS[progression]?.label || progression}`
       : isPhraseMachine
       ? `Phrase Machine — ${PM_PROGRESSIONS[pmProgType]?.label || pmProgType}`
+      : isImprov
+      ? `Improviser — ${chartTitle && chartTitle !== "Custom" ? chartTitle : "Line Lab"}`
       : (chartTitle && chartTitle !== "Custom" ? chartTitle : "Line Lab")
-    const context = isChart ? `Bars ${selStart + 1}–${selEnd + 1}` : isPhraseMachine ? pmKey : null
+    const context = usesChartSheet ? `Bars ${selStart + 1}–${selEnd + 1}` : isPhraseMachine ? pmKey : null
     setLastLine({ line: workingResult, label, context, keyRoot: resultTransposeKey || resultBaseKey })
     logActivity({
       label,
@@ -378,7 +395,7 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
   }, [workingResult])
 
   function clickBar(i) {
-    if (!isChart) return
+    if (!usesChartSheet) return
     if (selStart === selEnd && i > selStart) setSelEnd(i)
     else { setSelStart(i); setSelEnd(i) }
   }
@@ -579,6 +596,35 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
     setLoading(false)
   }
 
+  // Runs the rule-based improviser directly — no network round trip. A
+  // fresh seed each press unless `reuseSeed` (the "Same seed" button, which
+  // proves determinism: identical chart + style + sliders + seed replays
+  // the identical line).
+  function runImproviser(reuseSeed = false) {
+    const measures = chartChords.slice(selStart, Math.min(selEnd + 1, selStart + 8))
+    if (!measures.length) return
+    const seed = reuseSeed && imSeed != null ? imSeed : Math.floor(Math.random() * 0xffffff)
+    try {
+      const { line } = improvise({
+        measures,
+        profileId: imStyle,
+        controls: { space: imSpace / 100, altered: imAltered / 100, intensity: imIntensity / 100 },
+        seed,
+      })
+      if (!line?.bars?.some((bar) => bar.n?.length)) {
+        setError("Couldn't hear any changes in those bars — check the chord symbols.")
+        return
+      }
+      stopLine()
+      setError(null)
+      setImSeed(seed)
+      setResult(line)
+      setExported(false)
+    } catch (e) {
+      setError(e.message || "Couldn't improvise over those bars.")
+    }
+  }
+
   // Runs the block-grammar generator directly — no network round trip.
   // Appends a landing block to a COPY of the formula for generation only
   // (same as the prototype's doGenerate) if the tree hasn't ended on one
@@ -628,7 +674,7 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
       : isPhraseMachine
       ? `${PM_PROGRESSIONS[pmProgType].label} in ${pmKey} (Phrase Machine)`
       : (chartTitle && chartTitle !== "Custom" ? chartTitle : "Line Lab")
-    const ok = exportLineMusicXML({ line: workingResult, title, tempo, level: (isLicktionary || isPhraseMachine) ? null : level })
+    const ok = exportLineMusicXML({ line: workingResult, title, tempo, level: (isLicktionary || isPhraseMachine || isImprov) ? null : level })
     setExported(ok)
   }
 
@@ -636,14 +682,17 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
     if (!result || !onSaveLick) return
     const suggested = isPhraseMachine
       ? `Phrase Machine — ${PM_PROGRESSIONS[pmProgType].label} in ${pmKey}`
+      : isImprov
+      ? `Improviser — ${chartTitle && chartTitle !== "Custom" ? chartTitle : "Line Lab"} bars ${selStart + 1}–${selEnd + 1}`
       : `${chartTitle && chartTitle !== "Custom" ? chartTitle : "Line Lab"} L${level}`
     const name = window.prompt("Name this lick:", suggested)?.trim()
     if (!name) return
     onSaveLick({
       name, line: workingResult, baseKey: null, mode: "custom",
-      device: isPhraseMachine ? "Phrase Machine" : Array.from(devices).join(" · "),
-      cue: isPhraseMachine ? (result.s || "Saved from Phrase Machine") : (extra || result.s || "Saved from Line Lab"),
+      device: isPhraseMachine ? "Phrase Machine" : isImprov ? `Improviser · ${IMPROV_PROFILES[imStyle]?.label || imStyle}` : Array.from(devices).join(" · "),
+      cue: (isPhraseMachine || isImprov) ? (result.s || "Saved from Line Lab") : (extra || result.s || "Saved from Line Lab"),
       phraseMachine: isPhraseMachine ? pmLastGen : undefined,
+      improviser: isImprov ? { profileId: imStyle, space: imSpace, altered: imAltered, intensity: imIntensity, seed: imSeed, bars: [selStart, selEnd] } : undefined,
     })
   }
 
@@ -670,7 +719,7 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
       <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "4px", flexWrap: "wrap" }}>
         <div style={{ ...eyebrowStyle, marginBottom: 0 }}>LINE LAB</div>
         <div style={{ fontSize: "var(--db-fs-sm)", opacity: 0.62 }}>
-              Improvised single-note lines — as notation + TAB, with per-bar reasoning, over your chart, the triad network, or a Phrase Machine formula
+              Improvised single-note lines — as notation + TAB, with per-bar reasoning, over your chart, the triad network, a Phrase Machine formula, or the rule-based Improviser
         </div>
       </div>
 
@@ -687,6 +736,9 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
         </button>
         <button onClick={() => setSource("phrase")} aria-pressed={isPhraseMachine} style={chip(isPhraseMachine)}>
           Phrase Machine
+        </button>
+        <button onClick={() => setSource("improviser")} aria-pressed={isImprov} style={chip(isImprov)}>
+          Improviser
         </button>
       </div>
 
@@ -727,8 +779,8 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
         </div>
       </details>
 
-      {/* ── Chart source: lead sheet + bar picker ── */}
-      {isChart && (
+      {/* ── Chart + Improviser sources: lead sheet + bar picker ── */}
+      {usesChartSheet && (
         <>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: "14px" }}>
             <label style={{ fontSize: "var(--db-fs-sm)", color: "var(--db-accent)" }} htmlFor="ll-sheet">Changes</label>
@@ -868,7 +920,7 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
       {/* Bars — clickable in Chart mode, the preset section otherwise */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
         {bars.map((b, i) => {
-          const inSel = !isChart ? true : (i >= selStart && i <= selEnd)
+          const inSel = !usesChartSheet ? true : (i >= selStart && i <= selEnd)
           const isNow = currentNote?.bi === i
           return (
             <button
@@ -877,7 +929,7 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
               aria-pressed={inSel}
               style={{
                 padding: "6px 10px", borderRadius: "var(--db-r-md)", fontSize: "var(--db-fs-sm)",
-                cursor: isChart ? "pointer" : "default",
+                cursor: usesChartSheet ? "pointer" : "default",
                 fontFamily: "var(--font-mono, monospace)",
                 border: `1px solid ${isNow ? "var(--db-c-green, var(--db-accent))" : inSel ? "var(--db-accent)" : "var(--db-card-border)"}`,
                 background: isNow
@@ -892,8 +944,74 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
         })}
       </div>
 
+      {/* ── Improviser source: style + sliders over the rule engine ── */}
+      {isImprov && (
+        <div style={{ marginTop: "16px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: "14px" }}>
+            <label style={{ fontSize: "var(--db-fs-xs)", opacity: 0.7 }}>Style
+              <select value={imStyle} onChange={(e) => setImStyle(e.target.value)} style={{ ...selectStyle, width: "100%", marginTop: "4px" }}>
+                {Object.values(IMPROV_PROFILES).map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+              </select>
+            </label>
+            <label style={{ fontSize: "var(--db-fs-xs)", opacity: 0.7 }} htmlFor="im-space">
+              Space — {imSpace}%
+              <input
+                id="im-space" type="range" min="0" max="100" step="5" value={imSpace}
+                onChange={(e) => setImSpace(Number(e.target.value))}
+                style={{ width: "100%", marginTop: "8px", accentColor: "var(--db-accent)" }}
+              />
+              <span style={{ display: "flex", justifyContent: "space-between", opacity: 0.6 }}><span>dense</span><span>breathing</span></span>
+            </label>
+            <label style={{ fontSize: "var(--db-fs-xs)", opacity: 0.7 }} htmlFor="im-altered">
+              Harmony — {imAltered}%
+              <input
+                id="im-altered" type="range" min="0" max="100" step="5" value={imAltered}
+                onChange={(e) => setImAltered(Number(e.target.value))}
+                style={{ width: "100%", marginTop: "8px", accentColor: "var(--db-accent)" }}
+              />
+              <span style={{ display: "flex", justifyContent: "space-between", opacity: 0.6 }}><span>diatonic</span><span>altered</span></span>
+            </label>
+            <label style={{ fontSize: "var(--db-fs-xs)", opacity: 0.7 }} htmlFor="im-intensity">
+              Intensity — {imIntensity}%
+              <input
+                id="im-intensity" type="range" min="0" max="100" step="5" value={imIntensity}
+                onChange={(e) => setImIntensity(Number(e.target.value))}
+                style={{ width: "100%", marginTop: "8px", accentColor: "var(--db-accent)" }}
+              />
+              <span style={{ display: "flex", justifyContent: "space-between", opacity: 0.6 }}><span>soft</span><span>forceful</span></span>
+            </label>
+          </div>
+          <div style={{ fontSize: "var(--db-fs-xs)", opacity: 0.62, marginTop: "10px" }}>
+            {IMPROV_PROFILES[imStyle]?.description} Rule-based and instant — no model call. Same seed + same settings replays the identical line.
+          </div>
+          <div style={{ display: "flex", gap: "8px", marginTop: "12px", alignItems: "center", flexWrap: "wrap" }}>
+            <button
+              onClick={() => runImproviser(false)}
+              disabled={!bars.length}
+              style={{
+                flex: "1 1 220px", padding: "12px 0", borderRadius: "var(--db-r-md)",
+                border: "1px solid var(--db-accent)",
+                background: "color-mix(in srgb, var(--db-accent) 35%, var(--db-bg))",
+                color: "var(--db-accent)", fontSize: "var(--db-fs-md)", fontWeight: 700,
+                cursor: bars.length ? "pointer" : "default", opacity: bars.length ? 1 : 0.5,
+              }}
+            >
+              {result ? "↻ New line" : "Improvise"}
+            </button>
+            <button
+              onClick={() => runImproviser(true)}
+              disabled={imSeed == null}
+              title="Regenerate with the same seed — identical settings replay the identical line"
+              style={{ ...chip(false), opacity: imSeed != null ? 1 : 0.5, cursor: imSeed != null ? "pointer" : "default" }}
+            >
+              Same seed{imSeed != null ? ` (${imSeed})` : ""}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Devices + direction */}
-      {!isLicktionary && !isPhraseMachine && <div style={{ marginTop: "16px" }}>
+      {!isLicktionary && !isPhraseMachine && !isImprov && <div style={{ marginTop: "16px" }}>
         <label style={{ fontSize: "var(--db-fs-sm)", color: "var(--db-accent)" }}>Devices</label>
         <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "8px" }}>
           {DEVICES.map(d => (
@@ -910,7 +1028,7 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
         </div>
       </div>}
 
-      {!isLicktionary && !isPhraseMachine && <div style={{ display: "flex", gap: "12px", marginTop: "14px", flexWrap: "wrap" }}>
+      {!isLicktionary && !isPhraseMachine && !isImprov && <div style={{ display: "flex", gap: "12px", marginTop: "14px", flexWrap: "wrap" }}>
         <div style={{ flex: "1 1 240px" }}>
           <label style={{ fontSize: "var(--db-fs-sm)", color: "var(--db-accent)" }} htmlFor="ll-extra">Direction (optional)</label>
           <input
@@ -942,7 +1060,7 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
       </div>}
 
       {/* Complexity ladder — same bars, five readings from skeleton to exotic */}
-      {!isLicktionary && !isPhraseMachine && <><div style={{ fontSize: "var(--db-fs-xs)", opacity: 0.62, margin: "14px 0 7px" }}>
+      {!isLicktionary && !isPhraseMachine && !isImprov && <><div style={{ fontSize: "var(--db-fs-xs)", opacity: 0.62, margin: "14px 0 7px" }}>
         Complexity — generate the same bars at any level, then compare
       </div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>

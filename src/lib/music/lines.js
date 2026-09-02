@@ -45,7 +45,7 @@ export function lineToTransportEvents(lineBars, sectionBars = []) {
     const barBeats = sectionBars[barIdx]?.beats ?? 4
     const barStart = totalBeats
     let pos = 0
-    ;(bar.n || []).forEach(([s, f, b, wait = 0], noteIdx) => {
+    ;(bar.n || []).forEach(([s, f, b, wait = 0, vel], noteIdx) => {
       pos += Number(wait) || 0
       if (pos >= barBeats) return
       const abs = barStart + pos
@@ -56,7 +56,9 @@ export function lineToTransportEvents(lineBars, sectionBars = []) {
         time: `${measure}:${beatInM}:${trimNum(sub)}`,
         note: midiToToneNote(lineNoteMidi(s, f)),
         dur: beatsToBBS(Math.min(b, barBeats - pos)),
-        vel: 0.72,
+        // Optional 5th tuple field (the improviser generates per-note
+        // dynamics); the classic four-field tuple keeps the old fixed level.
+        vel: Number(vel) > 0 ? Math.min(1, Number(vel)) : 0.72,
         barIdx,
         noteIdx,
       })
