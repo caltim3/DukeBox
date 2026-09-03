@@ -60,6 +60,30 @@ for (const [kit, insts] of Object.entries(DRUM_KITS))
   for (const [inst, url] of Object.entries(insts))
     DRUM_URLS[`${kit}:${inst}`] = url
 
+// Electric guitar sample map — files live at public/samples/guitar/
+// (tonejs-instruments' guitar-electric set, vendored locally so playback
+// never needs the network). Used as an alternate voice for Line Lab's
+// generated lines; the Sampler interpolates between the sampled pitches.
+const GUITAR_URLS = {
+  "C#2": "/samples/guitar/Cs2.mp3",
+  "E2":  "/samples/guitar/E2.mp3",
+  "F#2": "/samples/guitar/Fs2.mp3",
+  "A2":  "/samples/guitar/A2.mp3",
+  "C3":  "/samples/guitar/C3.mp3",
+  "D#3": "/samples/guitar/Ds3.mp3",
+  "F#3": "/samples/guitar/Fs3.mp3",
+  "A3":  "/samples/guitar/A3.mp3",
+  "C4":  "/samples/guitar/C4.mp3",
+  "D#4": "/samples/guitar/Ds4.mp3",
+  "F#4": "/samples/guitar/Fs4.mp3",
+  "A4":  "/samples/guitar/A4.mp3",
+  "C5":  "/samples/guitar/C5.mp3",
+  "D#5": "/samples/guitar/Ds5.mp3",
+  "F#5": "/samples/guitar/Fs5.mp3",
+  "A5":  "/samples/guitar/A5.mp3",
+  "C6":  "/samples/guitar/C6.mp3",
+}
+
 // Bass sample map — files live at public/samples/bass/
 // 21 pitches (E1–C3) × 2 velocities (soft/hard) × 2 round robins = 84 files
 const BASS_PITCHES = ["E1","F1","Fs1","G1","Gs1","A1","As1","B1","C2","Cs2","D2","Ds2","E2","F2","Fs2","G2","Gs2","A2","As2","B2","C3"]
@@ -71,6 +95,7 @@ for (const p of BASS_PITCHES)
 
 let _piano = null
 let _linePiano = null
+let _lineGuitar = null
 let _drums  = null
 let _bass   = null
 let _loadPromise = null
@@ -89,6 +114,7 @@ export async function initSamplers() {
     // 1. Create both instruments synchronously — registers all URLs with Tone
     let pianoRef = null
     let linePianoRef = null
+    let lineGuitarRef = null
     let drumsRef = null
     let bassRef  = null
 
@@ -109,6 +135,15 @@ export async function initSamplers() {
       linePianoRef.volume.value = -10
     } catch (err) {
       console.warn("DukeBox: Line piano sampler creation failed.", err)
+    }
+
+    // Electric guitar voice for the same line — swapped in when the Line
+    // voice picker says guitar. Own sampler, same "line" fader as linePiano.
+    try {
+      lineGuitarRef = new Tone.Sampler({ urls: GUITAR_URLS, release: 0.6 }).toDestination()
+      lineGuitarRef.volume.value = -7
+    } catch (err) {
+      console.warn("DukeBox: Line guitar sampler creation failed.", err)
     }
 
     try {
@@ -136,6 +171,7 @@ export async function initSamplers() {
     // 3. Assign regardless of partial failures — null stays null if creation failed
     _piano = pianoRef
     _linePiano = linePianoRef
+    _lineGuitar = lineGuitarRef
     _drums = drumsRef
     _bass  = bassRef
   })()
@@ -144,10 +180,11 @@ export async function initSamplers() {
 }
 
 /**
- * Returns { piano, linePiano, drums, bass } — null for any that failed to create.
+ * Returns { piano, linePiano, lineGuitar, drums, bass } — null for any that
+ * failed to create.
  */
 export function getSamplers() {
-  return { piano: _piano, linePiano: _linePiano, drums: _drums, bass: _bass }
+  return { piano: _piano, linePiano: _linePiano, lineGuitar: _lineGuitar, drums: _drums, bass: _bass }
 }
 
 /**
@@ -169,8 +206,9 @@ export function isDrumSampleReady(players, key) {
 export function disposeSamplers() {
   try { _piano?.dispose() } catch {}
   try { _linePiano?.dispose() } catch {}
+  try { _lineGuitar?.dispose() } catch {}
   try { _drums?.dispose() } catch {}
   try { _bass?.dispose()  } catch {}
-  _piano = _linePiano = _drums = _bass = null
+  _piano = _linePiano = _lineGuitar = _drums = _bass = null
   _loadPromise = null
 }

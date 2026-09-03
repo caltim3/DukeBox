@@ -114,7 +114,7 @@ function ensureSynths() {
 // as it was before faders existed.
 const BASE_DB = {
   piano: -14, drums: -10, bass: -8, kick: -10, ride: -16, hihat: -20,
-  linePiano: -10, lead: -16,
+  linePiano: -10, lineGuitar: -7, lead: -16,
 }
 let _bandLevel = 1
 let _lineLevel = 1
@@ -123,7 +123,7 @@ const trimDb = (baseDb, level) =>
   level <= 0 ? -Infinity : baseDb + 20 * Math.log10(Math.min(2, level))
 
 function applyMixLevels() {
-  const { piano: pianoSampler, linePiano, drums, bass } = getSamplers() ?? {}
+  const { piano: pianoSampler, linePiano, lineGuitar, drums, bass } = getSamplers() ?? {}
   const set = (node, base, level) => {
     if (node) try { node.volume.value = trimDb(base, level) } catch {}
   }
@@ -134,8 +134,36 @@ function applyMixLevels() {
   set(kick,         BASE_DB.kick,  _bandLevel)
   set(ride,         BASE_DB.ride,  _bandLevel)
   set(hihat,        BASE_DB.hihat, _bandLevel)
-  set(linePiano,    BASE_DB.linePiano, _lineLevel)
-  set(lead,         BASE_DB.lead,      _lineLevel)
+  set(linePiano,    BASE_DB.linePiano,  _lineLevel)
+  set(lineGuitar,   BASE_DB.lineGuitar, _lineLevel)
+  set(lead,         BASE_DB.lead,       _lineLevel)
+}
+
+// ─── Line voice ──────────────────────────────────────────────────────────────
+// Which instrument plays Line Lab's generated single-note lines — the line
+// piano (default) or the sampled electric guitar. Read at trigger time, so
+// switching applies to the very next note, even mid-playback.
+let _lineVoice = "piano"
+
+export const LINE_VOICES = [
+  { id: "piano", label: "Piano" },
+  { id: "guitar", label: "Electric guitar" },
+]
+
+export function setLineVoice(voice) {
+  _lineVoice = voice === "guitar" ? "guitar" : "piano"
+}
+
+export function getLineVoice() {
+  return _lineVoice
+}
+
+// The sampler for the current line voice, falling back through the loaded
+// alternatives so a missing sample set can never silence the line.
+function lineSampler() {
+  const { linePiano, lineGuitar } = getSamplers() ?? {}
+  if (_lineVoice === "guitar") return lineGuitar || linePiano
+  return linePiano
 }
 
 /**
@@ -396,17 +424,17 @@ export async function playSingleNote(noteWithOctave, dur = "8n", vel = 0.8) {
 }
 
 /**
- * Fire one note of a generated line through the LINE piano sampler.
- * Same buffers as the band's piano, but on its own voice so the Line Lab fader
- * can balance the line against the rhythm section.
+ * Fire one note of a generated line through the current LINE voice sampler
+ * (piano or electric guitar, per the Line voice picker). Its own voice so the
+ * Line Lab fader can balance the line against the rhythm section.
  */
 export async function playLineNote(noteWithOctave, dur = "8n", vel = 0.8) {
   await Tone.start()
   ensureSynths()
   await initSamplers()
   applyMixLevels()
-  const { linePiano, piano: pianoSampler } = getSamplers() ?? {}
-  const voice = linePiano || pianoSampler
+  const { piano: pianoSampler } = getSamplers() ?? {}
+  const voice = lineSampler() || pianoSampler
   const now = Tone.now()
   try {
     if (voice) voice.triggerAttackRelease(noteWithOctave, dur, now, vel)
@@ -453,8 +481,9 @@ export function stopAll() {
   rebuilders = {}
   if (piano) piano.releaseAll()
   if (lead)  try { lead.triggerRelease() } catch {}
-  const { linePiano } = getSamplers() ?? {}
+  const { linePiano, lineGuitar } = getSamplers() ?? {}
   if (linePiano) try { linePiano.releaseAll() } catch {}
+  if (lineGuitar) try { lineGuitar.releaseAll() } catch {}
 }
 
 /**
@@ -726,10 +755,10 @@ export async function startPlayback({
   // while keeping its own fader; the sine lead is the fallback if the samples
   // never loaded. Additive: only runs when lineEvents are passed in.
   if (lineEvents?.length) {
-    const { linePiano } = getSamplers() ?? {}
     makePart(lineEvents, (time, ev) => {
       const vel = ev.vel ?? 0.72
-      if (linePiano) linePiano.triggerAttackRelease(ev.note, ev.dur, time, vel)
+      const voice = lineSampler()   // read per note — the picker can switch mid-tune
+      if (voice) voice.triggerAttackRelease(ev.note, ev.dur, time, vel)
       else lead.triggerAttackRelease(ev.note, ev.dur, time, vel)
       if (onLineNote) draw.schedule(() => onLineNote(ev.barIdx, ev.noteIdx), time)
     })
@@ -747,7 +776,6 @@ export async function startPlayback({
   // Every scheduled note self-clears after firing; without that, the looping
   // transport would replay it at the same form position every chorus.
   if (continuousLine?.session && loop) {
-    const { linePiano } = getSamplers() ?? {}
     const session = continuousLine.session
     const onPhrase = continuousLine.onPhrase
     // How far ahead notes are committed to the transport. Small enough that
@@ -766,7 +794,8 @@ export async function startPlayback({
         const note = midiToToneNote(ev.midi)
         const dur = beatsToBBS(ev.d)
         const vel = ev.vel ?? 0.72
-        if (linePiano) linePiano.triggerAttackRelease(note, dur, time, vel)
+        const voice = lineSampler()   // read per note — the picker can switch mid-solo
+        if (voice) voice.triggerAttackRelease(note, dur, time, vel)
         else lead.triggerAttackRelease(note, dur, time, vel)
       }, `${m}:${bt}:${sub}`)
       scheduledIds.push(id)

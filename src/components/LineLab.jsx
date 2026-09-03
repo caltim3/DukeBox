@@ -235,6 +235,18 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
     return () => { cancelled = true }
   }, [bandLevel, lineLevel])
 
+  // Which instrument sounds the line — piano or the sampled electric guitar.
+  // Read at trigger time by the audio layer, so flipping it lands on the very
+  // next note, even mid-solo.
+  const [lineVoice, setLineVoice] = useState("piano")
+  useEffect(() => {
+    let cancelled = false
+    import("@/lib/music/audio")
+      .then((audio) => { if (!cancelled) audio.setLineVoice(lineVoice) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [lineVoice])
+
   const [exported, setExported] = useState(false)
 
   // ── Notation window sizing — the engraving has no natural size limit of
@@ -1057,6 +1069,20 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
           <div style={{ fontSize: "var(--db-fs-xs)", opacity: 0.62, marginTop: "10px" }}>
             {IMPROV_PROFILES[imStyle]?.description} Rule-based and instant — no model call. Same seed + same settings replays the identical line.
           </div>
+          <div style={{ fontSize: "var(--db-fs-xs)", opacity: 0.75, display: "flex", alignItems: "center", gap: "8px", marginTop: "10px" }}>
+            Line voice
+            {[["piano", "Piano"], ["guitar", "Guitar"]].map(([id, label]) => (
+              <button
+                key={id}
+                onClick={() => setLineVoice(id)}
+                aria-pressed={lineVoice === id}
+                style={{ ...chip(lineVoice === id), padding: "4px 10px" }}
+              >
+                {label}
+              </button>
+            ))}
+            <span style={{ opacity: 0.6 }}>— switches on the next note, even mid-solo</span>
+          </div>
           <div style={{ display: "flex", gap: "8px", marginTop: "12px", alignItems: "center", flexWrap: "wrap" }}>
             <button
               onClick={() => runImproviser(false)}
@@ -1439,6 +1465,19 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
                 {Math.round(lineLevel * 100)}%
               </span>
             </label>
+            <div style={{ fontSize: "var(--db-fs-xs)", opacity: 0.75, display: "flex", alignItems: "center", gap: "8px" }}>
+              Voice
+              {[["piano", "Piano"], ["guitar", "Guitar"]].map(([id, label]) => (
+                <button
+                  key={id}
+                  onClick={() => setLineVoice(id)}
+                  aria-pressed={lineVoice === id}
+                  style={{ ...chip(lineVoice === id), padding: "4px 10px" }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Fretboard walkthrough */}
