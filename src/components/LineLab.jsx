@@ -38,7 +38,7 @@ import { setLastLine, getLastLine, RESUME_LAST_LINE_EVENT } from "@/lib/music/la
 import { logActivity } from "@/lib/recentActivity"
 import { PM_PROGRESSIONS, transposeProgression, runGenerator } from "@/lib/music/phraseEngine"
 import { phraseResultToLine } from "@/lib/music/phraseAdapter"
-import { improvise, IMPROV_PROFILES } from "@/lib/music/improviser"
+import { improvise, createImproviserSession, IMPROV_PROFILES } from "@/lib/music/improviser"
 
 const DEVICES = [
   "Chromatics", "Bebop scale", "Enclosures", "Altered",
@@ -186,6 +186,11 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
   const [imAltered, setImAltered] = useState(25)    // 0-100, → controls.altered
   const [imIntensity, setImIntensity] = useState(60)// 0-100, → controls.intensity
   const [imSeed, setImSeed] = useState(null)
+  // Continuous mode: the session generates ahead of the playhead for as long
+  // as the band runs; sliders reach it live via the effect below.
+  const imSessionRef = useRef(null)
+  const [imContinuous, setImContinuous] = useState(false)
+  const [imLive, setImLive] = useState(null) // { chorus, formBar, phrase, resting }
 
   // ── Phrase Machine controls ── its own self-contained progression/key
   // preset (like Network above), plus the tree-builder's own formula and
@@ -596,11 +601,79 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
     setLoading(false)
   }
 
+  // The band bars for continuous mode — built from the SAME sheet text the
+  // improviser's timeline reads (like pmBandBars does for Phrase Machine),
+  // so the rhythm section and the solo are guaranteed to hear the same
+  // changes. Whole form, not the 8-bar selection: continuous mode plays the
+  // full loaded song. Multi-chord measures split the bar evenly, matching
+  // the timeline's own reading.
+  const improvBandBars = useMemo(() => chartChords.flatMap((cell) => {
+    const tokens = String(cell || "").trim().split(/\s+/).filter(Boolean)
+    const parsed = tokens.map((t) => parseGigChord(t, "A")).filter(Boolean)
+    if (!parsed.length) return [{ root: "C", quality: "NC", symbol: "N.C.", section: "A", beats: 4 }]
+    const share = 4 / parsed.length
+    return parsed.map((p) => ({ ...p, beats: share }))
+  }), [chartChords])
+
+  // Slider / style moves reach a running continuous session immediately —
+  // committed bars keep playing, the next phrase takes the new values.
+  useEffect(() => {
+    imSessionRef.current?.updateControls({
+      profileId: imStyle,
+      space: imSpace / 100,
+      altered: imAltered / 100,
+      intensity: imIntensity / 100,
+    })
+  }, [imStyle, imSpace, imAltered, imIntensity])
+
+  function stopContinuous() {
+    setImContinuous(false)
+    setImLive(null)
+    imSessionRef.current = null
+    onStopPlayback?.()
+  }
+
+  // Leaving the Improviser tab shouldn't leave an invisible solo running.
+  useEffect(() => {
+    if (!isImprov && imContinuous) stopContinuous()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isImprov])
+
+  function startContinuous() {
+    if (!improvBandBars.length || !playLineSection) return
+    stopLine()
+    const seed = Math.floor(Math.random() * 0xffffff)
+    const session = createImproviserSession({
+      measures: chartChords,
+      profileId: imStyle,
+      controls: { space: imSpace / 100, altered: imAltered / 100, intensity: imIntensity / 100 },
+      seed,
+    })
+    imSessionRef.current = session
+    setImSeed(seed)
+    setImLive(null)
+    setImContinuous(true)
+    setError(null)
+    playLineSection({
+      line: null,
+      barsOverride: improvBandBars,
+      startIndex: 0,
+      endIndex: improvBandBars.length - 1,
+      practiceTempo: tempo,
+      continuousLine: {
+        session,
+        onPhrase: (info) => setImLive(info),
+      },
+      onDone: () => { setImContinuous(false); setImLive(null); imSessionRef.current = null },
+    })
+  }
+
   // Runs the rule-based improviser directly — no network round trip. A
   // fresh seed each press unless `reuseSeed` (the "Same seed" button, which
   // proves determinism: identical chart + style + sliders + seed replays
   // the identical line).
   function runImproviser(reuseSeed = false) {
+    if (imContinuous) stopContinuous()
     const measures = chartChords.slice(selStart, Math.min(selEnd + 1, selStart + 8))
     if (!measures.length) return
     const seed = reuseSeed && imSeed != null ? imSeed : Math.floor(Math.random() * 0xffffff)
@@ -1000,13 +1073,50 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
             </button>
             <button
               onClick={() => runImproviser(true)}
-              disabled={imSeed == null}
+              disabled={imSeed == null || imContinuous}
               title="Regenerate with the same seed — identical settings replay the identical line"
-              style={{ ...chip(false), opacity: imSeed != null ? 1 : 0.5, cursor: imSeed != null ? "pointer" : "default" }}
+              style={{ ...chip(false), opacity: imSeed != null && !imContinuous ? 1 : 0.5, cursor: imSeed != null && !imContinuous ? "pointer" : "default" }}
             >
               Same seed{imSeed != null ? ` (${imSeed})` : ""}
             </button>
+            <button
+              onClick={imContinuous ? stopContinuous : startContinuous}
+              disabled={!improvBandBars.length}
+              title="Solo over the whole form, indefinitely — new phrases every chorus, sliders apply live"
+              style={{
+                flex: "1 1 220px", padding: "12px 0", borderRadius: "var(--db-r-md)",
+                border: `1px solid ${imContinuous ? "var(--db-c-salmon, var(--db-accent))" : "var(--db-accent)"}`,
+                background: imContinuous
+                  ? "color-mix(in srgb, var(--db-c-salmon, var(--db-accent)) 25%, var(--db-bg))"
+                  : "color-mix(in srgb, var(--db-accent) 18%, var(--db-bg))",
+                color: imContinuous ? "var(--db-c-salmon, var(--db-accent))" : "var(--db-accent)",
+                fontSize: "var(--db-fs-md)", fontWeight: 700,
+                cursor: improvBandBars.length ? "pointer" : "default",
+                opacity: improvBandBars.length ? 1 : 0.5,
+              }}
+            >
+              {imContinuous ? "⏹ Stop continuous solo" : "∞ Continuous solo — whole form"}
+            </button>
           </div>
+          {imContinuous && (
+            <div
+              aria-live="polite"
+              style={{
+                marginTop: "10px", padding: "10px 12px", borderRadius: "var(--db-r-md)",
+                border: "1px solid var(--db-panel-border)", background: "var(--db-input-bg)",
+                fontSize: "var(--db-fs-sm)", lineHeight: 1.5,
+              }}
+            >
+              <b>Chorus {imLive?.chorus ?? 1} · bar {imLive?.formBar ?? 1}</b>
+              {imLive?.resting ? " — breathing…" : ""}
+              <div style={{ opacity: 0.75, marginTop: "2px" }}>
+                {imLive?.phrase || "Listening for the first phrase…"}
+              </div>
+              <div style={{ opacity: 0.55, marginTop: "4px", fontSize: "var(--db-fs-xs)" }}>
+                Move the sliders or switch style — the next phrase picks it up. Seed {imSeed}.
+              </div>
+            </div>
+          )}
         </div>
       )}
 

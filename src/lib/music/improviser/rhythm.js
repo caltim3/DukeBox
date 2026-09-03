@@ -73,42 +73,53 @@ export function buildPhraseSkeleton({ rng, style, startBeat, endBeat, ringUntil 
   return { onsets, cellIds }
 }
 
-// Plan the phrase/rest alternation across the whole selection.
-// Returns [{ startBeat, endBeat, gapAfter }] — phrase spans with the silence
-// that follows each. Space lives here: it scales the gaps and shortens the
-// phrases, measured across the whole selection rather than per bar.
-export function planPhrases({ rng, style, totalBeats }) {
-  const phrases = []
-  // First entrance: on the beat, or the classic offbeat/late entry.
-  let cursor = chance(rng, style.pickupProb)
-    ? pickWeighted(rng, [[0.5, 3], [1, 2], [1.5, 2], [2, 1]])
-    : 0
-
-  while (cursor < totalBeats - 1) {
-    let len = pickWeighted(rng, style.phraseBeats)
-    // Space shortens phrases a little as well as widening gaps.
-    len = Math.max(2, Math.round(len * (1 - style.controls.space * 0.25) * 2) / 2)
-    const endBeat = Math.min(cursor + len, totalBeats)
-
-    let gap = style.restBeats * (0.6 + rng() * 0.8)
-    gap = Math.max(0.5, Math.round(gap * 2) / 2)
-
-    phrases.push({ startBeat: cursor, endBeat, gapAfter: gap })
-    cursor = endBeat + gap
-
-    if (cursor < totalBeats - 1) {
-      // Re-entries relate to the FORM, not just to elapsed time: often snap
-      // to the next bar's downbeat (or an eighth-note pickup into it) so
-      // phrases nail the one instead of drifting by arbitrary half-beats.
-      const nextBar = Math.ceil(cursor / 4) * 4
-      if (chance(rng, style.nailOneProb) && nextBar - cursor <= 2.5 && nextBar < totalBeats - 1) {
-        cursor = chance(rng, 0.4) ? nextBar - 0.5 : nextBar
-      } else if (chance(rng, style.pickupProb * 0.6)) {
-        // Otherwise the classic offbeat re-entry keeps the time feel forward.
-        cursor += 0.5
-      }
+// Plan ONE phrase span from a cursor position. The unit the continuous
+// session advances by; planPhrases below just loops it over a finite span.
+// Returns { startBeat, endBeat, gapAfter } — the phrase and the silence that
+// follows it. Space lives here: it scales the gaps and shortens the phrases,
+// measured across the whole performance rather than per bar.
+export function planNextSpan({ rng, style, cursor, isFirst = false, limitBeats = Infinity }) {
+  let start = cursor
+  if (isFirst) {
+    // First entrance: on the beat, or the classic offbeat/late entry.
+    if (chance(rng, style.pickupProb)) {
+      start += pickWeighted(rng, [[0.5, 3], [1, 2], [1.5, 2], [2, 1]])
+    }
+  } else {
+    // Re-entries relate to the FORM, not just to elapsed time: often snap
+    // to the next bar's downbeat (or an eighth-note pickup into it) so
+    // phrases nail the one instead of drifting by arbitrary half-beats.
+    const nextBar = Math.ceil(start / 4) * 4
+    if (chance(rng, style.nailOneProb) && nextBar - start <= 2.5 && nextBar < limitBeats - 1) {
+      start = chance(rng, 0.4) ? nextBar - 0.5 : nextBar
+    } else if (chance(rng, style.pickupProb * 0.6)) {
+      // Otherwise the classic offbeat re-entry keeps the time feel forward.
+      start += 0.5
     }
   }
 
+  let len = pickWeighted(rng, style.phraseBeats)
+  // Space shortens phrases a little as well as widening gaps.
+  len = Math.max(2, Math.round(len * (1 - style.controls.space * 0.25) * 2) / 2)
+  const endBeat = Math.min(start + len, limitBeats)
+
+  let gap = style.restBeats * (0.6 + rng() * 0.8)
+  gap = Math.max(0.5, Math.round(gap * 2) / 2)
+
+  return { startBeat: start, endBeat, gapAfter: gap }
+}
+
+// Plan the phrase/rest alternation across a finite selection.
+export function planPhrases({ rng, style, totalBeats }) {
+  const phrases = []
+  let cursor = 0
+  let isFirst = true
+  while (cursor < totalBeats - 1) {
+    const span = planNextSpan({ rng, style, cursor, isFirst, limitBeats: totalBeats })
+    isFirst = false
+    if (span.startBeat >= totalBeats - 1) break
+    phrases.push(span)
+    cursor = span.endBeat + span.gapAfter
+  }
   return phrases
 }
