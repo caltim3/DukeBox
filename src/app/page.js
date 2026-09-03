@@ -2013,7 +2013,7 @@ export default function Home() {
   // barsOverride lets a lab play changes that aren't in the loaded chart at all
   // (Line Lab's triad-network presets), in which case the chart's own playhead
   // stays dark rather than lighting bars that aren't sounding.
-  async function playLineSection({ line, startIndex, endIndex, barsOverride, practiceTempo, muteLine, onBar, onLineNote, onDone }) {
+  async function playLineSection({ line, startIndex, endIndex, barsOverride, practiceTempo, muteLine, onBar, onLineNote, onDone, continuousLine }) {
     playingRef.current = false
     stopPlayback()
     playingRef.current = true
@@ -2021,7 +2021,9 @@ export default function Home() {
     const lo = Math.max(0, Math.min(startIndex ?? 0, source.length - 1))
     const hi = Math.max(lo, Math.min(endIndex ?? lo, source.length - 1))
     const slicedBars = source.slice(lo, hi + 1)
-    const lineEvents = (line && !muteLine) ? lineToTransportEvents(line.bars, slicedBars) : null
+    // Continuous mode generates its own notes ahead of the playhead — no
+    // precomputed finite line.
+    const lineEvents = (line && !muteLine && !continuousLine) ? lineToTransportEvents(line.bars, slicedBars) : null
     setIsPlaying(true)
     const { startPlayback: audioStart } = await loadAudio()
     try {
@@ -2035,6 +2037,7 @@ export default function Home() {
         compingStyle, bassStyle, bassComplexity, drumKit, reverbAmount,
         drumStyle:  drumStyleIdx,
         lineEvents,
+        continuousLine,
         onLineNote,
         onBar:  (localIdx) => {
           if (!barsOverride?.length) setPlayheadIndex(lo + localIdx)

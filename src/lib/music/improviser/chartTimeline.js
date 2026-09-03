@@ -114,3 +114,41 @@ export function nextSegmentAfter(timeline, beat) {
   }
   return null
 }
+
+// ─── Form view ────────────────────────────────────────────────────────────
+// The generator's window onto the harmony. Finite mode reads the timeline
+// once through; continuous mode wraps it, so absolute beat 67 of a 32-beat
+// form reads as form beat 3 of chorus 3, and the seam (last chord → first
+// chord) registers as a real chord change to target — the solo keeps
+// developing across choruses instead of resetting.
+export function createFormView(timeline, { wrap = false } = {}) {
+  const total = timeline.totalBeats
+
+  const segAt = (beat) => {
+    if (!total) return null
+    const local = wrap ? ((beat % total) + total) % total : beat
+    return segmentAtBeat(timeline, local)
+  }
+
+  // Chord-change boundaries in (from, to], as absolute beats. With wrap, the
+  // top of every chorus (k · total) counts as a change into the first chord.
+  const changesIn = (from, to) => {
+    const out = []
+    if (!total) return out
+    if (!wrap) {
+      for (const seg of timeline.segments) {
+        if (seg.startBeat > from + 1e-6 && seg.startBeat <= to + 1e-6) out.push({ beat: seg.startBeat, seg })
+      }
+      return out
+    }
+    for (let k = Math.floor(from / total); k * total <= to + 1e-6; k++) {
+      for (const seg of timeline.segments) {
+        const beat = seg.startBeat + k * total
+        if (beat > from + 1e-6 && beat <= to + 1e-6) out.push({ beat, seg })
+      }
+    }
+    return out
+  }
+
+  return { totalBeats: total, wrap, segAt, changesIn }
+}

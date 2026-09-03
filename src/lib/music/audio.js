@@ -6,6 +6,7 @@ import { COMPING_STYLES, DEFAULT_COMPING_STYLE, getVoiceLedVoicing } from "./com
 import { DRUM_STYLES } from "./audioConstants"
 import { styledWalkingBass, DEFAULT_BASS_STYLE } from "./bassStyles"
 import { JAZZ_METERS, DEFAULT_METER, meterBeatsPerBar } from "./meters"
+import { midiToToneNote, beatsToBBS } from "./lines"
 export { DRUM_STYLES, JAZZ_METERS }
 
 const JAZZ_SPELLING = {
@@ -544,6 +545,7 @@ export async function startPlayback({
   onStop        = null,
   lineEvents    = null,   // Line Lab: generated single-note line, played on the lead synth
   onLineNote    = null,   // Line Lab: fires (barIdx, noteIdx) per line note for UI sync
+  continuousLine = null,  // Line Lab Improviser: { session, onPhrase } — rolling improvised solo
 }) {
   await Tone.start()
   stopAll()
@@ -731,6 +733,73 @@ export async function startPlayback({
       else lead.triggerAttackRelease(ev.note, ev.dur, time, vel)
       if (onLineNote) draw.schedule(() => onLineNote(ev.barIdx, ev.noteIdx), time)
     })
+  }
+
+  // Line Lab Improviser — continuous mode. A rolling scheduler pulls freshly
+  // generated notes from the session a couple of bars ahead of the playhead
+  // and schedules them on the transport grid (so they inherit live tempo and
+  // swing, like every other voice). The transport loops the FORM while the
+  // solo keeps developing: the session thinks in absolute beats, and this
+  // block maintains the absolute counter by watching the looped transport
+  // position for wraps — scheduling a note at its form-local position lands
+  // it in the current pass if it's still ahead of the playhead, or in the
+  // next pass if it wrapped, which is exactly the seam behavior wanted.
+  // Every scheduled note self-clears after firing; without that, the looping
+  // transport would replay it at the same form position every chorus.
+  if (continuousLine?.session && loop) {
+    const { linePiano } = getSamplers() ?? {}
+    const session = continuousLine.session
+    const onPhrase = continuousLine.onPhrase
+    // How far ahead notes are committed to the transport. Small enough that
+    // dial changes reach the ear within a couple of bars, large enough that
+    // a slow main-thread frame can't starve the playhead. Clamped below the
+    // form length so a form-local position is never ambiguous.
+    const LEAD = Math.max(2, Math.min(beatsPerBar * 2, totalBts - 1))
+
+    const scheduleNote = (ev) => {
+      const local = ((ev.t % totalBts) + totalBts) % totalBts
+      const m = Math.floor(local / beatsPerBar)
+      const bt = Math.floor(local % beatsPerBar)
+      const sub = Math.round((local - Math.floor(local)) * 4 * 1000) / 1000
+      const id = tr.schedule((time) => {
+        try { tr.clear(id) } catch {} // one-shot on a looping transport
+        const note = midiToToneNote(ev.midi)
+        const dur = beatsToBBS(ev.d)
+        const vel = ev.vel ?? 0.72
+        if (linePiano) linePiano.triggerAttackRelease(note, dur, time, vel)
+        else lead.triggerAttackRelease(note, dur, time, vel)
+      }, `${m}:${bt}:${sub}`)
+      scheduledIds.push(id)
+    }
+
+    // Opening window goes in before the transport starts, so the first notes
+    // aren't racing the playhead.
+    for (const ev of session.collectEvents(LEAD)) scheduleNote(ev)
+
+    let lastLocal = -1
+    let wrapCount = 0
+    let lastInfoKey = ""
+    const refillId = tr.scheduleRepeat((time) => {
+      // Absolute beat from looped ticks + observed wraps — self-correcting
+      // even if a repeat tick lands oddly at the loop seam.
+      const ticks = tr.getTicksAtTime(time)
+      const local = ticks / tr.PPQ
+      if (local < lastLocal - 0.5) wrapCount++
+      lastLocal = local
+      const absBeat = wrapCount * totalBts + local
+
+      for (const ev of session.collectEvents(absBeat + LEAD)) scheduleNote(ev)
+
+      if (onPhrase) {
+        const info = session.infoAt(absBeat)
+        const key = `${info.chorus}:${info.formBar}:${info.phrase}:${info.resting}`
+        if (key !== lastInfoKey) {
+          lastInfoKey = key
+          draw.schedule(() => onPhrase(info), time)
+        }
+      }
+    }, "4n", 0)
+    scheduledIds.push(refillId)
   }
 
   // Drums — use sampler if loaded, fall back to synth synthesis.

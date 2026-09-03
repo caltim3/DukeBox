@@ -6,18 +6,22 @@
 //      rhythm with new pitches (the cheapest motif transformation, and the
 //      one that most makes the line sound like it's saying something);
 //   3. anchor onsets are chosen: the phrase opening, the first onset at each
-//      chord change, and the landing — anchors get guide tones (3rds/7ths)
-//      so strong moments spell the harmony;
+//      chord change (or the "&" before it — anticipation), and the landing —
+//      anchors get guide tones (3rds/7ths) so strong moments spell the
+//      harmony;
 //   4. the onsets between anchors are filled with scale steps walking toward
 //      the next anchor, chromatic enclosures just before it, and occasional
 //      chord-tone leaps — altered material on dominants at the rate the
 //      Altered control asks for;
 //   5. velocity and accents are generated per note, never fixed.
 //
-// Everything is seeded — see rng.js.
+// All harmony reads go through a form view (chartTimeline.createFormView),
+// so the same code serves the finite generator (one pass over a selection)
+// and the continuous session (absolute beats wrapping over the form for as
+// long as the band plays). Everything is seeded — see rng.js.
 
 import { createRng, pickWeighted, chance } from "./rng"
-import { normalizeMeasures, segmentAtBeat } from "./chartTimeline"
+import { normalizeMeasures, createFormView } from "./chartTimeline"
 import { blendStyle } from "./profiles"
 import { buildPhraseSkeleton, planPhrases } from "./rhythm"
 import { eventsToLine } from "./toLine"
@@ -68,13 +72,11 @@ function contourOffset(contour, progress) {
 // fall in the middle of a cell with no onset on it — and the guide tone
 // would land late. Insert an onset right on the change (nailChangeProb)
 // when the cells left it bare. Ringing overlaps are cleaned up by the
-// monophonic clip in toLine.
-function ensureChangeOnsets({ rng, style, timeline, onsets, span }) {
+// monophonic clip in toLine / the transport adapter.
+function ensureChangeOnsets({ rng, style, form, onsets, span }) {
   if (!onsets.length) return onsets
   const out = [...onsets]
-  for (const seg of timeline.segments) {
-    const B = seg.startBeat
-    if (B < span.startBeat + 0.5 || B > span.endBeat - 0.5) continue
+  for (const { beat: B } of form.changesIn(span.startBeat + 0.5, span.endBeat - 0.5)) {
     const near = out.some((o) => o.t > B - 0.55 && o.t < B + 0.3)
     if (!near && chance(rng, style.nailChangeProb)) out.push({ t: B, d: 0.5 })
   }
@@ -83,8 +85,8 @@ function ensureChangeOnsets({ rng, style, timeline, onsets, span }) {
 
 // Mark which onsets are anchors and what pitch class each should land.
 // Returns onsets decorated with { seg, anchor: null | { pc, role, symbol } }.
-function assignAnchors({ rng, style, timeline, onsets, prevMidi }) {
-  const decorated = onsets.map((o) => ({ ...o, seg: segmentAtBeat(timeline, o.t), anchor: null }))
+function assignAnchors({ rng, style, form, onsets, prevMidi }) {
+  const decorated = onsets.map((o) => ({ ...o, seg: form.segAt(o.t), anchor: null }))
   const live = decorated.filter((o) => o.seg)
   if (!live.length) return decorated
 
@@ -104,9 +106,7 @@ function assignAnchors({ rng, style, timeline, onsets, prevMidi }) {
   const tFirst = live[0].t
   const tLast = live[live.length - 1].t
   let refPc = openPc
-  for (const seg of timeline.segments) {
-    const B = seg.startBeat
-    if (B <= tFirst + 1e-6 || B > tLast + 0.6) continue
+  for (const { beat: B, seg } of form.changesIn(tFirst, tLast + 0.6)) {
     const before = [...live].reverse().find((o) => !o.anchor && o.t > B - 0.6 && o.t < B - 0.05)
     const atOrAfter = live.find((o) => !o.anchor && o.t >= B - 0.05 && o.t < B + seg.beats)
     let pick = atOrAfter
@@ -144,13 +144,21 @@ function roleOf(pc, seg) {
 
 // ─── Phrase pitch fill ────────────────────────────────────────────────────
 
-function fillPhrase({ rng, style, decorated, prevMidi, contour, phraseSpan, alteredSegs }) {
+function fillPhrase({ rng, style, decorated, prevMidi, contour, phraseSpan }) {
   const { register } = style
   const events = []
   const live = decorated.filter((o) => o.seg) // silent (N.C.) onsets drop out
   if (!live.length) return { events, lastMidi: prevMidi, devices: [] }
 
   const devices = new Set()
+  // Altered-or-not is decided once per dominant segment per phrase, so a
+  // phrase commits to a color instead of flickering note-by-note.
+  const alteredBySeg = new Map()
+  const useAlteredFor = (seg) => {
+    if (!seg.isDominant || !seg.alteredPcs) return false
+    if (!alteredBySeg.has(seg.startBeat)) alteredBySeg.set(seg.startBeat, chance(rng, style.alteredProb))
+    return alteredBySeg.get(seg.startBeat)
+  }
 
   // Resolve anchor midis in time order — voice leading first, contour
   // second. Each anchor sits as close as possible to the previous one (the
@@ -194,7 +202,7 @@ function fillPhrase({ rng, style, decorated, prevMidi, contour, phraseSpan, alte
       midi = Math.min(register.max, Math.max(register.min, midi))
     } else {
       // Scale material — altered on dominants when the dice said so.
-      const useAltered = o.seg.alteredPcs && alteredSegs.has(o.seg.startBeat)
+      const useAltered = useAlteredFor(o.seg)
       const pcs = useAltered ? o.seg.alteredPcs : o.seg.scalePcs
       if (useAltered) devices.add("altered")
 
@@ -249,9 +257,71 @@ function applyDynamics({ rng, style, events }) {
   }
 }
 
+// ─── One phrase, start to finish ──────────────────────────────────────────
+
+// Shared by the finite improvise() below and the continuous session. Pure:
+// all state that carries phrase-to-phrase travels in `memory`
+// ({ prevMidi, prevSkeleton }), so the session can snapshot and restore it
+// when live control changes force a replan.
+export function generatePhrase({ rng, style, form, span, memory }) {
+  // Motif echo: reuse the previous phrase's rhythm, shifted to this span.
+  let skeleton = null
+  let echo = false
+  const prev = memory.prevSkeleton
+  if (prev && chance(rng, style.motifEchoProb)) {
+    const shifted = prev.onsets
+      .map((o) => ({ t: o.t - prev.startBeat + span.startBeat, d: o.d }))
+      .filter((o) => o.t < span.endBeat - 1e-6)
+    if (shifted.length >= 2) {
+      skeleton = { onsets: shifted }
+      echo = true
+    }
+  }
+  if (!skeleton) {
+    skeleton = buildPhraseSkeleton({
+      rng, style,
+      startBeat: span.startBeat,
+      endBeat: span.endBeat,
+      ringUntil: span.endBeat + span.gapAfter,
+    })
+  }
+
+  // Applied to fresh AND echoed skeletons — an echoed rhythm still has to
+  // speak the changes of the bars it now sits over.
+  const onsets = ensureChangeOnsets({ rng, style, form, onsets: skeleton.onsets, span })
+  const contour = pickWeighted(rng, style.contourWeights)
+  const decorated = assignAnchors({ rng, style, form, onsets, prevMidi: memory.prevMidi })
+  const { events, lastMidi, devices } = fillPhrase({
+    rng, style, decorated, prevMidi: memory.prevMidi, contour, phraseSpan: span,
+  })
+  applyDynamics({ rng, style, events })
+
+  const lastAnchor = [...events].reverse().find((e) => e.anchor)
+  const trace = {
+    startBeat: span.startBeat,
+    endBeat: span.endBeat,
+    contour,
+    echo,
+    devices,
+    noteCount: events.length,
+    // anchor.symbol, not seg.symbol — an anticipated landing sounds over
+    // the OLD segment but spells the NEW chord.
+    landing: lastAnchor ? { role: lastAnchor.anchor.role, symbol: lastAnchor.anchor.symbol } : null,
+  }
+
+  return {
+    events,
+    trace,
+    memory: {
+      prevMidi: lastMidi,
+      prevSkeleton: { onsets: skeleton.onsets, startBeat: span.startBeat },
+    },
+  }
+}
+
 // ─── Summary ──────────────────────────────────────────────────────────────
 
-function describe(phraseTraces, style) {
+export function describePhrases(phraseTraces, style) {
   if (!phraseTraces.length) return ""
   const clauses = phraseTraces.map((p, i) => {
     const onbeat = Math.abs(p.startBeat % 1) < 0.01 && p.startBeat % 4 === 0
@@ -266,7 +336,7 @@ function describe(phraseTraces, style) {
   return `${clauses.join(", ")}. ${style.label} profile — space ${Math.round(style.controls.space * 100)}%, altered ${Math.round(style.controls.altered * 100)}%.`
 }
 
-// ─── Public entry ─────────────────────────────────────────────────────────
+// ─── Public entry (finite) ────────────────────────────────────────────────
 
 // measures: array of measure strings. Returns { line, trace } where line is
 // the LineLab schema (with per-note velocity in tuple slot 4) and trace
@@ -276,72 +346,22 @@ export function improvise({ measures, profileId = "bebop", controls = {}, seed =
   const style = blendStyle(profileId, controls)
   const timeline = normalizeMeasures(measures)
   if (!timeline.totalBeats) return { line: { bars: [], s: "" }, trace: { phrases: [] } }
+  const form = createFormView(timeline)
 
   const phrases = planPhrases({ rng, style, totalBeats: timeline.totalBeats })
 
   const allEvents = []
   const phraseTraces = []
-  let prevMidi = style.register.center
-  let prevSkeleton = null
+  let memory = { prevMidi: style.register.center, prevSkeleton: null }
 
   for (const span of phrases) {
-    // Motif echo: reuse the previous phrase's rhythm, shifted to this span.
-    let skeleton = null
-    let echo = false
-    if (prevSkeleton && chance(rng, style.motifEchoProb)) {
-      const shifted = prevSkeleton.onsets
-        .map((o) => ({ t: o.t - prevSkeleton.startBeat + span.startBeat, d: o.d }))
-        .filter((o) => o.t < span.endBeat - 1e-6)
-      if (shifted.length >= 2) {
-        skeleton = { onsets: shifted }
-        echo = true
-      }
-    }
-    if (!skeleton) {
-      skeleton = buildPhraseSkeleton({
-        rng, style,
-        startBeat: span.startBeat,
-        endBeat: span.endBeat,
-        ringUntil: span.endBeat + span.gapAfter,
-      })
-    }
-    prevSkeleton = { onsets: skeleton.onsets, startBeat: span.startBeat }
-
-    // Altered-or-not is decided once per dominant segment per phrase, so a
-    // phrase commits to a color instead of flickering note-by-note.
-    const alteredSegs = new Set()
-    for (const seg of timeline.segments) {
-      if (seg.isDominant && seg.alteredPcs && chance(rng, style.alteredProb)) alteredSegs.add(seg.startBeat)
-    }
-
-    const contour = pickWeighted(rng, style.contourWeights)
-    // Applied to fresh AND echoed skeletons — an echoed rhythm still has to
-    // speak the changes of the bars it now sits over.
-    const onsets = ensureChangeOnsets({ rng, style, timeline, onsets: skeleton.onsets, span })
-    const decorated = assignAnchors({ rng, style, timeline, onsets, prevMidi })
-    const { events, lastMidi, devices } = fillPhrase({
-      rng, style, decorated, prevMidi, contour, phraseSpan: span, alteredSegs,
-    })
-    applyDynamics({ rng, style, events })
-
-    const lastAnchor = [...events].reverse().find((e) => e.anchor)
-    phraseTraces.push({
-      startBeat: span.startBeat,
-      endBeat: span.endBeat,
-      contour,
-      echo,
-      devices,
-      noteCount: events.length,
-      // anchor.symbol, not seg.symbol — an anticipated landing sounds over
-      // the OLD segment but spells the NEW chord.
-      landing: lastAnchor ? { role: lastAnchor.anchor.role, symbol: lastAnchor.anchor.symbol } : null,
-    })
-
-    allEvents.push(...events)
-    prevMidi = lastMidi
+    const result = generatePhrase({ rng, style, form, span, memory })
+    memory = result.memory
+    allEvents.push(...result.events)
+    phraseTraces.push(result.trace)
   }
 
-  const summary = describe(phraseTraces, style)
+  const summary = describePhrases(phraseTraces, style)
   const line = eventsToLine({ events: allEvents, timeline, summary, style, seed })
   return { line, trace: { seed, profileId: style.id, controls: style.controls, phrases: phraseTraces } }
 }
