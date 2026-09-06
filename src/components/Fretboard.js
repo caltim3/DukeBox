@@ -85,7 +85,7 @@ export default function Fretboard({ chordNotes = [], rootNote = "C", scaleNotes 
   // is "chord tones to bounce around, scale tones to pass through", which
   // needs the two to read as two colors even in scale view.
   const chordSet   = new Set((chordNotes ?? []).map(n => norm(n)))
-  // The Skeleton Key lens (src/lib/music/triadSystem.js): the two minor
+  // The Twin Triads lens (src/lib/music/triadSystem.js): the two minor
   // triads of the active pair, recolored inside the normal dot pipeline —
   // NOT a board takeover like threeTwo. Which pitch classes get dots is
   // still entirely scaleNotes' call (page.js passes the pool); these sets
