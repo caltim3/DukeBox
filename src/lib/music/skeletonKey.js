@@ -53,6 +53,16 @@ export const SK_CHAPTERS = [
           "Every idea you'll ever play is decorated scale or arpeggio motion. Drill the raw " +
           "material first — diatonic triads and their elaborations, 7th and 9th chord " +
           "arpeggios — so later everything is recombination, not invention.",
+        brief:
+          "An arpeggio is the chord itself played one note at a time — the " +
+          "raw material every line you will ever play is decorated from. " +
+          "Today's exercise is inventory, not artistry: play the bare triad " +
+          "of each chord quality in root position, ascending and descending, " +
+          "quarter notes only, naming each note out loud as you strike it. " +
+          "Over Cmaj7 that is C–E–G and nothing else; the 7th is deliberately " +
+          "withheld until you can spell the triad without looking for it. Run " +
+          "all five qualities, then move the whole thing to a new position " +
+          "and run them again.",
         task:
           "Off-app first: sing or finger the arpeggio of every diatonic 7th chord in a key, " +
           "root position, ascending and descending, before you open this.",
@@ -84,6 +94,14 @@ export const SK_CHAPTERS = [
           "Before a formula has a name, it's just the sound of a scale meeting a chord. Learn " +
           "the raw scales, chords and modes common to bebop as vocabulary — the specific licks " +
           "come later, once your ear already expects this grammar.",
+        brief:
+          "Before a lick has a name it is just a scale meeting a chord. " +
+          "Today's exercise is to play the correct scale for each chord " +
+          "quality in straight eighth notes, with no approach notes and no " +
+          "decoration — dorian over m7, mixolydian over dom7, major over " +
+          "maj7, locrian over m7b5. Over a Dm7 vamp that is D–E–F–G–A–B–C, up " +
+          "and down, until the shape is automatic. The goal is that your hand " +
+          "finds the right seven notes before your brain names them.",
         listenFor: "Diatonic scale tones only, straight 8ths, no approach notes yet.",
         ready: true,
         exercise: {
@@ -112,6 +130,15 @@ export const SK_CHAPTERS = [
           "qualities memorised separately: maj7 becomes the relative minor, dom7 becomes the " +
           "minor a fifth above, m7 stays home, m7b5 and dim become symmetric extensions of the " +
           "same minor system.",
+        brief:
+          "Martino's insight is that you do not need four chord shapes, you " +
+          "need one minor shape and a rule about where to put it. Today's " +
+          "exercise is to play the ii minor over BOTH the ii and the V of a " +
+          "major ii-V-I, then flip a single note on the I. In C major: D " +
+          "minor material over Dm7, the same D minor material over G7 — where " +
+          "it sounds as G9 — then raise F to F# over Cmaj7 and it becomes " +
+          "lydian. One shape, three chords. Take it round four keys in the " +
+          "cycle of 4ths at 100 bpm before you move on.",
         listenFor:
           "The ii minor sounding over BOTH the ii and the V. The real 3rd and 7th still land " +
           "at each change — only the colour around them moves.",
@@ -140,6 +167,14 @@ export const SK_CHAPTERS = [
           "Two adjacent arpeggios played back to back are the seed of everything you'll do with " +
           "hexatonics in Chapter 4. Don't fuse them into one scale yet — alternate them, " +
           "cleanly, so your ear hears them as two separate objects first.",
+        brief:
+          "Two triads a whole step apart, played back to back, are the seed " +
+          "of every hexatonic you will build in Chapter 4. Today's exercise " +
+          "is to alternate them strictly — three notes of one, three notes of " +
+          "the other, never blended into a single run. Over Cmaj7 that is C " +
+          "major (C–E–G) then D major (D–F#–A); over C7 it is Bb major then C " +
+          "major. Keep them audibly separate: someone listening should be " +
+          "able to name both triads.",
         listenFor: "Two triads alternating strictly, never blending into a single run.",
         ready: true,
         exercise: {
@@ -175,6 +210,15 @@ export const SK_CHAPTERS = [
           "the beat before the chord change, and let a guide tone — the 3rd or the 7th — land on " +
           "the strong beat of the new chord. You are always already moving when the harmony " +
           "changes under you.",
+        brief:
+          "The downbeat is a place you arrive, not a place you start from. " +
+          "Today's exercise is to begin every phrase on the 'and' of the beat " +
+          "before the chord changes, and land a guide tone — the 3rd or the " +
+          "7th — squarely on beat 1 of the new chord. Over Dm7–G7–Cmaj7 that " +
+          "means entering on the & of 4 and landing B, the 3rd of G7, on the " +
+          "downbeat; then F, its 7th, falling a half step to E, the 3rd of " +
+          "Cmaj7. You should always already be moving when the harmony " +
+          "changes underneath you.",
         listenFor:
           "Phrases entering off the beat, guide tones landing on the change. Watch the reasoning " +
           "strip: bars that say 'guide tone' are the rail doing its job.",
@@ -197,6 +241,14 @@ export const SK_CHAPTERS = [
         voice:
           "Decorate the guide-tone skeleton without losing it. The 3-5-7-9 arpeggio elaboration " +
           "is the first layer of decoration that still keeps the rail audible underneath.",
+        brief:
+          "Now decorate the rails without losing them. Today's exercise is to " +
+          "take the guide-tone line from 2.1 and elaborate it with 3–5–7–9 " +
+          "arpeggio motion while the 3rds and 7ths still land exactly where " +
+          "they landed before. Over Dm7 that is F–A–C–E; over G7, B–D–F–A. " +
+          "Play 2.1 and 2.2 back to back at the same tempo — if the " +
+          "elaboration no longer arrives on the same notes on the same beats, " +
+          "you have added too much.",
         listenFor: "More notes than 2.1, same landings. If the rail disappears, it's too much.",
         ready: true,
         exercise: {
@@ -221,6 +273,16 @@ export const SK_CHAPTERS = [
           "One formula, three parts: an arpeggio with chord tones on strong beats, a chromatic " +
           "enclosure that starts the line or meets the target, and a guide-tone landing on the " +
           "3rd of the next chord, right on beat 1.",
+        brief:
+          "Peña's formula is three tools in a fixed order, and once you hear " +
+          "it you cannot unhear it. Today's exercise is to build every bar " +
+          "from exactly those three: chord tones holding beats 1 and 3, a " +
+          "chromatic enclosure on the offbeats leading into the target, and a " +
+          "guide-tone landing on the 3rd of the NEXT chord right on its " +
+          "downbeat. Over Dm7 into G7 that means outlining Dm7 on the strong " +
+          "beats, caging B from above and below across beats 3 and 4, and " +
+          "arriving on B as G7 begins. Say which of the three tools is " +
+          "happening in each bar, out loud, as you play it.",
         listenFor:
           "Three things at once: chord tones holding beats 1 and 3, an encirclement caging the " +
           "target on the offbeats before it, and the landing on the next chord's 3rd.",
@@ -244,6 +306,15 @@ export const SK_CHAPTERS = [
         voice:
           "These patterns exist for one job: connecting one chord's guide tone to the next " +
           "chord's guide tone. Nothing decorative — just the handoff.",
+        brief:
+          "A linking formula has one job — hand the guide tone of one chord " +
+          "to the guide tone of the next — and nothing decorative belongs in " +
+          "it. Today's exercise is to play plainly through each bar and save " +
+          "all your connective chromatic material for the barline itself. " +
+          "Over Dm7–G7, hold ordinary Dm7 material through beats 1 and 2, " +
+          "then use beats 3 and 4 only to walk into B, the 3rd of G7. Every " +
+          "handoff should be traceable: you should be able to point at the " +
+          "note that did the work.",
         listenFor: "Connective chromatic material at the barline, plainer material in between.",
         ready: true,
         exercise: {
@@ -265,6 +336,14 @@ export const SK_CHAPTERS = [
           "A first taste of voice leading through light chromatic connective tissue. Don't go " +
           "deep yet — that's Chapter 3's job. Here, just notice that a single passing tone can " +
           "carry a line across the barline.",
+        brief:
+          "A first taste, not the deep dive — that is Chapter 3's job. " +
+          "Today's exercise is to play a mostly diatonic line and allow " +
+          "yourself exactly one chromatic passing tone per two-bar phrase. " +
+          "One. Choose it deliberately and put it where it carries the line " +
+          "across the barline, not where it decorates the middle of a bar. " +
+          "Over Dm7–G7 the strongest single choice is usually a half step " +
+          "above or below the 3rd of G7, played on the & of 4.",
         listenFor: "At most one chromatic passing tone per two-bar phrase.",
         ready: true,
         exercise: {
@@ -299,6 +378,16 @@ export const SK_CHAPTERS = [
         voice:
           "Upper neighbour, lower neighbour, double chromatic, and full encirclement from both " +
           "sides — four distinct devices, not one blurry habit. Practise each alone.",
+        brief:
+          "There are four distinct approach notes, not one blurry habit, and " +
+          "the only way to own them is to practise each completely alone. " +
+          "Today's exercise is four separate passes over the same changes: " +
+          "upper neighbour only (the scale tone above, falling in), lower " +
+          "neighbour only (a half step below, pushing up), double chromatic " +
+          "(two half steps from below), and full encirclement (the target " +
+          "caged from both sides before it arrives). Aiming at B, the 3rd of " +
+          "G7, those are C–B, Bb–B, A–Bb–B, and Bb–C–A–Bb–B. Run one type for " +
+          "a whole chorus before you switch to the next.",
         listenFor:
           "One type at a time, and only that type — the reasoning strip names it in every bar, " +
           "so if you hear something else you can check.",
@@ -329,6 +418,16 @@ export const SK_CHAPTERS = [
           "One added chromatic passing tone per octave is the whole secret — it's not " +
           "decoration, it's the rhythmic reason your chord tones keep landing on the strong " +
           "beats even when you're playing straight 8ths.",
+        brief:
+          "The bebop scale is a seven-note scale with one chromatic passing " +
+          "tone added, and its purpose is rhythmic rather than decorative: " +
+          "eight notes to the octave means your chord tones keep landing on " +
+          "strong beats while you play continuous eighths. Today's exercise " +
+          "is straight eighth notes — no rests, no phrasing, just the scale — " +
+          "letting the passing tone do its job. Over G7 that is " +
+          "G–A–B–C–D–E–F–F#, and if you start on G on beat 1 you will find B, " +
+          "D and F all arriving on strong beats without you steering them " +
+          "there.",
         listenFor:
           "Eight notes to the octave. The reasoning strip names the passing tone the scale added.",
         ready: true,
@@ -353,6 +452,15 @@ export const SK_CHAPTERS = [
         voice:
           "Now go all the way in: the complete chromatic connective vocabulary linking arpeggio " +
           "tones across the barline, not just the light taste from Chapter 2.",
+        brief:
+          "Now take the one-per-phrase cap off 2.5. Today's exercise is " +
+          "continuous chromatic connective tissue: approach material wherever " +
+          "it wants to be, not only at the barline, with no gap longer than " +
+          "two beats without an approach tone pulling into something. Over " +
+          "Dm7–G7–Cmaj7 you should be leaning into F and A across the Dm7, " +
+          "into B and F across the G7, and into E as Cmaj7 arrives. If you " +
+          "can play four beats of plain scale with nothing pulling toward a " +
+          "target, tighten it.",
         listenFor: "Dense chromatic connective tissue throughout, not only at the barline.",
         ready: true,
         exercise: {
@@ -374,6 +482,15 @@ export const SK_CHAPTERS = [
           "Stay inside a major 3rd of your target. Never repeat the same interval direction " +
           "twice in a row. That's it — that's the whole rule, and it's the softest possible " +
           "door into everything we'll do together in Chapter 4.",
+        brief:
+          "This is the softest possible door into Garzone's language, and the " +
+          "entire system is two rules. Today's exercise is to improvise using " +
+          "chromatic motion that never strays more than a major 3rd from the " +
+          "note you are heading for, and never moves the same direction twice " +
+          "in a row. Heading for B you might play D–C#–D#–C–B: every note " +
+          "within four semitones of the target, every move reversing the one " +
+          "before it. Do not try to make it sound like anything yet — obey " +
+          "the two rules and let the landing take care of itself.",
         listenFor:
           "Chromatic motion that never strays more than a major 3rd from where it's going, and " +
           "never moves the same way twice running. It always lands — the engine places the " +
@@ -411,6 +528,14 @@ export const SK_CHAPTERS = [
           "Fuse the two adjacent triads from Chapter 1 into one 6-note scale — not alternated " +
           "anymore, played as a single continuous line. Then build melodic cells directly from " +
           "that hexatonic and move them around the neck.",
+        brief:
+          "The two triads from 1.4 are also a single six-note scale, and that " +
+          "is the whole idea. Today's exercise is to stop alternating them " +
+          "and play the fusion as one continuous line. Over Cmaj7, C major " +
+          "plus D major becomes C–D–E–F#–G–A, and it should sound like a " +
+          "scale rather than two arpeggios taking turns. Then build a four- " +
+          "note cell out of those six notes and move that cell to three " +
+          "positions on the neck.",
         listenFor:
           "The same two triads as 1.4 — but now one continuous line, not two objects. The " +
           "reasoning strip names the pair the scale came from.",
@@ -434,6 +559,14 @@ export const SK_CHAPTERS = [
         voice:
           "Systematically, over every chord quality — which triad, built on which scale degree, " +
           "gives you which colour? Learn the map, not just a handful of favourites.",
+        brief:
+          "Superimposition is a map, not a handful of favourites: for every " +
+          "chord quality, which triad built on which scale degree gives which " +
+          "colour. Today's exercise is to play a triad built a step or a " +
+          "third above the chord root and name the colour tones it produces " +
+          "BEFORE you sound it. D major over Cmaj7 gives you the 9, the #11 " +
+          "and the 13; Bb major over C7 gives you the b7, the 9 and the 11. " +
+          "Say the colour, then play it — in that order.",
         listenFor:
           "Which triad sits over which chord, and what colour it makes — the strip names the " +
           "triad on every note, so you can build the map by reading it back.",
@@ -455,6 +588,14 @@ export const SK_CHAPTERS = [
         voice:
           "Vincent gave you the system. Now extend it — hexatonics built from non-adjacent triad " +
           "relationships, and hexatonic-over-hexatonic superimposition for a denser colour.",
+        brief:
+          "Vincent gave you triads a whole step apart; Bergonzi's extension " +
+          "pulls them further apart. Today's exercise is to play a hexatonic " +
+          "built from two triads a tritone apart instead — over Cmaj7 that is " +
+          "C major and F# major — which still gives you six notes but with " +
+          "far more tension, and stops sounding like a scale altogether. Play " +
+          "the standard hexatonic and this one back to back so the difference " +
+          "is unmistakable.",
         listenFor:
           "A hexatonic built from triads a tritone apart instead of a step — denser, and it " +
           "stops sounding like a scale.",
@@ -477,6 +618,17 @@ export const SK_CHAPTERS = [
           "Chain any of the four triad qualities — major, minor, augmented, diminished — " +
           "connected only by half-step, and never repeat the same inversion twice in a row. " +
           "This is the engine underneath everything I do.",
+        brief:
+          "This is the engine underneath everything Garzone does, and it has " +
+          "exactly three rules. Today's exercise is to chain triads — any of " +
+          "the four qualities: major, minor, augmented, diminished — " +
+          "connected only by half-step motion, never repeating the same " +
+          "inversion twice running and never the same quality twice running. " +
+          "Play C major (C–E–G), move a half step from G to G# and play a " +
+          "minor triad from there, move a half step from ITS last note and " +
+          "play an augmented, and keep going. Start at 76 bpm and do not " +
+          "rush. Do not take this to full speed until Chapter 6 is solid — " +
+          "that is Garzone's own rule, not ours.",
         listenFor:
           "Triads you can name, connected by nothing but half steps. The strip names the " +
           "quality and the inversion as each one starts — read it back and you can spell the " +
@@ -516,6 +668,15 @@ export const SK_CHAPTERS = [
           "A pentatonic scale off an unexpected scale degree gives you a whole new harmonic " +
           "colour for free. And once you can do that, force yourself to leap — 4ths, 5ths, 6ths " +
           "— instead of stepping. The ear hears space and confidence in leaps.",
+        brief:
+          "Two habits break here. First, a pentatonic built off a degree that " +
+          "is not the root hands you a whole new colour for free — D minor " +
+          "pentatonic over Cmaj7, or Bb major pentatonic over C7. Second, " +
+          "forbid yourself to step at all. Today's exercise is two passes: " +
+          "one drawing only on the colour pentatonic, and one where no " +
+          "interval between consecutive notes is smaller than a 4th. The " +
+          "leaps will feel wrong for about a chorus, and then they will start " +
+          "to sound like confidence.",
         listenFor:
           "First half: a pentatonic off a degree that isn't the root, so the colour arrives free. " +
           "Second half: nothing smaller than a 4th between consecutive notes.",
@@ -537,6 +698,14 @@ export const SK_CHAPTERS = [
         voice:
           "Take a melodic cell you already know and re-voice it with wider intervals, or rebuild " +
           "it from a pentatonic fragment instead of a triad. Same shape, new colour.",
+        brief:
+          "A cell is a shape, and a shape can be rebuilt out of different " +
+          "material. Today's exercise is to take a four-note cell you already " +
+          "know from chord tones and rebuild it using pentatonic tones only, " +
+          "then again with the intervals widened. Same contour, three " +
+          "different colours. Play the triadic version and the pentatonic " +
+          "version back to back so you can hear it is one idea wearing " +
+          "different clothes.",
         listenFor:
           "The Chapter 6 cell shape, rebuilt out of pentatonic tones instead of chord tones. " +
           "Same contour, different colour — play the two variants back to back.",
@@ -559,6 +728,14 @@ export const SK_CHAPTERS = [
           "Combine the pentatonic with the blues scale deliberately, and notice that you can " +
           "still build ordinary diatonic triads on top of pentatonic scale degrees — it's not " +
           "an either/or.",
+        brief:
+          "Pentatonic and blues are not a choice you make once and stick to. " +
+          "Today's exercise is to alternate them deliberately over a 12-bar " +
+          "blues — one bar of pure pentatonic, one bar of blues scale — and " +
+          "to notice that you can still build ordinary diatonic triads on top " +
+          "of pentatonic scale degrees. Over F7: F major pentatonic, then F " +
+          "blues, bar by bar, with no two consecutive bars using the same " +
+          "material.",
         listenFor:
           "Pentatonic and blues are not an either/or — run one variant then the other over the " +
           "same bars and hear where they overlap.",
@@ -596,6 +773,16 @@ export const SK_CHAPTERS = [
           "Now the full version, not just the landing-note taste from Chapter 2: consistently " +
           "playing behind the beat, every phrase, every chorus, until it's not a technique " +
           "anymore, it's just how you play.",
+        brief:
+          "Chapter 2 gave you the landing note; this is the full version. " +
+          "Today's exercise is to play a complete chorus in which every " +
+          "single phrase entrance is off the beat — not one phrase beginning " +
+          "on a downbeat. Over a blues in F that means every entry lands on " +
+          "an 'and': the & of 4 going into the F7, the & of 2 in the middle " +
+          "of it, never on the 1. Push everything a half beat early and let " +
+          "the guide tones land where they always landed. It will feel like " +
+          "rushing for about two choruses, and then it stops being a " +
+          "technique and becomes how you play.",
         listenFor: "Maximum anticipation — phrase entrances pushed off the beat, nearly without exception.",
         ready: true,
         exercise: {
@@ -614,6 +801,16 @@ export const SK_CHAPTERS = [
         voice:
           "Take a melodic idea you already own and restate it against a different rhythmic grid " +
           "entirely. The pitches don't change — the placement does, and that's the whole lesson.",
+        brief:
+          "The same pitches in a different place are a different phrase, and " +
+          "this is the exercise that proves it. Today's exercise is to play a " +
+          "short phrase — over Cmaj7, say E–F–G–A starting on beat 1 — then " +
+          "restate it with identical pitch content, the same notes in the " +
+          "same order, starting on the & of 1 instead. Then again, another " +
+          "eighth later. Nothing about WHAT you play changes; only when. " +
+          "Check that the notes really are identical, because the urge to " +
+          "improve the restatement is enormous and giving in to it defeats " +
+          "the entire point.",
         listenFor:
           "The same notes coming back in a different place. The reasoning strip marks every " +
           "restated note, so you can check the pitches really didn't move.",
@@ -635,6 +832,14 @@ export const SK_CHAPTERS = [
         voice:
           "Go back to the linking formulas from Chapter 2 and notice — really notice — the " +
           "rhythm they're built on. It was never just about which notes connect; it's when they land.",
+        brief:
+          "Go back to the linking formula from 2.4 and notice what you did " +
+          "not notice then: the rhythm underneath it. Today's exercise is to " +
+          "play that same handoff — the same approach into B, the 3rd of G7 — " +
+          "but syncopated, entering on the & of 3 rather than on beat 3. The " +
+          "notes do not change at all, only where they sit. Then have someone " +
+          "play one at you and say whether it landed on or off the beat, " +
+          "without looking.",
         listenFor:
           "Chapter 2.4's linking formula — the same encirclement into the same targets — now " +
           "entering off the beat. Only the placement changed.",
@@ -655,6 +860,14 @@ export const SK_CHAPTERS = [
         voice:
           "A 4-note cell restated against a rotating downbeat — the shape stays fixed, but where " +
           "it starts in the bar keeps moving. This is how one small idea generates a whole chorus.",
+        brief:
+          "One small idea generates a whole chorus if you keep moving where " +
+          "it starts. Today's exercise is to take a single four-note cell — " +
+          "over Cmaj7, say E–G–A–G — and restate it over and over with one " +
+          "extra note between restatements, so its first note lands an eighth " +
+          "later in the bar each time. The shape never changes; its downbeat " +
+          "walks around the bar. At every restatement, be able to say exactly " +
+          "where beat 1 of the original cell now falls.",
         listenFor:
           "One four-note shape, over and over, with a single hinge note between restatements — " +
           "which is what keeps walking its first note around the bar. Over a static chord the " +
@@ -694,6 +907,18 @@ export const SK_CHAPTERS = [
           "Dominant, half-diminished, altered — every one of them still reduces to a converted " +
           "minor or diminished shape. One fingering system, moved around the neck, now also " +
           "covers the substitutions.",
+        brief:
+          "The tritone substitution is one of the most common ways to bring " +
+          "the altered sound into your playing, and it turns up almost " +
+          "entirely over the functioning dominant of a major or minor ii-V-I. " +
+          "Today's exercise is to glide your minor phrases smoothly over the " +
+          "ii chord and straight into the tritone sub of the V — in C major " +
+          "that is D minor material over Dm7, then Db7 (the tritone of G7), " +
+          "then home to C major. The conversion itself does not change: you " +
+          "treat the substituted dominant exactly as you treated the " +
+          "original, and the shared tritone — B and F, in both chords — is " +
+          "the hinge that makes the two shapes relatives rather than " +
+          "strangers.",
         listenFor:
           "The substituted dominant converted the same way as the original. The reasoning strip " +
           "names both moves: the sub, then the minor it converts to.",
@@ -720,6 +945,15 @@ export const SK_CHAPTERS = [
         voice:
           "Beyond Martino's fingering shortcut, understand the harmony itself: why the tritone " +
           "sub works, and which melodic-minor mode replaces the altered scale over it.",
+        brief:
+          "Now understand why the substitution works instead of just " +
+          "fingering it. Today's exercise is to name the melodic-minor mode " +
+          "in play before you sound a single note over each substituted " +
+          "dominant. Over G7 altered you are in Ab melodic minor; over its " +
+          "tritone sub, Db7, you are in the lydian dominant mode of that same " +
+          "parent scale — which is precisely why the two chords are " +
+          "interchangeable. Say the parent scale, then play it. Five called- " +
+          "out dominants, no chart in front of you.",
         listenFor: "Every dominant reading from the altered scale, deliberately — not sometimes.",
         ready: true,
         exercise: {
@@ -738,6 +972,15 @@ export const SK_CHAPTERS = [
         voice:
           "Turnarounds are where substitution shows up constantly in real tunes. Learn the " +
           "vocabulary formulas built specifically for them, not abstract theory.",
+        brief:
+          "Turnarounds are where substitution earns its keep, because they " +
+          "come round every eight bars in real tunes. Today's exercise is to " +
+          "play a I-VI-ii-V and substitute alternating dominants so the roots " +
+          "walk down chromatically instead of leaping about. In C that turns " +
+          "Cmaj7–A7–Dm7–G7 into Cmaj7–Eb7–Dm7–Db7, and the descending roots " +
+          "do most of the work for you. Then take it into a full rhythm- " +
+          "changes A section, where the turnaround arrives every eight bars " +
+          "whether you are ready or not.",
         listenFor:
           "The turnaround's roots walking down chromatically — that's the substitution every " +
           "turnaround formula is built on. The formulas themselves are vocabulary: play them " +
@@ -760,6 +1003,14 @@ export const SK_CHAPTERS = [
         voice:
           "The triad chain from Chapter 4 isn't just melodic colour — use it as a harmonic " +
           "substitution tool over static or altered dominant chords. Same chain, new job.",
+        brief:
+          "The triad chain from 4.4 was melodic colour. Today it does a " +
+          "harmonic job. Today's exercise is to sit on a static or vamping " +
+          "dominant and use the chain as the substitute harmony — not " +
+          "decorating the chord but replacing it — then resolve cleanly the " +
+          "moment the real changes return. Eight bars over G7 with the chain " +
+          "running, then land on Cmaj7 as though nothing had happened. The " +
+          "resolution is the entire difference between this and noise.",
         listenFor:
           "The same chain as 4.4, but doing a harmonic job: colour over a static dominant that " +
           "resolves the moment the real harmony returns.",
@@ -794,6 +1045,15 @@ export const SK_CHAPTERS = [
           "Sustained outside lines that resolve back to chord tones by design, not luck. Combine " +
           "the triad chain with the random chromatic approach, and never let go of the " +
           "resolution rule.",
+        brief:
+          "Both Garzone systems at once, with the resolution rule non- " +
+          "negotiable. Today's exercise is to run the triad chain and the " +
+          "random chromatic approach together over a blues in F: sustain " +
+          "outside motion for up to two beats, then land on a named chord " +
+          "tone — A or Eb over the F7, D or Ab over the Bb7 — before the " +
+          "chord changes. Every time, by design, not by luck. Do three " +
+          "excursions in a row and name the chord tone each one landed on. If " +
+          "you cannot name it, you did not resolve, you just stopped.",
         listenFor:
           "Triad chain and random chromatic approach at once. The resolution is not a matter of " +
           "luck or discipline here — the landing is chosen before the excursion is written, so " +
@@ -816,6 +1076,15 @@ export const SK_CHAPTERS = [
         voice:
           "The wide-interval and vocabulary-building material from earlier chapters, repurposed " +
           "with one new constraint: it has to come back. That constraint is the whole skill.",
+        brief:
+          "The same wide-interval material as 5.1, with one new constraint " +
+          "that changes everything about it: it has to come back. Today's " +
+          "exercise is to leap your way outside at full intensity and then " +
+          "land, every time, on a chord tone at the change — over " +
+          "Dm7–G7–Cmaj7, whatever happens in between, arrive on B as the G7 " +
+          "begins and on E as the Cmaj7 does. The constraint is the skill: " +
+          "anyone can leap outside, the discipline is arriving somewhere on " +
+          "purpose.",
         listenFor:
           "Wide-interval material at full intensity that still lands. It cannot escape: the " +
           "engine places the guide-tone anchors before it writes anything between them.",
@@ -836,6 +1105,14 @@ export const SK_CHAPTERS = [
         voice:
           "A hexatonic borrowed from a different key centre, dropped in briefly, then released " +
           "back to the real harmony. Same discipline as Garzone's — sound outside, resolve inside.",
+        brief:
+          "Borrow a hexatonic from a key centre that is not yours, use it " +
+          "briefly, and give it back. Today's exercise is to take the " +
+          "hexatonic from a half step or a tritone away, drop it in for no " +
+          "more than two beats, and resolve into the real harmony. Over " +
+          "Cmaj7, borrow the Db hexatonic, then release it. Afterwards, name " +
+          "which key centre you borrowed from — if you cannot, you were not " +
+          "borrowing, you were guessing.",
         listenFor:
           "A hexatonic lifted a half step or a tritone away from home, dropped in, and released. " +
           "The strip names how far it was borrowed, so you can answer the gate from it.",
@@ -859,6 +1136,16 @@ export const SK_CHAPTERS = [
         voice:
           "The conversion system already gave you diminished and augmented symmetric shapes. Use " +
           "them here on purpose, as colour, always inside the same resolution discipline.",
+        brief:
+          "The conversion system already handed you diminished and augmented " +
+          "shapes. They are symmetric, which means they repeat evenly up the " +
+          "neck and sound deliberately unmoored from any key. Today's " +
+          "exercise is to use them on purpose as outside colour over an " +
+          "altered dominant: over G7alt run the Ab diminished and augmented " +
+          "shapes, then resolve into Cmaj7 under exactly the same discipline " +
+          "as the rest of this chapter. Move between all four Chapter 8 " +
+          "devices across a single eight-bar phrase, resolving every " +
+          "excursion.",
         listenFor:
           "Outside colour that never escapes the next landing — the engine places the guide-tone " +
           "anchors first, so an excursion is bounded by construction.",
@@ -892,6 +1179,15 @@ export const SK_CHAPTERS = [
         voice:
           "Transcription is not homework, it's the method. Take a phrase you didn't write, get " +
           "it note-perfect, then change one thing about it on purpose.",
+        brief:
+          "Transcription is not homework, it is the method — and the " +
+          "Workbench is where you drill the mechanism before taking it to a " +
+          "record. Today's exercise is call and response: a phrase plays over " +
+          "Dm7–G7–Cmaj7 with the notation hidden, you work it out on the " +
+          "guitar, you enter what you heard, and only then do you reveal it. " +
+          "Do not reveal early. Being wrong and seeing exactly where you were " +
+          "wrong is the entire value. Five phrases, and once each is note- " +
+          "perfect, change one thing about it on purpose.",
         listenFor:
           "Nothing, at first — that's the point. The phrase plays with the notation hidden. Work " +
           "it out on the guitar, enter what you heard, then reveal and see exactly which notes " +
@@ -910,6 +1206,14 @@ export const SK_CHAPTERS = [
         voice:
           "Every device from every chapter, now over a real tune, not an isolated exercise. If " +
           "you can't do it over a tune, you don't actually own it yet.",
+        brief:
+          "Every device from every chapter, now over a real tune instead of " +
+          "an isolated exercise. Today's exercise is to solo a full chorus of " +
+          "Autumn Leaves — Cm7–F7–Bbmaj7–Ebmaj7 and onward — choosing your " +
+          "own devices as you go, and then, afterwards rather than during, " +
+          "label which chapter each phrase came from. If you cannot trace a " +
+          "phrase to a segment, that is the diagnostic: go back and re-drill " +
+          "that segment rather than adding anything new on top.",
         listenFor: "Your own choice of devices. Then read the strip back and see whether you can name them.",
         ready: true,
         exercise: {
@@ -931,6 +1235,13 @@ export const SK_CHAPTERS = [
           "Forward motion should be invisible by now — not a technique you're doing, just how " +
           "you hear. If it still feels like an exercise, that's fine: go back to Chapter 2 and " +
           "Chapter 6 and keep going.",
+        brief:
+          "Forward motion should be invisible by now. Today's exercise " +
+          "deliberately has no device and no direction: play a full chorus " +
+          "and try to notice nothing. If phrasing behind the beat still feels " +
+          "like something you are doing rather than simply how you hear, that " +
+          "is not a failure, it is information — go back to Chapter 2 and " +
+          "Chapter 6 and keep going.",
         listenFor: "Nothing in particular. That's the test.",
         ready: true,
         exercise: {
@@ -950,6 +1261,14 @@ export const SK_CHAPTERS = [
           "Study excerpts from real recorded solos — Adderley, Harrell, Gordon — the same way " +
           "you studied the Workbench's generated phrases. A great line is a specific, namable " +
           "choice made by a specific player, and you can make that same choice.",
+        brief:
+          "A great line is a specific choice made by a specific player, and " +
+          "you can make that same choice once you know what it was. Today's " +
+          "exercise is to put on a record — Adderley, Harrell, Gordon — and " +
+          "take four bars down by ear using exactly the mechanism you drilled " +
+          "in 9.1: listen, work it out on the guitar, write it down, then " +
+          "check it. Save it, tag it, and then change one thing about it " +
+          "deliberately. Three excerpts.",
         listenFor:
           "Bring your own excerpts. Put on Adderley, Harrell or Gordon, take four bars down by " +
           "ear the same way you took down the Workbench's phrases, and save it. The library " +
@@ -978,6 +1297,15 @@ export const SK_CHAPTERS = [
         voice:
           "The whole toolkit over the form everything else is measured against. Point at any " +
           "four-bar stretch and name the chapter its reasoning tag traces to.",
+        brief:
+          "The form everything else is measured against. Today's exercise is " +
+          "to solo a full 12-bar chorus using whatever you now own, then " +
+          "point at any four-bar stretch and name the chapter and segment its " +
+          "phrases came from. Start with bars 1–4 and the move to the Bb7 in " +
+          "bar 5, where the first real chord change happens. This is a " +
+          "diagnostic rather than a lesson: you are testing whether the " +
+          "curriculum landed, and any stretch you cannot trace tells you " +
+          "exactly which chapter to go back to.",
         listenFor: "Your own reading of the strip — this chapter is a diagnostic, not a lesson.",
         ready: true,
         exercise: {
@@ -996,6 +1324,13 @@ export const SK_CHAPTERS = [
         title: "Rhythm changes",
         pedagogue: "Repertoire",
         voice: "The same test over the other form every player is expected to own.",
+        brief:
+          "Rhythm changes moves twice as fast harmonically and punishes " +
+          "anything you only half know. Today's exercise is the same test as " +
+          "10.1 over the A section, with one added constraint: where the " +
+          "harmony moves two chords to the bar, compress to one device per " +
+          "chord rather than trying to cram a whole formula into two beats. " +
+          "Then trace every turnaround back to Chapter 7.",
         listenFor: "Fast harmonic rhythm — two chords per bar means one device per chord.",
         ready: true,
         exercise: {
@@ -1014,6 +1349,17 @@ export const SK_CHAPTERS = [
         voice:
           "A ii-V-I-heavy standard and a string-of-dominants standard — the two forms that test " +
           "whether the substitution chapter actually landed.",
+        brief:
+          "Two tunes that test opposite things. Today's exercise is a full " +
+          "chorus of each, tracing every four-bar stretch back to a chapter. " +
+          "Tune Up is three plain ii-V-Is descending by whole step — " +
+          "Em7–A7–Dmaj7, then Dm7–G7–Cmaj7, then Cm7–F7–Bbmaj7 — so there is " +
+          "nowhere for weak substitution to hide. Have You Met Miss Jones has " +
+          "a bridge that drops through three key centres a major third apart " +
+          "(Bb, then Gb, then D), which nothing else in the library does; " +
+          "treat each as its own key rather than straining to hear a single " +
+          "tonal centre. Both tunes are in the Songbook now, so play them " +
+          "with the band.",
         listenFor:
           "Tune Up is three plain ii-V-Is descending — the substitution chapter has nowhere to " +
           "hide. Miss Jones's bridge drops through three key centres a major third apart, which " +

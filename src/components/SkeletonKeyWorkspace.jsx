@@ -234,6 +234,19 @@ export default function SkeletonKeyWorkspace({
           “{segment.voice}” <span style={{ fontStyle: "normal", opacity: 0.6 }}>— {segment.pedagogue}</span>
         </blockquote>
 
+        {/* The quote says why this matters; the brief says what you are
+            actually doing about it today. Without it a student got a
+            philosophy and a device chip and had to infer the exercise. */}
+        <div style={{
+          fontSize: "var(--db-fs-sm)", lineHeight: 1.6, marginBottom: "14px",
+          maxWidth: "68ch", padding: "12px 15px", borderRadius: "var(--db-r-md)",
+          border: "1px solid var(--db-panel-border)",
+          background: "color-mix(in srgb, var(--db-accent) 6%, transparent)",
+        }}>
+          <div style={{ ...eyebrowStyle, marginBottom: "6px", opacity: 0.75 }}>THE EXERCISE</div>
+          {segment.brief}
+        </div>
+
         {segment.task && (
           <div style={{ fontSize: "var(--db-fs-sm)", opacity: 0.75, marginBottom: "12px", maxWidth: "62ch" }}>
             <strong>Before the app:</strong> {segment.task}

@@ -33,6 +33,28 @@ describe("shape", () => {
     }
   })
 
+  it("every segment briefs the student on what to actually do", () => {
+    // The pedagogue's quote says why the device matters; the brief says what
+    // you do about it in the next twenty minutes. A segment with only the
+    // quote leaves the student to infer the exercise from a device chip.
+    for (const seg of SK_SEGMENTS) {
+      expect(seg.brief, `${seg.id} has no brief`).toBeTruthy()
+      expect(seg.brief.length, `${seg.id}'s brief is too thin to instruct`).toBeGreaterThan(150)
+      expect(seg.brief, `${seg.id} never states the exercise`).toMatch(/Today's exercise/)
+    }
+  })
+
+  it("briefs name real notes, not just abstractions", () => {
+    // A worked example in a named key is what makes the difference between
+    // "superimpose a triad" and something a player can pick up and do.
+    const withExample = SK_SEGMENTS.filter((s) => /\b[A-G](b|#)?(maj7|m7b5|m7|7alt|7|dim7)?\b/.test(s.brief))
+    // Not quite all of them: a couple of Chapter 9 segments are deliberately
+    // device-free — "play a chorus and try to notice nothing" is the
+    // instruction — and naming a chord there would be inventing specificity
+    // the exercise doesn't have.
+    expect(withExample.length / SK_SEGMENTS.length).toBeGreaterThan(0.9)
+  })
+
   it("segment ids are unique and match their chapter", () => {
     const ids = SK_SEGMENTS.map((s) => s.id)
     expect(new Set(ids).size).toBe(ids.length)
