@@ -1007,6 +1007,7 @@ export const FORM_CATEGORIES = {
   "Easy Standards": [
     "All of Me (C)",
     "Autumn Leaves (Gm)",
+    "Tune Up (D)",
     "Summertime (Am)",
     "Blue Bossa (Cm)",
     "Footprints (Cm)",
@@ -1019,6 +1020,7 @@ export const FORM_CATEGORIES = {
   "Jazz Standards": [
     "All The Things You Are (Ab)",
     "Stella By Starlight (Bb)",
+    "Have You Met Miss Jones (F)",
     "Body and Soul (Db)",
     "My Funny Valentine (Cm)",
     "Someday My Prince Will Come (Bb)",
@@ -1082,6 +1084,48 @@ export const FORM_CATEGORIES = {
   "Sonora Noir": Object.keys(SONORA_NOIR_FORMS),
 }
 
+// ── Skeleton Key Chapter 10 additions ────────────────────────────────────
+// The curriculum's repertoire arc needs one ii-V-I-heavy standard beyond
+// Autumn Leaves and one string-of-dominants standard; nothing in the library
+// covered the second slot at all.
+
+// Tune Up — the ii-V-I drill every player learns the changes on: three
+// descending key centres, each a plain ii-V-I, then a half-diminished turn.
+const TUNE_UP = {
+  keyRoot: "D", keyMode: "major", tempo: 160,
+  bars: [
+    ...s("Em7", "A1"), ...s("A7", "A1"), ...s("Dmaj7", "A1"), ...s("Dmaj7", "A1"),
+    ...s("Dm7", "A1"), ...s("G7", "A1"), ...s("Cmaj7", "A1"), ...s("Cmaj7", "A1"),
+    ...s("Cm7", "A1"), ...s("F7", "A1"), ...s("Bbmaj7", "A1"), ...s("Bbmaj7", "A1"),
+    ...s("Em7b5", "A1"), ...s("A7alt", "A1"), ...s("Dmaj7", "A1"), ...s("Dmaj7", "A1"),
+
+    ...s("Em7", "A2"), ...s("A7", "A2"), ...s("Dmaj7", "A2"), ...s("Dmaj7", "A2"),
+    ...s("Dm7", "A2"), ...s("G7", "A2"), ...s("Cmaj7", "A2"), ...s("Cmaj7", "A2"),
+    ...s("Cm7", "A2"), ...s("F7", "A2"), ...s("Bbmaj7", "A2"), ...s("Bbmaj7", "A2"),
+    ...s("Em7b5", "A2"), ...s("A7alt", "A2"), ...s("Dmaj7", "A2"), ...s("Em7 A7", "A2"),
+  ],
+}
+
+// Have You Met Miss Jones — ordinary AABA until the bridge, which drops
+// through three key centres a major third apart. That bridge is the reason
+// this tune is in the curriculum: nothing else in the library moves like it.
+const MISS_JONES = {
+  keyRoot: "F", keyMode: "major", tempo: 160,
+  bars: [
+    ...s("Fmaj7", "A1"), ...s("F#dim7", "A1"), ...s("Gm7", "A1"), ...s("C7", "A1"),
+    ...s("Am7 D7", "A1"), ...s("Gm7 C7", "A1"), ...s("Fmaj7", "A1"), ...s("Gm7 C7", "A1"),
+
+    ...s("Fmaj7", "A2"), ...s("F#dim7", "A2"), ...s("Gm7", "A2"), ...s("C7", "A2"),
+    ...s("Am7 D7", "A2"), ...s("Gm7 C7", "A2"), ...s("Fmaj7", "A2"), ...s("F7", "A2"),
+
+    ...s("Bbmaj7", "B"), ...s("Abm7 Db7", "B"), ...s("Gbmaj7", "B"), ...s("Em7 A7", "B"),
+    ...s("Dmaj7", "B"), ...s("Abm7 Db7", "B"), ...s("Gbmaj7", "B"), ...s("Gm7 C7", "B"),
+
+    ...s("Fmaj7", "A3"), ...s("F#dim7", "A3"), ...s("Gm7", "A3"), ...s("C7", "A3"),
+    ...s("Am7 D7", "A3"), ...s("Gm7 C7", "A3"), ...s("Fmaj7", "A3"), ...s("Fmaj7", "A3"),
+  ],
+}
+
 export const FORMS = {
   // ── Custom / AI ──────────────────────────────────────────
   "Custom":                            null,
@@ -1106,6 +1150,7 @@ export const FORMS = {
   // ── Easy Standards ────────────────────────────────────────
   "All of Me (C)":                     ALL_OF_ME,
   "Autumn Leaves (Gm)":                AUTUMN_LEAVES,
+  "Tune Up (D)":                       TUNE_UP,
   "Summertime (Am)":                   SUMMERTIME,
   "Blue Bossa (Cm)":                   BLUE_BOSSA,
   "Footprints (Cm)":                   FOOTPRINTS,
@@ -1117,6 +1162,7 @@ export const FORMS = {
   // ── Jazz Standards ────────────────────────────────────────
   "All The Things You Are (Ab)":       ALL_THE_THINGS_YOU_ARE,
   "Stella By Starlight (Bb)":          STELLA_BY_STARLIGHT,
+  "Have You Met Miss Jones (F)":       MISS_JONES,
   "Body and Soul (Db)":                BODY_AND_SOUL,
   "My Funny Valentine (Cm)":           MY_FUNNY_VALENTINE,
   "Someday My Prince Will Come (Bb)":  SOMEDAY_MY_PRINCE,

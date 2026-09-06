@@ -38,7 +38,7 @@ import { setLastLine, getLastLine, RESUME_LAST_LINE_EVENT } from "@/lib/music/la
 import { logActivity } from "@/lib/recentActivity"
 import { PM_PROGRESSIONS, transposeProgression, runGenerator } from "@/lib/music/phraseEngine"
 import { phraseResultToLine } from "@/lib/music/phraseAdapter"
-import { improvise, createImproviserSession, IMPROV_PROFILES } from "@/lib/music/improviser"
+import { improvise, createImproviserSession, IMPROV_PROFILES, IMPROV_DEVICES } from "@/lib/music/improviser"
 
 const DEVICES = [
   "Chromatics", "Bebop scale", "Enclosures", "Altered",
@@ -75,6 +75,15 @@ function routeDevices(selected, martino) {
   return out
 }
 
+// The two kinds of Improviser device, split once. A lens rewrites the pitch
+// pools a segment offers; a filler writes the run of notes leading into a
+// target. Derived from the registry so a new device shows up here on its own.
+const IM_LENSES = Object.values(IMPROV_DEVICES).filter((d) => d.kind === "lens")
+const IM_FILLERS = Object.values(IMPROV_DEVICES).filter((d) => d.kind === "filler")
+const IM_STRUCTURES = Object.values(IMPROV_DEVICES).filter((d) => d.kind === "structure")
+const IM_RHYTHM = Object.values(IMPROV_DEVICES).filter((d) => d.kind === "rhythm")
+const IM_FILLER_IDS = new Set(IM_FILLERS.map((d) => d.id))
+
 const POSITIONS = ["Anywhere", "Open to 4th", "5th position", "7th to 9th", "10th and up"]
 
 // Standard tuning, string 1 = high E
@@ -110,7 +119,7 @@ function parseBars(text) {
   return bars
 }
 
-export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyle, selectStyle, onStopPlayback, playLineSection, licks = [], selectedLickId, onSelectLick, requestedLick, onSaveLick }) {
+export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyle, selectStyle, onStopPlayback, playLineSection, licks = [], selectedLickId, onSelectLick, requestedLick, onSaveLick, preset }) {
   // `chartBars` is one entry per CHORD, not per measure — a bar split
   // between two chords (e.g. Bm7b5 | E7b9 sharing one measure) is two
   // consecutive entries, each with its own beats:2. Practice mode already
@@ -186,6 +195,13 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
   const [imAltered, setImAltered] = useState(25)    // 0-100, → controls.altered
   const [imIntensity, setImIntensity] = useState(60)// 0-100, → controls.intensity
   const [imSeed, setImSeed] = useState(null)
+  // Device lenses for the rule-based path (src/lib/music/improviser/devices.js).
+  // Separate from the `devices` chip set above, which is emphasis text for the
+  // model route — these are code that runs, and only the Improviser reads them.
+  const [imDevices, setImDevices] = useState(() => new Set())
+  // Stamped into every generated bar's reasoning when Skeleton Key drove the
+  // generation, so a saved line still says which segment it came from.
+  const [imTag, setImTag] = useState("")
   // Continuous mode: the session generates ahead of the playhead for as long
   // as the band runs; sliders reach it live via the effect below.
   const imSessionRef = useRef(null)
@@ -285,8 +301,19 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
   const pmBars = useMemo(() => pmProg.map((ch) => ch.symbol), [pmProg])
   const bars = isLicktionary ? (lickLine?.bars || []).map((bar) => bar.c) : isNetwork ? netChords : isPhraseMachine ? pmBars : chartChords
 
+  // A loaded exercise brings its own bar count — an 8-bar segment must not be
+  // silently clipped to the 4-bar default the moment its sheet lands.
+  const presetSelRef = useRef(null)
+
   useEffect(() => {
     if (!usesChartSheet) return
+    const pending = presetSelRef.current
+    presetSelRef.current = null
+    if (pending) {
+      setSelStart(pending[0])
+      setSelEnd(pending[1])
+      return
+    }
     setSelStart(0)
     setSelEnd(Math.min(3, Math.max(0, chartChords.length - 1)))
   }, [sheet, chartChords.length, usesChartSheet])
@@ -423,6 +450,14 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
     setResult(levelLines[level] ?? null)
     setExported(false)
   }, [level])   // eslint-disable-line react-hooks/exhaustive-deps
+
+  function toggleImDevice(id) {
+    setImDevices((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
 
   function toggleDevice(d) {
     setDevices(prev => {
@@ -656,6 +691,8 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
     stopLine()
     const seed = Math.floor(Math.random() * 0xffffff)
     const session = createImproviserSession({
+      devices: [...imDevices],
+      level,
       measures: chartChords,
       profileId: imStyle,
       controls: { space: imSpace / 100, altered: imAltered / 100, intensity: imIntensity / 100 },
@@ -684,9 +721,15 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
   // fresh seed each press unless `reuseSeed` (the "Same seed" button, which
   // proves determinism: identical chart + style + sliders + seed replays
   // the identical line).
-  function runImproviser(reuseSeed = false) {
+  // measuresOverride exists for one caller: a Skeleton Key exercise landing
+  // via `preset`. Its sheet and its bar selection are set by two different
+  // effects in the same flush, so the selection this closure can see is one
+  // render stale — the exercise hands over its own bars rather than racing.
+  function runImproviser(reuseSeed = false, measuresOverride = null) {
     if (imContinuous) stopContinuous()
-    const measures = chartChords.slice(selStart, Math.min(selEnd + 1, selStart + 8))
+    const measures = measuresOverride
+      ? measuresOverride.slice(0, 8)
+      : chartChords.slice(selStart, Math.min(selEnd + 1, selStart + 8))
     if (!measures.length) return
     const seed = reuseSeed && imSeed != null ? imSeed : Math.floor(Math.random() * 0xffffff)
     try {
@@ -695,6 +738,9 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
         profileId: imStyle,
         controls: { space: imSpace / 100, altered: imAltered / 100, intensity: imIntensity / 100 },
         seed,
+        devices: [...imDevices],
+        level,
+        tag: imTag,
       })
       if (!line?.bars?.some((bar) => bar.n?.length)) {
         setError("Couldn't hear any changes in those bars — check the chord symbols.")
@@ -709,6 +755,52 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
       setError(e.message || "Couldn't improvise over those bars.")
     }
   }
+
+  // ── Loading an exercise ──────────────────────────────────────────────
+  // Skeleton Key drives Line Lab through this one prop rather than lifting
+  // Line Lab's state out of it: a curriculum segment is a plain object, and
+  // everything downstream — notation, TAB, refingering, band playback,
+  // Licktionary, MusicXML — is the same code path a hand-built line takes.
+  // Same nonce idiom as `requestedLick` above.
+  const [pendingGen, setPendingGen] = useState(null)
+
+  useEffect(() => {
+    if (!preset?.nonce) return
+    const measures = preset.measures || []
+    if (!measures.length) return
+    const selection = [0, Math.min(measures.length - 1, 7)]
+    stopLine()
+    setSource("improviser")
+    setSheet(measures.join(" | "))
+    // Set the selection HERE, in the same batch as the sheet, as well as
+    // handing it to the sheet effect below. Letting that effect set it alone
+    // lands it in a later commit, which re-fires the "new section, drop the
+    // cached lines" effect and wipes the line this preset just generated —
+    // and only on the FIRST load, when the selection actually changes.
+    presetSelRef.current = selection
+    setSelStart(selection[0])
+    setSelEnd(selection[1])
+    setImDevices(new Set(preset.devices || []))
+    setImTag(preset.tag || "")
+    setLevel(preset.level ?? 3)
+    setImStyle(preset.profileId || "bebop")
+    if (preset.controls) {
+      setImSpace(preset.controls.space ?? 35)
+      setImAltered(preset.controls.altered ?? 25)
+      setImIntensity(preset.controls.intensity ?? 60)
+    }
+    if (preset.tempo) { setTempo(preset.tempo); setLiveTempo(preset.tempo) }
+    if (preset.neckPosition !== undefined) setNeckPosition(preset.neckPosition)
+    setResultTransposeKey("")
+    setError(null)
+    setPendingGen({ nonce: preset.nonce, measures })
+  }, [preset?.nonce]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!pendingGen) return
+    setPendingGen(null)
+    runImproviser(false, pendingGen.measures)
+  }, [pendingGen]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Runs the block-grammar generator directly — no network round trip.
   // Appends a landing block to a COPY of the formula for generation only
@@ -1069,6 +1161,132 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
           <div style={{ fontSize: "var(--db-fs-xs)", opacity: 0.62, marginTop: "10px" }}>
             {IMPROV_PROFILES[imStyle]?.description} Rule-based and instant — no model call. Same seed + same settings replays the identical line.
           </div>
+
+          {/* Devices. Unlike the chips on the model sources — which are
+              emphasis the model may or may not honour — each of these is a
+              rule that runs, so the per-bar reasoning below can only name a
+              device that actually shaped the notes.
+
+              Two kinds, and the difference is worth showing: a lens changes
+              WHICH notes exist, an approach changes what happens on the way
+              into a target. They stack. */}
+          <div style={{ fontSize: "var(--db-fs-xs)", opacity: 0.62, margin: "14px 0 7px" }}>
+            Harmony — rewrite the notes the line reads from
+          </div>
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            {IM_LENSES.map((d) => (
+              <button
+                key={d.id}
+                onClick={() => toggleImDevice(d.id)}
+                aria-pressed={imDevices.has(d.id)}
+                title={d.description}
+                style={chip(imDevices.has(d.id))}
+              >
+                {d.label}
+              </button>
+            ))}
+          </div>
+          {IM_LENSES.filter((d) => imDevices.has(d.id)).length > 1 && (
+            <div style={{ fontSize: "var(--db-fs-xs)", opacity: 0.55, marginTop: "6px" }}>
+              Applied in order — a tritone sub then a minor conversion converts the substituted chord, not the original.
+            </div>
+          )}
+
+          <div style={{ fontSize: "var(--db-fs-xs)", opacity: 0.62, margin: "14px 0 7px" }}>
+            Approach — how the line arrives at each target
+          </div>
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            {IM_FILLERS.map((d) => (
+              <button
+                key={d.id}
+                // One approach at a time: two approach types over one target
+                // isn't a thing, and the engine takes the last one named.
+                // Better the chips say so than that a choice quietly loses.
+                onClick={() => setImDevices((prev) => {
+                  const next = new Set([...prev].filter((id) => !IM_FILLER_IDS.has(id)))
+                  if (!prev.has(d.id)) next.add(d.id)
+                  return next
+                })}
+                aria-pressed={imDevices.has(d.id)}
+                title={d.description}
+                style={chip(imDevices.has(d.id))}
+              >
+                {d.label}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ fontSize: "var(--db-fs-xs)", opacity: 0.62, margin: "14px 0 7px" }}>
+            Structure — how the line moves through the notes
+          </div>
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            {IM_STRUCTURES.map((d) => (
+              <button
+                key={d.id}
+                onClick={() => toggleImDevice(d.id)}
+                aria-pressed={imDevices.has(d.id)}
+                title={d.description}
+                style={chip(imDevices.has(d.id))}
+              >
+                {d.label}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ fontSize: "var(--db-fs-xs)", opacity: 0.62, margin: "14px 0 7px" }}>
+            Rhythm — when the line speaks, not what it says
+          </div>
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            {IM_RHYTHM.map((d) => (
+              <button
+                key={d.id}
+                onClick={() => toggleImDevice(d.id)}
+                aria-pressed={imDevices.has(d.id)}
+                title={d.description}
+                style={chip(imDevices.has(d.id))}
+              >
+                {d.label}
+              </button>
+            ))}
+            {imDevices.size > 0 && (
+              <button onClick={() => setImDevices(new Set())} style={{ ...chip(false), opacity: 0.55 }}>
+                Clear all
+              </button>
+            )}
+          </div>
+
+          <div style={{ fontSize: "var(--db-fs-xs)", opacity: 0.62, margin: "14px 0 7px" }}>
+            Level — how much vocabulary is allowed on top
+          </div>
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            {LEVELS.map((L) => (
+              <button
+                key={L.n}
+                onClick={() => setLevel(L.n)}
+                aria-pressed={level === L.n}
+                title={L.blurb}
+                style={chip(level === L.n)}
+              >
+                L{L.n} {L.label}
+              </button>
+            ))}
+          </div>
+
+          {imTag && (
+            <div style={{
+              fontSize: "var(--db-fs-xs)", marginTop: "12px", padding: "7px 11px",
+              borderRadius: "var(--db-r-md)", border: "1px solid var(--db-panel-border)",
+              background: "color-mix(in srgb, var(--db-accent) 8%, transparent)",
+            }}>
+              Loaded from Skeleton Key — <strong>{imTag}</strong>. Every bar below is stamped with it.{" "}
+              <button
+                onClick={() => setImTag("")}
+                style={{ background: "none", border: "none", color: "var(--db-accent)", cursor: "pointer", padding: 0, font: "inherit", textDecoration: "underline" }}
+              >
+                Detach
+              </button>
+            </div>
+          )}
           <div style={{ fontSize: "var(--db-fs-xs)", opacity: 0.75, display: "flex", alignItems: "center", gap: "8px", marginTop: "10px" }}>
             Line voice
             {[["piano", "Piano"], ["guitar", "Guitar"]].map(([id, label]) => (

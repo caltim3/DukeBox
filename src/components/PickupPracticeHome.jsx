@@ -19,6 +19,7 @@ const WORKSPACE_LABELS = {
   beatforge: "BeatForge",
   reference: "Reference",
   tonal: "Tonal",
+  skeletonkey: "Skeleton Key",
 }
 
 // The learning plan is two rows: the systems you practise WITH on top, the
@@ -260,6 +261,7 @@ function Icon({ name }) {
     chevron: <path d="m9 18 6-6-6-6"/>,
     play: <path d="M8 5v14l11-7z" fill="currentColor" stroke="none"/>,
     lick: <path d="M3 12c2-4 4 4 6 0s4 4 6 0 4 4 6 0"/>,
+    skeletonkey: <><circle cx="7" cy="15" r="4"/><path d="m10 12 8-8"/><path d="m15 7 2 2"/><path d="m18 4 2 2"/></>,
   }
 
   return (
@@ -1199,6 +1201,9 @@ export default function PickupPracticeHome() {
           </button>
           <button type="button" className="db-pickup-nav-button" onClick={() => openWorkspace("tonal")}>
             <Icon name="tonal" /><span>Tonal</span>
+          </button>
+          <button type="button" className="db-pickup-nav-button" onClick={() => openWorkspace("skeletonkey")}>
+            <Icon name="skeletonkey" /><span>Skeleton Key</span>
           </button>
         </nav>
 

@@ -13,7 +13,32 @@
 
 import { guitarPosition } from "@/lib/music/licktionary"
 
-export function eventsToLine({ events, timeline, summary, style, seed }) {
+// How a note is described when no named device wrote it.
+const GENERIC_NOTE_KINDS = new Set([
+  "guide tone", "chord tone", "scale", "altered", "arpeggio", "enclosure",
+])
+
+// Which lens notes apply to a measure — the segments sounding inside it that
+// a device lens actually touched.
+function lensNotesFor(timeline, start, end) {
+  const notes = []
+  for (const seg of timeline.segments) {
+    if (seg.startBeat >= end - 1e-6 || seg.startBeat + seg.beats <= start + 1e-6) continue
+    for (const note of seg.deviceNotes || []) if (!notes.includes(note)) notes.push(note)
+  }
+  return notes
+}
+
+function lensLabelsFor(timeline, start, end) {
+  const labels = []
+  for (const seg of timeline.segments) {
+    if (seg.startBeat >= end - 1e-6 || seg.startBeat + seg.beats <= start + 1e-6) continue
+    for (const label of seg.deviceLabels || []) if (!labels.includes(label)) labels.push(label)
+  }
+  return labels
+}
+
+export function eventsToLine({ events, timeline, summary, style, seed, tag = "" }) {
   const sorted = [...events].sort((a, b) => a.t - b.t)
 
   // Monophonic guarantee: an event never rings past the next onset.
@@ -21,16 +46,17 @@ export function eventsToLine({ events, timeline, summary, style, seed }) {
     sorted[i].d = Math.min(sorted[i].d, sorted[i + 1].t - sorted[i].t)
   }
 
-  const chip = `${style.label} · seed ${seed}`
   const bars = timeline.measures.map((m) => ({
     c: m.label,
     d: "Improviser",
-    x: chip,
+    x: "",
     n: [],
     beats: m.beats,
     tailRest: 0,
     _start: m.startBeat,
     _end: m.startBeat + m.beats,
+    _devices: [],
+    _whys: [],
   }))
 
   for (const e of sorted) {
@@ -45,6 +71,29 @@ export function eventsToLine({ events, timeline, summary, style, seed }) {
     const wait = Math.max(0, round4(e.t - prevEnd))
     const [s, f] = guitarPosition(e.midi)
     bar.n.push([s, f, round4(dur), wait, e.vel ?? 0.72])
+    if (e.device && !bar._devices.includes(e.device)) bar._devices.push(e.device)
+    if (e.why) bar._whys.push(e.why)
+  }
+
+  // Per-bar reasoning. Unlike the model-written version, every clause here is
+  // a statement about what the generator actually did — the devices are code,
+  // so the strip can't claim an enclosure that isn't there. That's what makes
+  // the "which chapter did this phrase come from?" gate answerable.
+  for (const bar of bars) {
+    const lensLabels = lensLabelsFor(timeline, bar._start, bar._end)
+    // Named devices outrank the generic description of a note. The strip is
+    // capped for length, and a cap that can drop "Full encirclement" in favour
+    // of "scale · arpeggio" hides the one thing the student asked for.
+    const named = bar._devices.filter((d) => !GENERIC_NOTE_KINDS.has(d))
+    const generic = bar._devices.filter((d) => GENERIC_NOTE_KINDS.has(d))
+    const parts = [...lensLabels, ...named, ...generic].filter((v, i, a) => a.indexOf(v) === i)
+    if (parts.length) bar.d = parts.slice(0, 3).join(" · ")
+    bar.x = [
+      tag,
+      ...lensNotesFor(timeline, bar._start, bar._end),
+      bar._whys[bar._whys.length - 1],
+      `seed ${seed}`,
+    ].filter(Boolean).join(" · ")
   }
 
   // tailRest: the silence between a bar's last sounding moment and the next
@@ -61,7 +110,7 @@ export function eventsToLine({ events, timeline, summary, style, seed }) {
   }
 
   return {
-    bars: bars.map(({ _start, _end, ...bar }) => bar),
+    bars: bars.map(({ _start, _end, _devices, _whys, ...bar }) => bar),
     s: summary,
   }
 }

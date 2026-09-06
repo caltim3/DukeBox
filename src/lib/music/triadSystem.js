@@ -1,5 +1,5 @@
-// The Triad System — shown to the player as "Skeleton Key" (one shape that
-// opens every chord quality) — one repeatable improvisation method for
+// The Triad System — shown to the player as "Twin Triads" — one repeatable
+// improvisation method for
 // every chord quality: a pair of minor triads (the harmony) played over a
 // governing pentatonic backdrop (the connective tissue), with the pair
 // chosen per bar from the chart's own harmonic analysis.
@@ -27,11 +27,16 @@
 
 import { noteAtSemitones } from "@/lib/music/tonal"
 
-// The one public display name for this lens — every UI string page.js
-// builds for it reads off this constant, so the name only lives in one
-// place. Internal identifiers (triadSys, resolveTriadSystem, the module's
-// own filename) stay as they are; this is branding, not a rename.
-export const SKELETON_KEY_LABEL = "Skeleton Key"
+// The one public display name for this lens — every UI string page.js builds
+// for it reads off this constant, so the name only lives in one place.
+// Internal identifiers (triadSys, resolveTriadSystem, the module's own
+// filename) stay as they are; this is branding, not a rename.
+//
+// It was called "Skeleton Key" until the curriculum workspace took that name,
+// and two different things called Skeleton Key — one of them a fretboard lens,
+// the other a module that puts a fretboard in front of you — was going to cost
+// somebody an afternoon. "Twin Triads" says what it actually is.
+export const TWIN_TRIADS_LABEL = "Twin Triads"
 
 const MAJOR_PENT = [0, 2, 4, 7, 9]
 const MINOR_PENT = [0, 3, 5, 7, 10]
