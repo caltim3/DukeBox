@@ -14,7 +14,7 @@ import { chordNotes, getRecommendedScalesFromQuality, scaleNotes } from "@/lib/m
 
 const DOMINANT_QUALITIES = new Set(["7", "9", "7b9", "7alt", "7sus4", "13"])
 
-function toPcs(names) {
+export function toPcs(names) {
   const pcs = []
   for (const name of names || []) {
     const pc = Note.chroma(name)
@@ -26,7 +26,7 @@ function toPcs(names) {
 // The 3rd and 7th (falling back through 6th and 5th for triads/6-chords) are
 // the notes that orient a listener to the harmony — the generator lands them
 // at chord changes.
-function guidePcsFor(rootPc, chordPcs) {
+export function guidePcsFor(rootPc, chordPcs) {
   const has = (offset) => {
     const pc = (rootPc + offset) % 12
     return chordPcs.includes(pc) ? pc : null
@@ -58,6 +58,11 @@ function buildSegment(parsed, startBeat, beats) {
   return {
     symbol: parsed.symbol,
     quality: parsed.quality,
+    // The root's NAME as well as its pitch class: the device lenses call back
+    // into tonal.js (martinoMapper, barryHarrisScale, scaleNotes), all of
+    // which speak note names, and re-deriving a name from a pitch class would
+    // throw away the chart's own spelling.
+    root: parsed.root,
     rootPc,
     startBeat,
     beats,
@@ -65,6 +70,10 @@ function buildSegment(parsed, startBeat, beats) {
     thirdPc,
     seventhPc,
     scalePcs,
+    // What non-anchor CHORD-tone material draws from — leaps, and every
+    // non-anchor note at level 1. It's the real chord until a device lens
+    // (Martino conversion, Triads) says otherwise.
+    pitchPcs: chordPcs,
     alteredPcs: alteredPcs && alteredPcs.length >= 5 ? alteredPcs : null,
     isDominant,
   }

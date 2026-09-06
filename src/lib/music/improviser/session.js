@@ -19,6 +19,7 @@ import { normalizeMeasures, createFormView } from "./chartTimeline"
 import { blendStyle, IMPROV_PROFILES } from "./profiles"
 import { planNextSpan } from "./rhythm"
 import { generatePhrase, describePhrases } from "./generator"
+import { applyDevices, levelStyle, deviceStyle } from "./devices"
 
 // How far past a requested collection window planning runs, so anticipations
 // and ringing landings near the edge already exist when their window comes.
@@ -26,12 +27,18 @@ const PLAN_AHEAD_BEATS = 8
 // Fully-played phrases kept around for the UI (previous/current phrase).
 const KEEP_PLAYED_PHRASES = 3
 
-export function createImproviserSession({ measures, profileId = "bebop", controls = {}, seed = 1 }) {
-  const timeline = normalizeMeasures(measures)
+export function createImproviserSession({
+  measures, profileId = "bebop", controls = {}, seed = 1,
+  devices = [], level = null,
+}) {
+  // Devices and level are fixed for the life of a session: they're what the
+  // exercise IS, where the sliders are how it's being played. A dial move
+  // replans; changing the exercise means a new session.
+  const timeline = applyDevices(normalizeMeasures(measures), { devices })
   const form = createFormView(timeline, { wrap: true })
   const rng = createRng(seed)
 
-  let style = blendStyle(profileId, controls)
+  let style = deviceStyle(levelStyle(blendStyle(profileId, controls), level), devices)
   let currentControls = { ...style.controls }
   let currentProfileId = style.id
   let controlRevision = 0
@@ -103,7 +110,7 @@ export function createImproviserSession({ measures, profileId = "bebop", control
       controlRevision++
       if (partial.profileId && IMPROV_PROFILES[partial.profileId]) currentProfileId = partial.profileId
       currentControls = { ...currentControls, ...partial }
-      style = blendStyle(currentProfileId, currentControls)
+      style = deviceStyle(levelStyle(blendStyle(currentProfileId, currentControls), level), devices)
 
       const kept = []
       for (const p of planned) {
