@@ -8,6 +8,7 @@ import { STARTER_STRIP, requestStarter } from "@/lib/music/starters"
 import { GO_HOME_EVENT } from "@/lib/homeNav"
 import { OPEN_LIBRARY_EVENT, requestLoadSong } from "@/lib/music/songSource"
 import { readLocalLibrary } from "@/lib/cloud"
+import { GO_PRACTICE_EVENT } from "@/lib/music/songSource"
 import BuildStamp from "./BuildStamp"
 
 const BRAND_ICON = "/dukebox-jazzmaster.png"
@@ -15,7 +16,7 @@ const BRAND_ICON = "/dukebox-jazzmaster.png"
 const WORKSPACE_LABELS = {
   practice: "Practice",
   gig: "Songbook",
-  create: "Create",
+  create: "Compose",
   beatforge: "BeatForge",
   reference: "Reference",
   tonal: "Tonal",
@@ -417,6 +418,16 @@ export default function PickupPracticeHome() {
     setWorkspace(id)
     setPracticeSurface("tools")
   }
+
+  // The "1" shortcut. page.js sets the mode and the cockpit view, but the home
+  // SURFACE is this component's state — without this, "1" from another
+  // workspace set mode to practice and home simply reappeared, because
+  // practiceSurface was still "home" from however you last left it.
+  useEffect(() => {
+    const onGoPractice = () => openPracticeCenter()
+    window.addEventListener(GO_PRACTICE_EVENT, onGoPractice)
+    return () => window.removeEventListener(GO_PRACTICE_EVENT, onGoPractice)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps -- openPracticeCenter closes over stable setters
 
   function openPracticeCenter(sectionLabel) {
     findWorkspaceTab("Practice")?.click()
@@ -1204,19 +1215,19 @@ export default function PickupPracticeHome() {
             <Icon name="gig" /><span>Songbook</span>
           </button>
           <button type="button" className="db-pickup-nav-button" onClick={() => openWorkspace("create")}>
-            <Icon name="create" /><span>Create</span>
+            <Icon name="create" /><span>Compose</span>
           </button>
           <button type="button" className="db-pickup-nav-button" onClick={() => openWorkspace("beatforge")}>
             <Icon name="beatforge" /><span>BeatForge</span>
           </button>
-          <button type="button" className="db-pickup-nav-button" onClick={() => openWorkspace("reference")}>
-            <Icon name="reference" /><span>Reference</span>
+          <button type="button" className="db-pickup-nav-button" onClick={() => openWorkspace("skeletonkey")}>
+            <Icon name="skeletonkey" /><span>Skeleton Key</span>
           </button>
           <button type="button" className="db-pickup-nav-button" onClick={() => openWorkspace("tonal")}>
             <Icon name="tonal" /><span>Tonal</span>
           </button>
-          <button type="button" className="db-pickup-nav-button" onClick={() => openWorkspace("skeletonkey")}>
-            <Icon name="skeletonkey" /><span>Skeleton Key</span>
+          <button type="button" className="db-pickup-nav-button" onClick={() => openWorkspace("reference")}>
+            <Icon name="reference" /><span>Reference</span>
           </button>
         </nav>
 

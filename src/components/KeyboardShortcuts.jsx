@@ -18,7 +18,7 @@
 
 import { useEffect, useState } from "react"
 import { goHome as requestHome } from "@/lib/homeNav"
-import { OPEN_LIBRARY_EVENT, ENTER_FOCUS_EVENT, GO_GIG_EVENT } from "@/lib/music/songSource"
+import { OPEN_LIBRARY_EVENT, GO_GIG_EVENT, GO_PRACTICE_EVENT, EXIT_FOCUS_EVENT } from "@/lib/music/songSource"
 
 // Grouped by what you're trying to do, not by loose technical category —
 // the old split had Tempo sitting oddly apart from Chart & Playback even
@@ -31,12 +31,13 @@ const GROUPS = [
     title: "Get around",
     items: [
       ["0", "Home, from anywhere"],
-      ["1", "Practice — Focus, while playing; 3:2's Blues scale, in Focus"],
-      ["2", "Songbook — live chart, while playing; 3:2's Minor, in Focus"],
-      ["3", "Create — 3:2's Major, in Focus"],
+      ["1", "Practice — 3:2's Blues scale, in Focus"],
+      ["2", "Songbook — 3:2's Minor, in Focus"],
+      ["3", "Compose — 3:2's Major, in Focus"],
       ["4", "BeatForge — 3:2's Altered, in Focus"],
-      ["5", "Reference — Pathways' Color rung, in Focus"],
+      ["5", "Skeleton Key — Pathways' Color rung, in Focus"],
       ["6", "Tonal"],
+      ["7", "Reference"],
       ["/", "Song library, from anywhere"],
       ["?", "Show or hide this sheet"],
     ],
@@ -208,23 +209,45 @@ export default function KeyboardShortcuts() {
         return
       }
 
-      // The numbering matches the order the tabs sit in: Practice, Songbook,
-      // Create, BeatForge, Reference, Tonal.
-      const workspaces = { "1": "Practice", "2": "Songbook", "3": "Create", "4": "BeatForge", "5": "Reference", "6": "Tonal" }
+      // The numbering matches the order the tabs sit in, left to right after
+      // Home: Practice, Songbook, Compose, BeatForge, Skeleton Key, Tonal,
+      // Reference.
+      const workspaces = {
+        "1": "Practice", "2": "Songbook", "3": "Compose", "4": "BeatForge",
+        "5": "Skeleton Key", "6": "Tonal", "7": "Reference",
+      }
       if (workspaces[event.key]) {
-        if (event.key !== "6" && inFocusStage() && (event.key !== "5" || pathwaysOn())) return
+        // Focus keeps the low digits for its own ladders: 3:2's levels run
+        // 1-4, and Scale Pathways' rungs run 1-5. So 1-4 always stand down
+        // there, 5 stands down only while Pathways is up, and 6-7 are past
+        // the end of both ladders and work everywhere.
+        const focusOwnsThisDigit =
+          inFocusStage() && !["6", "7"].includes(event.key) &&
+          (event.key !== "5" || pathwaysOn())
+        if (focusOwnsThisDigit) return
         event.preventDefault()
         event.stopPropagation()
-        // While a song is playing, "1" means "back to Focus" specifically —
-        // not just Practice, wherever practiceView last happened to be.
-        // Songbook always goes by event, not goWorkspace()'s DOM-click —
-        // Focus's phone-first stage renders no [role="tab"] chrome to click,
-        // so pressing it to leave Focus for Songbook would silently no-op
-        // otherwise.
-        if (event.key === "1" && document.body.dataset.dbPlaying === "true") {
-          window.dispatchEvent(new CustomEvent(ENTER_FOCUS_EVENT))
+        // Practice and Songbook go by event rather than goWorkspace()'s
+        // DOM-click: Focus's phone-first stage renders no [role="tab"] chrome
+        // to click, so pressing either to leave Focus would silently no-op.
+        // "1" asks for Practice's CORE view specifically — clicking the tab
+        // lands on whichever surface practiceView was left on, which could be
+        // Focus, and "go to Practice" should not mean "go deeper into Focus".
+        if (event.key === "1") {
+          window.dispatchEvent(new CustomEvent(GO_PRACTICE_EVENT))
         } else if (event.key === "2") {
           window.dispatchEvent(new CustomEvent(GO_GIG_EVENT))
+        } else if (inFocusStage()) {
+          // The digits Focus doesn't claim still have to get out of it. Focus
+          // renders no [role="tab"] chrome, so clicking a tab finds nothing;
+          // leave the stage first, then wait for the tabs to mount and click.
+          window.dispatchEvent(new CustomEvent(EXIT_FOCUS_EVENT))
+          const wanted = workspaces[event.key]
+          waitFor(
+            () => Array.from(document.querySelectorAll('[role="tab"]'))
+              .find((el) => (el.textContent || "").trim().toLowerCase().includes(wanted.toLowerCase())),
+            (el) => el.click()
+          )
         } else {
           goWorkspace(workspaces[event.key])
         }

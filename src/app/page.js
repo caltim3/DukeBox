@@ -34,7 +34,7 @@ import { downloadImprovGuide, buildImprovMapData } from "@/lib/music/improvGuide
 import { DRUM_KIT_NAMES, DEFAULT_DRUM_KIT } from "@/lib/music/samples"
 import { parseTonalUserSongs } from "@/lib/music/importTonal"
 import { parseGigChord, GIGBOOK_SONGS, gigSongToBars, parseGigKey, gigTempoNumber } from "@/lib/music/gigbook"
-import { upsertLibrarySong, catalogEntryToPlayable, buildCatalog, OPEN_LIBRARY_EVENT, ENTER_FOCUS_EVENT, GO_GIG_EVENT, LOAD_SONG_EVENT } from "@/lib/music/songSource"
+import { upsertLibrarySong, catalogEntryToPlayable, buildCatalog, OPEN_LIBRARY_EVENT, ENTER_FOCUS_EVENT, GO_GIG_EVENT, GO_PRACTICE_EVENT, EXIT_FOCUS_EVENT, LOAD_SONG_EVENT } from "@/lib/music/songSource"
 import { guidedPrescription, drillStage, nextKeyInCycle, DRILL_LOOPS_PER_STAGE, PENA_DRILLS } from "@/lib/music/penaDrills"
 import { computeVoiceLeadPath, TARGET_ROLE_LABELS } from "@/lib/music/voiceLeadPath"
 import { STARTER_PRESETS, STARTER_STRIP, SCENARIO_CONFIG, LOAD_STARTER_EVENT } from "@/lib/music/starters"
@@ -53,7 +53,7 @@ import BeatForgeWorkspace from "@/components/BeatForgeWorkspace"
 import SkeletonKeyWorkspace from "@/components/SkeletonKeyWorkspace"
 import ReferenceGuides from "@/components/ReferenceGuides"
 import SongSearch from "@/components/SongSearch"
-import { GO_HOME_EVENT } from "@/lib/homeNav"
+import { GO_HOME_EVENT, goHome } from "@/lib/homeNav"
 import { useAuth, useCloudLibrary } from "@/lib/cloud"
 import { logActivity } from "@/lib/recentActivity"
 import SessionStrip from "@/components/practice/SessionStrip"
@@ -112,14 +112,23 @@ const INITIAL_BARS = [
 // The app had grown into several products stacked vertically — 11 panels and ~317
 // controls on one 5-screen page, all at equal weight. Modes show one workspace
 // at a time; nothing was removed, it's just no longer all at once.
+// Order matters twice over: it is the order the tabs sit in, and it is the
+// order the digit shortcuts count through (KeyboardShortcuts.jsx). Home is a
+// surface rather than a workspace — it belongs to PickupPracticeHome and is
+// reached by event — so it isn't in this list; the nav renders it separately
+// on the far left, and it answers to "0".
+//
+// The ids are persisted in localStorage and referenced by chooseMode calls
+// throughout this file, so "create" keeps its id while its label reads
+// Compose. Renaming the id would silently drop every saved workspace.
 const MODES = [
   { id: "practice",  label: "Practice",  icon: "🎧", blurb: "Play along, loop a section, drill it slow" },
-  { id: "gig",       label: "Songbook", icon: "🎤", blurb: "Stage charts and setlists" },
-  { id: "create",    label: "Create",    icon: "✍️", blurb: "Build charts, compose songs, and develop melodic lines" },
+  { id: "gig",       label: "Songbook",  icon: "🎤", blurb: "Stage charts and setlists" },
+  { id: "create",    label: "Compose",   icon: "✍️", blurb: "Build charts, compose songs, and develop melodic lines" },
   { id: "beatforge", label: "BeatForge", icon: "🥁", blurb: "Program rhythm, build phrases, grow your lick book" },
-  { id: "reference", label: "Reference", icon: "📖", blurb: "Circle of fifths, key chart, progressions" },
-  { id: "tonal",     label: "Tonal",     icon: "🎹", blurb: "The published Tonal app, embedded as-is" },
   { id: "skeletonkey", label: "Skeleton Key", icon: "🗝️", blurb: "The complete improvisation curriculum, chapter by chapter" },
+  { id: "tonal",     label: "Tonal",     icon: "🎹", blurb: "The published Tonal app, embedded as-is" },
+  { id: "reference", label: "Reference", icon: "📖", blurb: "Circle of fifths, key chart, progressions" },
 ]
 
 // Tonal is embedded rather than ported: the live site is loaded in a frame
@@ -2237,13 +2246,28 @@ export default function Home() {
     return () => window.removeEventListener(GO_HOME_EVENT, onGoHome)
   }, [focusStage, exitFocusMode])
 
+  // Same shape, and for the same reason: a digit that Focus doesn't claim has
+  // to be able to leave it. The deps matter — read focusStage from a listener
+  // registered once and it is false forever, so the handler silently does
+  // nothing and the shortcut looks broken.
+  useEffect(() => {
+    function onExitFocus() { if (focusStage) exitFocusMode() }
+    window.addEventListener(EXIT_FOCUS_EVENT, onExitFocus)
+    return () => window.removeEventListener(EXIT_FOCUS_EVENT, onExitFocus)
+  }, [focusStage, exitFocusMode])
+
   // "2" asks for Songbook the same way, always (not just while playing) —
   // see GO_GIG_EVENT's doc comment for why goWorkspace()'s DOM-click can't
   // be trusted to work here.
   useEffect(() => {
+    function onGoPractice() { chooseMode("practice"); choosePracticeView("cockpit") }
     function onGoGig() { chooseMode("gig") }
+    window.addEventListener(GO_PRACTICE_EVENT, onGoPractice)
     window.addEventListener(GO_GIG_EVENT, onGoGig)
-    return () => window.removeEventListener(GO_GIG_EVENT, onGoGig)
+    return () => {
+      window.removeEventListener(GO_PRACTICE_EVENT, onGoPractice)
+      window.removeEventListener(GO_GIG_EVENT, onGoGig)
+    }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps -- chooseMode closes over only stable setters
 
   // Spacebar = universal play / stop
@@ -3068,6 +3092,24 @@ export default function Home() {
             border: "1px solid var(--db-panel-border)",
           }}
         >
+          {/* Home sits with the workspace tabs but isn't one of them: it's
+              PickupPracticeHome's surface, reached by event (lib/homeNav)
+              because nothing in this tree can open it directly. Far left, and
+              it answers to "0" from anywhere. */}
+          <button
+            key="home"
+            onClick={goHome}
+            title="Home — your learning plan and recent work"
+            style={{
+              flex: "0 0 auto", minWidth: "96px",
+              padding: "9px 14px", borderRadius: "var(--db-r-md)", cursor: "pointer",
+              fontWeight: 700, fontSize: "var(--db-fs-md)",
+              border: "1px solid transparent", background: "transparent",
+              color: "var(--text)", opacity: 0.72,
+            }}
+          >
+            <span aria-hidden="true" style={{ marginRight: "6px" }}>🏠</span>Home
+          </button>
           {MODES.map(m => {
             const on = mode === m.id
             return (

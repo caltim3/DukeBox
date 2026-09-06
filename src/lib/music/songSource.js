@@ -32,6 +32,20 @@ export const ENTER_FOCUS_EVENT = "dukebox:enter-focus"
 // This bypasses that entirely.
 export const GO_GIG_EVENT = "dukebox:go-gig"
 
+// Fired by the "1" shortcut. Practice has two surfaces — the cockpit and the
+// Focus stage — and clicking the tab lands on whichever one practiceView was
+// left on, so "1" could take you INTO Focus rather than to Practice proper.
+// This asks for the core view explicitly, and like GO_GIG_EVENT it works from
+// inside Focus, where none of the usual tab chrome is rendered to click.
+export const GO_PRACTICE_EVENT = "dukebox:go-practice"
+
+// Leave the Focus stage without saying where to go next. Focus renders none
+// of the normal workspace chrome, so a shortcut that navigates by clicking a
+// [role="tab"] button finds nothing there and silently does nothing — which
+// is how the Tonal and Reference digits behaved from inside Focus. Fire this
+// first, then the tab exists to be clicked.
+export const EXIT_FOCUS_EVENT = "dukebox:exit-focus"
+
 // Home's "Most Popular" rail loads one specific catalog song by id — same
 // cross-tree reasoning as LOAD_STARTER_EVENT, but by catalog id (any
 // "user:"/"gig:"/"form:"/"tavern:" entry) instead of a fixed starter preset,
