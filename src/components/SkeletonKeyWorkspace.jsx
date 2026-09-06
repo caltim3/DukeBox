@@ -16,6 +16,7 @@
 import { useEffect, useMemo, useState } from "react"
 import LineLab from "@/components/LineLab"
 import VocabularyWorkbench from "@/components/VocabularyWorkbench"
+import SegmentDrill from "@/components/SegmentDrill"
 import { inferLineKey } from "@/lib/music/licktionary"
 import {
   SK_CHAPTERS, SK_SEGMENTS, skTag,
@@ -26,7 +27,7 @@ const SAVED_LICKS_KEY = "dukebox.licktionary.v1"
 const UNLOCK_KEY = "dukebox.skeletonKey.unlockAll"
 
 export default function SkeletonKeyWorkspace({
-  stopPlayback, playLineSection, panelStyle, eyebrowStyle, selectStyle,
+  stopPlayback, playLineSection, panelStyle, eyebrowStyle, selectStyle, inlineLabelStyle,
 }) {
   const [progress, setProgress] = useState({})
   const [unlockAll, setUnlockAll] = useState(false)
@@ -330,6 +331,28 @@ export default function SkeletonKeyWorkspace({
         </div>
       </div>
 
+      {/* ── Stage one: you play it ──────────────────────────────────────
+          Deliberately above Line Lab. The curriculum's claim is that you own
+          a device when you can play it, not when you can read one — so the
+          panel you meet first is the one with no notes written in it. */}
+      {segment.ready && !segment.workbench && variant && available && (
+        <SegmentDrill
+          // Keyed per exercise so bar position, tempo and transport state
+          // reset with the segment instead of being synced out of props.
+          key={`${segment.id}:${variant.label}`}
+          segment={segment}
+          measures={variant.measures}
+          devices={variant.devices ?? segment.exercise.devices}
+          tempo={segment.exercise.tempo}
+          playLineSection={playLineSection}
+          onStopPlayback={stopPlayback}
+          panelStyle={panelStyle}
+          eyebrowStyle={eyebrowStyle}
+          inlineLabelStyle={inlineLabelStyle}
+          selectStyle={selectStyle}
+        />
+      )}
+
       {/* ── Chapter 9 runs in the Workbench; everything else in Line Lab ── */}
       {segment.workbench && (
         <VocabularyWorkbench
@@ -344,11 +367,20 @@ export default function SkeletonKeyWorkspace({
 
       {/* ── The exercise, as a normal Line Lab result ────────────────── */}
       <div style={card}>
-        <div style={{ ...eyebrowStyle }}>LINE LAB</div>
-        <div style={{ fontSize: "var(--db-fs-sm)", opacity: 0.65, marginBottom: "12px" }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: "12px", flexWrap: "wrap" }}>
+          <div style={{ ...eyebrowStyle, marginBottom: 0 }}>
+            {segment.workbench ? "LINE LAB" : "SECOND — STUDY A LINE"}
+          </div>
+          <div style={{ fontSize: "var(--db-fs-sm)", opacity: 0.62 }}>
+            {segment.workbench
+              ? "The full Line Lab, if you want to generate something alongside the Workbench"
+              : "Hear the device played over the same changes — with the rhythm section or without it"}
+          </div>
+        </div>
+        <div style={{ fontSize: "var(--db-fs-sm)", opacity: 0.65, margin: "10px 0 12px" }}>
           {preset
             ? "Loaded. Every bar's reasoning is stamped with the segment it came from."
-            : "Load a segment above, or drive this directly — it's the full Line Lab."}
+            : "Load the exercise above, or drive this directly — it's the full Line Lab."}
         </div>
         <LineLab
           chartBars={[]}

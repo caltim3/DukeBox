@@ -5377,6 +5377,7 @@ export default function Home() {
           panelStyle={panelStyle}
           eyebrowStyle={eyebrowStyle}
           selectStyle={selectStyle}
+          inlineLabelStyle={inlineLabelStyle}
         />
       )}
 

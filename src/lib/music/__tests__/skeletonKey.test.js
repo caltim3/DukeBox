@@ -4,7 +4,8 @@
 // wrong lesson. This walks every segment and holds it to the engine.
 
 import { describe, it, expect } from "vitest"
-import { SK_CHAPTERS, SK_SEGMENTS, skTag, segmentAvailable, segmentComplete } from "../skeletonKey"
+import { SK_CHAPTERS, SK_SEGMENTS, skTag, segmentAvailable, segmentComplete, measuresToBandBars, chordToMeasureIndex } from "../skeletonKey"
+import { parseGigChord } from "../gigbook"
 import { improvise, IMPROV_DEVICES, IMPROV_LEVELS, IMPROV_PROFILES } from "../improviser"
 import { normalizeMeasures } from "../improviser/chartTimeline"
 import { FORMS, FORM_CATEGORIES } from "../forms"
@@ -243,6 +244,51 @@ describe("the Chapter 10 additions", () => {
       const measures = FORMS[name].bars.slice(0, 8).map((b) => b.symbol)
       const { line } = improvise({ measures, seed: 31, level: 4 })
       expect(line.bars.flatMap((b) => b.n).length, `${name} generated nothing`).toBeGreaterThan(3)
+    }
+  })
+})
+
+// The drill stage hands these bars to the rhythm section. A split measure is
+// the case that fails silently — the band sits on the first chord for a whole
+// bar while the neck and the line move on, and nothing errors.
+describe("measures the band can play", () => {
+  it("splits a two-chord measure into two half-bar entries", () => {
+    const bars = measuresToBandBars(["Am7 D7", "Gm7 C7"], parseGigChord)
+    expect(bars.map((b) => b.symbol)).toEqual(["Am7", "D7", "Gm7", "C7"])
+    for (const bar of bars) expect(bar.beats).toBe(2)
+  })
+
+  it("leaves a single-chord measure as one full bar", () => {
+    const bars = measuresToBandBars(["Dm7", "G7"], parseGigChord)
+    expect(bars.map((b) => b.beats)).toEqual([4, 4])
+  })
+
+  it("maps each chord back to the measure it came from", () => {
+    expect(chordToMeasureIndex(["Am7 D7", "Gm7", "Bb7 Eb7"])).toEqual([0, 0, 1, 2, 2])
+  })
+
+  it("never drops a chord from any segment in the curriculum", () => {
+    for (const seg of READY) {
+      for (const variant of seg.exercise.variants) {
+        const chords = variant.measures.join(" ").trim().split(/\s+/).length
+        const bars = measuresToBandBars(variant.measures, parseGigChord)
+        expect(bars.length, `${seg.id}/${variant.label} lost a chord`).toBe(chords)
+        // Every bar the band plays must be a chord it can sound.
+        for (const bar of bars) expect(bar.root).toBeTruthy()
+      }
+    }
+  })
+
+  it("a bar's chords add up to the bar", () => {
+    for (const seg of READY) {
+      for (const variant of seg.exercise.variants) {
+        const idx = chordToMeasureIndex(variant.measures)
+        const bars = measuresToBandBars(variant.measures, parseGigChord)
+        for (let m = 0; m < variant.measures.length; m++) {
+          const inBar = bars.filter((_, i) => idx[i] === m)
+          expect(inBar.reduce((n, b) => n + b.beats, 0), `${seg.id} bar ${m + 1}`).toBe(4)
+        }
+      }
     }
   })
 })

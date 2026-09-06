@@ -28,6 +28,33 @@
 // on — so the arc is visible from day one without the app pretending to
 // teach something it can't yet generate. `needs` names the missing piece.
 
+// A segment's measures as bars the rhythm section can play: one entry per
+// CHORD, not per measure, because a measure holding two chords is two entries
+// of two beats each — the same split forms.js makes for every other tune in
+// the app. Getting this wrong is silent: the band simply sits on the first
+// chord of a split bar while the neck and the generated line move on without
+// it, and nothing errors.
+export function measuresToBandBars(measures, parseChord) {
+  return (measures || []).flatMap((measure) => {
+    const tokens = String(measure).trim().split(/\s+/).filter(Boolean)
+    const beats = tokens.length > 1 ? Math.max(1, Math.floor(4 / tokens.length)) : 4
+    return tokens.map((token) => {
+      const parsed = parseChord(token, "A")
+      return parsed
+        ? { ...parsed, beats }
+        : { root: "C", quality: "maj7", symbol: token, section: "A", beats }
+    })
+  })
+}
+
+// Which measure each of those entries belongs to, so a bar-change callback
+// counting chords can be mapped back onto a strip counting measures.
+export function chordToMeasureIndex(measures) {
+  return (measures || []).flatMap((measure, m) =>
+    String(measure).trim().split(/\s+/).filter(Boolean).map(() => m)
+  )
+}
+
 // Cycling one static quality is how Chapter 1 drills raw material: four bars
 // of one chord, so the ear has nowhere to hide.
 const staticBars = (symbol) => [symbol, symbol, symbol, symbol]
