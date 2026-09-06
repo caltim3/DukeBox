@@ -18,8 +18,9 @@ import LineLab from "@/components/LineLab"
 import VocabularyWorkbench from "@/components/VocabularyWorkbench"
 import SegmentDrill from "@/components/SegmentDrill"
 import { inferLineKey } from "@/lib/music/licktionary"
+import { parseGigChord } from "@/lib/music/gigbook"
 import {
-  SK_CHAPTERS, SK_SEGMENTS, skTag,
+  SK_CHAPTERS, SK_SEGMENTS, skTag, measuresToBandBars,
   loadProgress, saveProgress, segmentAvailable, segmentComplete,
 } from "@/lib/music/skeletonKey"
 
@@ -58,6 +59,16 @@ export default function SkeletonKeyWorkspace({
   const variants = segment.exercise?.variants || []
   const variant = variants[Math.min(variantIdx, Math.max(0, variants.length - 1))] || null
   const available = segmentAvailable(segment, progress, unlockAll)
+
+  // Line Lab seeds its sheet from chartBars, and gates Improvise on having
+  // bars to improvise over. Handing it an empty array left every button in
+  // the panel disabled until you happened to press "Load this exercise" —
+  // which reads, correctly, as a broken button. It gets the exercise's own
+  // changes instead, so the panel is usable the moment you arrive.
+  const chartBars = useMemo(
+    () => (variant ? measuresToBandBars(variant.measures, parseGigChord) : []),
+    [variant]
+  )
 
   function chooseSegment(next) {
     setSegmentId(next.id)
@@ -281,7 +292,14 @@ export default function SkeletonKeyWorkspace({
             <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
               <span style={{ fontSize: "var(--db-fs-xs)", opacity: 0.62 }}>Key / variant</span>
               {variants.map((v, i) => (
-                <button key={v.label} onClick={() => setVariantIdx(i)} aria-pressed={i === variantIdx} style={pill(i === variantIdx)}>
+                <button
+                  key={v.label}
+                  // Drop any loaded preset: it carries the previous variant's
+                  // measures, and Line Lab remounts below on a variant change.
+                  onClick={() => { setVariantIdx(i); setPreset(null) }}
+                  aria-pressed={i === variantIdx}
+                  style={pill(i === variantIdx)}
+                >
                   {v.label}
                 </button>
               ))}
@@ -383,8 +401,15 @@ export default function SkeletonKeyWorkspace({
             : "Load the exercise above, or drive this directly — it's the full Line Lab."}
         </div>
         <LineLab
-          chartBars={[]}
-          chartTitle="Skeleton Key"
+          // Keyed per exercise: Line Lab reads the chart into its sheet once,
+          // at mount, so without this it would keep showing the changes of
+          // whichever segment you happened to open first.
+          key={`${segment.id}:${variant?.label ?? "none"}`}
+          chartBars={chartBars}
+          chartTitle={`Skeleton Key · ${segment.id}`}
+          // The curriculum generates with the rule-based Improviser, never the
+          // model route — so that is the source the panel opens on.
+          initialSource="improviser"
           onStopPlayback={stopPlayback}
           playLineSection={playLineSection}
           panelStyle={{ ...panelStyle, margin: 0 }}

@@ -119,7 +119,7 @@ function parseBars(text) {
   return bars
 }
 
-export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyle, selectStyle, onStopPlayback, playLineSection, licks = [], selectedLickId, onSelectLick, requestedLick, onSaveLick, preset }) {
+export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyle, selectStyle, onStopPlayback, playLineSection, licks = [], selectedLickId, onSelectLick, requestedLick, onSaveLick, preset, initialSource = "chart" }) {
   // `chartBars` is one entry per CHORD, not per measure — a bar split
   // between two chords (e.g. Bm7b5 | E7b9 sharing one measure) is two
   // consecutive entries, each with its own beats:2. Practice mode already
@@ -137,7 +137,11 @@ export default function LineLab({ chartBars, chartTitle, panelStyle, eyebrowStyl
   )
 
   // ── Source: your chart, a triad-network preset, a saved lick, or Phrase Machine ──
-  const [source, setSource] = useState("chart")
+  // Defaults to the chart — the model-backed path — for every caller that has
+  // always had one. Skeleton Key opens on the Improviser instead: its whole
+  // premise is generation that is free, offline and repeatable, so the button
+  // sitting under a curriculum exercise should not be the one that bills you.
+  const [source, setSource] = useState(initialSource)
   const isNetwork = source === "network"
   const isLicktionary = source === "licktionary"
   const isChart = source === "chart"
