@@ -285,6 +285,9 @@ export function abcToLine(abc, { cue = "", device = "" } = {}) {
     pendingRestBeats = 0
   }
   flush()
+  // notationAbc is kept as provenance — the source text a lick was typed in —
+  // not as something that gets rendered. Notation is engraved from `bars` now,
+  // so the two can't disagree.
   return { bars, s: cue, notationAbc: abc, notationTranspose: 0 }
 }
 
