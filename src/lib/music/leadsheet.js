@@ -5,6 +5,7 @@
 // Both exports understand 1-chord (4-beat) and 2-chord (2-beat each) measures.
 
 import { Note } from "@tonaljs/tonal"
+import { lineDurationOf, beamRolesForBar } from "@/lib/music/vexline"
 import { getChord } from "./tonal"
 
 // ─── Measure grouping ─────────────────────────────────────────────────────────
@@ -599,69 +600,7 @@ export function exportMusicXML({ bars, title, tempo }) {
 
 const LINE_DIVISIONS = 12   // per quarter — divides cleanly by 2, 3, and 4
 
-// beats → { type, dots, triplet }. Triplets carry a 3:2 time-modification.
-const LINE_DURATIONS = [
-  { beats: 4,     type: "whole",   dots: 0, triplet: false },
-  { beats: 3,     type: "half",    dots: 1, triplet: false },
-  { beats: 8 / 3, type: "whole",   dots: 0, triplet: true  },
-  { beats: 2,     type: "half",    dots: 0, triplet: false },
-  { beats: 1.5,   type: "quarter", dots: 1, triplet: false },
-  { beats: 4 / 3, type: "half",    dots: 0, triplet: true  },
-  { beats: 1,     type: "quarter", dots: 0, triplet: false },
-  { beats: 0.75,  type: "eighth",  dots: 1, triplet: false },
-  { beats: 2 / 3, type: "quarter", dots: 0, triplet: true  },
-  { beats: 0.5,   type: "eighth",  dots: 0, triplet: false },
-  { beats: 1 / 3, type: "eighth",  dots: 0, triplet: true  },
-  { beats: 0.25,  type: "16th",    dots: 0, triplet: false },
-  { beats: 1 / 6, type: "16th",    dots: 0, triplet: true  },
-  { beats: 0.125, type: "32nd",    dots: 0, triplet: false },
-]
-
-function lineDurationOf(beats) {
-  let best = LINE_DURATIONS[LINE_DURATIONS.length - 1]
-  let bestErr = Infinity
-  for (const d of LINE_DURATIONS) {
-    const err = Math.abs(d.beats - beats)
-    if (err < bestErr) { best = d; bestErr = err }
-  }
-  return best
-}
-
 const LINE_OPEN_MIDI = { 1: 64, 2: 59, 3: 55, 4: 50, 5: 45, 6: 40 }
-
-// Two beams per 4/4 bar (first 4 eighth-note-units, then the last 4) —
-// matches the beaming LineNotation.jsx's on-screen ABC view now uses, so an
-// exported eighth-note line reads the same way it looked in the lab instead
-// of importing as one flagged note per beam. Only plain (non-dotted,
-// non-triplet) eighth notes are grouped; anything else stands alone.
-function beamRolesForBar(barNotes) {
-  const roles = new Array(barNotes.length).fill(null)
-  let pos = 0
-  let runStart = -1
-  let runHalf = -1
-  const closeRun = (endExclusive) => {
-    if (runStart >= 0 && endExclusive - runStart >= 2) {
-      roles[runStart] = "begin"
-      for (let k = runStart + 1; k < endExclusive - 1; k++) roles[k] = "continue"
-      roles[endExclusive - 1] = "end"
-    }
-    runStart = -1
-  }
-  barNotes.forEach(([, , dur, wait = 0], i) => {
-    const d = Number(dur) || 0
-    const w = Number(wait) || 0
-    const start = pos + w
-    const half = Math.floor(start / 2)
-    const eligible = Math.abs(d - 0.5) < 1e-6
-    const continues = eligible && w === 0 && runStart >= 0 && half === runHalf
-    if (!continues) closeRun(i)
-    if (eligible && runStart < 0) { runStart = i; runHalf = half }
-    else if (!eligible) runStart = -1
-    pos = start + d
-  })
-  closeRun(barNotes.length)
-  return roles
-}
 
 export function exportLineMusicXML({ line, title, tempo, level }) {
   const lineBars = line?.bars ?? []
