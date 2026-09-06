@@ -65,12 +65,11 @@ const PLAN_ROWS = [
         shortcut: "2",
         action: { type: "workspace", value: "gig" },
       },
-    ],
-  },
-  {
-    id: "songs",
-    label: "Songs",
-    items: [
+      // 251 Mastery sits with the systems rather than the songs: it is a
+      // pathway through all twelve keys, not a tune. Moving it up is also what
+      // squares the two rows at five cards each, so every card renders the
+      // same width — auto-fit collapses empty tracks, so a 4-card row was
+      // drawing noticeably wider cards than a 5-card one.
       {
         id: "251",
         badge: "Learning Pathway",
@@ -79,6 +78,12 @@ const PLAN_ROWS = [
         image: "/cards/251-mastery2.jpg",
         action: { type: "starter", value: "major-251" },
       },
+    ],
+  },
+  {
+    id: "songs",
+    label: "Songs",
+    items: [
       {
         id: "black-orpheus",
         badge: "Song Study",
@@ -110,6 +115,14 @@ const PLAN_ROWS = [
         subtitle: "Jazz blues in Bb, guide tones to language",
         image: "/cards/blues2.jpg",
         action: { type: "starter", value: "jazz-blues-bb" },
+      },
+      {
+        id: "skeleton-key",
+        badge: "Jazz Learning System",
+        title: "Skeleton Key Jazz",
+        subtitle: "The complete improvisation curriculum, chapter by chapter",
+        image: "/cards/skeleton-key2.jpg",
+        action: { type: "workspace", value: "skeletonkey" },
       },
     ],
   },
