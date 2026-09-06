@@ -50,6 +50,7 @@ import GigMode from "@/components/GigMode"
 import MelodyPaths from "@/components/MelodyPaths"
 import CreateWorkspace from "@/components/CreateWorkspace"
 import BeatForgeWorkspace from "@/components/BeatForgeWorkspace"
+import SkeletonKeyWorkspace from "@/components/SkeletonKeyWorkspace"
 import ReferenceGuides from "@/components/ReferenceGuides"
 import SongSearch from "@/components/SongSearch"
 import { GO_HOME_EVENT } from "@/lib/homeNav"
@@ -118,6 +119,7 @@ const MODES = [
   { id: "beatforge", label: "BeatForge", icon: "🥁", blurb: "Program rhythm, build phrases, grow your lick book" },
   { id: "reference", label: "Reference", icon: "📖", blurb: "Circle of fifths, key chart, progressions" },
   { id: "tonal",     label: "Tonal",     icon: "🎹", blurb: "The published Tonal app, embedded as-is" },
+  { id: "skeletonkey", label: "Skeleton Key", icon: "🗝️", blurb: "The complete improvisation curriculum, chapter by chapter" },
 ]
 
 // Tonal is embedded rather than ported: the live site is loaded in a frame
@@ -5368,6 +5370,16 @@ export default function Home() {
       {/* ── BeatForge ─────────────────────────────────────────────
           Pulled out of Practice into its own tab. Metronome + Library today;
           Line Lab and Licktionary join them here in a later step. */}
+      {inMode("skeletonkey") && (
+        <SkeletonKeyWorkspace
+          stopPlayback={stopPlayback}
+          playLineSection={playLineSection}
+          panelStyle={panelStyle}
+          eyebrowStyle={eyebrowStyle}
+          selectStyle={selectStyle}
+        />
+      )}
+
       {inMode("beatforge") && (
         <BeatForgeWorkspace
           beatforgeRef={beatforgeRef}
